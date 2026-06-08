@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+}
+
 :root {
   --warp-bg: #0a0a0a;
   --warp-panel: #111111;
@@ -15,8 +20,8 @@
   --warp-danger: #ff5f57;
   --warp-titlebar: #0a0a0a;
   --warp-sidebar: #0f0f0f;
-  --warp-font-ui: "Inter", "Segoe UI", system-ui, sans-serif;
-  --warp-font-mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  --warp-font-ui: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  --warp-font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
 }
 
 html,
@@ -40,7 +45,7 @@ body {
 .xterm,
 .xterm .xterm-screen,
 .xterm-char-measure-element {
-  font-family: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  font-family: var(--warp-font-mono);
   font-size: 14px;
   font-variant-ligatures: none;
   font-feature-settings: "liga" 0, "calt" 0;
