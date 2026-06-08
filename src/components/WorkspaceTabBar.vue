@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import type { ShellProfile, WorkspaceTab } from "../types/terminal";
+import type { CreateMenuAction, ShellProfile, WorkspaceTab } from "../types/terminal";
 import { isTerminalTab } from "../types/terminal";
+import TerminalCreateMenu from "./TerminalCreateMenu.vue";
 
 const props = defineProps<{
   tabs: WorkspaceTab[];
   activeTabId: string | null;
   shells: ShellProfile[];
-  preferredShellId: string;
+  defaultShellId: string;
+  canReopenClosed: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -15,6 +17,8 @@ const emit = defineEmits<{
   close: [tabId: string];
   add: [shellId: string];
   split: [shellId: string];
+  reopenClosed: [];
+  setDefaultShell: [shellId: string];
 }>();
 
 const newMenuOpen = ref(false);
@@ -41,9 +45,19 @@ function toggleNewMenu() {
   newMenuOpen.value = !newMenuOpen.value;
 }
 
-function pickShell(shellId: string) {
+function onCreateSelect(action: CreateMenuAction) {
   newMenuOpen.value = false;
-  emit("add", shellId);
+  if (action.kind === "default-terminal") {
+    emit("add", props.defaultShellId);
+    return;
+  }
+  if (action.kind === "shell") {
+    emit("add", action.shellId);
+    return;
+  }
+  if (action.kind === "reopen-closed") {
+    emit("reopenClosed");
+  }
 }
 
 function onDocumentClick(event: MouseEvent) {
@@ -91,6 +105,8 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocumentClick)
         class="flex h-7 w-7 items-center justify-center rounded-full text-[var(--warp-muted)] transition hover:bg-white/[0.04] hover:text-[var(--warp-text)] disabled:opacity-40"
         title="New terminal"
         aria-label="New terminal"
+        aria-haspopup="menu"
+        :aria-expanded="newMenuOpen"
         :disabled="shells.length === 0"
         @click.stop="toggleNewMenu"
       >
@@ -102,25 +118,16 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocumentClick)
       <div
         v-if="newMenuOpen"
         ref="newMenuRef"
-        class="absolute left-0 top-full z-50 mt-1 min-w-[11rem] overflow-hidden rounded-lg border border-[var(--warp-border-strong)] bg-[var(--warp-elevated)] py-1 shadow-xl"
+        class="absolute left-0 top-full z-50 mt-0.5"
       >
-        <p class="px-3 py-1.5 text-[10px] uppercase tracking-wide text-[var(--warp-faint)]">
-          Open terminal
-        </p>
-        <button
-          v-for="shell in shells"
-          :key="shell.id"
-          type="button"
-          class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-white/5"
-          :class="
-            shell.id === preferredShellId
-              ? 'text-[var(--warp-accent)]'
-              : 'text-[var(--warp-text)]'
-          "
-          @click="pickShell(shell.id)"
-        >
-          {{ shell.label }}
-        </button>
+        <TerminalCreateMenu
+          :shells="shells"
+          :default-shell-id="defaultShellId"
+          :can-reopen-closed="canReopenClosed"
+          @select="onCreateSelect"
+          @set-default="emit('setDefaultShell', $event)"
+          @close="newMenuOpen = false"
+        />
       </div>
     </div>
 
@@ -129,7 +136,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocumentClick)
       class="ml-1 flex h-7 shrink-0 items-center rounded-full px-2.5 text-[11px] text-[var(--warp-muted)] transition hover:bg-white/[0.04] hover:text-[var(--warp-text)] disabled:opacity-40"
       title="Split pane"
       :disabled="shells.length === 0"
-      @click="emit('split', preferredShellId)"
+      @click="emit('split', defaultShellId)"
     >
       Split
     </button>

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { getGitStatus } from "../lib/gitApi";
 import { buildFeatureEntries, buildTerminalEntries } from "../lib/sidebarEntries";
 import type {
+  CreateMenuAction,
   SaveProfileDraft,
   ShellProfile,
   TerminalEntryColor,
@@ -10,6 +11,7 @@ import type {
   WorkspaceTab,
 } from "../types/terminal";
 import { isTerminalTab } from "../types/terminal";
+import TerminalCreateMenu from "./TerminalCreateMenu.vue";
 import TerminalSidebarEntry from "./TerminalSidebarEntry.vue";
 
 const props = defineProps<{
@@ -17,7 +19,8 @@ const props = defineProps<{
   activeTabId: string | null;
   activePaneId: string | null;
   shells: ShellProfile[];
-  preferredShellId: string;
+  defaultShellId: string;
+  canReopenClosed: boolean;
   gitRefreshToken?: number;
   activePaneGit?: {
     paneId: string;
@@ -35,6 +38,8 @@ const emit = defineEmits<{
   closeMany: [tabIds: string[]];
   add: [shellId: string];
   split: [shellId: string];
+  reopenClosed: [];
+  setDefaultShell: [shellId: string];
   renameTab: [tabId: string, title: string];
   moveTab: [tabId: string, direction: "up" | "down"];
   colorChange: [tabId: string, color: TerminalEntryColor];
@@ -171,9 +176,24 @@ function toggleNewMenu() {
   newMenuOpen.value = !newMenuOpen.value;
 }
 
-function pickShell(shellId: string) {
+function onCreateSelect(action: CreateMenuAction) {
   newMenuOpen.value = false;
-  emit("add", shellId);
+  if (action.kind === "default-terminal") {
+    emit("add", props.defaultShellId);
+    return;
+  }
+  if (action.kind === "shell") {
+    emit("add", action.shellId);
+    return;
+  }
+  if (action.kind === "reopen-closed") {
+    emit("reopenClosed");
+  }
+}
+
+function onSetDefaultShell(shellId: string) {
+  emit("setDefaultShell", shellId);
+  showToast(`${props.shells.find((s) => s.id === shellId)?.label ?? "Shell"} is now default`);
 }
 
 function setMenuOpen(entryId: string, open: boolean) {
@@ -308,12 +328,12 @@ onBeforeUnmount(() => {
   <aside
     class="relative z-10 flex w-56 shrink-0 flex-col bg-[var(--warp-sidebar)]"
   >
-    <div class="relative flex items-center justify-between px-3 py-2.5">
-      <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--warp-faint)]">
-        Terminals
-      </span>
+    <div class="relative px-3 py-2.5">
+      <div class="flex items-center justify-between">
+        <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--warp-faint)]">
+          Terminals
+        </span>
 
-      <div class="relative">
         <button
           ref="newButtonRef"
           type="button"
@@ -330,42 +350,26 @@ onBeforeUnmount(() => {
             <path d="M6 2.5v7M2.5 6h7" stroke-width="1.5" stroke-linecap="round" />
           </svg>
         </button>
+      </div>
 
-        <div
-          v-if="newMenuOpen"
-          ref="newMenuRef"
-          class="no-drag absolute right-0 top-full z-50 mt-1 min-w-[11rem] overflow-hidden rounded-lg border border-[var(--warp-border-strong)] bg-[var(--warp-elevated)] py-1 shadow-xl"
-          role="menu"
-        >
-          <p class="px-3 py-1.5 text-[10px] uppercase tracking-wide text-[var(--warp-faint)]">
-            Open terminal
-          </p>
-          <button
-            v-for="shell in shells"
-            :key="shell.id"
-            type="button"
-            role="menuitem"
-            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-white/5"
-            :class="
-              shell.id === preferredShellId
-                ? 'text-[var(--warp-accent)]'
-                : 'text-[var(--warp-text)]'
-            "
-            @click="pickShell(shell.id)"
-          >
-            <span
-              class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--warp-bg)] text-[10px] font-semibold uppercase text-[var(--warp-muted)]"
-            >
-              {{ shell.label.slice(0, 1) }}
-            </span>
-            <span class="truncate">{{ shell.label }}</span>
-          </button>
-        </div>
+      <div
+        v-if="newMenuOpen"
+        ref="newMenuRef"
+        class="no-drag absolute inset-x-3 top-full z-50 mt-0.5"
+      >
+        <TerminalCreateMenu
+          :shells="shells"
+          :default-shell-id="defaultShellId"
+          :can-reopen-closed="canReopenClosed"
+          @select="onCreateSelect"
+          @set-default="onSetDefaultShell"
+          @close="newMenuOpen = false"
+        />
       </div>
     </div>
 
     <div
-      class="warp-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2"
+      class="warp-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-2"
       @scroll="onSidebarScroll"
     >
       <div v-if="featureEntries.length > 0" class="mb-2 space-y-0.5">
@@ -409,7 +413,7 @@ onBeforeUnmount(() => {
 
       <p
         v-if="terminalEntries.length === 0 && featureEntries.length === 0"
-        class="px-2 py-3 text-xs text-[var(--warp-faint)]"
+        class="px-1.5 py-2 text-[0.75rem] text-[var(--warp-faint)]"
       >
         No open terminals
       </p>
@@ -435,7 +439,7 @@ onBeforeUnmount(() => {
         type="button"
         class="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--warp-border)] bg-[var(--warp-elevated)] px-3 py-2 text-xs text-[var(--warp-muted)] transition hover:border-[var(--warp-border-strong)] hover:text-[var(--warp-text)] disabled:opacity-40"
         :disabled="shells.length === 0"
-        @click="emit('split', preferredShellId)"
+        @click="emit('split', defaultShellId)"
       >
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor">
           <rect x="2" y="2.5" width="10" height="9" rx="1" stroke-width="1.2" />

@@ -8,24 +8,26 @@ import StatusBar from "./components/StatusBar.vue";
 import TerminalPane from "./components/TerminalPane.vue";
 import BranchManagerView from "./components/BranchManagerView.vue";
 import PullRequestsView from "./components/PullRequestsView.vue";
-import LmSettingsDialog from "./components/LmSettingsDialog.vue";
 import TitleBar from "./components/TitleBar.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
 import { useResizablePanel } from "./composables/useResizablePanel";
 import { useSourceControl } from "./composables/useSourceControl";
 import { useTerminalHistory } from "./composables/useTerminalHistory";
 import { useWorkspace } from "./composables/useWorkspace";
-import type { SaveProfileDraft } from "./types/terminal";
+import type { ClosedTerminalSession, SaveProfileDraft, WorkspaceTerminalTab } from "./types/terminal";
 import { isTerminalTab } from "./types/terminal";
+import { loadDefaultShellId, saveDefaultShellId } from "./lib/shellSettings";
 import { killTerminal, listShells, writeTerminal } from "./lib/terminalApi";
 
 const appVersion = "0.1.0";
 
-const defaultShellId = "pwsh";
+const FALLBACK_SHELL_ID = "pwsh";
+const defaultShellId = ref(loadDefaultShellId(FALLBACK_SHELL_ID));
+const closedSessions = ref<ClosedTerminalSession[]>([]);
+const canReopenClosed = computed(() => closedSessions.value.length > 0);
 const terminalSidebarOpen = ref(true);
 const toolsOpen = ref(false);
 const sourceControlOpen = ref(false);
-const lmSettingsOpen = ref(false);
 const gitRefreshToken = ref(0);
 
 const {
@@ -55,7 +57,7 @@ const {
   setTabTitle,
   setTabColor,
   moveTab,
-} = useWorkspace(defaultShellId);
+} = useWorkspace(() => defaultShellId.value);
 
 const history = useTerminalHistory();
 const {
@@ -159,11 +161,54 @@ function openBranchManager() {
   openBranchManagerTab(root);
 }
 
+function resolveDefaultShellId() {
+  return (
+    shells.value.find((shell) => shell.id === defaultShellId.value)?.id ??
+    shells.value[0]?.id ??
+    FALLBACK_SHELL_ID
+  );
+}
+
+function setDefaultShell(shellId: string) {
+  if (!shells.value.some((shell) => shell.id === shellId)) return;
+  defaultShellId.value = shellId;
+  saveDefaultShellId(shellId);
+}
+
+function rememberClosedTab(tab: WorkspaceTerminalTab) {
+  const pane = tab.panes[0];
+  if (!pane) return;
+  closedSessions.value.unshift({
+    shellId: pane.shellId,
+    cwd: pane.cwd,
+    title: tab.title,
+    color: tab.color,
+  });
+  if (closedSessions.value.length > 10) {
+    closedSessions.value.length = 10;
+  }
+}
+
+function reopenClosedSession() {
+  const session = closedSessions.value.shift();
+  if (!session) return;
+  createTab(session.shellId);
+  const tab = tabs.value[tabs.value.length - 1];
+  if (!tab || !isTerminalTab(tab)) return;
+  setTabTitle(tab.id, session.title);
+  setTabColor(tab.id, session.color);
+  const pane = tab.panes[0];
+  if (pane) setPaneCwd(pane.id, session.cwd);
+}
+
 async function bootstrap() {
   shells.value = await listShells();
-  const preferred =
-    shells.value.find((shell) => shell.id === defaultShellId) ?? shells.value[0];
-  createTab(preferred?.id ?? defaultShellId);
+  const resolved = resolveDefaultShellId();
+  if (defaultShellId.value !== resolved) {
+    defaultShellId.value = resolved;
+    saveDefaultShellId(resolved);
+  }
+  createTab(resolved);
 }
 
 async function closeTab(tabId: string) {
@@ -175,6 +220,7 @@ async function closeTabs(tabIds: string[]) {
     const tab = tabs.value.find((item) => item.id === tabId);
     if (!tab) continue;
     if (isTerminalTab(tab)) {
+      rememberClosedTab(tab);
       for (const pane of tab.panes) {
         if (pane.sessionId) {
           await killTerminal(pane.sessionId);
@@ -184,7 +230,7 @@ async function closeTabs(tabIds: string[]) {
     removeTab(tabId);
   }
   if (tabs.value.length === 0) {
-    createTab(shells.value[0]?.id ?? defaultShellId);
+    createTab(resolveDefaultShellId());
   }
 }
 
@@ -214,6 +260,16 @@ function onSessionEnded(paneId: string) {
 }
 
 function onKeyDown(event: KeyboardEvent) {
+  if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "t") {
+    event.preventDefault();
+    createTab(resolveDefaultShellId());
+    return;
+  }
+  if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "t") {
+    event.preventDefault();
+    reopenClosedSession();
+    return;
+  }
   if (event.ctrlKey && event.key.toLowerCase() === "r") {
     event.preventDefault();
     openSearch();
@@ -297,10 +353,7 @@ onUnmounted(() => {
       @toggle-source-control="toggleSourceControl"
       @open-pull-requests="openPullRequests"
       @open-branch-manager="openBranchManager"
-      @open-lm="lmSettingsOpen = true"
     />
-
-    <LmSettingsDialog :open="lmSettingsOpen" @close="lmSettingsOpen = false" />
 
     <div class="flex min-h-0 flex-1">
       <SidebarRail
@@ -309,12 +362,15 @@ onUnmounted(() => {
         :active-tab-id="activeTabId"
         :active-pane-id="activePaneId"
         :shells="shells"
-        :preferred-shell-id="activePane?.shellId ?? defaultShellId"
+        :default-shell-id="defaultShellId"
+        :can-reopen-closed="canReopenClosed"
         @select="selectTerminal"
         @close="closeTab"
         @close-many="closeTabs"
         @add="createTab"
         @split="splitActiveTabHorizontal"
+        @reopen-closed="reopenClosedSession"
+        @set-default-shell="setDefaultShell"
         @rename-tab="setTabTitle"
         @move-tab="moveTab"
         @color-change="setTabColor"

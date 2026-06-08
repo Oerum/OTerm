@@ -7,7 +7,6 @@ defineProps<{
 
 const emit = defineEmits<{
   openSettings: [];
-  openLm: [];
 }>();
 
 const open = ref(false);
@@ -23,11 +22,6 @@ function close() {
 
 function onSettings() {
   emit("openSettings");
-  close();
-}
-
-function onLm() {
-  emit("openLm");
   close();
 }
 
@@ -96,15 +90,6 @@ onUnmounted(() => {
       >
         Settings
       </button>
-      <button
-        type="button"
-        role="menuitem"
-        class="flex w-full px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none"
-        @click="onLm"
-      >
-        LM
-      </button>
-
       <div role="separator" class="mt-1 border-t border-[var(--warp-border)]" />
 
       <p class="px-3 py-1.5 text-center font-mono text-[10px] tracking-wide text-[var(--warp-faint)]">

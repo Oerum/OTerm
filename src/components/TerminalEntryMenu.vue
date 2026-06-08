@@ -57,7 +57,7 @@ const items = computed<MenuItem[]>(() => [
     disabled: props.entry.entriesBelowCount === 0,
     disabledReason: "No tabs below",
   },
-  { id: "save-as-profile", label: "Save as new config/profile", separatorBefore: true },
+  { id: "save-as-profile", label: "Save as profile", separatorBefore: true },
 ]);
 
 const enabledIndices = computed(() =>
@@ -150,25 +150,25 @@ onUnmounted(() => {
   <div
     ref="menuRef"
     role="menu"
-    class="no-drag absolute right-0 top-full z-50 mt-1 min-w-[12.5rem] overflow-hidden rounded-lg border border-[var(--warp-border-strong)] bg-[var(--warp-elevated)] py-1 shadow-xl"
+    class="no-drag term-entry-menu absolute right-0 top-full z-50 mt-0.5 w-[var(--term-menu-width)] overflow-hidden rounded-md border border-[var(--warp-border-strong)] bg-[var(--warp-elevated)] py-0.5 shadow-xl"
     @mousedown.stop
   >
     <template v-for="item in items" :key="item.id">
       <div
         v-if="item.separatorBefore"
         role="separator"
-        class="my-1 border-t border-[var(--warp-border)]"
+        class="my-0.5 border-t border-[var(--warp-border)]"
       />
       <button
         type="button"
         role="menuitem"
         data-menu-item="true"
-        class="flex w-full px-3 py-1.5 text-left text-xs transition"
+        class="flex w-full px-2 py-1 text-left text-[0.75rem] leading-[1.2] transition"
         :class="[
           item.destructive ? 'text-[#ff7b72]' : 'text-[var(--warp-text)]',
           item.disabled
             ? 'cursor-not-allowed opacity-40'
-            : 'hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none',
+            : 'hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--warp-accent)] focus-visible:ring-inset',
         ]"
         :disabled="item.disabled"
         :title="item.disabled ? item.disabledReason : undefined"
@@ -178,19 +178,19 @@ onUnmounted(() => {
       </button>
     </template>
 
-    <div role="separator" class="my-1 border-t border-[var(--warp-border)]" />
+    <div role="separator" class="my-0.5 border-t border-[var(--warp-border)]" />
 
     <div
       role="radiogroup"
       aria-label="Tab color"
-      class="flex items-center gap-1.5 px-3 py-2"
+      class="flex flex-wrap items-center gap-1 px-2 py-1.5"
     >
       <button
         v-for="color in ENTRY_COLORS"
         :key="color.id"
         type="button"
         role="radio"
-        class="h-4 w-4 shrink-0 rounded-full ring-2 ring-offset-2 ring-offset-[var(--warp-elevated)] transition hover:scale-110 focus:outline-none focus:ring-[var(--warp-text)]"
+        class="term-color-swatch h-3 w-3 shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-[var(--warp-elevated)] transition focus:outline-none focus-visible:ring-[var(--warp-text)]"
         :class="entry.tabColor === color.id ? 'ring-[var(--warp-text)]' : 'ring-transparent'"
         :style="{ backgroundColor: color.hex }"
         :aria-checked="entry.tabColor === color.id"
@@ -201,3 +201,21 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+@media (prefers-reduced-motion: reduce) {
+  .term-color-swatch {
+    transition: none;
+  }
+
+  .term-color-swatch:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .term-color-swatch:hover {
+    transform: scale(1.05);
+  }
+}
+</style>

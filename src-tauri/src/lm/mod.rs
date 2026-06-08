@@ -1,6 +1,25 @@
 pub mod commands;
 
+use std::path::PathBuf;
+
 use serde::Deserialize;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AiProvider {
+    LmStudio,
+    OpenAiCompatible,
+    GithubCopilot,
+}
+
+impl AiProvider {
+    fn parse(value: Option<&str>) -> Self {
+        match value.unwrap_or("lm-studio") {
+            "openai-compatible" => Self::OpenAiCompatible,
+            "github-copilot" => Self::GithubCopilot,
+            _ => Self::LmStudio,
+        }
+    }
+}
 
 #[derive(Debug, Deserialize)]
 struct ModelsResponse {
@@ -81,24 +100,101 @@ pub(crate) fn normalize_endpoint(endpoint: &str) -> Result<String, String> {
     Ok(trimmed.to_string())
 }
 
-pub(crate) async fn list_models(endpoint: &str) -> Result<Vec<String>, String> {
+fn copilot_apps_json_path() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        return std::env::var_os("LOCALAPPDATA")
+            .map(|dir| PathBuf::from(dir).join("github-copilot").join("apps.json"));
+    }
+    #[cfg(not(windows))]
+    {
+        return std::env::var_os("HOME").map(|dir| {
+            PathBuf::from(dir)
+                .join(".config")
+                .join("github-copilot")
+                .join("apps.json")
+        });
+    }
+}
+
+pub(crate) fn load_github_copilot_oauth_token() -> Option<String> {
+    let path = copilot_apps_json_path()?;
+    let content = std::fs::read_to_string(path).ok()?;
+    let apps: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let entries = apps.as_object()?;
+    for value in entries.values() {
+        if let Some(token) = value.get("oauth_token").and_then(|token| token.as_str()) {
+            let trimmed = token.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn resolve_api_key(provider: AiProvider, api_key: Option<&str>) -> Result<Option<String>, String> {
+    if let Some(key) = api_key.map(str::trim).filter(|key| !key.is_empty()) {
+        return Ok(Some(key.to_string()));
+    }
+
+    if provider == AiProvider::GithubCopilot {
+        if let Some(token) = load_github_copilot_oauth_token() {
+            return Ok(Some(token));
+        }
+        return Err(
+            "GitHub Copilot token not found. Paste an OAuth token or sign in via Copilot in another editor."
+                .into(),
+        );
+    }
+
+    if provider == AiProvider::OpenAiCompatible {
+        return Err("API key is required for OpenAI-compatible providers.".into());
+    }
+
+    Ok(None)
+}
+
+fn apply_provider_headers(
+    builder: reqwest::RequestBuilder,
+    provider: AiProvider,
+    api_key: Option<&str>,
+) -> reqwest::RequestBuilder {
+    let mut builder = builder.header("Content-Type", "application/json");
+    if let Some(key) = api_key.filter(|key| !key.is_empty()) {
+        builder = builder.header("Authorization", format!("Bearer {key}"));
+    }
+    if provider == AiProvider::GithubCopilot {
+        builder = builder
+            .header("Copilot-Integration-Id", "vscode-chat")
+            .header("Editor-Version", "oterm/0.1.0");
+    }
+    builder
+}
+
+pub(crate) async fn list_models(
+    endpoint: &str,
+    provider: AiProvider,
+    api_key: Option<&str>,
+) -> Result<Vec<String>, String> {
     let base = normalize_endpoint(endpoint)?;
+    let api_key = resolve_api_key(provider, api_key)?;
     let url = format!("{base}/models");
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|err| err.to_string())?;
 
-    let response = client
-        .get(&url)
+    let request = apply_provider_headers(client.get(&url), provider, api_key.as_deref());
+    let response = request
         .send()
         .await
-        .map_err(|err| format!("Could not reach LM Studio at {url}: {err}"))?;
+        .map_err(|err| format!("Could not reach provider at {url}: {err}"))?;
 
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("LM Studio returned {status}: {body}"));
+        return Err(format!("Provider returned {status}: {body}"));
     }
 
     let payload: ModelsResponse = response
@@ -120,11 +216,14 @@ pub(crate) async fn list_models(endpoint: &str) -> Result<Vec<String>, String> {
 
 pub(crate) async fn chat_completion(
     endpoint: &str,
+    provider: AiProvider,
+    api_key: Option<&str>,
     model: &str,
     system_prompt: &str,
     user_prompt: &str,
 ) -> Result<String, String> {
     let base = normalize_endpoint(endpoint)?;
+    let api_key = resolve_api_key(provider, api_key)?;
     let model = model.trim();
     if model.is_empty() {
         return Err("Model is required".into());
@@ -147,18 +246,16 @@ pub(crate) async fn chat_completion(
         "stream": false
     });
 
-    let response = client
-        .post(&url)
-        .header("Content-Type", "application/json")
-        .json(&body)
+    let request = apply_provider_headers(client.post(&url), provider, api_key.as_deref()).json(&body);
+    let response = request
         .send()
         .await
-        .map_err(|err| format!("Could not reach LM Studio at {url}: {err}"))?;
+        .map_err(|err| format!("Could not reach provider at {url}: {err}"))?;
 
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("LM Studio returned {status}: {body}"));
+        return Err(format!("Provider returned {status}: {body}"));
     }
 
     let payload: ChatCompletionResponse = response
@@ -175,7 +272,7 @@ pub(crate) async fn chat_completion(
     match content {
         Some(text) if !text.is_empty() => Ok(text),
         _ => Err(
-            "LM Studio returned an empty completion. Try a non-reasoning model or reduce staged diff size."
+            "Provider returned an empty completion. Try a non-reasoning model or reduce staged diff size."
                 .into(),
         ),
     }

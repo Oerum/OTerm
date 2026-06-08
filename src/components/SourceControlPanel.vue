@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { getGitFileDiff, getGitStagedDiff, readGitWorkingFile, writeGitWorkingFile } from "../lib/gitApi";
-import { generateLmCompletion } from "../lib/lmStudioApi";
-import { useLmSettings } from "../lib/lmSettings";
+import { generateCommitAiCompletion } from "../lib/commitAiApi";
+import { useCommitAiSettings } from "../lib/commitAiSettings";
+import {
+  commitAiProviderLabel,
+  isCommitAiConfigured,
+} from "../types/commitAi";
+import CommitAiSettingsDialog from "./CommitAiSettingsDialog.vue";
 import type {
   GitBranchList,
   GitCommitEntry,
@@ -43,9 +48,10 @@ const emit = defineEmits<{
   refresh: [];
 }>();
 
-const { settings: lmSettings } = useLmSettings();
+const { settings: commitAiSettings } = useCommitAiSettings();
 
 const commitMessage = ref("");
+const commitAiSettingsOpen = ref(false);
 const generatingCommit = ref(false);
 const generateError = ref<string | null>(null);
 const selectedFile = ref<SelectedGitFile | null>(null);
@@ -74,10 +80,17 @@ const canGenerateCommit = computed(
   () =>
     props.status.isRepo &&
     props.status.staged.length > 0 &&
-    lmSettings.value.model.trim().length > 0 &&
+    isCommitAiConfigured(commitAiSettings.value) &&
     !props.busy &&
     !generatingCommit.value,
 );
+
+const commitAiSummary = computed(() => {
+  const settings = commitAiSettings.value;
+  if (!settings.model.trim()) return null;
+  const provider = commitAiProviderLabel(settings.provider);
+  return settings.model.trim() ? `${provider} · ${settings.model.trim()}` : provider;
+});
 
 function cleanGeneratedCommitMessage(raw: string) {
   let text = raw.trim();
@@ -106,11 +119,13 @@ async function onGenerateCommitMessage() {
       staged.diff.trim() || "(empty diff)",
     ].join("\n");
 
-    const generated = await generateLmCompletion(
-      lmSettings.value.endpoint,
-      lmSettings.value.model,
-      lmSettings.value.prompts.commitMessage,
+    const generated = await generateCommitAiCompletion(
+      commitAiSettings.value.endpoint,
+      commitAiSettings.value.provider,
+      commitAiSettings.value.model,
+      commitAiSettings.value.prompts.commitMessage,
       userPrompt,
+      commitAiSettings.value.apiKey,
     );
     commitMessage.value = cleanGeneratedCommitMessage(generated);
   } catch (err) {
@@ -599,20 +614,39 @@ watch(
 
           <div class="mb-1.5 flex items-center justify-between gap-2">
             <span class="text-[10px] uppercase tracking-wide text-[var(--warp-faint)]">Commit message</span>
-            <button
-              type="button"
-              class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-[10px] text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:cursor-not-allowed disabled:opacity-40"
-              style="font-family: var(--warp-font-ui)"
-              title="Generate commit message with LM Studio"
-              :disabled="!canGenerateCommit"
-              @click="onGenerateCommitMessage"
-            >
-              <span
-                v-if="generatingCommit"
-                class="mr-1 inline-block h-2.5 w-2.5 animate-spin rounded-full border border-current border-r-transparent"
-              />
-              Generate
-            </button>
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                class="flex h-6 w-6 items-center justify-center rounded-md border border-[var(--warp-border)] text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+                style="font-family: var(--warp-font-ui)"
+                title="Commit message AI settings"
+                aria-label="Commit message AI settings"
+                @click="commitAiSettingsOpen = true"
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+                  <circle cx="8" cy="8" r="2.25" stroke-width="1.4" />
+                  <path
+                    d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"
+                    stroke-width="1.2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-[10px] text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:cursor-not-allowed disabled:opacity-40"
+                style="font-family: var(--warp-font-ui)"
+                title="Generate commit message with AI"
+                :disabled="!canGenerateCommit"
+                @click="onGenerateCommitMessage"
+              >
+                <span
+                  v-if="generatingCommit"
+                  class="mr-1 inline-block h-2.5 w-2.5 animate-spin rounded-full border border-current border-r-transparent"
+                />
+                Generate
+              </button>
+            </div>
           </div>
           <textarea
             v-model="commitMessage"
@@ -630,11 +664,18 @@ watch(
             {{ generateError }}
           </p>
           <p
-            v-else-if="!lmSettings.model.trim()"
+            v-else-if="commitAiSummary"
+            class="mt-1 truncate text-xs text-[var(--warp-faint)]"
+            style="font-family: var(--warp-font-ui)"
+          >
+            {{ commitAiSummary }}
+          </p>
+          <p
+            v-else
             class="mt-1 text-xs text-[var(--warp-faint)]"
             style="font-family: var(--warp-font-ui)"
           >
-            Configure LM Studio under user menu → LM
+            Open AI settings to choose a provider and model.
           </p>
           <button
             type="button"
@@ -907,5 +948,10 @@ watch(
       />
     </div>
   </div>
+
+    <CommitAiSettingsDialog
+      :open="commitAiSettingsOpen"
+      @close="commitAiSettingsOpen = false"
+    />
   </aside>
 </template>

@@ -15,7 +15,9 @@ use git::commands::{
     git_source_control_status, git_squash_commits, git_stage_paths, git_status, git_sync,
     git_unstage_paths, git_write_working_file, pr_checkout, pr_create, pr_detect_provider, pr_list,
 };
-use lm::commands::{lm_chat_completion, lm_list_models, lm_test_connection};
+use lm::commands::{
+    lm_chat_completion, lm_detect_github_copilot_token, lm_list_models, lm_test_connection,
+};
 use terminal::commands::{
     terminal_drain_output, terminal_kill, terminal_list_shells, terminal_resize, terminal_spawn,
     terminal_write,
@@ -60,6 +62,7 @@ pub fn run() {
             git_read_working_file,
             lm_list_models,
             lm_test_connection,
+            lm_detect_github_copilot_token,
             lm_chat_completion,
             git_write_working_file,
             pr_detect_provider,

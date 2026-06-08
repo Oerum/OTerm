@@ -20,7 +20,6 @@ const emit = defineEmits<{
   toggleSourceControl: [];
   openPullRequests: [];
   openBranchManager: [];
-  openLm: [];
 }>();
 
 const appWindow = getCurrentWindow();
@@ -133,7 +132,7 @@ function onDragMouseDown(event: MouseEvent) {
         compact
         @click="emit('toggleSourceControl')"
       />
-      <UserMenu :app-version="appVersion" class="mx-0.5" @open-lm="emit('openLm')" />
+      <UserMenu :app-version="appVersion" class="mx-0.5" />
       <button
         type="button"
         class="flex h-9 w-11 items-center justify-center text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"

@@ -13,7 +13,7 @@ function uid(prefix: string) {
   return `${prefix}-${nextId++}`;
 }
 
-export function useWorkspace(defaultShellId: string) {
+export function useWorkspace(getDefaultShellId: () => string) {
   const shells = ref<ShellProfile[]>([]);
   const tabs = ref<WorkspaceTab[]>([]);
   const activeTabId = ref<string | null>(null);
@@ -34,17 +34,17 @@ export function useWorkspace(defaultShellId: string) {
     return tab.panes.find((pane) => pane.id === activePaneId.value) ?? tab.panes[0] ?? null;
   });
 
-  function createPane(shellId = defaultShellId): WorkspacePane {
+  function createPane(shellId?: string): WorkspacePane {
     return {
       id: uid("pane"),
       sessionId: null,
-      shellId,
+      shellId: shellId ?? getDefaultShellId(),
       cwd: "~",
       customTitle: null,
     };
   }
 
-  function createTab(shellId = defaultShellId) {
+  function createTab(shellId?: string) {
     const pane = createPane(shellId);
     const tab: WorkspaceTerminalTab = {
       kind: "terminal",
@@ -114,7 +114,7 @@ export function useWorkspace(defaultShellId: string) {
     }
   }
 
-  function splitActiveTabHorizontal(shellId = defaultShellId) {
+  function splitActiveTabHorizontal(shellId?: string) {
     const tab = activeTerminalTab.value;
     if (!tab || tab.split === "horizontal") return;
     tab.split = "horizontal";
