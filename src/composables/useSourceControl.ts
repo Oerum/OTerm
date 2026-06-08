@@ -1,4 +1,4 @@
-import { ref, watch, type Ref } from "vue";
+import { computed, ref, watch, type Ref } from "vue";
 import {
   checkoutGitBranch,
   commitGitChanges,
@@ -14,7 +14,8 @@ import {
   syncGitRepo,
   unstageGitPaths,
 } from "../lib/gitApi";
-import type { GitBranchList, GitCommitEntry, GitSourceControlStatus } from "../types/git";
+import type { GitBranchList, GitCommitEntry, GitOperation, GitSourceControlStatus } from "../types/git";
+import { GIT_OPERATION_LABELS } from "../types/git";
 
 const emptyStatus = (): GitSourceControlStatus => ({
   isRepo: false,
@@ -42,8 +43,15 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
   const branches = ref<GitBranchList>(emptyBranches());
   const history = ref<GitCommitEntry[]>([]);
   const loading = ref(false);
+  const operation = ref<GitOperation | null>(null);
   let refreshTimer: number | undefined;
   let requestId = 0;
+
+  const operationLabel = computed(() =>
+    operation.value ? GIT_OPERATION_LABELS[operation.value] : null,
+  );
+
+  const busy = computed(() => loading.value || operation.value !== null);
 
   async function loadBranches(root: string) {
     try {
@@ -53,7 +61,7 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     }
   }
 
-  async function refresh(includeHistory = false, showLoading = true) {
+  async function refreshData(includeHistory = false) {
     const path = cwd.value;
     if (!path || path === "~") {
       status.value = emptyStatus();
@@ -63,7 +71,6 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     }
 
     const current = ++requestId;
-    if (showLoading) loading.value = true;
     try {
       const next = await getSourceControlStatus(path);
       if (current !== requestId) return;
@@ -83,46 +90,55 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
         branches.value = emptyBranches();
         history.value = [];
       }
-    } finally {
-      if (current === requestId && showLoading) {
-        loading.value = false;
-      }
     }
   }
 
   function scheduleRefresh(includeHistory = false) {
     window.clearTimeout(refreshTimer);
     refreshTimer = window.setTimeout(() => {
-      void refresh(includeHistory, false);
+      void refreshData(includeHistory);
     }, 250);
+  }
+
+  async function withBusy<T>(op: GitOperation, work: () => Promise<T>): Promise<T> {
+    operation.value = op;
+    loading.value = true;
+    try {
+      return await work();
+    } finally {
+      operation.value = null;
+      loading.value = false;
+    }
   }
 
   async function refreshNow(includeHistory = false) {
     window.clearTimeout(refreshTimer);
-    await refresh(includeHistory, includeHistory);
+    await withBusy("refresh", () => refreshData(includeHistory));
   }
 
-  async function runAction(action: () => Promise<void>, includeHistory = false) {
-    await action();
-    await refreshNow(includeHistory);
+  async function runAction(op: GitOperation, action: () => Promise<void>, includeHistory = false) {
+    await withBusy(op, async () => {
+      await action();
+      await refreshData(includeHistory);
+    });
   }
 
   async function stage(paths: string[]) {
     const root = status.value.repoRoot;
     if (!root || paths.length === 0) return;
-    await runAction(() => stageGitPaths(root, paths));
+    await runAction("stage", () => stageGitPaths(root, paths));
   }
 
   async function unstage(paths: string[]) {
     const root = status.value.repoRoot;
     if (!root || paths.length === 0) return;
-    await runAction(() => unstageGitPaths(root, paths));
+    await runAction("unstage", () => unstageGitPaths(root, paths));
   }
 
   async function revert(paths: string[], untracked: boolean) {
     const root = status.value.repoRoot;
     if (!root || paths.length === 0) return;
-    await runAction(() =>
+    await runAction("revert", () =>
       untracked ? revertUntrackedGitPaths(root, paths) : revertTrackedGitPaths(root, paths),
     );
   }
@@ -130,37 +146,37 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
   async function commit(message: string) {
     const root = status.value.repoRoot;
     if (!root) return;
-    await runAction(() => commitGitChanges(root, message), true);
+    await runAction("commit", () => commitGitChanges(root, message), true);
   }
 
   async function fetch() {
     const root = status.value.repoRoot;
     if (!root) return;
-    await runAction(() => fetchGitRepo(root));
+    await runAction("fetch", () => fetchGitRepo(root));
   }
 
   async function pull() {
     const root = status.value.repoRoot;
     if (!root) return;
-    await runAction(() => pullGitRepo(root), true);
+    await runAction("pull", () => pullGitRepo(root), true);
   }
 
   async function push() {
     const root = status.value.repoRoot;
     if (!root) return;
-    await runAction(() => pushGitRepo(root), true);
+    await runAction("push", () => pushGitRepo(root), true);
   }
 
   async function sync() {
     const root = status.value.repoRoot;
     if (!root) return;
-    await runAction(() => syncGitRepo(root), true);
+    await runAction("sync", () => syncGitRepo(root), true);
   }
 
   async function checkout(branch: string, isRemote: boolean) {
     const root = status.value.repoRoot;
     if (!root) return;
-    await runAction(() => checkoutGitBranch(root, branch, isRemote), true);
+    await runAction("checkout", () => checkoutGitBranch(root, branch, isRemote), true);
   }
 
   watch(cwd, () => scheduleRefresh(true), { immediate: true });
@@ -170,6 +186,9 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     branches,
     history,
     loading,
+    operation,
+    operationLabel,
+    busy,
     refresh: () => refreshNow(true),
     stage,
     unstage,

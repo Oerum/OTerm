@@ -39,6 +39,18 @@ export interface GitBranchList {
   remote: string[];
 }
 
+export type GitOperation =
+  | "fetch"
+  | "pull"
+  | "push"
+  | "sync"
+  | "checkout"
+  | "commit"
+  | "stage"
+  | "unstage"
+  | "revert"
+  | "refresh";
+
 export interface GitCommitEntry {
   hash: string;
   shortHash: string;
@@ -64,3 +76,16 @@ export interface GitWorkingFile {
   content: string;
   exists: boolean;
 }
+
+export const GIT_OPERATION_LABELS: Record<GitOperation, string> = {
+  fetch: "Fetching from remote…",
+  pull: "Pulling changes…",
+  push: "Pushing commits…",
+  sync: "Syncing with remote…",
+  checkout: "Switching branch…",
+  commit: "Creating commit…",
+  stage: "Staging changes…",
+  unstage: "Unstaging changes…",
+  revert: "Reverting changes…",
+  refresh: "Refreshing status…",
+};

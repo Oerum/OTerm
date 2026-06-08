@@ -67,6 +67,9 @@ const {
   branches: gitBranches,
   history: gitHistory,
   loading: sourceControlLoading,
+  operation: sourceControlOperation,
+  operationLabel: sourceControlOperationLabel,
+  busy: sourceControlBusy,
   refresh: refreshSourceControl,
   stage: stageGitPaths,
   unstage: unstageGitPaths,
@@ -106,8 +109,13 @@ async function refreshGitViews() {
   gitRefreshToken.value += 1;
 }
 
-async function onGitMutated() {
-  await refreshGitViews();
+function bumpGitBadges() {
+  gitRefreshToken.value += 1;
+}
+
+async function runGitAction(action: () => Promise<void>) {
+  await action();
+  bumpGitBadges();
 }
 
 function onPromptReady(paneId: string) {
@@ -357,17 +365,20 @@ onUnmounted(() => {
           :branches="gitBranches"
           :history="gitHistory"
           :loading="sourceControlLoading"
+          :busy="sourceControlBusy"
+          :operation="sourceControlOperation"
+          :operation-label="sourceControlOperationLabel"
           :panel-width="sourceControlWidth"
-          @refresh="() => refreshSourceControl().then(onGitMutated)"
-          @stage="(paths) => stageGitPaths(paths).then(onGitMutated)"
-          @unstage="(paths) => unstageGitPaths(paths).then(onGitMutated)"
-          @revert="(paths, untracked) => revertGitPaths(paths, untracked).then(onGitMutated)"
-          @commit="(message) => commitGitChanges(message).then(onGitMutated)"
-          @fetch="() => fetchGitRepo().then(onGitMutated)"
-          @pull="() => pullGitRepo().then(onGitMutated)"
-          @push="() => pushGitRepo().then(onGitMutated)"
-          @sync="() => syncGitRepo().then(onGitMutated)"
-          @checkout="(branch, remote) => checkoutGitBranch(branch, remote).then(onGitMutated)"
+          @refresh="() => runGitAction(refreshSourceControl)"
+          @stage="(paths) => runGitAction(() => stageGitPaths(paths))"
+          @unstage="(paths) => runGitAction(() => unstageGitPaths(paths))"
+          @revert="(paths, untracked) => runGitAction(() => revertGitPaths(paths, untracked))"
+          @commit="(message) => runGitAction(() => commitGitChanges(message))"
+          @fetch="() => runGitAction(fetchGitRepo)"
+          @pull="() => runGitAction(pullGitRepo)"
+          @push="() => runGitAction(pushGitRepo)"
+          @sync="() => runGitAction(syncGitRepo)"
+          @checkout="(branch, remote) => runGitAction(() => checkoutGitBranch(branch, remote))"
         />
       </div>
     </div>

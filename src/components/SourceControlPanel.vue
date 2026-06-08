@@ -5,6 +5,7 @@ import type {
   GitBranchList,
   GitCommitEntry,
   GitFileEntry,
+  GitOperation,
   GitSourceControlStatus,
   SelectedGitFile,
 } from "../types/git";
@@ -21,6 +22,9 @@ const props = defineProps<{
   branches: GitBranchList;
   history: GitCommitEntry[];
   loading: boolean;
+  busy: boolean;
+  operation: GitOperation | null;
+  operationLabel: string | null;
   panelWidth: number;
 }>();
 
@@ -69,6 +73,38 @@ const branchSelectValue = computed(() => {
 const hasBranches = computed(
   () => props.branches.local.length > 0 || props.branches.remote.length > 0,
 );
+
+type SyncOp = "fetch" | "pull" | "push" | "sync";
+
+function syncBtnClass(op: SyncOp) {
+  const active = props.operation === op;
+  const base =
+    "flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40";
+  if (op === "push") {
+    return [
+      base,
+      active
+        ? "ring-1 ring-[#58a6ff] border-[#58a6ff]/60 bg-[#58a6ff]/25 text-[#58a6ff]"
+        : "border-[#58a6ff]/40 bg-[#58a6ff]/10 text-[#58a6ff] hover:bg-[#58a6ff]/20",
+    ];
+  }
+  if (op === "sync") {
+    return [
+      base,
+      active
+        ? "ring-1 ring-[var(--warp-accent)] border-[var(--warp-accent)]/60 bg-[var(--warp-accent-dim)] text-[var(--warp-accent)]"
+        : "border-[var(--warp-accent)]/40 bg-[var(--warp-accent-dim)] text-[var(--warp-accent)] hover:opacity-90",
+    ];
+  }
+  return [
+    base,
+    active
+      ? "ring-1 ring-[var(--warp-accent)] border-[var(--warp-accent)]/40 bg-white/5 text-[var(--warp-text)]"
+      : "border-[var(--warp-border)] bg-[var(--warp-bg)]/60 text-[var(--warp-text)] hover:bg-white/5",
+  ];
+}
+
+const refreshSpinning = computed(() => props.operation === "refresh");
 
 function onBranchChange(event: Event) {
   const value = (event.target as HTMLSelectElement).value;
@@ -343,10 +379,17 @@ watch(
           class="no-drag flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
           title="Refresh"
           aria-label="Refresh source control"
-          :disabled="loading"
+          :disabled="busy"
           @click="emit('refresh')"
         >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            :class="refreshSpinning ? 'animate-spin' : ''"
+          >
             <path
               d="M13 3v4H9M3 13V9h4"
               stroke-width="1.3"
@@ -368,6 +411,35 @@ watch(
       </div>
 
       <template v-else>
+        <div
+          v-if="busy && operationLabel"
+          class="flex items-center gap-2 border-b border-[var(--warp-border)] bg-white/[0.02] px-3 py-2"
+        >
+          <svg
+            class="h-3.5 w-3.5 shrink-0 animate-spin text-[var(--warp-accent)]"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden="true"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="3"
+            />
+            <path
+              class="opacity-90"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            />
+          </svg>
+          <p class="text-xs text-[var(--warp-muted)]" style="font-family: var(--warp-font-ui)">
+            {{ operationLabel }}
+          </p>
+        </div>
+
         <div class="border-b border-[var(--warp-border)] p-3">
           <label
             class="mb-1 block text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warp-faint)]"
@@ -379,7 +451,7 @@ watch(
             :value="branchSelectValue"
             class="mb-3 w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
             style="font-family: var(--warp-font-mono)"
-            :disabled="loading || !hasBranches"
+            :disabled="busy || !hasBranches"
             @change="onBranchChange"
           >
             <option v-if="!hasBranches" value="" disabled>No branches</option>
@@ -406,42 +478,46 @@ watch(
           <div class="mb-3 grid grid-cols-4 gap-1.5">
             <button
               type="button"
-              class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)]/60 px-2 py-1.5 text-xs font-medium text-[var(--warp-text)] transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              :class="syncBtnClass('fetch')"
               style="font-family: var(--warp-font-ui)"
               title="Fetch from remotes"
-              :disabled="loading"
+              :disabled="busy"
               @click="emit('fetch')"
             >
+              <span v-if="operation === 'fetch'" class="inline-block h-3 w-3 animate-spin rounded-full border border-current border-r-transparent" />
               Fetch
             </button>
             <button
               type="button"
-              class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)]/60 px-2 py-1.5 text-xs font-medium text-[var(--warp-text)] transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              :class="syncBtnClass('pull')"
               style="font-family: var(--warp-font-ui)"
               title="Pull from upstream"
-              :disabled="loading"
+              :disabled="busy"
               @click="emit('pull')"
             >
+              <span v-if="operation === 'pull'" class="inline-block h-3 w-3 animate-spin rounded-full border border-current border-r-transparent" />
               Pull
             </button>
             <button
               type="button"
-              class="rounded-md border border-[#58a6ff]/40 bg-[#58a6ff]/10 px-2 py-1.5 text-xs font-medium text-[#58a6ff] transition hover:bg-[#58a6ff]/20 disabled:cursor-not-allowed disabled:opacity-40"
+              :class="syncBtnClass('push')"
               style="font-family: var(--warp-font-ui)"
               title="Push to upstream"
-              :disabled="loading"
+              :disabled="busy"
               @click="emit('push')"
             >
+              <span v-if="operation === 'push'" class="inline-block h-3 w-3 animate-spin rounded-full border border-current border-r-transparent" />
               Push
             </button>
             <button
               type="button"
-              class="rounded-md border border-[var(--warp-accent)]/40 bg-[var(--warp-accent-dim)] px-2 py-1.5 text-xs font-medium text-[var(--warp-accent)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              :class="syncBtnClass('sync')"
               style="font-family: var(--warp-font-ui)"
               title="Pull then push"
-              :disabled="loading"
+              :disabled="busy"
               @click="emit('sync')"
             >
+              <span v-if="operation === 'sync'" class="inline-block h-3 w-3 animate-spin rounded-full border border-current border-r-transparent" />
               Sync
             </button>
           </div>
@@ -452,13 +528,13 @@ watch(
             class="w-full resize-none rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] placeholder:text-[var(--warp-faint)] focus:ring-1"
             style="font-family: var(--warp-font-ui)"
             placeholder="Commit message"
-            :disabled="loading"
+            :disabled="busy"
           />
           <button
             type="button"
             class="mt-2 w-full rounded-md bg-[var(--warp-accent)] px-3 py-2 text-sm font-medium text-[var(--warp-bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             style="font-family: var(--warp-font-ui)"
-            :disabled="!canCommit || loading"
+            :disabled="!canCommit || busy"
             @click="onCommit"
           >
             Commit
