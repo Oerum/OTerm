@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { entryAccentColor } from "../lib/sidebarEntries";
 import type { TerminalMenuActionId, TerminalSidebarEntry } from "../types/terminal";
+import GitDiffBadge from "./GitDiffBadge.vue";
 import TerminalEntryMenu from "./TerminalEntryMenu.vue";
 
 const props = defineProps<{
@@ -22,6 +23,14 @@ const emit = defineEmits<{
 const renameInputRef = ref<HTMLInputElement | null>(null);
 const renameDraft = ref("");
 const skipBlurCommit = ref(false);
+
+const gitStatus = computed(() => ({
+  isRepo: props.entry.gitIsRepo,
+  branch: props.entry.gitBranch,
+  changedFiles: props.entry.gitChangedFiles,
+  additions: props.entry.gitAdditions,
+  deletions: props.entry.gitDeletions,
+}));
 
 const accentStyle = computed(() => {
   if (props.entry.tabColor === "none" && !props.entry.isActive) return undefined;
@@ -166,8 +175,14 @@ function onRenameKeyDown(event: KeyboardEvent) {
         >
           {{ entry.title }}
         </span>
-        <span class="block truncate text-[11px] text-[var(--warp-faint)]">
-          {{ entry.subtitle }}
+        <span class="flex items-center gap-1.5 text-[11px] text-[var(--warp-faint)]">
+          <span class="min-w-0 truncate">{{ entry.subtitle }}</span>
+          <GitDiffBadge
+            v-if="entry.gitIsRepo"
+            :git-status="gitStatus"
+            readonly
+            compact
+          />
         </span>
       </span>
     </div>

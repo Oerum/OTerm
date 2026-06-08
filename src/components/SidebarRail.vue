@@ -17,6 +17,7 @@ const props = defineProps<{
   activePaneId: string | null;
   shells: ShellProfile[];
   preferredShellId: string;
+  gitRefreshToken?: number;
 }>();
 
 const emit = defineEmits<{
@@ -37,7 +38,18 @@ const newButtonRef = ref<HTMLElement | null>(null);
 const openMenuEntryId = ref<string | null>(null);
 const renamingEntryId = ref<string | null>(null);
 const toastMessage = ref<string | null>(null);
-const gitByPane = ref(new Map<string, { branch: string | null; isRepo: boolean }>());
+const gitByPane = ref(
+  new Map<
+    string,
+    {
+      branch: string | null;
+      isRepo: boolean;
+      changedFiles: number;
+      additions: number;
+      deletions: number;
+    }
+  >(),
+);
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const terminalEntries = computed(() =>
@@ -58,25 +70,68 @@ function showToast(message: string) {
   }, 1800);
 }
 
-async function ensureGitForPane(paneId: string, cwd: string) {
-  if (gitByPane.value.has(paneId)) return;
+async function refreshGitForPane(paneId: string, cwd: string) {
   try {
     const status = await getGitStatus(cwd === "~" ? undefined : cwd);
     gitByPane.value.set(paneId, {
       branch: status.branch,
       isRepo: status.isRepo,
+      changedFiles: status.changedFiles,
+      additions: status.additions,
+      deletions: status.deletions,
     });
     gitByPane.value = new Map(gitByPane.value);
   } catch {
-    gitByPane.value.set(paneId, { branch: null, isRepo: false });
+    gitByPane.value.set(paneId, {
+      branch: null,
+      isRepo: false,
+      changedFiles: 0,
+      additions: 0,
+      deletions: 0,
+    });
     gitByPane.value = new Map(gitByPane.value);
   }
 }
 
+const paneCwdSignature = computed(() =>
+  props.tabs
+    .flatMap((tab) => tab.panes.map((pane) => `${pane.id}:${pane.cwd}`))
+    .join("|"),
+);
+
+let gitRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleGitRefresh() {
+  if (gitRefreshTimer) clearTimeout(gitRefreshTimer);
+  gitRefreshTimer = setTimeout(() => {
+    for (const tab of props.tabs) {
+      for (const pane of tab.panes) {
+        void refreshGitForPane(pane.id, pane.cwd);
+      }
+    }
+  }, 300);
+}
+
+watch(paneCwdSignature, scheduleGitRefresh, { immediate: true });
+
+watch(
+  () => props.gitRefreshToken,
+  () => {
+    if (!props.activePaneId) return;
+    for (const tab of props.tabs) {
+      const pane = tab.panes.find((item) => item.id === props.activePaneId);
+      if (pane) {
+        void refreshGitForPane(pane.id, pane.cwd);
+        return;
+      }
+    }
+  },
+);
+
 watch(openMenuEntryId, (entryId) => {
   if (!entryId) return;
   const entry = terminalEntries.value.find((item) => item.entryId === entryId);
-  if (entry) void ensureGitForPane(entry.paneId, entry.cwd);
+  if (entry) void refreshGitForPane(entry.paneId, entry.cwd);
 });
 
 function toggleNewMenu() {
@@ -214,6 +269,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener("mousedown", onDocumentClick);
   if (toastTimer) clearTimeout(toastTimer);
+  if (gitRefreshTimer) clearTimeout(gitRefreshTimer);
 });
 </script>
 

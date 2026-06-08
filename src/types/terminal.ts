@@ -67,6 +67,9 @@ export interface TerminalSidebarEntry {
   tabColor: TerminalEntryColor;
   gitBranch: string | null;
   gitIsRepo: boolean;
+  gitChangedFiles: number;
+  gitAdditions: number;
+  gitDeletions: number;
   isActive: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;

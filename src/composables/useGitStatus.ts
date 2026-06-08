@@ -42,10 +42,16 @@ export function useGitStatus(cwd: Ref<string | undefined>) {
     }, 250);
   }
 
+  async function refreshNow() {
+    window.clearTimeout(refreshTimer);
+    await refresh();
+  }
+
   watch(cwd, scheduleRefresh, { immediate: true });
 
   return {
     status,
     refresh: scheduleRefresh,
+    refreshNow,
   };
 }

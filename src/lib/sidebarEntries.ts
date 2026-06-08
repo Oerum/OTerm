@@ -45,7 +45,16 @@ export function buildTerminalEntries(
   shells: ShellProfile[],
   activeTabId: string | null,
   activePaneId: string | null,
-  gitByPane: Map<string, { branch: string | null; isRepo: boolean }>,
+  gitByPane: Map<
+    string,
+    {
+      branch: string | null;
+      isRepo: boolean;
+      changedFiles: number;
+      additions: number;
+      deletions: number;
+    }
+  >,
 ): TerminalSidebarEntry[] {
   const labels = Object.fromEntries(shells.map((shell) => [shell.id, shell.label]));
 
@@ -75,6 +84,9 @@ export function buildTerminalEntries(
         tabColor: tab.color,
         gitBranch: git?.branch ?? null,
         gitIsRepo: git?.isRepo ?? false,
+        gitChangedFiles: git?.changedFiles ?? 0,
+        gitAdditions: git?.additions ?? 0,
+        gitDeletions: git?.deletions ?? 0,
         isActive: tab.id === activeTabId && pane.id === activePaneId,
         canMoveUp: tabIndex > 0,
         canMoveDown: tabIndex < tabs.length - 1,

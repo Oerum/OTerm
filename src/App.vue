@@ -3,11 +3,14 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import HistorySearch from "./components/HistorySearch.vue";
 import SessionHeader from "./components/SessionHeader.vue";
 import SidebarRail from "./components/SidebarRail.vue";
+import SourceControlPanel from "./components/SourceControlPanel.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TerminalPane from "./components/TerminalPane.vue";
 import TitleBar from "./components/TitleBar.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
 import { useGitStatus } from "./composables/useGitStatus";
+import { useResizablePanel } from "./composables/useResizablePanel";
+import { useSourceControl } from "./composables/useSourceControl";
 import { useTerminalHistory } from "./composables/useTerminalHistory";
 import { useWorkspace } from "./composables/useWorkspace";
 import type { SaveProfileDraft } from "./types/terminal";
@@ -18,6 +21,16 @@ const appVersion = "0.1.0";
 const defaultShellId = "pwsh";
 const terminalSidebarOpen = ref(true);
 const toolsOpen = ref(false);
+const sourceControlOpen = ref(false);
+const gitRefreshToken = ref(0);
+
+const {
+  widthPx: sourceControlWidth,
+  resizing: sourceControlResizing,
+  onResizeHandlePointerDown,
+} = useResizablePanel(() => {
+  void refitTerminals();
+});
 
 const {
   shells,
@@ -50,7 +63,30 @@ const {
 const filteredHistory = computed(() => filteredEntries());
 
 const activeCwd = computed(() => activePane.value?.cwd);
-const { status: gitStatus, refresh: refreshGitStatus } = useGitStatus(activeCwd);
+const { status: gitStatus, refresh: refreshGitStatus, refreshNow: refreshGitStatusNow } =
+  useGitStatus(activeCwd);
+const {
+  status: sourceControlStatus,
+  history: gitHistory,
+  loading: sourceControlLoading,
+  refresh: refreshSourceControl,
+  stage: stageGitPaths,
+  unstage: unstageGitPaths,
+  revert: revertGitPaths,
+  commit: commitGitChanges,
+} = useSourceControl(activeCwd);
+
+async function onGitMutated() {
+  await refreshGitStatusNow();
+  gitRefreshToken.value += 1;
+}
+
+function toggleSourceControl() {
+  sourceControlOpen.value = !sourceControlOpen.value;
+  if (sourceControlOpen.value) {
+    void refreshSourceControl();
+  }
+}
 
 const projectRoot = computed(() => {
   const cwd = activePane.value?.cwd;
@@ -135,6 +171,8 @@ async function insertHistoryEntry(entry: string) {
 function onCommandSubmitted(command: string) {
   addEntry(command);
   refreshGitStatus();
+  refreshSourceControl();
+  gitRefreshToken.value += 1;
 }
 
 async function openPathInTerminal(path: string) {
@@ -170,7 +208,7 @@ onMounted(() => {
   window.addEventListener("keydown", onKeyDown);
 });
 
-watch([terminalSidebarOpen, toolsOpen], () => {
+watch([terminalSidebarOpen, toolsOpen, sourceControlOpen, sourceControlWidth], () => {
   void refitTerminals();
 });
 
@@ -184,8 +222,11 @@ onUnmounted(() => {
     <TitleBar
       :terminal-sidebar-open="terminalSidebarOpen"
       :tools-open="toolsOpen"
+      :source-control-open="sourceControlOpen"
+      :git-status="gitStatus"
       @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
       @toggle-tools="toolsOpen = !toolsOpen"
+      @toggle-source-control="toggleSourceControl"
     />
 
     <div class="flex min-h-0 flex-1">
@@ -205,6 +246,7 @@ onUnmounted(() => {
         @move-tab="moveTab"
         @color-change="setTabColor"
         @save-profile="onSaveProfile"
+        :git-refresh-token="gitRefreshToken"
       />
 
       <ToolsPanel
@@ -260,8 +302,30 @@ onUnmounted(() => {
           :app-version="appVersion"
           :terminal-sidebar-open="terminalSidebarOpen"
           :tools-open="toolsOpen"
+          :source-control-open="sourceControlOpen"
           @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
           @toggle-tools="toolsOpen = !toolsOpen"
+          @toggle-source-control="toggleSourceControl"
+        />
+      </div>
+
+      <div v-if="sourceControlOpen" class="relative flex shrink-0">
+        <div
+          class="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
+          :class="sourceControlResizing ? 'bg-[var(--warp-accent)]/30' : 'hover:bg-white/5'"
+          title="Drag to resize"
+          @pointerdown="onResizeHandlePointerDown"
+        />
+        <SourceControlPanel
+          :status="sourceControlStatus"
+          :history="gitHistory"
+          :loading="sourceControlLoading"
+          :panel-width="sourceControlWidth"
+          @refresh="refreshSourceControl"
+          @stage="(paths) => stageGitPaths(paths).then(onGitMutated)"
+          @unstage="(paths) => unstageGitPaths(paths).then(onGitMutated)"
+          @revert="(paths, untracked) => revertGitPaths(paths, untracked).then(onGitMutated)"
+          @commit="(message) => commitGitChanges(message).then(onGitMutated)"
         />
       </div>
     </div>

@@ -1,15 +1,20 @@
 <script setup lang="ts">
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useWindowDrag } from "../composables/useWindowDrag";
+import type { GitStatus } from "../types/git";
+import GitDiffBadge from "./GitDiffBadge.vue";
 
 defineProps<{
   terminalSidebarOpen: boolean;
   toolsOpen: boolean;
+  sourceControlOpen: boolean;
+  gitStatus: GitStatus;
 }>();
 
 const emit = defineEmits<{
   toggleTerminalSidebar: [];
   toggleTools: [];
+  toggleSourceControl: [];
 }>();
 
 const appWindow = getCurrentWindow();
@@ -74,7 +79,13 @@ function onDragMouseDown(event: MouseEvent) {
       @mousedown="onDragMouseDown"
     />
 
-    <div class="no-drag flex items-center">
+    <div class="no-drag flex items-center gap-1 pr-1">
+      <GitDiffBadge
+        :git-status="gitStatus"
+        :active="sourceControlOpen"
+        compact
+        @click="emit('toggleSourceControl')"
+      />
       <button
         type="button"
         class="flex h-9 w-11 items-center justify-center text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
