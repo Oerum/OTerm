@@ -229,24 +229,40 @@ watch(showDiffPane, (visible) => {
   }
 });
 
+function syncSelectedFileWithStatus() {
+  const sel = selectedFile.value;
+  if (!sel) return;
+  const stillExists = allChangedFiles.value.some(
+    (f) => f.path === sel.path && f.staged === sel.staged && f.untracked === sel.untracked,
+  );
+  if (!stillExists) {
+    selectedFile.value = null;
+    return;
+  }
+  if (!showDiffPane.value) return;
+  if (paneView.value === "edit") {
+    void loadEditContent(sel);
+  } else {
+    void loadDiff(sel);
+  }
+}
+
 watch(
-  () => [props.status.staged, props.status.changes, props.status.untracked] as const,
+  () =>
+    [
+      props.status.changedFiles,
+      props.status.additions,
+      props.status.deletions,
+      props.status.staged,
+      props.status.changes,
+      props.status.untracked,
+    ] as const,
   () => {
-    const sel = selectedFile.value;
-    if (!sel) return;
-    const stillExists = allChangedFiles.value.some(
-      (f) => f.path === sel.path && f.staged === sel.staged && f.untracked === sel.untracked,
-    );
-    if (!stillExists) {
+    if (props.status.changedFiles === 0) {
       selectedFile.value = null;
       return;
     }
-    if (!showDiffPane.value) return;
-    if (paneView.value === "edit") {
-      void loadEditContent(sel);
-    } else {
-      void loadDiff(sel);
-    }
+    syncSelectedFileWithStatus();
   },
   { deep: true },
 );

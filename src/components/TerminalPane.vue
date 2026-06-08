@@ -31,6 +31,7 @@ const emit = defineEmits<{
   sessionCreated: [paneId: string, sessionId: string];
   sessionEnded: [paneId: string];
   cwdChanged: [paneId: string, cwd: string];
+  promptReady: [paneId: string];
   commandSubmitted: [command: string];
   focusPane: [];
 }>();
@@ -84,6 +85,7 @@ function trackCwd(data: string) {
   const match = data.match(cwdPattern);
   if (match?.[1]) {
     emit("cwdChanged", props.paneId, match[1].trim());
+    emit("promptReady", props.paneId);
   }
 }
 

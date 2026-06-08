@@ -63,8 +63,7 @@ const {
 const filteredHistory = computed(() => filteredEntries());
 
 const activeCwd = computed(() => activePane.value?.cwd);
-const { status: gitStatus, refresh: refreshGitStatus, refreshNow: refreshGitStatusNow } =
-  useGitStatus(activeCwd);
+const { status: gitStatus, refreshNow: refreshGitStatusNow } = useGitStatus(activeCwd);
 const {
   status: sourceControlStatus,
   history: gitHistory,
@@ -76,9 +75,24 @@ const {
   commit: commitGitChanges,
 } = useSourceControl(activeCwd);
 
-async function onGitMutated() {
+let promptGitRefreshTimer: number | undefined;
+
+async function refreshGitViews() {
   await refreshGitStatusNow();
+  await refreshSourceControl();
   gitRefreshToken.value += 1;
+}
+
+async function onGitMutated() {
+  await refreshGitViews();
+}
+
+function onPromptReady(paneId: string) {
+  if (paneId !== activePaneId.value) return;
+  window.clearTimeout(promptGitRefreshTimer);
+  promptGitRefreshTimer = window.setTimeout(() => {
+    void refreshGitViews();
+  }, 150);
 }
 
 function toggleSourceControl() {
@@ -170,9 +184,7 @@ async function insertHistoryEntry(entry: string) {
 
 function onCommandSubmitted(command: string) {
   addEntry(command);
-  refreshGitStatus();
-  refreshSourceControl();
-  gitRefreshToken.value += 1;
+  void refreshGitViews();
 }
 
 async function openPathInTerminal(path: string) {
@@ -214,6 +226,7 @@ watch([terminalSidebarOpen, toolsOpen, sourceControlOpen, sourceControlWidth], (
 
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeyDown);
+  window.clearTimeout(promptGitRefreshTimer);
 });
 </script>
 
@@ -289,6 +302,7 @@ onUnmounted(() => {
               @session-created="onSessionCreated"
               @session-ended="onSessionEnded"
               @cwd-changed="setPaneCwd"
+              @prompt-ready="onPromptReady"
               @command-submitted="onCommandSubmitted"
               @focus-pane="selectPane(pane.id)"
             />
@@ -321,7 +335,7 @@ onUnmounted(() => {
           :history="gitHistory"
           :loading="sourceControlLoading"
           :panel-width="sourceControlWidth"
-          @refresh="refreshSourceControl"
+          @refresh="() => refreshSourceControl().then(onGitMutated)"
           @stage="(paths) => stageGitPaths(paths).then(onGitMutated)"
           @unstage="(paths) => unstageGitPaths(paths).then(onGitMutated)"
           @revert="(paths, untracked) => revertGitPaths(paths, untracked).then(onGitMutated)"

@@ -117,12 +117,9 @@ watch(paneCwdSignature, scheduleGitRefresh, { immediate: true });
 watch(
   () => props.gitRefreshToken,
   () => {
-    if (!props.activePaneId) return;
     for (const tab of props.tabs) {
-      const pane = tab.panes.find((item) => item.id === props.activePaneId);
-      if (pane) {
+      for (const pane of tab.panes) {
         void refreshGitForPane(pane.id, pane.cwd);
-        return;
       }
     }
   },
