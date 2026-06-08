@@ -6,9 +6,10 @@ use fs::commands::{
     fs_list_directory, fs_open_in_vscode, fs_search_files, fs_show_shell_context_menu, FsSearchState,
 };
 use git::commands::{
-    git_commit, git_file_diff, git_log, git_read_working_file, git_revert_tracked_paths,
-    git_revert_untracked_paths, git_source_control_status, git_stage_paths, git_status,
-    git_unstage_paths, git_write_working_file,
+    git_checkout_branch, git_commit, git_fetch, git_file_diff, git_list_branches, git_log,
+    git_pull, git_push, git_read_working_file, git_revert_tracked_paths, git_revert_untracked_paths,
+    git_source_control_status, git_stage_paths, git_status, git_sync, git_unstage_paths,
+    git_write_working_file,
 };
 use terminal::commands::{
     terminal_drain_output, terminal_kill, terminal_list_shells, terminal_resize, terminal_spawn,
@@ -42,6 +43,12 @@ pub fn run() {
             git_revert_tracked_paths,
             git_revert_untracked_paths,
             git_commit,
+            git_push,
+            git_fetch,
+            git_pull,
+            git_sync,
+            git_list_branches,
+            git_checkout_branch,
             git_log,
             git_file_diff,
             git_read_working_file,

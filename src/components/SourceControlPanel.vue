@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { getGitFileDiff, readGitWorkingFile, writeGitWorkingFile } from "../lib/gitApi";
-import type { GitCommitEntry, GitFileEntry, GitSourceControlStatus, SelectedGitFile } from "../types/git";
+import type {
+  GitBranchList,
+  GitCommitEntry,
+  GitFileEntry,
+  GitSourceControlStatus,
+  SelectedGitFile,
+} from "../types/git";
 import GitDiffViewer from "./GitDiffViewer.vue";
 import GitFileEditor from "./GitFileEditor.vue";
 import GitFileLineStats from "./GitFileLineStats.vue";
@@ -12,6 +18,7 @@ const DIFF_PANE_MIN_WIDTH = 520;
 
 const props = defineProps<{
   status: GitSourceControlStatus;
+  branches: GitBranchList;
   history: GitCommitEntry[];
   loading: boolean;
   panelWidth: number;
@@ -22,6 +29,11 @@ const emit = defineEmits<{
   unstage: [paths: string[]];
   revert: [paths: string[], untracked: boolean];
   commit: [message: string];
+  fetch: [];
+  pull: [];
+  push: [];
+  sync: [];
+  checkout: [branch: string, remote: boolean];
   refresh: [];
 }>();
 
@@ -47,6 +59,34 @@ const showDiffPane = computed(() => props.panelWidth >= DIFF_PANE_MIN_WIDTH);
 const canCommit = computed(
   () => props.status.isRepo && props.status.staged.length > 0 && commitMessage.value.trim().length > 0,
 );
+
+const branchSelectValue = computed(() => {
+  const current = props.status.branch ?? props.branches.current;
+  if (!current) return "";
+  return `local:${current}`;
+});
+
+const hasBranches = computed(
+  () => props.branches.local.length > 0 || props.branches.remote.length > 0,
+);
+
+function onBranchChange(event: Event) {
+  const value = (event.target as HTMLSelectElement).value;
+  if (!value) return;
+  const colon = value.indexOf(":");
+  if (colon < 0) return;
+  const kind = value.slice(0, colon);
+  const name = value.slice(colon + 1);
+  if (!name) return;
+  if (kind === "local") {
+    if (name === props.status.branch) return;
+    emit("checkout", name, false);
+    return;
+  }
+  if (kind === "remote") {
+    emit("checkout", name, true);
+  }
+}
 
 const allChangedFiles = computed(() => [
   ...props.status.staged.map((e) => ({ ...e, staged: true, untracked: false })),
@@ -287,11 +327,15 @@ watch(
             Source Control
           </p>
           <p
-            v-if="status.branch"
-            class="truncate text-sm text-[var(--warp-text)]"
+            v-if="status.upstream || status.ahead || status.behind"
+            class="truncate text-xs text-[var(--warp-muted)]"
             style="font-family: var(--warp-font-ui)"
           >
-            {{ status.branch }}
+            <span v-if="status.upstream">{{ status.upstream }}</span>
+            <span v-if="status.upstream && (status.ahead || status.behind)"> · </span>
+            <span v-if="status.ahead" class="text-[#58a6ff]">↑{{ status.ahead }}</span>
+            <span v-if="status.ahead && status.behind"> · </span>
+            <span v-if="status.behind" class="text-[#e3b341]">↓{{ status.behind }}</span>
           </p>
         </div>
         <button
@@ -325,6 +369,83 @@ watch(
 
       <template v-else>
         <div class="border-b border-[var(--warp-border)] p-3">
+          <label
+            class="mb-1 block text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warp-faint)]"
+            style="font-family: var(--warp-font-ui)"
+          >
+            Branch
+          </label>
+          <select
+            :value="branchSelectValue"
+            class="mb-3 w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
+            style="font-family: var(--warp-font-mono)"
+            :disabled="loading || !hasBranches"
+            @change="onBranchChange"
+          >
+            <option v-if="!hasBranches" value="" disabled>No branches</option>
+            <optgroup v-if="branches.local.length" label="Local">
+              <option
+                v-for="branch in branches.local"
+                :key="`local:${branch}`"
+                :value="`local:${branch}`"
+              >
+                {{ branch }}
+              </option>
+            </optgroup>
+            <optgroup v-if="branches.remote.length" label="Remote">
+              <option
+                v-for="branch in branches.remote"
+                :key="`remote:${branch}`"
+                :value="`remote:${branch}`"
+              >
+                {{ branch }}
+              </option>
+            </optgroup>
+          </select>
+
+          <div class="mb-3 grid grid-cols-4 gap-1.5">
+            <button
+              type="button"
+              class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)]/60 px-2 py-1.5 text-xs font-medium text-[var(--warp-text)] transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              style="font-family: var(--warp-font-ui)"
+              title="Fetch from remotes"
+              :disabled="loading"
+              @click="emit('fetch')"
+            >
+              Fetch
+            </button>
+            <button
+              type="button"
+              class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)]/60 px-2 py-1.5 text-xs font-medium text-[var(--warp-text)] transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              style="font-family: var(--warp-font-ui)"
+              title="Pull from upstream"
+              :disabled="loading"
+              @click="emit('pull')"
+            >
+              Pull
+            </button>
+            <button
+              type="button"
+              class="rounded-md border border-[#58a6ff]/40 bg-[#58a6ff]/10 px-2 py-1.5 text-xs font-medium text-[#58a6ff] transition hover:bg-[#58a6ff]/20 disabled:cursor-not-allowed disabled:opacity-40"
+              style="font-family: var(--warp-font-ui)"
+              title="Push to upstream"
+              :disabled="loading"
+              @click="emit('push')"
+            >
+              Push
+            </button>
+            <button
+              type="button"
+              class="rounded-md border border-[var(--warp-accent)]/40 bg-[var(--warp-accent-dim)] px-2 py-1.5 text-xs font-medium text-[var(--warp-accent)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              style="font-family: var(--warp-font-ui)"
+              title="Pull then push"
+              :disabled="loading"
+              @click="emit('sync')"
+            >
+              Sync
+            </button>
+          </div>
+
           <textarea
             v-model="commitMessage"
             rows="3"
@@ -490,7 +611,14 @@ watch(
           </section>
 
           <p
-            v-if="!status.staged.length && !status.changes.length && !status.untracked.length && !history.length"
+            v-if="
+              !status.staged.length &&
+              !status.changes.length &&
+              !status.untracked.length &&
+              !history.length &&
+              !status.ahead &&
+              !status.behind
+            "
             class="px-3 py-4 text-sm text-[var(--warp-faint)]"
           >
             Working tree clean

@@ -1,8 +1,9 @@
 use super::{
-    commit_changes, read_log, resolve_file_diff, resolve_git_status, resolve_read_working_file,
+    checkout_branch, commit_changes, fetch_changes, list_branches, pull_changes, push_changes,
+    read_log, resolve_file_diff, resolve_git_status, resolve_read_working_file,
     resolve_source_control, resolve_write_working_file, revert_tracked_paths,
-    revert_untracked_paths, stage_paths, unstage_paths, GitCommitEntry, GitFileDiff,
-    GitSourceControlStatus, GitStatus, GitWorkingFile,
+    revert_untracked_paths, stage_paths, sync_changes, unstage_paths, GitBranchList,
+    GitCommitEntry, GitFileDiff, GitSourceControlStatus, GitStatus, GitWorkingFile,
 };
 
 #[tauri::command]
@@ -38,6 +39,40 @@ pub fn git_revert_untracked_paths(repo_root: String, paths: Vec<String>) -> Resu
 #[tauri::command]
 pub fn git_commit(repo_root: String, message: String) -> Result<(), String> {
     commit_changes(repo_root, message)
+}
+
+#[tauri::command]
+pub fn git_push(repo_root: String) -> Result<(), String> {
+    push_changes(repo_root)
+}
+
+#[tauri::command]
+pub fn git_fetch(repo_root: String) -> Result<(), String> {
+    fetch_changes(repo_root)
+}
+
+#[tauri::command]
+pub fn git_pull(repo_root: String) -> Result<(), String> {
+    pull_changes(repo_root)
+}
+
+#[tauri::command]
+pub fn git_sync(repo_root: String) -> Result<(), String> {
+    sync_changes(repo_root)
+}
+
+#[tauri::command]
+pub fn git_list_branches(repo_root: String) -> Result<GitBranchList, String> {
+    list_branches(repo_root)
+}
+
+#[tauri::command]
+pub fn git_checkout_branch(
+    repo_root: String,
+    branch: String,
+    is_remote: bool,
+) -> Result<(), String> {
+    checkout_branch(repo_root, branch, is_remote)
 }
 
 #[tauri::command]

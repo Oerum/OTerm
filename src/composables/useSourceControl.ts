@@ -1,19 +1,28 @@
 import { ref, watch, type Ref } from "vue";
 import {
+  checkoutGitBranch,
   commitGitChanges,
+  fetchGitRepo,
   getGitLog,
   getSourceControlStatus,
+  listGitBranches,
+  pullGitRepo,
+  pushGitRepo,
   revertTrackedGitPaths,
   revertUntrackedGitPaths,
   stageGitPaths,
+  syncGitRepo,
   unstageGitPaths,
 } from "../lib/gitApi";
-import type { GitCommitEntry, GitSourceControlStatus } from "../types/git";
+import type { GitBranchList, GitCommitEntry, GitSourceControlStatus } from "../types/git";
 
 const emptyStatus = (): GitSourceControlStatus => ({
   isRepo: false,
   repoRoot: null,
   branch: null,
+  upstream: null,
+  ahead: 0,
+  behind: 0,
   changedFiles: 0,
   additions: 0,
   deletions: 0,
@@ -22,17 +31,33 @@ const emptyStatus = (): GitSourceControlStatus => ({
   untracked: [],
 });
 
+const emptyBranches = (): GitBranchList => ({
+  current: null,
+  local: [],
+  remote: [],
+});
+
 export function useSourceControl(cwd: Ref<string | undefined>) {
   const status = ref<GitSourceControlStatus>(emptyStatus());
+  const branches = ref<GitBranchList>(emptyBranches());
   const history = ref<GitCommitEntry[]>([]);
   const loading = ref(false);
   let refreshTimer: number | undefined;
   let requestId = 0;
 
+  async function loadBranches(root: string) {
+    try {
+      branches.value = await listGitBranches(root);
+    } catch {
+      branches.value = emptyBranches();
+    }
+  }
+
   async function refresh(includeHistory = false, showLoading = true) {
     const path = cwd.value;
     if (!path || path === "~") {
       status.value = emptyStatus();
+      branches.value = emptyBranches();
       history.value = [];
       return;
     }
@@ -43,14 +68,19 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
       const next = await getSourceControlStatus(path);
       if (current !== requestId) return;
       status.value = next;
-      if (includeHistory && next.isRepo && next.repoRoot) {
-        history.value = await getGitLog(next.repoRoot);
-      } else if (!next.isRepo) {
+      if (next.isRepo && next.repoRoot) {
+        await loadBranches(next.repoRoot);
+        if (includeHistory) {
+          history.value = await getGitLog(next.repoRoot);
+        }
+      } else {
+        branches.value = emptyBranches();
         history.value = [];
       }
     } catch {
       if (current === requestId) {
         status.value = emptyStatus();
+        branches.value = emptyBranches();
         history.value = [];
       }
     } finally {
@@ -103,10 +133,41 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     await runAction(() => commitGitChanges(root, message), true);
   }
 
+  async function fetch() {
+    const root = status.value.repoRoot;
+    if (!root) return;
+    await runAction(() => fetchGitRepo(root));
+  }
+
+  async function pull() {
+    const root = status.value.repoRoot;
+    if (!root) return;
+    await runAction(() => pullGitRepo(root), true);
+  }
+
+  async function push() {
+    const root = status.value.repoRoot;
+    if (!root) return;
+    await runAction(() => pushGitRepo(root), true);
+  }
+
+  async function sync() {
+    const root = status.value.repoRoot;
+    if (!root) return;
+    await runAction(() => syncGitRepo(root), true);
+  }
+
+  async function checkout(branch: string, isRemote: boolean) {
+    const root = status.value.repoRoot;
+    if (!root) return;
+    await runAction(() => checkoutGitBranch(root, branch, isRemote), true);
+  }
+
   watch(cwd, () => scheduleRefresh(true), { immediate: true });
 
   return {
     status,
+    branches,
     history,
     loading,
     refresh: () => refreshNow(true),
@@ -114,5 +175,10 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     unstage,
     revert,
     commit,
+    fetch,
+    pull,
+    push,
+    sync,
+    checkout,
   };
 }

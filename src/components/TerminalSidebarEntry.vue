@@ -27,6 +27,9 @@ const skipBlurCommit = ref(false);
 const gitStatus = computed(() => ({
   isRepo: props.entry.gitIsRepo,
   branch: props.entry.gitBranch,
+  upstream: null,
+  ahead: 0,
+  behind: 0,
   changedFiles: props.entry.gitChangedFiles,
   additions: props.entry.gitAdditions,
   deletions: props.entry.gitDeletions,

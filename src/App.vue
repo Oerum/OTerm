@@ -64,6 +64,7 @@ const filteredHistory = computed(() => filteredEntries());
 const activeCwd = computed(() => activePane.value?.cwd);
 const {
   status: sourceControlStatus,
+  branches: gitBranches,
   history: gitHistory,
   loading: sourceControlLoading,
   refresh: refreshSourceControl,
@@ -71,11 +72,19 @@ const {
   unstage: unstageGitPaths,
   revert: revertGitPaths,
   commit: commitGitChanges,
+  fetch: fetchGitRepo,
+  pull: pullGitRepo,
+  push: pushGitRepo,
+  sync: syncGitRepo,
+  checkout: checkoutGitBranch,
 } = useSourceControl(activeCwd);
 
 const gitBadgeStatus = computed(() => ({
   isRepo: sourceControlStatus.value.isRepo,
   branch: sourceControlStatus.value.branch,
+  upstream: sourceControlStatus.value.upstream,
+  ahead: sourceControlStatus.value.ahead,
+  behind: sourceControlStatus.value.behind,
   changedFiles: sourceControlStatus.value.changedFiles,
   additions: sourceControlStatus.value.additions,
   deletions: sourceControlStatus.value.deletions,
@@ -345,6 +354,7 @@ onUnmounted(() => {
         />
         <SourceControlPanel
           :status="sourceControlStatus"
+          :branches="gitBranches"
           :history="gitHistory"
           :loading="sourceControlLoading"
           :panel-width="sourceControlWidth"
@@ -353,6 +363,11 @@ onUnmounted(() => {
           @unstage="(paths) => unstageGitPaths(paths).then(onGitMutated)"
           @revert="(paths, untracked) => revertGitPaths(paths, untracked).then(onGitMutated)"
           @commit="(message) => commitGitChanges(message).then(onGitMutated)"
+          @fetch="() => fetchGitRepo().then(onGitMutated)"
+          @pull="() => pullGitRepo().then(onGitMutated)"
+          @push="() => pushGitRepo().then(onGitMutated)"
+          @sync="() => syncGitRepo().then(onGitMutated)"
+          @checkout="(branch, remote) => checkoutGitBranch(branch, remote).then(onGitMutated)"
         />
       </div>
     </div>

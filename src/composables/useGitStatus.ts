@@ -5,6 +5,9 @@ import type { GitStatus } from "../types/git";
 const emptyStatus = (): GitStatus => ({
   isRepo: false,
   branch: null,
+  upstream: null,
+  ahead: 0,
+  behind: 0,
   changedFiles: 0,
   additions: 0,
   deletions: 0,

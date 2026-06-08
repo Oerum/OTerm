@@ -9,6 +9,9 @@ use std::process::Command;
 pub struct GitStatus {
     pub is_repo: bool,
     pub branch: Option<String>,
+    pub upstream: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
     pub changed_files: u32,
     pub additions: u32,
     pub deletions: u32,
@@ -31,6 +34,9 @@ pub struct GitSourceControlStatus {
     pub is_repo: bool,
     pub repo_root: Option<String>,
     pub branch: Option<String>,
+    pub upstream: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
     pub changed_files: u32,
     pub additions: u32,
     pub deletions: u32,
@@ -63,6 +69,14 @@ pub struct GitFileDiff {
 pub struct GitWorkingFile {
     pub content: String,
     pub exists: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitBranchList {
+    pub current: Option<String>,
+    pub local: Vec<String>,
+    pub remote: Vec<String>,
 }
 
 pub fn resolve_git_status(path: Option<String>) -> Result<GitStatus, String> {
@@ -132,6 +146,127 @@ pub fn commit_changes(repo_root: String, message: String) -> Result<(), String> 
     git_run(&root, &["commit", "-m", trimmed])
 }
 
+pub fn push_changes(repo_root: String) -> Result<(), String> {
+    let root = PathBuf::from(repo_root);
+    if !root.is_dir() {
+        return Err("Repository root does not exist".into());
+    }
+
+    let has_upstream = git_output(&root, &["rev-parse", "--abbrev-ref", "@{upstream}"]).is_ok();
+    if has_upstream {
+        return git_run(&root, &["push"]);
+    }
+
+    let branch = git_output(&root, &["branch", "--show-current"])?
+        .trim()
+        .to_string();
+    if branch.is_empty() {
+        return Err("Cannot push: detached HEAD".into());
+    }
+
+    git_run(&root, &["push", "-u", "origin", &branch])
+}
+
+pub fn fetch_changes(repo_root: String) -> Result<(), String> {
+    let root = PathBuf::from(repo_root);
+    if !root.is_dir() {
+        return Err("Repository root does not exist".into());
+    }
+    git_run(&root, &["fetch", "--all", "--prune"])
+}
+
+pub fn pull_changes(repo_root: String) -> Result<(), String> {
+    let root = PathBuf::from(repo_root);
+    if !root.is_dir() {
+        return Err("Repository root does not exist".into());
+    }
+
+    let has_upstream = git_output(&root, &["rev-parse", "--abbrev-ref", "@{upstream}"]).is_ok();
+    if has_upstream {
+        return git_run(&root, &["pull", "--ff-only"]);
+    }
+
+    let branch = git_output(&root, &["branch", "--show-current"])?
+        .trim()
+        .to_string();
+    if branch.is_empty() {
+        return Err("Cannot pull: detached HEAD".into());
+    }
+
+    git_run(&root, &["pull", "--ff-only", "origin", &branch])
+}
+
+pub fn sync_changes(repo_root: String) -> Result<(), String> {
+    pull_changes(repo_root.clone())?;
+    push_changes(repo_root)
+}
+
+pub fn list_branches(repo_root: String) -> Result<GitBranchList, String> {
+    let root = PathBuf::from(repo_root);
+    if !root.is_dir() {
+        return Err("Repository root does not exist".into());
+    }
+
+    let current = git_output(&root, &["branch", "--show-current"])
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let local = list_ref_names(&root, "refs/heads/")?;
+    let mut remote = list_ref_names(&root, "refs/remotes/")?;
+    remote.retain(|name| !name.ends_with("/HEAD"));
+
+    Ok(GitBranchList {
+        current,
+        local,
+        remote,
+    })
+}
+
+pub fn checkout_branch(repo_root: String, branch: String, is_remote: bool) -> Result<(), String> {
+    let root = PathBuf::from(repo_root);
+    if !root.is_dir() {
+        return Err("Repository root does not exist".into());
+    }
+
+    let trimmed = branch.trim();
+    if trimmed.is_empty() {
+        return Err("Branch name is required".into());
+    }
+
+    if is_remote {
+        let Some((_, local_name)) = trimmed.split_once('/') else {
+            return Err("Invalid remote branch".into());
+        };
+        let local_ref = format!("refs/heads/{local_name}");
+        if git_output(&root, &["show-ref", "--verify", "--quiet", &local_ref]).is_ok() {
+            return git_run(&root, &["switch", local_name]);
+        }
+        return git_run(&root, &["switch", "-c", local_name, "--track", trimmed]);
+    }
+
+    git_run(&root, &["switch", trimmed])
+}
+
+fn list_ref_names(repo_root: &Path, prefix: &str) -> Result<Vec<String>, String> {
+    let output = git_output(
+        repo_root,
+        &[
+            "for-each-ref",
+            "--format=%(refname:short)",
+            "--sort=refname",
+            prefix,
+        ],
+    )?;
+
+    Ok(output
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_string)
+        .collect())
+}
+
 pub fn resolve_file_diff(
     repo_root: String,
     path: String,
@@ -198,6 +333,9 @@ pub(crate) fn read_git_status(cwd: &Path) -> GitStatus {
     GitStatus {
         is_repo: sc.is_repo,
         branch: sc.branch,
+        upstream: sc.upstream,
+        ahead: sc.ahead,
+        behind: sc.behind,
         changed_files: sc.changed_files,
         additions: sc.additions,
         deletions: sc.deletions,
@@ -222,11 +360,15 @@ pub(crate) fn read_source_control(cwd: &Path) -> GitSourceControlStatus {
     apply_file_stats(&repo_root, &mut staged, &mut changes, &mut untracked);
     let changed_files = (staged.len() + changes.len() + untracked.len()) as u32;
     let (additions, deletions) = diff_stats(&repo_root);
+    let (upstream, ahead, behind) = tracking_counts(&repo_root);
 
     GitSourceControlStatus {
         is_repo: true,
         repo_root: Some(repo_root.to_string_lossy().into_owned()),
         branch,
+        upstream,
+        ahead,
+        behind,
         changed_files,
         additions,
         deletions,
@@ -234,6 +376,44 @@ pub(crate) fn read_source_control(cwd: &Path) -> GitSourceControlStatus {
         changes,
         untracked,
     }
+}
+
+fn tracking_counts(repo_root: &Path) -> (Option<String>, u32, u32) {
+    let Ok(output) = git_output(repo_root, &["status", "-sb"]) else {
+        return (None, 0, 0);
+    };
+    let header = match output.lines().next() {
+        Some(line) if line.starts_with("## ") => &line[3..],
+        _ => return (None, 0, 0),
+    };
+    parse_tracking_header(header)
+}
+
+fn parse_tracking_header(header: &str) -> (Option<String>, u32, u32) {
+    let (name_part, bracket) = match header.find(" [") {
+        Some(idx) => (&header[..idx], Some(&header[idx + 2..])),
+        None => (header, None),
+    };
+
+    let upstream = name_part
+        .split_once("...")
+        .map(|(_, remote)| remote.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let mut ahead = 0u32;
+    let mut behind = 0u32;
+    if let Some(inner) = bracket.and_then(|value| value.strip_suffix(']')) {
+        for segment in inner.split(',') {
+            let segment = segment.trim();
+            if let Some(count) = segment.strip_prefix("ahead ") {
+                ahead = count.trim().parse().unwrap_or(0);
+            } else if let Some(count) = segment.strip_prefix("behind ") {
+                behind = count.trim().parse().unwrap_or(0);
+            }
+        }
+    }
+
+    (upstream, ahead, behind)
 }
 
 fn parse_porcelain_status(repo_root: &Path) -> (Vec<GitFileEntry>, Vec<GitFileEntry>, Vec<GitFileEntry>) {
@@ -574,6 +754,9 @@ impl GitSourceControlStatus {
             is_repo: false,
             repo_root: None,
             branch: None,
+            upstream: None,
+            ahead: 0,
+            behind: 0,
             changed_files: 0,
             additions: 0,
             deletions: 0,
@@ -625,6 +808,19 @@ mod tests {
         let diff = read_file_diff(&dir, "a.txt", true, false).expect("staged diff");
         assert!(diff.content.contains("+++"));
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn parses_branch_tracking_header() {
+        assert_eq!(
+            parse_tracking_header("main...origin/main [ahead 2]"),
+            (Some("origin/main".into()), 2, 0)
+        );
+        assert_eq!(
+            parse_tracking_header("main...origin/main [ahead 2, behind 1]"),
+            (Some("origin/main".into()), 2, 1)
+        );
+        assert_eq!(parse_tracking_header("main"), (None, 0, 0));
     }
 
     #[test]

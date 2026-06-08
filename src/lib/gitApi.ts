@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  GitBranchList,
   GitCommitEntry,
   GitFileDiff,
   GitSourceControlStatus,
@@ -33,6 +34,34 @@ export function revertUntrackedGitPaths(repoRoot: string, paths: string[]): Prom
 
 export function commitGitChanges(repoRoot: string, message: string): Promise<void> {
   return invoke("git_commit", { repoRoot, message });
+}
+
+export function pushGitRepo(repoRoot: string): Promise<void> {
+  return invoke("git_push", { repoRoot });
+}
+
+export function fetchGitRepo(repoRoot: string): Promise<void> {
+  return invoke("git_fetch", { repoRoot });
+}
+
+export function pullGitRepo(repoRoot: string): Promise<void> {
+  return invoke("git_pull", { repoRoot });
+}
+
+export function syncGitRepo(repoRoot: string): Promise<void> {
+  return invoke("git_sync", { repoRoot });
+}
+
+export function listGitBranches(repoRoot: string): Promise<GitBranchList> {
+  return invoke<GitBranchList>("git_list_branches", { repoRoot });
+}
+
+export function checkoutGitBranch(
+  repoRoot: string,
+  branch: string,
+  isRemote: boolean,
+): Promise<void> {
+  return invoke("git_checkout_branch", { repoRoot, branch, isRemote });
 }
 
 export function getGitLog(repoRoot: string, limit = 20): Promise<GitCommitEntry[]> {
