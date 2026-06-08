@@ -4,6 +4,7 @@ const MIGRATION_KEYS = [
   "oterm.defaultShellId",
   "oterm:commit-ai-settings",
   "oterm:lm-settings",
+  "oterm:terminal-autocomplete-settings",
   "oterm:source-control-width",
 ] as const;
 

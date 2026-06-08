@@ -29,6 +29,14 @@ export function detectGithubCopilotToken(): Promise<string | null> {
   return invoke<string | null>("lm_detect_github_copilot_token");
 }
 
+export type LmCompletionMode = "commit" | "terminal";
+
+export interface LmChatCompletionOptions {
+  useReasoning?: boolean;
+  allowToolCalls?: boolean;
+  completionMode?: LmCompletionMode;
+}
+
 export function generateCommitAiCompletion(
   endpoint: string,
   provider: CommitAiProvider,
@@ -36,6 +44,7 @@ export function generateCommitAiCompletion(
   systemPrompt: string,
   userPrompt: string,
   apiKey?: string,
+  options?: LmChatCompletionOptions,
 ): Promise<string> {
   return invoke<string>("lm_chat_completion", {
     endpoint,
@@ -44,5 +53,8 @@ export function generateCommitAiCompletion(
     systemPrompt,
     userPrompt,
     apiKey: apiKey?.trim() || null,
+    useReasoning: options?.useReasoning ?? null,
+    allowToolCalls: options?.allowToolCalls ?? null,
+    completionMode: options?.completionMode ?? null,
   });
 }

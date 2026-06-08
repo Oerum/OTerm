@@ -102,6 +102,60 @@ export function useWorkspace(getDefaultShellId: () => string) {
     return tab;
   }
 
+  function openDockerManagerTab() {
+    const existing = tabs.value.find((tab) => tab.kind === "docker");
+    if (existing) {
+      activeTabId.value = existing.id;
+      activePaneId.value = null;
+      return existing;
+    }
+    const tab: WorkspaceTab = {
+      kind: "docker",
+      id: uid("docker-tab"),
+      title: "Docker",
+    };
+    tabs.value.push(tab);
+    activeTabId.value = tab.id;
+    activePaneId.value = null;
+    return tab;
+  }
+
+  function openSshSftpTab() {
+    const existing = tabs.value.find((tab) => tab.kind === "sshSftp");
+    if (existing) {
+      activeTabId.value = existing.id;
+      activePaneId.value = null;
+      return existing;
+    }
+    const tab: WorkspaceTab = {
+      kind: "sshSftp",
+      id: uid("ssh-sftp-tab"),
+      title: "SSH/SFTP",
+    };
+    tabs.value.push(tab);
+    activeTabId.value = tab.id;
+    activePaneId.value = null;
+    return tab;
+  }
+
+  function openSettingsTab() {
+    const existing = tabs.value.find((tab) => tab.kind === "settings");
+    if (existing) {
+      activeTabId.value = existing.id;
+      activePaneId.value = null;
+      return existing;
+    }
+    const tab: WorkspaceTab = {
+      kind: "settings",
+      id: uid("settings-tab"),
+      title: "Settings",
+    };
+    tabs.value.push(tab);
+    activeTabId.value = tab.id;
+    activePaneId.value = null;
+    return tab;
+  }
+
   function closeTab(tabId: string) {
     const index = tabs.value.findIndex((tab) => tab.id === tabId);
     if (index === -1) return;
@@ -237,6 +291,9 @@ export function useWorkspace(getDefaultShellId: () => string) {
     createTab,
     openPullRequestsTab,
     openBranchManagerTab,
+    openDockerManagerTab,
+    openSshSftpTab,
+    openSettingsTab,
     closeTab,
     splitActiveTabHorizontal,
     selectTab,

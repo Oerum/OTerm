@@ -45,15 +45,75 @@ struct ChatChoice {
 struct ChatMessage {
     content: Option<String>,
     reasoning_content: Option<String>,
+    tool_calls: Option<Vec<ToolCall>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ToolCall {
+    function: Option<ToolFunction>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ToolFunction {
+    arguments: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CompletionMode {
+    Commit,
+    Terminal,
+}
+
+impl CompletionMode {
+    fn parse(value: Option<&str>) -> Self {
+        match value {
+            Some("terminal") => Self::Terminal,
+            _ => Self::Commit,
+        }
+    }
 }
 
 const COMMIT_TYPES: &[&str] = &["feat", "fix", "refactor", "test", "docs", "chore", "ci", "perf"];
 
-fn extract_completion_text(message: ChatMessage) -> Option<String> {
-    let content = message.content.unwrap_or_default();
-    let trimmed = content.trim();
-    if !trimmed.is_empty() {
-        return Some(trimmed.to_string());
+fn extract_tool_call_text(message: &ChatMessage) -> Option<String> {
+    message
+        .tool_calls
+        .as_ref()?
+        .iter()
+        .find_map(|call| {
+            call.function
+                .as_ref()?
+                .arguments
+                .as_deref()
+                .map(str::trim)
+                .filter(|args| !args.is_empty())
+                .map(str::to_string)
+        })
+}
+
+fn extract_completion_text(
+    message: ChatMessage,
+    use_reasoning: bool,
+    allow_tool_calls: bool,
+    mode: CompletionMode,
+) -> Option<String> {
+    if let Some(content) = message
+        .content
+        .as_deref()
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+    {
+        return Some(content.to_string());
+    }
+
+    if allow_tool_calls {
+        if let Some(text) = extract_tool_call_text(&message) {
+            return Some(text);
+        }
+    }
+
+    if !use_reasoning {
+        return None;
     }
 
     let reasoning = message.reasoning_content.unwrap_or_default();
@@ -62,7 +122,16 @@ fn extract_completion_text(message: ChatMessage) -> Option<String> {
         return None;
     }
 
-    extract_conventional_commit_line(reasoning).or_else(|| Some(reasoning.to_string()))
+    match mode {
+        CompletionMode::Commit => {
+            extract_conventional_commit_line(reasoning).or_else(|| Some(reasoning.to_string()))
+        }
+        CompletionMode::Terminal => reasoning
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .map(str::to_string),
+    }
 }
 
 fn extract_conventional_commit_line(text: &str) -> Option<String> {
@@ -221,6 +290,9 @@ pub(crate) async fn chat_completion(
     model: &str,
     system_prompt: &str,
     user_prompt: &str,
+    use_reasoning: bool,
+    allow_tool_calls: bool,
+    mode: CompletionMode,
 ) -> Result<String, String> {
     let base = normalize_endpoint(endpoint)?;
     let api_key = resolve_api_key(provider, api_key)?;
@@ -235,7 +307,7 @@ pub(crate) async fn chat_completion(
         .build()
         .map_err(|err| err.to_string())?;
 
-    let body = serde_json::json!({
+    let mut body = serde_json::json!({
         "model": model,
         "messages": [
             { "role": "system", "content": system_prompt },
@@ -245,6 +317,9 @@ pub(crate) async fn chat_completion(
         "max_tokens": 1024,
         "stream": false
     });
+    if !allow_tool_calls {
+        body["tool_choice"] = serde_json::json!("none");
+    }
 
     let request = apply_provider_headers(client.post(&url), provider, api_key.as_deref()).json(&body);
     let response = request
@@ -267,7 +342,14 @@ pub(crate) async fn chat_completion(
         .choices
         .into_iter()
         .next()
-        .and_then(|choice| extract_completion_text(choice.message));
+        .and_then(|choice| {
+            extract_completion_text(
+                choice.message,
+                use_reasoning,
+                allow_tool_calls,
+                mode,
+            )
+        });
 
     match content {
         Some(text) if !text.is_empty() => Ok(text),
@@ -284,10 +366,16 @@ mod tests {
 
     #[test]
     fn prefers_content_over_reasoning() {
-        let text = extract_completion_text(ChatMessage {
-            content: Some("feat: add widget".into()),
-            reasoning_content: Some("thinking...".into()),
-        });
+        let text = extract_completion_text(
+            ChatMessage {
+                content: Some("feat: add widget".into()),
+                reasoning_content: Some("thinking...".into()),
+                tool_calls: None,
+            },
+            true,
+            false,
+            CompletionMode::Commit,
+        );
         assert_eq!(text.as_deref(), Some("feat: add widget"));
     }
 
@@ -298,13 +386,34 @@ mod tests {
 * `feat(core): add lm studio integration`
 * Wait, is it just
 "#;
-        let text = extract_completion_text(ChatMessage {
-            content: Some(String::new()),
-            reasoning_content: Some(reasoning.into()),
-        });
+        let text = extract_completion_text(
+            ChatMessage {
+                content: Some(String::new()),
+                reasoning_content: Some(reasoning.into()),
+                tool_calls: None,
+            },
+            true,
+            false,
+            CompletionMode::Commit,
+        );
         assert_eq!(
             text.as_deref(),
             Some("feat(core): add lm studio integration")
         );
+    }
+
+    #[test]
+    fn terminal_reasoning_uses_first_nonempty_line() {
+        let text = extract_completion_text(
+            ChatMessage {
+                content: Some(String::new()),
+                reasoning_content: Some("\n\ngit status\n".into()),
+                tool_calls: None,
+            },
+            true,
+            false,
+            CompletionMode::Terminal,
+        );
+        assert_eq!(text.as_deref(), Some("git status"));
     }
 }

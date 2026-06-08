@@ -7,7 +7,10 @@ import SourceControlPanel from "./components/SourceControlPanel.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TerminalPane from "./components/TerminalPane.vue";
 import BranchManagerView from "./components/BranchManagerView.vue";
+import DockerManagerView from "./components/DockerManagerView.vue";
+import SshSftpManagerView from "./components/SshSftpManagerView.vue";
 import PullRequestsView from "./components/PullRequestsView.vue";
+import SettingsView from "./components/SettingsView.vue";
 import TitleBar from "./components/TitleBar.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
 import { useResizablePanel } from "./composables/useResizablePanel";
@@ -17,6 +20,8 @@ import { useWorkspace } from "./composables/useWorkspace";
 import type { ClosedTerminalSession, SaveProfileDraft, WorkspaceTerminalTab } from "./types/terminal";
 import { isTerminalTab } from "./types/terminal";
 import { loadDefaultShellId, saveDefaultShellId } from "./lib/shellSettings";
+import type { DockerContainer } from "./types/docker";
+import type { SshEndpoint } from "./types/sshSftp";
 import { killTerminal, listShells, writeTerminal } from "./lib/terminalApi";
 
 const appVersion = "0.1.0";
@@ -24,6 +29,7 @@ const appVersion = "0.1.0";
 const FALLBACK_SHELL_ID = "pwsh";
 const defaultShellId = ref(loadDefaultShellId(FALLBACK_SHELL_ID));
 const closedSessions = ref<ClosedTerminalSession[]>([]);
+const pendingTerminalCommands = new Map<string, string>();
 const canReopenClosed = computed(() => closedSessions.value.length > 0);
 const terminalSidebarOpen = ref(true);
 const toolsOpen = ref(false);
@@ -47,6 +53,9 @@ const {
   createTab,
   openPullRequestsTab,
   openBranchManagerTab,
+  openDockerManagerTab,
+  openSshSftpTab,
+  openSettingsTab,
   closeTab: removeTab,
   splitActiveTabHorizontal,
   selectTab,
@@ -161,6 +170,62 @@ function openBranchManager() {
   openBranchManagerTab(root);
 }
 
+function openDockerManager() {
+  openDockerManagerTab();
+}
+
+function openSshSftp() {
+  openSshSftpTab();
+}
+
+function openSettings() {
+  openSettingsTab();
+}
+
+function buildSshCommand(endpoint: SshEndpoint) {
+  const target = `${endpoint.username}@${endpoint.host}`;
+  if (endpoint.authMethod === "publicKey" && endpoint.keyPath?.trim()) {
+    const keyPath = endpoint.keyPath.trim().replace(/"/g, '\\"');
+    return `ssh -p ${endpoint.port} -i "${keyPath}" ${target}`;
+  }
+  return `ssh -p ${endpoint.port} ${target}`;
+}
+
+function openSshTerminal(endpoint: SshEndpoint) {
+  const tab = createTab(resolveDefaultShellId());
+  if (!tab || !isTerminalTab(tab)) return;
+  const pane = tab.panes[0];
+  if (!pane) return;
+
+  setTabTitle(tab.id, `ssh: ${endpoint.name || endpoint.host}`);
+  pendingTerminalCommands.set(pane.id, `${buildSshCommand(endpoint)}\r`);
+
+  selectTab(tab.id);
+  selectPane(pane.id);
+}
+
+function openDockerContainerTerminal(
+  container: DockerContainer,
+  mode: "logs" | "shell",
+) {
+  const tab = createTab(resolveDefaultShellId());
+  if (!tab || !isTerminalTab(tab)) return;
+  const pane = tab.panes[0];
+  if (!pane) return;
+
+  const label = container.name || container.id.slice(0, 12);
+  setTabTitle(tab.id, mode === "logs" ? `logs: ${label}` : `shell: ${label}`);
+
+  const command =
+    mode === "logs"
+      ? `docker logs -f --tail 200 ${container.id}`
+      : `docker exec -it ${container.id} sh`;
+  pendingTerminalCommands.set(pane.id, `${command}\r`);
+
+  selectTab(tab.id);
+  selectPane(pane.id);
+}
+
 function resolveDefaultShellId() {
   return (
     shells.value.find((shell) => shell.id === defaultShellId.value)?.id ??
@@ -253,6 +318,10 @@ function selectTerminal(tabId: string, paneId: string) {
 function onSessionCreated(paneId: string, sessionId: string) {
   if (!sessionId) return;
   setPaneSession(paneId, sessionId);
+  const command = pendingTerminalCommands.get(paneId);
+  if (!command) return;
+  pendingTerminalCommands.delete(paneId);
+  void writeTerminal(sessionId, command);
 }
 
 function onSessionEnded(paneId: string) {
@@ -351,8 +420,11 @@ onUnmounted(() => {
       @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
       @toggle-tools="toolsOpen = !toolsOpen"
       @toggle-source-control="toggleSourceControl"
+      @open-ssh-sftp="openSshSftp"
+      @open-docker-manager="openDockerManager"
       @open-pull-requests="openPullRequests"
       @open-branch-manager="openBranchManager"
+      @open-settings="openSettings"
     />
 
     <div class="flex min-h-0 flex-1">
@@ -441,6 +513,27 @@ onUnmounted(() => {
               @refresh-git="refreshGitViews"
               @close="closeTab(tab.id)"
             />
+            <DockerManagerView
+              v-else-if="tab.kind === 'docker'"
+              v-show="tab.id === activeTabId"
+              class="flex min-h-0 flex-1"
+              @close="closeTab(tab.id)"
+              @open-container-logs="openDockerContainerTerminal($event, 'logs')"
+              @open-container-shell="openDockerContainerTerminal($event, 'shell')"
+            />
+            <SshSftpManagerView
+              v-else-if="tab.kind === 'sshSftp'"
+              v-show="tab.id === activeTabId"
+              class="flex min-h-0 flex-1"
+              @close="closeTab(tab.id)"
+              @open-ssh-terminal="openSshTerminal"
+            />
+            <SettingsView
+              v-else-if="tab.kind === 'settings'"
+              v-show="tab.id === activeTabId"
+              class="flex min-h-0 flex-1"
+              @close="closeTab(tab.id)"
+            />
           </template>
         </main>
 
@@ -486,5 +579,6 @@ onUnmounted(() => {
         />
       </div>
     </div>
+
   </div>
 </template>

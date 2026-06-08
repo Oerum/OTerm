@@ -1,5 +1,6 @@
 use super::{
-    chat_completion, list_models, load_github_copilot_oauth_token, normalize_endpoint, AiProvider,
+    chat_completion, list_models, load_github_copilot_oauth_token, normalize_endpoint,
+    AiProvider, CompletionMode,
 };
 use serde::Serialize;
 
@@ -48,8 +49,14 @@ pub async fn lm_chat_completion(
     system_prompt: String,
     user_prompt: String,
     api_key: Option<String>,
+    use_reasoning: Option<bool>,
+    allow_tool_calls: Option<bool>,
+    completion_mode: Option<String>,
 ) -> Result<String, String> {
     let provider = AiProvider::parse(provider.as_deref());
+    let mode = CompletionMode::parse(completion_mode.as_deref());
+    let use_reasoning = use_reasoning.unwrap_or(mode == CompletionMode::Commit);
+    let allow_tool_calls = allow_tool_calls.unwrap_or(mode == CompletionMode::Commit);
     chat_completion(
         &endpoint,
         provider,
@@ -57,6 +64,9 @@ pub async fn lm_chat_completion(
         &model,
         &system_prompt,
         &user_prompt,
+        use_reasoning,
+        allow_tool_calls,
+        mode,
     )
     .await
 }

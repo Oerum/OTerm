@@ -18,8 +18,11 @@ const emit = defineEmits<{
   toggleTerminalSidebar: [];
   toggleTools: [];
   toggleSourceControl: [];
+  openSshSftp: [];
+  openDockerManager: [];
   openPullRequests: [];
   openBranchManager: [];
+  openSettings: [];
 }>();
 
 const appWindow = getCurrentWindow();
@@ -100,6 +103,22 @@ function onDragMouseDown(event: MouseEvent) {
     <div class="no-drag flex items-center gap-1 pr-1">
       <button
         type="button"
+        class="rounded-md px-2 py-1 text-xs text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+        title="SSH/SFTP manager"
+        @click="emit('openSshSftp')"
+      >
+        SSH/SFTP
+      </button>
+      <button
+        type="button"
+        class="rounded-md px-2 py-1 text-xs text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+        title="Docker manager"
+        @click="emit('openDockerManager')"
+      >
+        Docker
+      </button>
+      <button
+        type="button"
         class="rounded-md px-2 py-1 text-xs transition"
         :class="
           canOpenGitFeatures
@@ -132,7 +151,7 @@ function onDragMouseDown(event: MouseEvent) {
         compact
         @click="emit('toggleSourceControl')"
       />
-      <UserMenu :app-version="appVersion" class="mx-0.5" />
+      <UserMenu :app-version="appVersion" class="mx-0.5" @open-settings="emit('openSettings')" />
       <button
         type="button"
         class="flex h-9 w-11 items-center justify-center text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"

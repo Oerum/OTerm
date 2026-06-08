@@ -111,7 +111,14 @@ export function buildFeatureEntries(
   activeTabId: string | null,
 ): FeatureSidebarEntry[] {
   return tabs
-    .filter((tab) => tab.kind === "pullRequests" || tab.kind === "branchManager")
+    .filter(
+      (tab) =>
+        tab.kind === "pullRequests" ||
+        tab.kind === "branchManager" ||
+        tab.kind === "docker" ||
+        tab.kind === "sshSftp" ||
+        tab.kind === "settings",
+    )
     .map((tab) => ({
       entryId: tab.id,
       tabId: tab.id,

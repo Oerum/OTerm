@@ -70,6 +70,16 @@ const featureEntries = computed(() =>
   buildFeatureEntries(props.tabs, props.activeTabId),
 );
 
+function featureEntryBadge(
+  kind: "pullRequests" | "branchManager" | "docker" | "sshSftp" | "settings",
+) {
+  if (kind === "pullRequests") return "PR";
+  if (kind === "branchManager") return "Br";
+  if (kind === "sshSftp") return "SF";
+  if (kind === "settings") return "⚙";
+  return "Dk";
+}
+
 const terminalEntries = computed(() => {
   const entries = buildTerminalEntries(
     props.tabs,
@@ -374,7 +384,7 @@ onBeforeUnmount(() => {
     >
       <div v-if="featureEntries.length > 0" class="mb-2 space-y-0.5">
         <p class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--warp-faint)]">
-          Git
+          Tools
         </p>
         <button
           v-for="entry in featureEntries"
@@ -391,7 +401,7 @@ onBeforeUnmount(() => {
           <span
             class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--warp-bg)] text-[10px] font-semibold uppercase text-[var(--warp-muted)]"
           >
-            {{ entry.kind === "pullRequests" ? "PR" : "Br" }}
+            {{ featureEntryBadge(entry.kind) }}
           </span>
           <span class="min-w-0 flex-1 truncate">{{ entry.title }}</span>
           <span
