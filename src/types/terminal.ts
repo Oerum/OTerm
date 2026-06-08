@@ -30,12 +30,44 @@ export interface WorkspacePane {
   customTitle: string | null;
 }
 
-export interface WorkspaceTab {
+export interface WorkspaceTerminalTab {
+  kind: "terminal";
   id: string;
   title: string;
   color: TerminalEntryColor;
   panes: WorkspacePane[];
   split: "none" | "horizontal";
+}
+
+export interface WorkspacePullRequestsTab {
+  kind: "pullRequests";
+  id: string;
+  title: string;
+  repoRoot: string;
+}
+
+export interface WorkspaceBranchManagerTab {
+  kind: "branchManager";
+  id: string;
+  title: string;
+  repoRoot: string;
+}
+
+export type WorkspaceTab =
+  | WorkspaceTerminalTab
+  | WorkspacePullRequestsTab
+  | WorkspaceBranchManagerTab;
+
+export function isTerminalTab(tab: WorkspaceTab): tab is WorkspaceTerminalTab {
+  return tab.kind === "terminal";
+}
+
+export interface FeatureSidebarEntry {
+  entryId: string;
+  tabId: string;
+  kind: "pullRequests" | "branchManager";
+  title: string;
+  isActive: boolean;
 }
 
 export type TerminalMenuActionId =

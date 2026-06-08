@@ -1,4 +1,6 @@
+pub mod branches;
 pub mod commands;
+pub mod pr;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -705,7 +707,7 @@ fn apply_file_stats(
     }
 }
 
-fn git_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
+pub(crate) fn git_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
     let output = Command::new("git")
         .args(args)
         .current_dir(cwd)
@@ -719,7 +721,7 @@ fn git_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-fn git_diff_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
+pub(crate) fn git_diff_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
     let output = Command::new("git")
         .args(args)
         .current_dir(cwd)
@@ -734,7 +736,7 @@ fn git_diff_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
     Err(String::from_utf8_lossy(&output.stderr).into_owned())
 }
 
-fn git_run(cwd: &Path, args: &[&str]) -> Result<(), String> {
+pub(crate) fn git_run(cwd: &Path, args: &[&str]) -> Result<(), String> {
     let output = Command::new("git")
         .args(args)
         .current_dir(cwd)

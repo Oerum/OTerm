@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { getGitStatus } from "../lib/gitApi";
-import { buildTerminalEntries } from "../lib/sidebarEntries";
+import { buildFeatureEntries, buildTerminalEntries } from "../lib/sidebarEntries";
 import type {
   SaveProfileDraft,
   ShellProfile,
@@ -9,6 +9,7 @@ import type {
   TerminalMenuActionId,
   WorkspaceTab,
 } from "../types/terminal";
+import { isTerminalTab } from "../types/terminal";
 import TerminalSidebarEntry from "./TerminalSidebarEntry.vue";
 
 const props = defineProps<{
@@ -59,6 +60,10 @@ const gitByPane = ref(
   >(),
 );
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+const featureEntries = computed(() =>
+  buildFeatureEntries(props.tabs, props.activeTabId),
+);
 
 const terminalEntries = computed(() => {
   const entries = buildTerminalEntries(
@@ -117,6 +122,7 @@ async function refreshGitForPane(paneId: string, cwd: string) {
 
 const paneCwdSignature = computed(() =>
   props.tabs
+    .filter(isTerminalTab)
     .flatMap((tab) => tab.panes.map((pane) => `${pane.id}:${pane.cwd}`))
     .join("|"),
 );
@@ -127,6 +133,7 @@ function scheduleGitRefresh() {
   if (gitRefreshTimer) clearTimeout(gitRefreshTimer);
   gitRefreshTimer = setTimeout(() => {
     for (const tab of props.tabs) {
+      if (!isTerminalTab(tab)) continue;
       for (const pane of tab.panes) {
         void refreshGitForPane(pane.id, pane.cwd);
       }
@@ -140,12 +147,17 @@ watch(
   () => props.gitRefreshToken,
   () => {
     for (const tab of props.tabs) {
+      if (!isTerminalTab(tab)) continue;
       for (const pane of tab.panes) {
         void refreshGitForPane(pane.id, pane.cwd);
       }
     }
   },
 );
+
+function selectFeatureTab(tabId: string) {
+  emit("select", tabId, "");
+}
 
 watch(openMenuEntryId, (entryId) => {
   if (!entryId) return;
@@ -356,8 +368,44 @@ onBeforeUnmount(() => {
       class="warp-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2"
       @scroll="onSidebarScroll"
     >
+      <div v-if="featureEntries.length > 0" class="mb-2 space-y-0.5">
+        <p class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--warp-faint)]">
+          Git
+        </p>
+        <button
+          v-for="entry in featureEntries"
+          :key="entry.entryId"
+          type="button"
+          class="no-drag group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition"
+          :class="
+            entry.isActive
+              ? 'bg-white/[0.08] text-[var(--warp-text)]'
+              : 'text-[var(--warp-muted)] hover:bg-white/5 hover:text-[var(--warp-text)]'
+          "
+          @click="selectFeatureTab(entry.tabId)"
+        >
+          <span
+            class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--warp-bg)] text-[10px] font-semibold uppercase text-[var(--warp-muted)]"
+          >
+            {{ entry.kind === "pullRequests" ? "PR" : "Br" }}
+          </span>
+          <span class="min-w-0 flex-1 truncate">{{ entry.title }}</span>
+          <button
+            type="button"
+            class="no-drag shrink-0 rounded p-0.5 text-[var(--warp-faint)] opacity-0 transition hover:bg-white/10 hover:text-[var(--warp-text)] group-hover:opacity-100"
+            title="Close"
+            aria-label="Close tab"
+            @click.stop="emit('close', entry.tabId)"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor">
+              <path d="M2.5 2.5 7.5 7.5M7.5 2.5 2.5 7.5" stroke-width="1.2" stroke-linecap="round" />
+            </svg>
+          </button>
+        </button>
+      </div>
+
       <p
-        v-if="terminalEntries.length === 0"
+        v-if="terminalEntries.length === 0 && featureEntries.length === 0"
         class="px-2 py-3 text-xs text-[var(--warp-faint)]"
       >
         No open terminals

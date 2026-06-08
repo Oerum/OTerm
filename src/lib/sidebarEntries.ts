@@ -1,4 +1,11 @@
-import type { ShellProfile, TerminalSidebarEntry, WorkspaceTab } from "../types/terminal";
+import type {
+  FeatureSidebarEntry,
+  ShellProfile,
+  TerminalSidebarEntry,
+  WorkspaceTab,
+  WorkspaceTerminalTab,
+} from "../types/terminal";
+import { isTerminalTab } from "../types/terminal";
 
 export const ENTRY_COLORS = [
   { id: "none" as const, hex: "#5c5c5c", label: "None" },
@@ -9,7 +16,7 @@ export const ENTRY_COLORS = [
   { id: "pink" as const, hex: "#ff7eb6", label: "Pink" },
 ];
 
-export function entryAccentColor(color: WorkspaceTab["color"]) {
+export function entryAccentColor(color: WorkspaceTerminalTab["color"]) {
   const match = ENTRY_COLORS.find((item) => item.id === color);
   return match?.hex ?? ENTRY_COLORS[0].hex;
 }
@@ -19,7 +26,7 @@ export function shellLabelFor(shells: ShellProfile[], shellId: string) {
 }
 
 export function paneDisplayTitle(
-  pane: WorkspaceTab["panes"][number],
+  pane: WorkspaceTerminalTab["panes"][number],
   shellLabel: string,
   splitIndex: number | null,
 ) {
@@ -34,7 +41,7 @@ export function paneDisplayTitle(
   return title;
 }
 
-export function paneSubtitle(pane: WorkspaceTab["panes"][number], shellLabel: string) {
+export function paneSubtitle(pane: WorkspaceTerminalTab["panes"][number], shellLabel: string) {
   const cwd = pane.cwd;
   if (!cwd || cwd === "~") return shellLabel;
   return `${shellLabel} · ${cwd}`;
@@ -58,7 +65,9 @@ export function buildTerminalEntries(
 ): TerminalSidebarEntry[] {
   const labels = Object.fromEntries(shells.map((shell) => [shell.id, shell.label]));
 
-  return tabs.flatMap((tab, tabIndex) =>
+  const terminalTabs = tabs.filter(isTerminalTab);
+
+  return terminalTabs.flatMap((tab, tabIndex) =>
     tab.panes.map((pane, paneIndex) => {
       const shellLabel = labels[pane.shellId] ?? "Terminal";
       const splitIndex = tab.panes.length > 1 ? paneIndex + 1 : null;
@@ -89,10 +98,25 @@ export function buildTerminalEntries(
         gitDeletions: git?.deletions ?? 0,
         isActive: tab.id === activeTabId && pane.id === activePaneId,
         canMoveUp: tabIndex > 0,
-        canMoveDown: tabIndex < tabs.length - 1,
-        entriesBelowCount: tabs.length - tabIndex - 1,
-        canCloseOthers: tabs.length > 1,
+        canMoveDown: tabIndex < terminalTabs.length - 1,
+        entriesBelowCount: terminalTabs.length - tabIndex - 1,
+        canCloseOthers: terminalTabs.length > 1,
       };
     }),
   );
+}
+
+export function buildFeatureEntries(
+  tabs: WorkspaceTab[],
+  activeTabId: string | null,
+): FeatureSidebarEntry[] {
+  return tabs
+    .filter((tab) => tab.kind === "pullRequests" || tab.kind === "branchManager")
+    .map((tab) => ({
+      entryId: tab.id,
+      tabId: tab.id,
+      kind: tab.kind,
+      title: tab.title,
+      isActive: tab.id === activeTabId,
+    }));
 }

@@ -8,7 +8,6 @@ const props = defineProps<{
   pane: WorkspacePane | null;
   shells: ShellProfile[];
   gitStatus: GitStatus;
-  appVersion: string;
   terminalSidebarOpen: boolean;
   toolsOpen: boolean;
   sourceControlOpen: boolean;
@@ -73,10 +72,6 @@ const shellLabel = computed(
       </button>
 
       <span class="hidden h-3 w-px shrink-0 bg-[var(--warp-border-strong)] sm:block" />
-
-      <span class="hidden shrink-0 font-mono text-[var(--warp-muted)] sm:inline">v{{ appVersion }}</span>
-
-      <span class="hidden h-3 w-px shrink-0 bg-[var(--warp-border-strong)] md:block" />
 
       <span class="flex min-w-0 items-center gap-1 truncate font-mono text-[var(--warp-muted)]">
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" class="shrink-0" aria-hidden="true">

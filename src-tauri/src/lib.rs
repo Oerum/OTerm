@@ -6,10 +6,13 @@ use fs::commands::{
     fs_list_directory, fs_open_in_vscode, fs_search_files, fs_show_shell_context_menu, FsSearchState,
 };
 use git::commands::{
-    git_checkout_branch, git_commit, git_fetch, git_file_diff, git_list_branches, git_log,
-    git_pull, git_push, git_read_working_file, git_revert_tracked_paths, git_revert_untracked_paths,
-    git_source_control_status, git_stage_paths, git_status, git_sync, git_unstage_paths,
-    git_write_working_file,
+    git_checkout_branch, git_checkout_detached, git_cherry_pick, git_commit, git_commit_details,
+    git_commit_graph, git_compare_commits, git_create_branch, git_create_tag, git_fetch,
+    git_file_diff, git_incoming_outgoing, git_list_branch_refs, git_list_branches, git_log,
+    git_pull, git_push, git_read_working_file, git_remote_browser_url, git_reset_commit,
+    git_revert_commit, git_revert_tracked_paths, git_revert_untracked_paths,
+    git_source_control_status, git_squash_commits, git_stage_paths, git_status, git_sync,
+    git_unstage_paths, git_write_working_file, pr_checkout, pr_create, pr_detect_provider, pr_list,
 };
 use terminal::commands::{
     terminal_drain_output, terminal_kill, terminal_list_shells, terminal_resize, terminal_spawn,
@@ -53,6 +56,23 @@ pub fn run() {
             git_file_diff,
             git_read_working_file,
             git_write_working_file,
+            pr_detect_provider,
+            pr_list,
+            pr_create,
+            pr_checkout,
+            git_remote_browser_url,
+            git_list_branch_refs,
+            git_commit_graph,
+            git_commit_details,
+            git_compare_commits,
+            git_incoming_outgoing,
+            git_checkout_detached,
+            git_create_branch,
+            git_create_tag,
+            git_revert_commit,
+            git_reset_commit,
+            git_cherry_pick,
+            git_squash_commits,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

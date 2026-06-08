@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { ShellProfile, WorkspaceTab } from "../types/terminal";
+import { isTerminalTab } from "../types/terminal";
 
 const props = defineProps<{
   tabs: WorkspaceTab[];
@@ -20,6 +21,7 @@ const shellLabels = computed(() =>
 );
 
 function tabLabel(tab: WorkspaceTab) {
+  if (!isTerminalTab(tab)) return tab.title;
   const shellId = tab.panes[0]?.shellId ?? "shell";
   return shellLabels.value[shellId] ?? tab.title;
 }

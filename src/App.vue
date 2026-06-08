@@ -6,6 +6,8 @@ import SidebarRail from "./components/SidebarRail.vue";
 import SourceControlPanel from "./components/SourceControlPanel.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TerminalPane from "./components/TerminalPane.vue";
+import BranchManagerView from "./components/BranchManagerView.vue";
+import PullRequestsView from "./components/PullRequestsView.vue";
 import TitleBar from "./components/TitleBar.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
 import { useResizablePanel } from "./composables/useResizablePanel";
@@ -13,6 +15,7 @@ import { useSourceControl } from "./composables/useSourceControl";
 import { useTerminalHistory } from "./composables/useTerminalHistory";
 import { useWorkspace } from "./composables/useWorkspace";
 import type { SaveProfileDraft } from "./types/terminal";
+import { isTerminalTab } from "./types/terminal";
 import { killTerminal, listShells, writeTerminal } from "./lib/terminalApi";
 
 const appVersion = "0.1.0";
@@ -38,6 +41,8 @@ const {
   activePaneId,
   activePane,
   createTab,
+  openPullRequestsTab,
+  openBranchManagerTab,
   closeTab: removeTab,
   splitActiveTabHorizontal,
   selectTab,
@@ -137,6 +142,21 @@ const projectRoot = computed(() => {
   return cwd;
 });
 
+const gitRepoRoot = computed(() => sourceControlStatus.value.repoRoot ?? null);
+const canOpenGitFeatures = computed(() => Boolean(gitRepoRoot.value));
+
+function openPullRequests() {
+  const root = gitRepoRoot.value;
+  if (!root) return;
+  openPullRequestsTab(root);
+}
+
+function openBranchManager() {
+  const root = gitRepoRoot.value;
+  if (!root) return;
+  openBranchManagerTab(root);
+}
+
 async function bootstrap() {
   shells.value = await listShells();
   const preferred =
@@ -152,9 +172,11 @@ async function closeTabs(tabIds: string[]) {
   for (const tabId of tabIds) {
     const tab = tabs.value.find((item) => item.id === tabId);
     if (!tab) continue;
-    for (const pane of tab.panes) {
-      if (pane.sessionId) {
-        await killTerminal(pane.sessionId);
+    if (isTerminalTab(tab)) {
+      for (const pane of tab.panes) {
+        if (pane.sessionId) {
+          await killTerminal(pane.sessionId);
+        }
       }
     }
     removeTab(tabId);
@@ -177,7 +199,7 @@ function onSaveProfile(draft: SaveProfileDraft) {
 
 function selectTerminal(tabId: string, paneId: string) {
   selectTab(tabId);
-  selectPane(paneId);
+  if (paneId) selectPane(paneId);
 }
 
 function onSessionCreated(paneId: string, sessionId: string) {
@@ -266,9 +288,13 @@ onUnmounted(() => {
       :tools-open="toolsOpen"
       :source-control-open="sourceControlOpen"
       :git-status="gitBadgeStatus"
+      :can-open-git-features="canOpenGitFeatures"
+      :app-version="appVersion"
       @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
       @toggle-tools="toolsOpen = !toolsOpen"
       @toggle-source-control="toggleSourceControl"
+      @open-pull-requests="openPullRequests"
+      @open-branch-manager="openBranchManager"
     />
 
     <div class="flex min-h-0 flex-1">
@@ -303,10 +329,11 @@ onUnmounted(() => {
         class="relative flex min-w-0 flex-1 flex-col"
         :class="terminalSidebarOpen || toolsOpen ? 'border-l border-[var(--warp-border)]' : ''"
       >
-        <SessionHeader :pane="activePane" :shells="shells" />
+        <SessionHeader v-if="activePane" :pane="activePane" :shells="shells" />
 
         <main class="relative flex min-h-0 flex-1 flex-col">
           <HistorySearch
+            v-if="activePane"
             :open="historyOpen"
             :query="historyQuery"
             :entries="filteredHistory"
@@ -315,35 +342,51 @@ onUnmounted(() => {
             @select="insertHistoryEntry"
           />
 
-          <section
-            v-for="tab in tabs"
-            v-show="tab.id === activeTabId"
-            :key="tab.id"
-            class="flex min-h-0 flex-1 divide-[var(--warp-border)]"
-            :class="tab.split === 'horizontal' ? 'flex-row divide-x' : 'flex-col'"
-          >
-            <TerminalPane
-              v-for="pane in tab.panes"
-              :key="pane.id"
-              :pane-id="pane.id"
-              :session-id="pane.sessionId"
-              :shell-id="pane.shellId"
-              :active="pane.id === activePaneId"
-              @session-created="onSessionCreated"
-              @session-ended="onSessionEnded"
-              @cwd-changed="setPaneCwd"
-              @prompt-ready="onPromptReady"
-              @command-submitted="onCommandSubmitted"
-              @focus-pane="selectPane(pane.id)"
+          <template v-for="tab in tabs" :key="tab.id">
+            <section
+              v-if="tab.kind === 'terminal'"
+              v-show="tab.id === activeTabId"
+              class="flex min-h-0 flex-1 divide-[var(--warp-border)]"
+              :class="tab.split === 'horizontal' ? 'flex-row divide-x' : 'flex-col'"
+            >
+              <TerminalPane
+                v-for="pane in tab.panes"
+                :key="pane.id"
+                :pane-id="pane.id"
+                :session-id="pane.sessionId"
+                :shell-id="pane.shellId"
+                :active="pane.id === activePaneId"
+                @session-created="onSessionCreated"
+                @session-ended="onSessionEnded"
+                @cwd-changed="setPaneCwd"
+                @prompt-ready="onPromptReady"
+                @command-submitted="onCommandSubmitted"
+                @focus-pane="selectPane(pane.id)"
+              />
+            </section>
+            <PullRequestsView
+              v-else-if="tab.kind === 'pullRequests'"
+              v-show="tab.id === activeTabId"
+              class="flex min-h-0 flex-1"
+              :repo-root="tab.repoRoot"
+              @refresh-git="refreshGitViews"
+              @close="closeTab(tab.id)"
             />
-          </section>
+            <BranchManagerView
+              v-else-if="tab.kind === 'branchManager'"
+              v-show="tab.id === activeTabId"
+              class="flex min-h-0 flex-1"
+              :repo-root="tab.repoRoot"
+              @refresh-git="refreshGitViews"
+              @close="closeTab(tab.id)"
+            />
+          </template>
         </main>
 
         <StatusBar
           :pane="activePane"
           :shells="shells"
           :git-status="gitBadgeStatus"
-          :app-version="appVersion"
           :terminal-sidebar-open="terminalSidebarOpen"
           :tools-open="toolsOpen"
           :source-control-open="sourceControlOpen"
