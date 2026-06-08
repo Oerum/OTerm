@@ -39,6 +39,12 @@ export interface GitBranchList {
   remote: string[];
 }
 
+export interface GitStagedDiffContext {
+  stat: string;
+  diff: string;
+  truncated: boolean;
+}
+
 export type GitOperation =
   | "fetch"
   | "pull"

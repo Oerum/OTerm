@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { getGitFileDiff, readGitWorkingFile, writeGitWorkingFile } from "../lib/gitApi";
+import { getGitFileDiff, getGitStagedDiff, readGitWorkingFile, writeGitWorkingFile } from "../lib/gitApi";
+import { generateLmCompletion } from "../lib/lmStudioApi";
+import { useLmSettings } from "../lib/lmSettings";
 import type {
   GitBranchList,
   GitCommitEntry,
@@ -41,7 +43,11 @@ const emit = defineEmits<{
   refresh: [];
 }>();
 
+const { settings: lmSettings } = useLmSettings();
+
 const commitMessage = ref("");
+const generatingCommit = ref(false);
+const generateError = ref<string | null>(null);
 const selectedFile = ref<SelectedGitFile | null>(null);
 const paneView = ref<PaneView>("diff");
 const diffContent = ref("");
@@ -63,6 +69,56 @@ const showDiffPane = computed(() => props.panelWidth >= DIFF_PANE_MIN_WIDTH);
 const canCommit = computed(
   () => props.status.isRepo && props.status.staged.length > 0 && commitMessage.value.trim().length > 0,
 );
+
+const canGenerateCommit = computed(
+  () =>
+    props.status.isRepo &&
+    props.status.staged.length > 0 &&
+    lmSettings.value.model.trim().length > 0 &&
+    !props.busy &&
+    !generatingCommit.value,
+);
+
+function cleanGeneratedCommitMessage(raw: string) {
+  let text = raw.trim();
+  if (text.startsWith("```")) {
+    text = text.replace(/^```[\w-]*\n?/, "").replace(/\n?```$/, "").trim();
+  }
+  return text;
+}
+
+async function onGenerateCommitMessage() {
+  const repoRoot = props.status.repoRoot;
+  if (!repoRoot || !canGenerateCommit.value) return;
+
+  generatingCommit.value = true;
+  generateError.value = null;
+  try {
+    const staged = await getGitStagedDiff(repoRoot);
+    const userPrompt = [
+      "Write a single git commit message for the staged changes below.",
+      "Return only the commit message text with no explanation or markdown fencing.",
+      "",
+      "## Staged summary",
+      staged.stat.trim() || "(no stat output)",
+      "",
+      "## Staged diff",
+      staged.diff.trim() || "(empty diff)",
+    ].join("\n");
+
+    const generated = await generateLmCompletion(
+      lmSettings.value.endpoint,
+      lmSettings.value.model,
+      lmSettings.value.prompts.commitMessage,
+      userPrompt,
+    );
+    commitMessage.value = cleanGeneratedCommitMessage(generated);
+  } catch (err) {
+    generateError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    generatingCommit.value = false;
+  }
+}
 
 const stageAllPaths = computed(() => [
   ...props.status.changes.map((e) => e.path),
@@ -541,14 +597,45 @@ watch(
             </button>
           </div>
 
+          <div class="mb-1.5 flex items-center justify-between gap-2">
+            <span class="text-[10px] uppercase tracking-wide text-[var(--warp-faint)]">Commit message</span>
+            <button
+              type="button"
+              class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-[10px] text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:cursor-not-allowed disabled:opacity-40"
+              style="font-family: var(--warp-font-ui)"
+              title="Generate commit message with LM Studio"
+              :disabled="!canGenerateCommit"
+              @click="onGenerateCommitMessage"
+            >
+              <span
+                v-if="generatingCommit"
+                class="mr-1 inline-block h-2.5 w-2.5 animate-spin rounded-full border border-current border-r-transparent"
+              />
+              Generate
+            </button>
+          </div>
           <textarea
             v-model="commitMessage"
             rows="3"
             class="w-full resize-none rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] placeholder:text-[var(--warp-faint)] focus:ring-1"
             style="font-family: var(--warp-font-ui)"
             placeholder="Commit message"
-            :disabled="busy"
+            :disabled="busy || generatingCommit"
           />
+          <p
+            v-if="generateError"
+            class="mt-1 text-xs text-[var(--warp-danger)]"
+            style="font-family: var(--warp-font-ui)"
+          >
+            {{ generateError }}
+          </p>
+          <p
+            v-else-if="!lmSettings.model.trim()"
+            class="mt-1 text-xs text-[var(--warp-faint)]"
+            style="font-family: var(--warp-font-ui)"
+          >
+            Configure LM Studio under user menu → LM
+          </p>
           <button
             type="button"
             class="mt-2 w-full rounded-md bg-[var(--warp-accent)] px-3 py-2 text-sm font-medium text-[var(--warp-bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"

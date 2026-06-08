@@ -4,6 +4,7 @@ import type {
   GitCommitEntry,
   GitFileDiff,
   GitSourceControlStatus,
+  GitStagedDiffContext,
   GitStatus,
   GitWorkingFile,
 } from "../types/git";
@@ -75,6 +76,10 @@ export function getGitFileDiff(
   untracked: boolean,
 ): Promise<GitFileDiff> {
   return invoke<GitFileDiff>("git_file_diff", { repoRoot, path, staged, untracked });
+}
+
+export function getGitStagedDiff(repoRoot: string): Promise<GitStagedDiffContext> {
+  return invoke<GitStagedDiffContext>("git_staged_diff", { repoRoot });
 }
 
 export function readGitWorkingFile(repoRoot: string, path: string): Promise<GitWorkingFile> {

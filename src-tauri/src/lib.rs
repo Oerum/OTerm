@@ -1,5 +1,6 @@
 mod fs;
 mod git;
+mod lm;
 mod terminal;
 
 use fs::commands::{
@@ -10,10 +11,11 @@ use git::commands::{
     git_commit_graph, git_compare_commits, git_create_branch, git_create_tag, git_fetch,
     git_file_diff, git_incoming_outgoing, git_list_branch_refs, git_list_branches, git_log,
     git_pull, git_push, git_read_working_file, git_remote_browser_url, git_reset_commit,
-    git_revert_commit, git_revert_tracked_paths, git_revert_untracked_paths,
+    git_revert_commit, git_revert_tracked_paths, git_revert_untracked_paths, git_staged_diff,
     git_source_control_status, git_squash_commits, git_stage_paths, git_status, git_sync,
     git_unstage_paths, git_write_working_file, pr_checkout, pr_create, pr_detect_provider, pr_list,
 };
+use lm::commands::{lm_chat_completion, lm_list_models, lm_test_connection};
 use terminal::commands::{
     terminal_drain_output, terminal_kill, terminal_list_shells, terminal_resize, terminal_spawn,
     terminal_write,
@@ -54,7 +56,11 @@ pub fn run() {
             git_checkout_branch,
             git_log,
             git_file_diff,
+            git_staged_diff,
             git_read_working_file,
+            lm_list_models,
+            lm_test_connection,
+            lm_chat_completion,
             git_write_working_file,
             pr_detect_provider,
             pr_list,

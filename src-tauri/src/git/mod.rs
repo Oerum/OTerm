@@ -68,6 +68,16 @@ pub struct GitFileDiff {
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GitStagedDiffContext {
+    pub stat: String,
+    pub diff: String,
+    pub truncated: bool,
+}
+
+const STAGED_DIFF_MAX_BYTES: usize = 12_000;
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GitWorkingFile {
     pub content: String,
     pub exists: bool,
@@ -146,6 +156,14 @@ pub fn commit_changes(repo_root: String, message: String) -> Result<(), String> 
         return Err("Commit message is required".into());
     }
     git_run(&root, &["commit", "-m", trimmed])
+}
+
+pub fn resolve_staged_diff(repo_root: String) -> Result<GitStagedDiffContext, String> {
+    let root = PathBuf::from(repo_root);
+    if !root.is_dir() {
+        return Err("Repository root does not exist".into());
+    }
+    read_staged_diff_context(&root, STAGED_DIFF_MAX_BYTES)
 }
 
 pub fn push_changes(repo_root: String) -> Result<(), String> {
@@ -564,6 +582,24 @@ pub(crate) fn write_working_file(
         std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
     }
     std::fs::write(&file_path, content.as_bytes()).map_err(|err| err.to_string())
+}
+
+pub(crate) fn read_staged_diff_context(
+    repo_root: &Path,
+    max_bytes: usize,
+) -> Result<GitStagedDiffContext, String> {
+    let stat = git_output(repo_root, &["diff", "--cached", "--stat"]).unwrap_or_default();
+    let mut diff = git_diff_output(repo_root, &["diff", "--cached", "-U3"]).unwrap_or_default();
+    let truncated = diff.len() > max_bytes;
+    if truncated {
+        diff.truncate(max_bytes);
+        diff.push_str("\n\n... (diff truncated for LM context)");
+    }
+    Ok(GitStagedDiffContext {
+        stat,
+        diff,
+        truncated,
+    })
 }
 
 pub(crate) fn read_file_diff(

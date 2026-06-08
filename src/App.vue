@@ -8,6 +8,7 @@ import StatusBar from "./components/StatusBar.vue";
 import TerminalPane from "./components/TerminalPane.vue";
 import BranchManagerView from "./components/BranchManagerView.vue";
 import PullRequestsView from "./components/PullRequestsView.vue";
+import LmSettingsDialog from "./components/LmSettingsDialog.vue";
 import TitleBar from "./components/TitleBar.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
 import { useResizablePanel } from "./composables/useResizablePanel";
@@ -24,6 +25,7 @@ const defaultShellId = "pwsh";
 const terminalSidebarOpen = ref(true);
 const toolsOpen = ref(false);
 const sourceControlOpen = ref(false);
+const lmSettingsOpen = ref(false);
 const gitRefreshToken = ref(0);
 
 const {
@@ -295,7 +297,10 @@ onUnmounted(() => {
       @toggle-source-control="toggleSourceControl"
       @open-pull-requests="openPullRequests"
       @open-branch-manager="openBranchManager"
+      @open-lm="lmSettingsOpen = true"
     />
+
+    <LmSettingsDialog :open="lmSettingsOpen" @close="lmSettingsOpen = false" />
 
     <div class="flex min-h-0 flex-1">
       <SidebarRail

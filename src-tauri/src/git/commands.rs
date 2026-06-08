@@ -11,9 +11,10 @@ use super::pr::{
 use super::{
     checkout_branch, commit_changes, fetch_changes, list_branches, pull_changes, push_changes,
     read_log, resolve_file_diff, resolve_git_status, resolve_read_working_file,
-    resolve_source_control, resolve_write_working_file, revert_tracked_paths,
+    resolve_source_control, resolve_staged_diff, resolve_write_working_file, revert_tracked_paths,
     revert_untracked_paths, stage_paths, sync_changes, unstage_paths, GitBranchList,
-    GitCommitEntry, GitFileDiff, GitSourceControlStatus, GitStatus, GitWorkingFile,
+    GitCommitEntry, GitFileDiff, GitSourceControlStatus, GitStagedDiffContext, GitStatus,
+    GitWorkingFile,
 };
 
 async fn blocking_git<T, F>(f: F) -> Result<T, String>
@@ -109,6 +110,11 @@ pub async fn git_file_diff(
     untracked: bool,
 ) -> Result<GitFileDiff, String> {
     blocking_git(move || resolve_file_diff(repo_root, path, staged, untracked)).await
+}
+
+#[tauri::command]
+pub async fn git_staged_diff(repo_root: String) -> Result<GitStagedDiffContext, String> {
+    blocking_git(move || resolve_staged_diff(repo_root)).await
 }
 
 #[tauri::command]

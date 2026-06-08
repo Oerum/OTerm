@@ -390,17 +390,20 @@ onBeforeUnmount(() => {
             {{ entry.kind === "pullRequests" ? "PR" : "Br" }}
           </span>
           <span class="min-w-0 flex-1 truncate">{{ entry.title }}</span>
-          <button
-            type="button"
+          <span
+            role="button"
+            tabindex="0"
             class="no-drag shrink-0 rounded p-0.5 text-[var(--warp-faint)] opacity-0 transition hover:bg-white/10 hover:text-[var(--warp-text)] group-hover:opacity-100"
             title="Close"
             aria-label="Close tab"
             @click.stop="emit('close', entry.tabId)"
+            @keydown.enter.stop="emit('close', entry.tabId)"
+            @keydown.space.prevent.stop="emit('close', entry.tabId)"
           >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" aria-hidden="true">
               <path d="M2.5 2.5 7.5 7.5M7.5 2.5 2.5 7.5" stroke-width="1.2" stroke-linecap="round" />
             </svg>
-          </button>
+          </span>
         </button>
       </div>
 
