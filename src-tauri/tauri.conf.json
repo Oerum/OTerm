@@ -17,7 +17,8 @@
         "width": 1280,
         "height": 800,
         "decorations": false,
-        "backgroundColor": "#0a0a0a"
+        "backgroundColor": "#0a0a0a",
+        "devtools": false
       }
     ],
     "security": {

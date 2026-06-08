@@ -61,14 +61,6 @@ const rows = computed<MenuRow[]>(() => {
       section: "launchers" as const,
       shellId: shell.id,
     })),
-    {
-      id: "cloud-agent",
-      label: "Cloud Agent",
-      disabled: true,
-      disabledReason: "Coming soon",
-      action: { kind: "cloud-agent" },
-      section: "launchers",
-    },
     ...profileShells.value.map((shell) => ({
       id: `profile-${shell.id}`,
       label: `New tab: ${shell.label}`,

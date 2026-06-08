@@ -1,6 +1,7 @@
 mod fs;
 mod git;
 mod lm;
+mod settings;
 mod terminal;
 
 use fs::commands::{
@@ -18,6 +19,9 @@ use git::commands::{
 use lm::commands::{
     lm_chat_completion, lm_detect_github_copilot_token, lm_list_models, lm_test_connection,
 };
+use settings::commands::{
+    settings_dir_path, settings_get, settings_get_all, settings_import, settings_set,
+};
 use terminal::commands::{
     terminal_drain_output, terminal_kill, terminal_list_shells, terminal_resize, terminal_spawn,
     terminal_write,
@@ -26,10 +30,25 @@ use terminal::manager::PtyManager;
 
 use std::sync::Arc;
 
+#[cfg(debug_assertions)]
+fn prevent_default() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    tauri_plugin_prevent_default::debug()
+}
+
+#[cfg(not(debug_assertions))]
+fn prevent_default() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    use tauri_plugin_prevent_default::Flags;
+
+    tauri_plugin_prevent_default::Builder::new()
+        .with_flags(Flags::CONTEXT_MENU | Flags::DEV_TOOLS)
+        .build()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(prevent_default())
         .manage(PtyManager::new())
         .manage(Arc::new(FsSearchState::new()))
         .invoke_handler(tauri::generate_handler![
@@ -82,6 +101,11 @@ pub fn run() {
             git_reset_commit,
             git_cherry_pick,
             git_squash_commits,
+            settings_get,
+            settings_set,
+            settings_get_all,
+            settings_import,
+            settings_dir_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

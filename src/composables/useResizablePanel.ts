@@ -1,4 +1,5 @@
 import { onBeforeUnmount, onMounted, ref } from "vue";
+import { getSetting, setSetting } from "../lib/settingsStore";
 
 const STORAGE_KEY = "oterm:source-control-width";
 const DEFAULT_WIDTH = 288;
@@ -6,15 +7,11 @@ const MIN_WIDTH = 240;
 const MAX_VIEWPORT_RATIO = 0.8;
 
 function loadWidth(): number {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_WIDTH;
-    const parsed = Number.parseInt(raw, 10);
-    if (!Number.isFinite(parsed)) return DEFAULT_WIDTH;
-    return clampWidth(parsed);
-  } catch {
-    return DEFAULT_WIDTH;
-  }
+  const raw = getSetting(STORAGE_KEY);
+  if (!raw) return DEFAULT_WIDTH;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_WIDTH;
+  return clampWidth(parsed);
 }
 
 function maxPanelWidth(): number {
@@ -30,11 +27,7 @@ export function useResizablePanel(onResize?: () => void) {
   const resizing = ref(false);
 
   function persistWidth() {
-    try {
-      localStorage.setItem(STORAGE_KEY, String(widthPx.value));
-    } catch {
-      // ignore
-    }
+    void setSetting(STORAGE_KEY, String(widthPx.value));
   }
 
   let rafId = 0;

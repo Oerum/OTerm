@@ -5,6 +5,7 @@ import {
   type CommitAiProvider,
   type CommitAiSettings,
 } from "../types/commitAi";
+import { getSetting, setSetting } from "./settingsStore";
 
 const STORAGE_KEY = "oterm:commit-ai-settings";
 const LEGACY_STORAGE_KEY = "oterm:lm-settings";
@@ -14,58 +15,55 @@ function normalizeProvider(value: unknown): CommitAiProvider {
   return "lm-studio";
 }
 
-function load(): CommitAiSettings {
-  try {
-    const raw =
-      localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (!raw) {
-      return {
-        ...DEFAULT_COMMIT_AI_SETTINGS,
-        prompts: { ...DEFAULT_COMMIT_AI_SETTINGS.prompts },
-      };
-    }
-    const parsed = JSON.parse(raw) as Partial<CommitAiSettings> & {
-      endpoint?: string;
-      model?: string;
-    };
-    const provider = normalizeProvider(parsed.provider);
-    const preset = COMMIT_AI_PROVIDER_PRESETS[provider];
-    return {
-      provider,
-      endpoint: parsed.endpoint?.trim() || preset.endpoint,
-      model: parsed.model?.trim() ?? "",
-      apiKey: parsed.apiKey?.trim() ?? "",
-      prompts: {
-        commitMessage:
-          parsed.prompts?.commitMessage?.trim() ||
-          DEFAULT_COMMIT_AI_SETTINGS.prompts.commitMessage,
-      },
-    };
-  } catch {
-    return {
-      ...DEFAULT_COMMIT_AI_SETTINGS,
-      prompts: { ...DEFAULT_COMMIT_AI_SETTINGS.prompts },
-    };
-  }
+function parseSettings(raw: string): CommitAiSettings {
+  const parsed = JSON.parse(raw) as Partial<CommitAiSettings> & {
+    endpoint?: string;
+    model?: string;
+  };
+  const provider = normalizeProvider(parsed.provider);
+  const preset = COMMIT_AI_PROVIDER_PRESETS[provider];
+  return {
+    provider,
+    endpoint: parsed.endpoint?.trim() || preset.endpoint,
+    model: parsed.model?.trim() ?? "",
+    apiKey: parsed.apiKey?.trim() ?? "",
+    prompts: {
+      commitMessage:
+        parsed.prompts?.commitMessage?.trim() ||
+        DEFAULT_COMMIT_AI_SETTINGS.prompts.commitMessage,
+    },
+  };
 }
 
-function save(settings: CommitAiSettings) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    // ignore
-  }
+function defaultSettings(): CommitAiSettings {
+  return {
+    ...DEFAULT_COMMIT_AI_SETTINGS,
+    prompts: { ...DEFAULT_COMMIT_AI_SETTINGS.prompts },
+  };
 }
 
-const settingsRef = ref<CommitAiSettings>(load());
+const settingsRef = ref<CommitAiSettings>(defaultSettings());
+let hydrated = false;
 
 watch(
   settingsRef,
   (value) => {
-    save(value);
+    if (!hydrated) return;
+    void setSetting(STORAGE_KEY, JSON.stringify(value));
   },
   { deep: true },
 );
+
+export async function initCommitAiSettings() {
+  try {
+    const raw = getSetting(STORAGE_KEY) ?? getSetting(LEGACY_STORAGE_KEY);
+    settingsRef.value = raw ? parseSettings(raw) : defaultSettings();
+  } catch {
+    settingsRef.value = defaultSettings();
+  } finally {
+    hydrated = true;
+  }
+}
 
 export function useCommitAiSettings() {
   function update(patch: Partial<CommitAiSettings>) {

@@ -120,7 +120,6 @@ export type CreateMenuAction =
   | { kind: "default-terminal" }
   | { kind: "shell"; shellId: string }
   | { kind: "agent" }
-  | { kind: "cloud-agent" }
   | { kind: "new-worktree-config" }
   | { kind: "new-tab-config" }
   | { kind: "reopen-closed" };
