@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+:root {
+  --warp-bg: #0a0a0a;
+  --warp-panel: #111111;
+  --warp-elevated: #181818;
+  --warp-border: rgba(255, 255, 255, 0.06);
+  --warp-border-strong: rgba(255, 255, 255, 0.1);
+  --warp-text: #ececec;
+  --warp-muted: #8a8a8a;
+  --warp-faint: #5c5c5c;
+  --warp-accent: #00d4aa;
+  --warp-accent-dim: rgba(0, 212, 170, 0.14);
+  --warp-danger: #ff5f57;
+  --warp-titlebar: #0a0a0a;
+  --warp-sidebar: #0f0f0f;
+  --warp-font-ui: "Inter", "Segoe UI", system-ui, sans-serif;
+  --warp-font-mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--warp-bg);
+  color: var(--warp-text);
+  font-family: var(--warp-font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+.warp-app {
+  background: var(--warp-bg);
+}
+
+.xterm,
+.xterm .xterm-screen,
+.xterm-char-measure-element {
+  font-family: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 14px;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+.xterm {
+  padding: 0;
+}
+
+.xterm-viewport {
+  background: transparent !important;
+}
+
+.xterm-screen {
+  padding-left: 2px;
+}
+
+.xterm .xterm-cursor-layer .xterm-cursor {
+  background-color: var(--warp-accent) !important;
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
