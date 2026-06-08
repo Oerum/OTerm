@@ -64,6 +64,25 @@ const canCommit = computed(
   () => props.status.isRepo && props.status.staged.length > 0 && commitMessage.value.trim().length > 0,
 );
 
+const stageAllPaths = computed(() => [
+  ...props.status.changes.map((e) => e.path),
+  ...props.status.untracked.map((e) => e.path),
+]);
+
+const unstageAllPaths = computed(() => props.status.staged.map((e) => e.path));
+
+const canStageAll = computed(() => stageAllPaths.value.length > 0);
+
+const canUnstageAll = computed(() => unstageAllPaths.value.length > 0);
+
+function onStageAll() {
+  if (stageAllPaths.value.length) emit("stage", stageAllPaths.value);
+}
+
+function onUnstageAll() {
+  if (unstageAllPaths.value.length) emit("unstage", unstageAllPaths.value);
+}
+
 const branchSelectValue = computed(() => {
   const current = props.status.branch ?? props.branches.current;
   if (!current) return "";
@@ -546,6 +565,28 @@ watch(
           >
             Drag the panel wider to view diffs
           </p>
+          <div class="mt-2 grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)]/60 px-2 py-1.5 text-xs font-medium text-[#3dd68c] transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              style="font-family: var(--warp-font-ui)"
+              title="Stage all changes and untracked files"
+              :disabled="busy || !canStageAll"
+              @click="onStageAll"
+            >
+              Stage all
+            </button>
+            <button
+              type="button"
+              class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)]/60 px-2 py-1.5 text-xs font-medium text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:cursor-not-allowed disabled:opacity-40"
+              style="font-family: var(--warp-font-ui)"
+              title="Unstage all staged files"
+              :disabled="busy || !canUnstageAll"
+              @click="onUnstageAll"
+            >
+              Unstage all
+            </button>
+          </div>
         </div>
 
         <div class="warp-scroll min-h-0 flex-1 overflow-y-auto">
