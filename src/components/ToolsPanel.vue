@@ -237,7 +237,7 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
-    class="flex w-72 shrink-0 flex-col border-r border-[var(--warp-border)] bg-[var(--warp-sidebar)]"
+    class="relative z-10 flex w-72 shrink-0 flex-col bg-[var(--warp-sidebar)]"
   >
     <div class="relative flex items-center justify-between border-b border-[var(--warp-border)] px-3 py-2">
       <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--warp-faint)]">
@@ -288,7 +288,7 @@ onBeforeUnmount(() => {
       />
     </div>
 
-    <div v-if="showingSearch" class="min-h-0 flex-1 overflow-y-auto p-2">
+    <div v-if="showingSearch" class="warp-scroll min-h-0 flex-1 overflow-y-auto p-2">
       <p v-if="searchLoading" class="px-2 py-2 text-xs text-[var(--warp-faint)]">Searching...</p>
       <p
         v-else-if="searchQuery.trim().length < MIN_SEARCH_LENGTH"
@@ -311,10 +311,38 @@ onBeforeUnmount(() => {
         @contextmenu.prevent="onEntryContextMenu($event, entry)"
       >
         <span
-          class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold uppercase"
-          :class="entry.isDir ? 'bg-[var(--warp-accent-dim)] text-[var(--warp-accent)]' : 'bg-[var(--warp-elevated)] text-[var(--warp-muted)]'"
+          class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[var(--warp-elevated)] text-[var(--warp-muted)]"
         >
-          {{ entry.isDir ? "D" : "F" }}
+          <svg
+            v-if="entry.isDir"
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              d="M2.5 5.5h4l1.2-1.5H13a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V6a.5.5 0 0 1 .5-.5Z"
+              stroke-width="1.2"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <svg
+            v-else
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              d="M4.5 2.5h4.2L11 4.5h2a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z"
+              stroke-width="1.2"
+              stroke-linejoin="round"
+            />
+          </svg>
         </span>
         <span class="min-w-0 flex-1 truncate text-[var(--warp-text)]">{{ entry.name }}</span>
       </button>
@@ -333,7 +361,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <div class="min-h-0 flex-1 overflow-y-auto p-2">
+      <div class="warp-scroll min-h-0 flex-1 overflow-y-auto p-2">
         <p v-if="loading" class="px-2 py-2 text-xs text-[var(--warp-faint)]">Loading...</p>
         <button
           v-for="entry in entries"
@@ -344,10 +372,38 @@ onBeforeUnmount(() => {
           @contextmenu.prevent="onEntryContextMenu($event, entry)"
         >
           <span
-            class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold uppercase"
-            :class="entry.isDir ? 'bg-[var(--warp-accent-dim)] text-[var(--warp-accent)]' : 'bg-[var(--warp-elevated)] text-[var(--warp-muted)]'"
+            class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[var(--warp-elevated)] text-[var(--warp-muted)]"
           >
-            {{ entry.isDir ? "D" : "F" }}
+            <svg
+              v-if="entry.isDir"
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M2.5 5.5h4l1.2-1.5H13a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V6a.5.5 0 0 1 .5-.5Z"
+                stroke-width="1.2"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <svg
+              v-else
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M4.5 2.5h4.2L11 4.5h2a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z"
+                stroke-width="1.2"
+                stroke-linejoin="round"
+              />
+            </svg>
           </span>
           <span class="truncate text-[var(--warp-text)]">{{ entry.name }}</span>
         </button>

@@ -152,9 +152,6 @@ async function mountTerminal() {
   fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);
   terminal.open(containerRef.value);
-
-  // Canvas renderer is sharper on Windows at common DPI scales than WebGL.
-
   fitAddon.fit();
   terminal.focus();
 
@@ -198,7 +195,16 @@ async function disposeSession() {
   } catch {
     // Session may already be gone.
   }
+  emit("sessionEnded", props.paneId);
 }
+
+function focusTerminal() {
+  terminal?.focus();
+}
+
+defineExpose({
+  focusTerminal,
+});
 
 onMounted(async () => {
   localSessionId.value = props.sessionId;
@@ -240,11 +246,11 @@ const isReady = computed(() => Boolean(localSessionId.value));
 
 <template>
   <div
-    class="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-[var(--warp-bg)]"
-    :class="active ? 'shadow-[inset_2px_0_0_0_var(--warp-accent)]' : ''"
+    class="terminal-pane relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--warp-bg)]"
+    :class="active ? 'terminal-pane--active' : ''"
     @mousedown="emit('focusPane')"
   >
-    <div ref="containerRef" class="h-full w-full px-4 py-3" />
+    <div ref="containerRef" class="terminal-output h-full w-full px-4 py-3" />
     <div
       v-if="!isReady"
       class="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-[var(--warp-faint)]"

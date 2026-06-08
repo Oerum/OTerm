@@ -7,9 +7,13 @@ import StatusBar from "./components/StatusBar.vue";
 import TerminalPane from "./components/TerminalPane.vue";
 import TitleBar from "./components/TitleBar.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
+import { useGitStatus } from "./composables/useGitStatus";
 import { useTerminalHistory } from "./composables/useTerminalHistory";
 import { useWorkspace } from "./composables/useWorkspace";
+import type { SaveProfileDraft } from "./types/terminal";
 import { killTerminal, listShells, writeTerminal } from "./lib/terminalApi";
+
+const appVersion = "0.1.0";
 
 const defaultShellId = "pwsh";
 const terminalSidebarOpen = ref(true);
@@ -29,6 +33,9 @@ const {
   setPaneSession,
   clearPaneSession,
   setPaneCwd,
+  setTabTitle,
+  setTabColor,
+  moveTab,
 } = useWorkspace(defaultShellId);
 
 const history = useTerminalHistory();
@@ -41,6 +48,9 @@ const {
   closeSearch,
 } = history;
 const filteredHistory = computed(() => filteredEntries());
+
+const activeCwd = computed(() => activePane.value?.cwd);
+const { status: gitStatus, refresh: refreshGitStatus } = useGitStatus(activeCwd);
 
 const projectRoot = computed(() => {
   const cwd = activePane.value?.cwd;
@@ -56,17 +66,34 @@ async function bootstrap() {
 }
 
 async function closeTab(tabId: string) {
-  const tab = tabs.value.find((item) => item.id === tabId);
-  if (!tab) return;
-  for (const pane of tab.panes) {
-    if (pane.sessionId) {
-      await killTerminal(pane.sessionId);
+  await closeTabs([tabId]);
+}
+
+async function closeTabs(tabIds: string[]) {
+  for (const tabId of tabIds) {
+    const tab = tabs.value.find((item) => item.id === tabId);
+    if (!tab) continue;
+    for (const pane of tab.panes) {
+      if (pane.sessionId) {
+        await killTerminal(pane.sessionId);
+      }
     }
+    removeTab(tabId);
   }
-  removeTab(tabId);
   if (tabs.value.length === 0) {
     createTab(shells.value[0]?.id ?? defaultShellId);
   }
+}
+
+function onSaveProfile(draft: SaveProfileDraft) {
+  const base = shells.value.find((shell) => shell.id === draft.shellId);
+  if (!base) return;
+  shells.value.push({
+    id: `profile-${Date.now()}`,
+    label: draft.label,
+    program: base.program,
+    args: [...base.args],
+  });
 }
 
 function selectTerminal(tabId: string, paneId: string) {
@@ -79,11 +106,7 @@ function onSessionCreated(paneId: string, sessionId: string) {
   setPaneSession(paneId, sessionId);
 }
 
-async function onSessionEnded(paneId: string) {
-  const pane = tabs.value.flatMap((tab) => tab.panes).find((item) => item.id === paneId);
-  if (pane?.sessionId) {
-    await killTerminal(pane.sessionId).catch(() => undefined);
-  }
+function onSessionEnded(paneId: string) {
   clearPaneSession(paneId);
 }
 
@@ -97,12 +120,21 @@ function onKeyDown(event: KeyboardEvent) {
   }
 }
 
+function shellLineEnding() {
+  return "\r";
+}
+
 async function insertHistoryEntry(entry: string) {
   closeSearch();
   const pane = activePane.value;
   if (!pane?.sessionId) return;
-  await writeTerminal(pane.sessionId, `${entry}\r`);
-  addEntry(entry);
+  await writeTerminal(pane.sessionId, `${entry}${shellLineEnding()}`);
+  onCommandSubmitted(entry);
+}
+
+function onCommandSubmitted(command: string) {
+  addEntry(command);
+  refreshGitStatus();
 }
 
 async function openPathInTerminal(path: string) {
@@ -110,9 +142,9 @@ async function openPathInTerminal(path: string) {
   if (!pane?.sessionId) return;
   const command =
     pane.shellId === "cmd"
-      ? `cd /d "${path}"\r`
-      : `Set-Location -LiteralPath '${path.replace(/'/g, "''")}'\r`;
-  await writeTerminal(pane.sessionId, command);
+      ? `cd /d "${path}"`
+      : `Set-Location -LiteralPath '${path.replace(/'/g, "''")}'`;
+  await writeTerminal(pane.sessionId, `${command}${shellLineEnding()}`);
 }
 
 function cdFromExplorer(path: string, isDir: boolean) {
@@ -166,17 +198,26 @@ onUnmounted(() => {
         :preferred-shell-id="activePane?.shellId ?? defaultShellId"
         @select="selectTerminal"
         @close="closeTab"
+        @close-many="closeTabs"
         @add="createTab"
         @split="splitActiveTabHorizontal"
+        @rename-tab="setTabTitle"
+        @move-tab="moveTab"
+        @color-change="setTabColor"
+        @save-profile="onSaveProfile"
       />
 
       <ToolsPanel
         v-if="toolsOpen"
+        :class="terminalSidebarOpen ? 'border-l border-[var(--warp-border)]' : ''"
         :root-path="projectRoot"
         @navigate="cdFromExplorer"
       />
 
-      <div class="relative flex min-w-0 flex-1 flex-col">
+      <div
+        class="relative flex min-w-0 flex-1 flex-col"
+        :class="terminalSidebarOpen || toolsOpen ? 'border-l border-[var(--warp-border)]' : ''"
+      >
         <SessionHeader :pane="activePane" :shells="shells" />
 
         <main class="relative flex min-h-0 flex-1 flex-col">
@@ -206,13 +247,22 @@ onUnmounted(() => {
               @session-created="onSessionCreated"
               @session-ended="onSessionEnded"
               @cwd-changed="setPaneCwd"
-              @command-submitted="addEntry"
+              @command-submitted="onCommandSubmitted"
               @focus-pane="selectPane(pane.id)"
             />
           </section>
         </main>
 
-        <StatusBar :pane="activePane" :shells="shells" />
+        <StatusBar
+          :pane="activePane"
+          :shells="shells"
+          :git-status="gitStatus"
+          :app-version="appVersion"
+          :terminal-sidebar-open="terminalSidebarOpen"
+          :tools-open="toolsOpen"
+          @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
+          @toggle-tools="toolsOpen = !toolsOpen"
+        />
       </div>
     </div>
   </div>

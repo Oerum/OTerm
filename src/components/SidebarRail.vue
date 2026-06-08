@@ -1,6 +1,15 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import type { ShellProfile, WorkspaceTab } from "../types/terminal";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { getGitStatus } from "../lib/gitApi";
+import { buildTerminalEntries } from "../lib/sidebarEntries";
+import type {
+  SaveProfileDraft,
+  ShellProfile,
+  TerminalEntryColor,
+  TerminalMenuActionId,
+  WorkspaceTab,
+} from "../types/terminal";
+import TerminalSidebarEntry from "./TerminalSidebarEntry.vue";
 
 const props = defineProps<{
   tabs: WorkspaceTab[];
@@ -13,55 +22,66 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [tabId: string, paneId: string];
   close: [tabId: string];
+  closeMany: [tabIds: string[]];
   add: [shellId: string];
   split: [shellId: string];
+  renameTab: [tabId: string, title: string];
+  moveTab: [tabId: string, direction: "up" | "down"];
+  colorChange: [tabId: string, color: TerminalEntryColor];
+  saveProfile: [draft: SaveProfileDraft];
 }>();
 
 const newMenuOpen = ref(false);
 const newMenuRef = ref<HTMLElement | null>(null);
 const newButtonRef = ref<HTMLElement | null>(null);
-
-const shellLabels = computed(() =>
-  Object.fromEntries(props.shells.map((shell) => [shell.id, shell.label])),
-);
+const openMenuEntryId = ref<string | null>(null);
+const renamingEntryId = ref<string | null>(null);
+const toastMessage = ref<string | null>(null);
+const gitByPane = ref(new Map<string, { branch: string | null; isRepo: boolean }>());
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const terminalEntries = computed(() =>
-  props.tabs.flatMap((tab) =>
-    tab.panes.map((pane, index) => ({
-      tabId: tab.id,
-      pane,
-      splitIndex: tab.panes.length > 1 ? index + 1 : null,
-    })),
+  buildTerminalEntries(
+    props.tabs,
+    props.shells,
+    props.activeTabId,
+    props.activePaneId,
+    gitByPane.value,
   ),
 );
 
-function paneShellLabel(pane: WorkspaceTab["panes"][number]) {
-  return shellLabels.value[pane.shellId] ?? "Terminal";
+function showToast(message: string) {
+  toastMessage.value = message;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toastMessage.value = null;
+  }, 1800);
 }
 
-function paneTitle(pane: WorkspaceTab["panes"][number], splitIndex: number | null) {
-  const cwd = pane.cwd;
-  let title = paneShellLabel(pane);
-  if (cwd && cwd !== "~") {
-    const parts = cwd.replace(/\\/g, "/").split("/").filter(Boolean);
-    title = parts[parts.length - 1] || cwd;
+async function ensureGitForPane(paneId: string, cwd: string) {
+  if (gitByPane.value.has(paneId)) return;
+  try {
+    const status = await getGitStatus(cwd === "~" ? undefined : cwd);
+    gitByPane.value.set(paneId, {
+      branch: status.branch,
+      isRepo: status.isRepo,
+    });
+    gitByPane.value = new Map(gitByPane.value);
+  } catch {
+    gitByPane.value.set(paneId, { branch: null, isRepo: false });
+    gitByPane.value = new Map(gitByPane.value);
   }
-  if (splitIndex) title = `${title} (${splitIndex})`;
-  return title;
 }
 
-function paneSubtitle(pane: WorkspaceTab["panes"][number]) {
-  const cwd = pane.cwd;
-  if (!cwd || cwd === "~") return paneShellLabel(pane);
-  return `${paneShellLabel(pane)} · ${cwd}`;
-}
-
-function isActiveEntry(tabId: string, paneId: string) {
-  return tabId === props.activeTabId && paneId === props.activePaneId;
-}
+watch(openMenuEntryId, (entryId) => {
+  if (!entryId) return;
+  const entry = terminalEntries.value.find((item) => item.entryId === entryId);
+  if (entry) void ensureGitForPane(entry.paneId, entry.cwd);
+});
 
 function toggleNewMenu() {
   if (props.shells.length === 0) return;
+  openMenuEntryId.value = null;
   newMenuOpen.value = !newMenuOpen.value;
 }
 
@@ -70,11 +90,121 @@ function pickShell(shellId: string) {
   emit("add", shellId);
 }
 
-function onDocumentClick(event: MouseEvent) {
-  if (!newMenuOpen.value) return;
-  const target = event.target as Node | null;
-  if (newMenuRef.value?.contains(target) || newButtonRef.value?.contains(target)) return;
+function setMenuOpen(entryId: string, open: boolean) {
+  openMenuEntryId.value = open ? entryId : null;
   newMenuOpen.value = false;
+}
+
+async function copyText(text: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(label);
+  } catch {
+    showToast("Copy failed");
+  }
+}
+
+function findEntry(entryId: string) {
+  return terminalEntries.value.find((item) => item.entryId === entryId);
+}
+
+async function onEntryAction(entryId: string, actionId: TerminalMenuActionId) {
+  const entry = findEntry(entryId);
+  if (!entry) return;
+
+  switch (actionId) {
+    case "share-session": {
+      if (!entry.sessionId) return;
+      await copyText(`oterm://session/${entry.sessionId}`, "Share link copied");
+      openMenuEntryId.value = null;
+      break;
+    }
+    case "copy-branch":
+      if (entry.gitBranch) await copyText(entry.gitBranch, "Copied branch");
+      break;
+    case "copy-pane-title":
+      await copyText(entry.title, "Copied pane title");
+      break;
+    case "copy-working-directory":
+      await copyText(entry.cwd, "Copied working directory");
+      break;
+    case "rename-tab": {
+      openMenuEntryId.value = null;
+      renamingEntryId.value = entryId;
+      break;
+    }
+    case "move-up":
+      emit("moveTab", entry.tabId, "up");
+      openMenuEntryId.value = null;
+      break;
+    case "move-down":
+      emit("moveTab", entry.tabId, "down");
+      openMenuEntryId.value = null;
+      break;
+    case "close-tab":
+      openMenuEntryId.value = null;
+      emit("close", entry.tabId);
+      break;
+    case "close-other-tabs": {
+      openMenuEntryId.value = null;
+      const ids = props.tabs.filter((tab) => tab.id !== entry.tabId).map((tab) => tab.id);
+      if (ids.length) emit("closeMany", ids);
+      break;
+    }
+    case "close-tabs-below": {
+      openMenuEntryId.value = null;
+      const index = props.tabs.findIndex((tab) => tab.id === entry.tabId);
+      if (index === -1) break;
+      const ids = props.tabs.slice(index + 1).map((tab) => tab.id);
+      if (ids.length) emit("closeMany", ids);
+      break;
+    }
+    case "save-as-profile": {
+      openMenuEntryId.value = null;
+      emit("saveProfile", {
+        label: entry.title,
+        shellId: entry.shellId,
+        cwd: entry.cwd,
+        color: entry.tabColor,
+      });
+      showToast(`Saved profile "${entry.title}"`);
+      break;
+    }
+  }
+}
+
+function onEntryColorChange(entryId: string, color: TerminalEntryColor) {
+  const entry = findEntry(entryId);
+  if (!entry) return;
+  emit("colorChange", entry.tabId, color);
+  openMenuEntryId.value = null;
+}
+
+function onDocumentClick(event: MouseEvent) {
+  const target = event.target as Node | null;
+  if (newMenuOpen.value) {
+    if (!newMenuRef.value?.contains(target) && !newButtonRef.value?.contains(target)) {
+      newMenuOpen.value = false;
+    }
+  }
+  if (openMenuEntryId.value) {
+    const inMenu = (target as Element | null)?.closest("[data-terminal-entry-menu-root]");
+    if (!inMenu) openMenuEntryId.value = null;
+  }
+}
+
+function onSidebarScroll() {
+  if (openMenuEntryId.value) openMenuEntryId.value = null;
+  if (renamingEntryId.value) renamingEntryId.value = null;
+}
+
+function onRenameCommit(tabId: string, title: string) {
+  renamingEntryId.value = null;
+  emit("renameTab", tabId, title);
+}
+
+function onRenameCancel() {
+  renamingEntryId.value = null;
 }
 
 onMounted(() => {
@@ -83,12 +213,13 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener("mousedown", onDocumentClick);
+  if (toastTimer) clearTimeout(toastTimer);
 });
 </script>
 
 <template>
   <aside
-    class="flex w-56 shrink-0 flex-col border-r border-[var(--warp-border)] bg-[var(--warp-sidebar)]"
+    class="relative z-10 flex w-56 shrink-0 flex-col bg-[var(--warp-sidebar)]"
   >
     <div class="relative flex items-center justify-between px-3 py-2.5">
       <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--warp-faint)]">
@@ -146,7 +277,10 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+    <div
+      class="warp-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2"
+      @scroll="onSidebarScroll"
+    >
       <p
         v-if="terminalEntries.length === 0"
         class="px-2 py-3 text-xs text-[var(--warp-faint)]"
@@ -154,60 +288,20 @@ onBeforeUnmount(() => {
         No open terminals
       </p>
 
-      <button
+      <TerminalSidebarEntry
         v-for="entry in terminalEntries"
-        :key="entry.pane.id"
-        type="button"
-        class="no-drag group mb-1 flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition"
-        :class="
-          isActiveEntry(entry.tabId, entry.pane.id)
-            ? 'bg-[var(--warp-accent-dim)] shadow-[inset_2px_0_0_0_var(--warp-accent)]'
-            : 'hover:bg-white/[0.04]'
-        "
-        @click="emit('select', entry.tabId, entry.pane.id)"
-      >
-        <span
-          class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-          :class="
-            isActiveEntry(entry.tabId, entry.pane.id)
-              ? 'bg-[var(--warp-accent-dim)] text-[var(--warp-accent)]'
-              : 'bg-[var(--warp-elevated)] text-[var(--warp-muted)]'
-          "
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-            <path
-              d="M3 4.5 6.5 8 3 11.5M8 11.5h5"
-              stroke-width="1.4"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </span>
-
-        <span class="min-w-0 flex-1">
-          <span
-            class="block truncate text-sm font-medium"
-            :class="
-              isActiveEntry(entry.tabId, entry.pane.id)
-                ? 'text-[var(--warp-text)]'
-                : 'text-[var(--warp-muted)]'
-            "
-          >
-            {{ paneTitle(entry.pane, entry.splitIndex) }}
-          </span>
-          <span class="block truncate text-[11px] text-[var(--warp-faint)]">
-            {{ paneSubtitle(entry.pane) }}
-          </span>
-        </span>
-
-        <span
-          class="no-drag mt-0.5 rounded px-1 text-sm leading-none text-[var(--warp-faint)] opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-[var(--warp-text)]"
-          title="Close terminal"
-          @click.stop="emit('close', entry.tabId)"
-        >
-          ×
-        </span>
-      </button>
+        :key="entry.entryId"
+        data-terminal-entry-menu-root
+        :entry="entry"
+        :menu-open="openMenuEntryId === entry.entryId"
+        :renaming="renamingEntryId === entry.entryId"
+        @select="(tabId, paneId) => emit('select', tabId, paneId)"
+        @menu-toggle="setMenuOpen"
+        @action="(actionId) => onEntryAction(entry.entryId, actionId)"
+        @color-change="(color) => onEntryColorChange(entry.entryId, color)"
+        @rename-commit="onRenameCommit"
+        @rename-cancel="onRenameCancel"
+      />
     </div>
 
     <div class="no-drag border-t border-[var(--warp-border)] p-3">
@@ -224,5 +318,27 @@ onBeforeUnmount(() => {
         Split pane
       </button>
     </div>
+
+    <Transition name="sidebar-toast">
+      <p
+        v-if="toastMessage"
+        class="no-drag pointer-events-none absolute bottom-16 left-2 right-2 rounded-md bg-[var(--warp-elevated)] px-2 py-1.5 text-center text-[11px] text-[var(--warp-text)] shadow-lg ring-1 ring-[var(--warp-border-strong)]"
+      >
+        {{ toastMessage }}
+      </p>
+    </Transition>
   </aside>
 </template>
+
+<style scoped>
+.sidebar-toast-enter-active,
+.sidebar-toast-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.sidebar-toast-enter-from,
+.sidebar-toast-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+</style>

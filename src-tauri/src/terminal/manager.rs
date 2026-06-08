@@ -1,8 +1,10 @@
 use crate::terminal::profiles::{resolve_shell, ShellProfile};
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
-use std::io::{Read, Write};
-use std::sync::Mutex;
+use std::io::{ErrorKind, Read, Write};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
 
@@ -13,6 +15,7 @@ pub struct PtyManager {
 struct PtySession {
     master: Mutex<Box<dyn MasterPty + Send>>,
     writer: Mutex<Box<dyn Write + Send>>,
+    pending_output: Arc<Mutex<String>>,
     _child: Box<dyn portable_pty::Child + Send + Sync>,
 }
 
@@ -77,9 +80,11 @@ impl PtyManager {
         let reader = pair.master.try_clone_reader().map_err(|err| err.to_string())?;
         let master: Box<dyn MasterPty + Send> = pair.master;
 
+        let pending_output = Arc::new(Mutex::new(String::new()));
         let session = PtySession {
             master: Mutex::new(master),
             writer: Mutex::new(writer),
+            pending_output: Arc::clone(&pending_output),
             _child: child,
         };
 
@@ -88,8 +93,27 @@ impl PtyManager {
             .map_err(|_| "Session lock poisoned".to_string())?
             .insert(session_id.clone(), session);
 
-        spawn_reader(app, session_id.clone(), reader);
+        spawn_reader(app, session_id.clone(), reader, pending_output);
         Ok(session_id)
+    }
+
+    pub fn drain_output(&self, session_id: &str) -> Result<String, String> {
+        let sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| "Session lock poisoned".to_string())?;
+        let session = sessions
+            .get(session_id)
+            .ok_or_else(|| format!("Unknown session: {session_id}"))?;
+        let mut pending = session
+            .pending_output
+            .lock()
+            .map_err(|_| "Output lock poisoned".to_string())?;
+        if pending.is_empty() {
+            return Ok(String::new());
+        }
+        let drained = std::mem::take(&mut *pending);
+        Ok(drained)
     }
 
     pub fn write(&self, session_id: &str, data: &str) -> Result<(), String> {
@@ -106,7 +130,8 @@ impl PtyManager {
             .map_err(|_| "Writer lock poisoned".to_string())?;
         writer
             .write_all(data.as_bytes())
-            .map_err(|err| err.to_string())
+            .map_err(|err| err.to_string())?;
+        writer.flush().map_err(|err| err.to_string())
     }
 
     pub fn resize(&self, session_id: &str, cols: u16, rows: u16) -> Result<(), String> {
@@ -117,18 +142,21 @@ impl PtyManager {
         let session = sessions
             .get(session_id)
             .ok_or_else(|| format!("Unknown session: {session_id}"))?;
-        let master = session
-            .master
-            .lock()
-            .map_err(|_| "Master lock poisoned".to_string())?;
-        master
-            .resize(PtySize {
-                rows,
-                cols,
-                pixel_width: 0,
-                pixel_height: 0,
-            })
-            .map_err(|err| err.to_string())
+        let resize_result = {
+            let master = session
+                .master
+                .lock()
+                .map_err(|_| "Master lock poisoned".to_string())?;
+            master
+                .resize(PtySize {
+                    rows,
+                    cols,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .map_err(|err| err.to_string())
+        };
+        resize_result
     }
 
     pub fn kill(&self, session_id: &str) -> Result<(), String> {
@@ -147,30 +175,44 @@ fn default_cwd() -> Option<String> {
         .or_else(|| std::env::var("HOME").ok())
 }
 
-fn spawn_reader(app: AppHandle, session_id: String, mut reader: Box<dyn Read + Send>) {
-    std::thread::spawn(move || {
+fn emit_output(app: &AppHandle, session_id: &str, data: String) {
+    let payload = TerminalOutputEvent {
+        session_id: session_id.to_string(),
+        data,
+    };
+    let _ = app.emit("terminal-output", payload);
+}
+
+fn spawn_reader(
+    app: AppHandle,
+    session_id: String,
+    mut reader: Box<dyn Read + Send>,
+    pending_output: Arc<Mutex<String>>,
+) {
+    thread::spawn(move || {
         let mut buffer = [0u8; 8192];
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) => break,
                 Ok(count) => {
                     let data = String::from_utf8_lossy(&buffer[..count]).into_owned();
-                    let _ = app.emit(
-                        "terminal-output",
-                        TerminalOutputEvent {
-                            session_id: session_id.clone(),
-                            data,
-                        },
-                    );
+                    if let Ok(mut pending) = pending_output.lock() {
+                        pending.push_str(&data);
+                    }
+                    emit_output(&app, &session_id, data);
                 }
-                Err(_) => break,
+                Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(20));
+                }
+                Err(err) if err.kind() == ErrorKind::Interrupted => {}
+                Err(_) => {
+                    thread::sleep(Duration::from_millis(50));
+                }
             }
         }
-        let _ = app.emit(
-            "terminal-exit",
-            TerminalExitEvent {
-                session_id: session_id.clone(),
-            },
-        );
+        let payload = TerminalExitEvent {
+            session_id: session_id.clone(),
+        };
+        let _ = app.emit("terminal-exit", payload);
     });
 }

@@ -1,11 +1,14 @@
 mod fs;
+mod git;
 mod terminal;
 
 use fs::commands::{
     fs_list_directory, fs_open_in_vscode, fs_search_files, fs_show_shell_context_menu, FsSearchState,
 };
+use git::commands::git_status;
 use terminal::commands::{
-    terminal_kill, terminal_list_shells, terminal_resize, terminal_spawn, terminal_write,
+    terminal_drain_output, terminal_kill, terminal_list_shells, terminal_resize, terminal_spawn,
+    terminal_write,
 };
 use terminal::manager::PtyManager;
 
@@ -23,10 +26,12 @@ pub fn run() {
             terminal_write,
             terminal_resize,
             terminal_kill,
+            terminal_drain_output,
             fs_list_directory,
             fs_open_in_vscode,
             fs_search_files,
             fs_show_shell_context_menu,
+            git_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

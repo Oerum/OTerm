@@ -1,5 +1,10 @@
 import { computed, ref } from "vue";
-import type { ShellProfile, WorkspacePane, WorkspaceTab } from "../types/terminal";
+import type {
+  ShellProfile,
+  TerminalEntryColor,
+  WorkspacePane,
+  WorkspaceTab,
+} from "../types/terminal";
 
 let nextId = 1;
 function uid(prefix: string) {
@@ -28,6 +33,7 @@ export function useWorkspace(defaultShellId: string) {
       sessionId: null,
       shellId,
       cwd: "~",
+      customTitle: null,
     };
   }
 
@@ -36,6 +42,7 @@ export function useWorkspace(defaultShellId: string) {
     const tab: WorkspaceTab = {
       id: uid("tab"),
       title: "Terminal",
+      color: "none",
       panes: [pane],
       split: "none",
     };
@@ -113,6 +120,53 @@ export function useWorkspace(defaultShellId: string) {
     }
   }
 
+  function setTabTitle(tabId: string, title: string) {
+    const tab = tabs.value.find((item) => item.id === tabId);
+    if (!tab) return;
+    const trimmed = title.trim();
+    tab.title = trimmed || "Terminal";
+  }
+
+  function setTabColor(tabId: string, color: TerminalEntryColor) {
+    const tab = tabs.value.find((item) => item.id === tabId);
+    if (tab) tab.color = color;
+  }
+
+  function moveTab(tabId: string, direction: "up" | "down") {
+    const index = tabs.value.findIndex((tab) => tab.id === tabId);
+    if (index === -1) return;
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (target < 0 || target >= tabs.value.length) return;
+    const next = [...tabs.value];
+    [next[index], next[target]] = [next[target], next[index]];
+    tabs.value = next;
+  }
+
+  function closeOtherTabs(keepTabId: string) {
+    tabs.value = tabs.value.filter((tab) => tab.id === keepTabId);
+    activeTabId.value = keepTabId;
+    const kept = tabs.value[0];
+    activePaneId.value = kept?.panes[0]?.id ?? null;
+  }
+
+  function closeTabsBelow(tabId: string) {
+    const index = tabs.value.findIndex((tab) => tab.id === tabId);
+    if (index === -1) return;
+    const kept = tabs.value.slice(0, index + 1);
+    const removedActive = !kept.some((tab) => tab.id === activeTabId.value);
+    tabs.value = kept;
+    if (removedActive) {
+      activeTabId.value = tabId;
+      activePaneId.value = kept[index]?.panes[0]?.id ?? null;
+    }
+  }
+
+  function tabIdsBelow(tabId: string) {
+    const index = tabs.value.findIndex((tab) => tab.id === tabId);
+    if (index === -1) return [];
+    return tabs.value.slice(index + 1).map((tab) => tab.id);
+  }
+
   return {
     shells,
     tabs,
@@ -129,5 +183,11 @@ export function useWorkspace(defaultShellId: string) {
     clearPaneSession,
     setPaneCwd,
     setPaneShell,
+    setTabTitle,
+    setTabColor,
+    moveTab,
+    closeOtherTabs,
+    closeTabsBelow,
+    tabIdsBelow,
   };
 }

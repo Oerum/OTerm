@@ -45,3 +45,11 @@ pub fn terminal_kill(
 ) -> Result<(), String> {
     manager.kill(&session_id)
 }
+
+#[tauri::command]
+pub fn terminal_drain_output(
+    manager: State<'_, PtyManager>,
+    session_id: String,
+) -> Result<String, String> {
+    manager.drain_output(&session_id)
+}
