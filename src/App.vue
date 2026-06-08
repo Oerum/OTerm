@@ -8,7 +8,6 @@ import StatusBar from "./components/StatusBar.vue";
 import TerminalPane from "./components/TerminalPane.vue";
 import TitleBar from "./components/TitleBar.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
-import { useGitStatus } from "./composables/useGitStatus";
 import { useResizablePanel } from "./composables/useResizablePanel";
 import { useSourceControl } from "./composables/useSourceControl";
 import { useTerminalHistory } from "./composables/useTerminalHistory";
@@ -63,7 +62,6 @@ const {
 const filteredHistory = computed(() => filteredEntries());
 
 const activeCwd = computed(() => activePane.value?.cwd);
-const { status: gitStatus, refreshNow: refreshGitStatusNow } = useGitStatus(activeCwd);
 const {
   status: sourceControlStatus,
   history: gitHistory,
@@ -75,10 +73,26 @@ const {
   commit: commitGitChanges,
 } = useSourceControl(activeCwd);
 
+const gitBadgeStatus = computed(() => ({
+  isRepo: sourceControlStatus.value.isRepo,
+  branch: sourceControlStatus.value.branch,
+  changedFiles: sourceControlStatus.value.changedFiles,
+  additions: sourceControlStatus.value.additions,
+  deletions: sourceControlStatus.value.deletions,
+}));
+
+const activePaneGit = computed(() => ({
+  paneId: activePaneId.value ?? "",
+  branch: sourceControlStatus.value.branch,
+  isRepo: sourceControlStatus.value.isRepo,
+  changedFiles: sourceControlStatus.value.changedFiles,
+  additions: sourceControlStatus.value.additions,
+  deletions: sourceControlStatus.value.deletions,
+}));
+
 let promptGitRefreshTimer: number | undefined;
 
 async function refreshGitViews() {
-  await refreshGitStatusNow();
   await refreshSourceControl();
   gitRefreshToken.value += 1;
 }
@@ -97,9 +111,7 @@ function onPromptReady(paneId: string) {
 
 function toggleSourceControl() {
   sourceControlOpen.value = !sourceControlOpen.value;
-  if (sourceControlOpen.value) {
-    void refreshSourceControl();
-  }
+  void refreshGitViews();
 }
 
 const projectRoot = computed(() => {
@@ -236,7 +248,7 @@ onUnmounted(() => {
       :terminal-sidebar-open="terminalSidebarOpen"
       :tools-open="toolsOpen"
       :source-control-open="sourceControlOpen"
-      :git-status="gitStatus"
+      :git-status="gitBadgeStatus"
       @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
       @toggle-tools="toolsOpen = !toolsOpen"
       @toggle-source-control="toggleSourceControl"
@@ -260,6 +272,7 @@ onUnmounted(() => {
         @color-change="setTabColor"
         @save-profile="onSaveProfile"
         :git-refresh-token="gitRefreshToken"
+        :active-pane-git="activePaneGit"
       />
 
       <ToolsPanel
@@ -312,7 +325,7 @@ onUnmounted(() => {
         <StatusBar
           :pane="activePane"
           :shells="shells"
-          :git-status="gitStatus"
+          :git-status="gitBadgeStatus"
           :app-version="appVersion"
           :terminal-sidebar-open="terminalSidebarOpen"
           :tools-open="toolsOpen"

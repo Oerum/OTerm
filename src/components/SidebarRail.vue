@@ -18,6 +18,14 @@ const props = defineProps<{
   shells: ShellProfile[];
   preferredShellId: string;
   gitRefreshToken?: number;
+  activePaneGit?: {
+    paneId: string;
+    branch: string | null;
+    isRepo: boolean;
+    changedFiles: number;
+    additions: number;
+    deletions: number;
+  };
 }>();
 
 const emit = defineEmits<{
@@ -52,15 +60,29 @@ const gitByPane = ref(
 );
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
-const terminalEntries = computed(() =>
-  buildTerminalEntries(
+const terminalEntries = computed(() => {
+  const entries = buildTerminalEntries(
     props.tabs,
     props.shells,
     props.activeTabId,
     props.activePaneId,
     gitByPane.value,
-  ),
-);
+  );
+  const override = props.activePaneGit;
+  if (!override?.paneId) return entries;
+  return entries.map((entry) =>
+    entry.paneId !== override.paneId
+      ? entry
+      : {
+          ...entry,
+          gitBranch: override.branch,
+          gitIsRepo: override.isRepo,
+          gitChangedFiles: override.changedFiles,
+          gitAdditions: override.additions,
+          gitDeletions: override.deletions,
+        },
+  );
+});
 
 function showToast(message: string) {
   toastMessage.value = message;
