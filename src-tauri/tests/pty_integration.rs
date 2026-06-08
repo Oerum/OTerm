@@ -17,7 +17,7 @@ fn pwsh_reads_and_writes_in_pty() {
     let mut cmd = CommandBuilder::new("pwsh");
     cmd.arg("-NoLogo");
 
-    let mut child = pair.slave.spawn_command(cmd).expect("spawn pwsh");
+    let _child = pair.slave.spawn_command(cmd).expect("spawn pwsh");
     let mut writer = pair.master.take_writer().expect("writer");
     let mut reader = pair.master.try_clone_reader().expect("reader");
 

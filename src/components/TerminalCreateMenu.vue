@@ -237,7 +237,7 @@ onBeforeUnmount(() => {
         >
           <span
             class="term-create-item__label min-w-0 truncate"
-            :class="row.shellId && isDefaultShell(row.shellId) ? 'text-[var(--term-create-accent)]' : ''"
+            :class="row.shellId && isDefaultShell(row.shellId) ? 'text-(--term-create-accent)' : ''"
           >
             {{ row.label }}
           </span>

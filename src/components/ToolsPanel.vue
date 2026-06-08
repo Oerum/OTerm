@@ -237,10 +237,10 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
-    class="relative z-10 flex w-72 shrink-0 flex-col bg-[var(--warp-sidebar)]"
+    class="relative z-10 flex w-72 shrink-0 flex-col bg-(--warp-sidebar)"
   >
-    <div class="relative flex items-center justify-between border-b border-[var(--warp-border)] px-3 py-2">
-      <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--warp-faint)]">
+    <div class="relative flex items-center justify-between border-b border-(--warp-border) px-3 py-2">
+      <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--warp-faint)">
         Tools
       </span>
 
@@ -248,8 +248,8 @@ onBeforeUnmount(() => {
         <button
           ref="openWithButtonRef"
           type="button"
-          class="no-drag rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
-          :class="openWithMenuOpen ? 'bg-white/5 text-[var(--warp-text)]' : ''"
+          class="no-drag rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-(--warp-muted) transition hover:bg-white/5 hover:text-(--warp-text)"
+          :class="openWithMenuOpen ? 'bg-white/5 text-(--warp-text)' : ''"
           title="Open current folder with an external app"
           aria-haspopup="menu"
           :aria-expanded="openWithMenuOpen"
@@ -261,12 +261,12 @@ onBeforeUnmount(() => {
         <div
           v-if="openWithMenuOpen"
           ref="openWithMenuRef"
-          class="no-drag absolute right-0 top-full z-50 mt-1 min-w-[9rem] overflow-hidden rounded-lg border border-[var(--warp-border-strong)] bg-[var(--warp-elevated)] py-1 shadow-xl"
+          class="no-drag absolute right-0 top-full z-50 mt-1 min-w-36 overflow-hidden rounded-lg border border-(--warp-border-strong) bg-(--warp-elevated) py-1 shadow-xl"
           role="menu"
         >
           <button
             type="button"
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-(--warp-text) transition hover:bg-white/6"
             role="menuitem"
             @click="openCurrentDirectoryWith('code')"
           >
@@ -276,29 +276,29 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div class="border-b border-[var(--warp-border)] p-3">
-      <label class="block text-[10px] uppercase tracking-wide text-[var(--warp-faint)]">
+    <div class="border-b border-(--warp-border) p-3">
+      <label class="block text-[10px] uppercase tracking-wide text-(--warp-faint)">
         Search files
       </label>
       <input
         v-model="searchQuery"
         type="search"
         placeholder="Search in current directory..."
-        class="no-drag mt-1.5 w-full rounded-lg border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-1.5 text-xs text-[var(--warp-text)] outline-none focus:border-[var(--warp-accent)]"
+        class="no-drag mt-1.5 w-full rounded-lg border border-(--warp-border) bg-(--warp-bg) px-2.5 py-1.5 text-xs text-(--warp-text) outline-none focus:border-(--warp-accent)"
       />
     </div>
 
     <div v-if="showingSearch" class="warp-scroll min-h-0 flex-1 overflow-y-auto p-2">
-      <p v-if="searchLoading" class="px-2 py-2 text-xs text-[var(--warp-faint)]">Searching...</p>
+      <p v-if="searchLoading" class="px-2 py-2 text-xs text-(--warp-faint)">Searching...</p>
       <p
         v-else-if="searchQuery.trim().length < MIN_SEARCH_LENGTH"
-        class="px-2 py-2 text-xs text-[var(--warp-faint)]"
+        class="px-2 py-2 text-xs text-(--warp-faint)"
       >
         Type at least {{ MIN_SEARCH_LENGTH }} characters
       </p>
       <p
         v-else-if="searchResults.length === 0"
-        class="px-2 py-2 text-xs text-[var(--warp-faint)]"
+        class="px-2 py-2 text-xs text-(--warp-faint)"
       >
         No matches
       </p>
@@ -306,12 +306,12 @@ onBeforeUnmount(() => {
         v-for="entry in searchResults"
         :key="entry.path"
         type="button"
-        class="no-drag mb-0.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition hover:bg-white/[0.04]"
+        class="no-drag mb-0.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition hover:bg-white/4"
         @click="openEntry(entry)"
         @contextmenu.prevent="onEntryContextMenu($event, entry)"
       >
         <span
-          class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[var(--warp-elevated)] text-[var(--warp-muted)]"
+          class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-(--warp-elevated) text-(--warp-muted)"
         >
           <svg
             v-if="entry.isDir"
@@ -344,35 +344,35 @@ onBeforeUnmount(() => {
             />
           </svg>
         </span>
-        <span class="min-w-0 flex-1 truncate text-[var(--warp-text)]">{{ entry.name }}</span>
+        <span class="min-w-0 flex-1 truncate text-(--warp-text)">{{ entry.name }}</span>
       </button>
     </div>
 
     <div v-else class="flex min-h-0 flex-1 flex-col">
-      <div class="flex flex-wrap gap-1 border-b border-[var(--warp-border)] px-2 py-2">
+      <div class="flex flex-wrap gap-1 border-b border-(--warp-border) px-2 py-2">
         <button
           v-for="(crumb, index) in breadcrumbs"
           :key="crumb.path"
           type="button"
-          class="no-drag truncate rounded px-1.5 py-0.5 text-[11px] text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+          class="no-drag truncate rounded px-1.5 py-0.5 text-[11px] text-(--warp-muted) transition hover:bg-white/5 hover:text-(--warp-text)"
           @click="loadDirectory(crumb.path)"
         >
-          {{ crumb.label }}<span v-if="index < breadcrumbs.length - 1" class="text-[var(--warp-faint)]"> /</span>
+          {{ crumb.label }}<span v-if="index < breadcrumbs.length - 1" class="text-(--warp-faint)"> /</span>
         </button>
       </div>
 
       <div class="warp-scroll min-h-0 flex-1 overflow-y-auto p-2">
-        <p v-if="loading" class="px-2 py-2 text-xs text-[var(--warp-faint)]">Loading...</p>
+        <p v-if="loading" class="px-2 py-2 text-xs text-(--warp-faint)">Loading...</p>
         <button
           v-for="entry in entries"
           :key="entry.path"
           type="button"
-          class="no-drag mb-0.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition hover:bg-white/[0.04]"
+          class="no-drag mb-0.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition hover:bg-white/4"
           @click="openEntry(entry)"
           @contextmenu.prevent="onEntryContextMenu($event, entry)"
         >
           <span
-            class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[var(--warp-elevated)] text-[var(--warp-muted)]"
+            class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-(--warp-elevated) text-(--warp-muted)"
           >
             <svg
               v-if="entry.isDir"
@@ -405,7 +405,7 @@ onBeforeUnmount(() => {
               />
             </svg>
           </span>
-          <span class="truncate text-[var(--warp-text)]">{{ entry.name }}</span>
+          <span class="truncate text-(--warp-text)">{{ entry.name }}</span>
         </button>
       </div>
     </div>

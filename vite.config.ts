@@ -29,4 +29,15 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vue: ["vue"],
+          xterm: ["@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-webgl"],
+          tauri: ["@tauri-apps/api", "@tauri-apps/plugin-opener"],
+        },
+      },
+    },
+  },
 }));

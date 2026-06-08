@@ -47,14 +47,16 @@ export function generateCommitAiCompletion(
   options?: LmChatCompletionOptions,
 ): Promise<string> {
   return invoke<string>("lm_chat_completion", {
-    endpoint,
-    provider,
-    model,
-    systemPrompt,
-    userPrompt,
-    apiKey: apiKey?.trim() || null,
-    useReasoning: options?.useReasoning ?? null,
-    allowToolCalls: options?.allowToolCalls ?? null,
-    completionMode: options?.completionMode ?? null,
+    request: {
+      endpoint,
+      provider,
+      model,
+      systemPrompt,
+      userPrompt,
+      apiKey: apiKey?.trim() || null,
+      useReasoning: options?.useReasoning ?? null,
+      allowToolCalls: options?.allowToolCalls ?? null,
+      completionMode: options?.completionMode ?? null,
+    },
   });
 }

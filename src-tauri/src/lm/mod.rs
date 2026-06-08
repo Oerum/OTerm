@@ -139,7 +139,7 @@ fn extract_conventional_commit_line(text: &str) -> Option<String> {
         .filter_map(|line| {
             let cleaned = line
                 .trim()
-                .trim_start_matches(|c: char| c == '*' || c == '-' || c == ' ' || c == '`')
+                .trim_start_matches(['*', '-', ' ', '`'])
                 .trim_end_matches('`')
                 .trim();
             if looks_like_commit_subject(cleaned) {
@@ -148,7 +148,7 @@ fn extract_conventional_commit_line(text: &str) -> Option<String> {
                 None
             }
         })
-        .last()
+        .next_back()
 }
 
 fn looks_like_commit_subject(line: &str) -> bool {
@@ -172,17 +172,17 @@ pub(crate) fn normalize_endpoint(endpoint: &str) -> Result<String, String> {
 fn copilot_apps_json_path() -> Option<PathBuf> {
     #[cfg(windows)]
     {
-        return std::env::var_os("LOCALAPPDATA")
-            .map(|dir| PathBuf::from(dir).join("github-copilot").join("apps.json"));
+        std::env::var_os("LOCALAPPDATA")
+            .map(|dir| PathBuf::from(dir).join("github-copilot").join("apps.json"))
     }
     #[cfg(not(windows))]
     {
-        return std::env::var_os("HOME").map(|dir| {
+        std::env::var_os("HOME").map(|dir| {
             PathBuf::from(dir)
                 .join(".config")
                 .join("github-copilot")
                 .join("apps.json")
-        });
+        })
     }
 }
 
@@ -283,17 +283,30 @@ pub(crate) async fn list_models(
     Ok(ids)
 }
 
-pub(crate) async fn chat_completion(
-    endpoint: &str,
-    provider: AiProvider,
-    api_key: Option<&str>,
-    model: &str,
-    system_prompt: &str,
-    user_prompt: &str,
-    use_reasoning: bool,
-    allow_tool_calls: bool,
-    mode: CompletionMode,
-) -> Result<String, String> {
+pub(crate) struct ChatCompletionRequest<'a> {
+    pub endpoint: &'a str,
+    pub provider: AiProvider,
+    pub api_key: Option<&'a str>,
+    pub model: &'a str,
+    pub system_prompt: &'a str,
+    pub user_prompt: &'a str,
+    pub use_reasoning: bool,
+    pub allow_tool_calls: bool,
+    pub mode: CompletionMode,
+}
+
+pub(crate) async fn chat_completion(req: ChatCompletionRequest<'_>) -> Result<String, String> {
+    let ChatCompletionRequest {
+        endpoint,
+        provider,
+        api_key,
+        model,
+        system_prompt,
+        user_prompt,
+        use_reasoning,
+        allow_tool_calls,
+        mode,
+    } = req;
     let base = normalize_endpoint(endpoint)?;
     let api_key = resolve_api_key(provider, api_key)?;
     let model = model.trim();

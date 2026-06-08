@@ -36,27 +36,20 @@ export const COMMIT_AI_PROVIDER_PRESETS: Record<
   },
 };
 
-export const DEFAULT_COMMIT_MESSAGE_PROMPT = `## Commit Messages
+export const DEFAULT_COMMIT_MESSAGE_PROMPT = `Commit Message Policy
 
-- Use [Conventional Commits](https://www.conventionalcommits.org/) format: \`<type>(<scope>): <description>\`
-- Valid types: \`feat\`, \`fix\`, \`refactor\`, \`test\`, \`docs\`, \`chore\`, \`ci\`, \`perf\`
-- Use scope to indicate the area of the codebase (e.g., \`calc\`, \`tests\`, \`ci\`)
-- Write the subject line in imperative mood, lowercase, and keep it under 72 characters
-- Do not end the subject line with a period
-- Reference related GitHub issues in the footer when applicable (e.g., \`Closes #42\`)
-- If a commit introduces a breaking change, include \`BREAKING CHANGE:\` in the footer
+All commits must follow the Conventional Commits format: <type>(<scope>): <description>.
+Allowed types are: feat, fix, refactor, test, docs, chore, ci, perf.
+The scope identifies the relevant area of the codebase, such as calc, tests, or ci.
+The subject line must use imperative mood, be lowercase, stay under 72 characters, and must not end with a period.
+Reference related GitHub issues in the footer when appropriate, for example: Closes #42.
+If a commit introduces a breaking change, include a BREAKING CHANGE: section in the footer describing the impact.
 
-### Examples
-
-\`\`\`
+Examples:
 feat(calc): add modulo operation support
-
 fix(tests): correct expected value in division-by-zero test
-
 refactor(calc): extract validation into separate method
-
-chore: update NuGet package dependencies
-\`\`\``;
+chore: update NuGet package dependencies`;
 
 export const DEFAULT_COMMIT_AI_SETTINGS: CommitAiSettings = {
   provider: "lm-studio",

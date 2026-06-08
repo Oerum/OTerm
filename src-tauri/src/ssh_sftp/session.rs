@@ -1,8 +1,11 @@
 use async_trait::async_trait;
 use russh::client;
 use russh::keys::{key, load_secret_key};
-use russh_keys::known_hosts::learn_known_hosts;
-use russh_keys::{check_known_hosts, Error as KeysError};
+use russh_keys::{
+    check_known_hosts,
+    known_hosts::learn_known_hosts,
+    Error as KeysError,
+};
 use russh_sftp::client::SftpSession;
 use russh_sftp::protocol::OpenFlags;
 use serde::Serialize;
@@ -142,11 +145,12 @@ impl SftpManager {
             config,
             (host.as_str(), request.port),
             ClientHandler { ctx: ctx.clone() },
-        )
-        .await
-        {
+        ).await {
             Ok(handle) => handle,
-            Err(err) => return Err(format_connect_error(err, &ctx).await),
+            Err(err) => {
+                let message = format_connect_error(err, &ctx).await;
+                return Err(message);
+            }
         };
 
         let authed = match request.auth_method.as_str() {

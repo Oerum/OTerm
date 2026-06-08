@@ -450,7 +450,7 @@ fn parse_porcelain_status(repo_root: &Path) -> (Vec<GitFileEntry>, Vec<GitFileEn
             continue;
         }
 
-        let index_status = entry.as_bytes().get(0).copied().unwrap_or(b' ');
+        let index_status = entry.as_bytes().first().copied().unwrap_or(b' ');
         let worktree_status = entry.as_bytes().get(1).copied().unwrap_or(b' ');
         let path = entry[3..].to_string();
 
