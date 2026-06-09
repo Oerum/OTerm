@@ -50,6 +50,13 @@ import {
   spawnTerminal,
   writeTerminal,
 } from "../lib/terminalApi";
+import {
+  containsBell,
+  containsOscNotification,
+  shouldMarkUnseenFromExplicitSignal,
+  shouldMarkUnseenFromOutput,
+  shouldMarkUnseenFromPrompt,
+} from "../lib/terminalNotification";
 import type { TerminalExitEvent, TerminalOutputEvent } from "../types/terminal";
 import {
   isTerminalAutocompleteConfigured,
@@ -67,6 +74,7 @@ const props = defineProps<{
   shellId: string;
   initialCwd: string;
   active: boolean;
+  tabActive: boolean;
   activeAgentId?: CliAgentId | null;
 }>();
 
@@ -78,6 +86,7 @@ const emit = defineEmits<{
   commandSubmitted: [command: string];
   agentModeChanged: [paneId: string, agentId: CliAgentId | null];
   oscTitleChanged: [paneId: string, title: string | null];
+  notificationReceived: [paneId: string];
   focusPane: [];
 }>();
 
@@ -93,6 +102,7 @@ const paneCwd = ref("");
 const activeAgentId = ref<CliAgentId | null>(null);
 const agentExitConfirmPending = ref(false);
 const promptClearSuppressUntil = ref(0);
+const awaitingOutputSinceFocus = ref(false);
 const tuiModeActive = ref(false);
 const pathMenuOpen = ref(false);
 const pathMenuX = ref(0);
@@ -100,6 +110,21 @@ const pathMenuY = ref(0);
 const pathMenuPath = ref<string | null>(null);
 const pathMenuIsUrl = ref(false);
 const pathCopiedVisible = ref(false);
+
+function notificationContext() {
+  return {
+    paneActive: props.active,
+    tabActive: props.tabActive,
+    activeAgentId: activeAgentId.value,
+    awaitingOutputSinceFocus: awaitingOutputSinceFocus.value,
+  };
+}
+
+function emitNotificationIfNeeded(check: (ctx: ReturnType<typeof notificationContext>) => boolean) {
+  if (check(notificationContext())) {
+    emit("notificationReceived", props.paneId);
+  }
+}
 
 function setActiveAgent(agentId: CliAgentId | null, emitChange = true) {
   if (activeAgentId.value === agentId) return;
@@ -131,6 +156,8 @@ let capturingResponse = false;
 let lastSubmittedCommand = "";
 let responseBuffer = "";
 let promptScanBuffer = "";
+let outputNotifyTimer: number | undefined;
+const OUTPUT_NOTIFY_DEBOUNCE_MS = 400;
 let linkProviderDisposable: IDisposable | null = null;
 let pathDecorationDisposables: IDisposable[] = [];
 let pathRefreshDisposables: IDisposable[] = [];
@@ -481,8 +508,28 @@ function trackCwd(data: string) {
   finalizeExchange();
   promptScanBuffer = "";
   emit("cwdChanged", props.paneId, next.trailingPrompt.cwd);
+  const ctx = notificationContext();
+  if (shouldMarkUnseenFromPrompt(ctx)) {
+    emit("notificationReceived", props.paneId);
+    awaitingOutputSinceFocus.value = false;
+  }
   emit("promptReady", props.paneId);
   scheduleSuggestion();
+}
+
+function handleOutputNotification(data: string) {
+  if (containsBell(data) || containsOscNotification(data)) {
+    emitNotificationIfNeeded(shouldMarkUnseenFromExplicitSignal);
+    return;
+  }
+
+  if (!shouldMarkUnseenFromOutput(notificationContext())) return;
+
+  window.clearTimeout(outputNotifyTimer);
+  outputNotifyTimer = window.setTimeout(() => {
+    emitNotificationIfNeeded(shouldMarkUnseenFromOutput);
+    awaitingOutputSinceFocus.value = false;
+  }, OUTPUT_NOTIFY_DEBOUNCE_MS);
 }
 
 function maybeRecordCommand(data: string, preferredLine = "") {
@@ -515,6 +562,7 @@ function maybeRecordCommand(data: string, preferredLine = "") {
   lastSubmittedCommand = command;
   capturingResponse = true;
   responseBuffer = "";
+  awaitingOutputSinceFocus.value = true;
   clearSuggestion();
   emit("commandSubmitted", command);
 }
@@ -626,6 +674,10 @@ async function mountTerminal() {
     emit("oscTitleChanged", props.paneId, normalized);
   });
 
+  terminal.onBell(() => {
+    emitNotificationIfNeeded(shouldMarkUnseenFromExplicitSignal);
+  });
+
   terminal.attachCustomKeyEventHandler((event) => {
     if (!suggestion.value) return true;
     if (event.key === "Tab" && !event.shiftKey) {
@@ -649,6 +701,7 @@ async function mountTerminal() {
     if (event.payload.sessionId !== localSessionId.value || !terminal) return;
     if (capturingResponse) responseBuffer += event.payload.data;
     terminal.write(event.payload.data);
+    handleOutputNotification(event.payload.data);
     trackCwd(event.payload.data);
     schedulePathDecorations();
   });
@@ -706,6 +759,8 @@ watch(
   () => props.active,
   (active) => {
     if (active) {
+      awaitingOutputSinceFocus.value = false;
+      window.clearTimeout(outputNotifyTimer);
       terminal?.focus();
       void handleResize();
       scheduleSuggestion();
@@ -734,6 +789,7 @@ onBeforeUnmount(async () => {
   window.removeEventListener("keydown", onWindowKeyCapture, true);
   window.clearTimeout(resizeTimer);
   window.clearTimeout(suggestionTimer);
+  window.clearTimeout(outputNotifyTimer);
   window.clearTimeout(pathDecorationTimer);
   window.clearTimeout(pathCopiedTimer);
   suggestionRequestId += 1;

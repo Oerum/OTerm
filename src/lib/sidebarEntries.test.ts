@@ -22,6 +22,7 @@ function terminalTab(overrides: Partial<WorkspaceTerminalTab> = {}): WorkspaceTe
         customTitle: null,
         activeAgentId: null,
         oscTitle: null,
+        hasUnseenNotification: false,
       },
     ],
     ...overrides,
@@ -105,5 +106,13 @@ describe("buildTerminalEntries", () => {
     tab.panes[0].activeAgentId = null;
     const entries = buildTerminalEntries([tab], shells, tab.id, tab.panes[0].id, new Map());
     expect(entries[0]?.title).toBe("oterm");
+  });
+
+  it("propagates hasUnseenNotification from pane to entry", () => {
+    const tab = terminalTab();
+    tab.panes[0].hasUnseenNotification = true;
+    const entries = buildTerminalEntries([tab], shells, "other-tab", "other-pane", new Map());
+    expect(entries[0]?.hasUnseenNotification).toBe(true);
+    expect(entries[0]?.isActive).toBe(false);
   });
 });

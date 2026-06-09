@@ -46,6 +46,10 @@ import {
   shouldOfferCreatePr,
 } from "./lib/createPrFlow";
 import { createPullRequest, detectPrProvider, listPullRequests } from "./lib/pullRequestApi";
+  buildTerminalNotificationContent,
+  sendTerminalSystemNotification,
+} from "./lib/systemNotification";
+import { shellLabelFor } from "./lib/sidebarEntries";
 
 const appVersion = "0.1.0";
 
@@ -100,6 +104,7 @@ const {
   setPaneCwd,
   setPaneAgent,
   setPaneOscTitle,
+  setPaneUnseenNotification,
   setTabTitle,
   setTabColor,
   moveTab,
@@ -537,6 +542,28 @@ function onOscTitleChanged(paneId: string, title: string | null) {
   setPaneOscTitle(paneId, title);
 }
 
+function findTerminalPane(paneId: string) {
+  for (const tab of tabs.value) {
+    if (!isTerminalTab(tab)) continue;
+    const pane = tab.panes.find((entry) => entry.id === paneId);
+    if (pane) return pane;
+  }
+  return null;
+}
+
+function onNotificationReceived(paneId: string) {
+  const pane = findTerminalPane(paneId);
+  const alreadyUnseen = pane?.hasUnseenNotification ?? false;
+  setPaneUnseenNotification(paneId, true);
+
+  if (alreadyUnseen || !pane) return;
+
+  const shellLabel = shellLabelFor(shells.value, pane.shellId);
+  void sendTerminalSystemNotification(
+    buildTerminalNotificationContent(pane, shellLabel),
+  );
+}
+
 function onTerminalAgentChanged(sessionId: string, agentId: CliAgentId | null) {
   for (const tab of tabs.value) {
     if (!isTerminalTab(tab)) continue;
@@ -691,6 +718,7 @@ onUnmounted(() => {
                 :shell-id="pane.shellId"
                 :initial-cwd="pane.cwd"
                 :active="pane.id === activePaneId"
+                :tab-active="tab.id === activeTabId"
                 :active-agent-id="pane.activeAgentId"
                 @session-created="onSessionCreated"
                 @session-ended="onSessionEnded"
@@ -699,6 +727,7 @@ onUnmounted(() => {
                 @command-submitted="onCommandSubmitted"
                 @agent-mode-changed="onAgentModeChanged"
                 @osc-title-changed="onOscTitleChanged"
+                @notification-received="onNotificationReceived"
                 @focus-pane="selectPane(pane.id)"
               />
             </section>
