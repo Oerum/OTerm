@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use super::pr::{detect_provider, gh_output, gh_run};
+use super::pr::{ensure_github_ready, gh_output, gh_run};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -177,17 +177,6 @@ pub fn create_branch_from_issue(repo_root: String, number: u32) -> Result<(), St
     let root = PathBuf::from(&repo_root);
     ensure_github_ready(repo_root)?;
     gh_run(&root, &["issue", "develop", &number.to_string()])
-}
-
-fn ensure_github_ready(repo_root: String) -> Result<(), String> {
-    let info = detect_provider(repo_root)?;
-    if info.provider.as_deref() != Some("github") {
-        return Err(info.message.unwrap_or_else(|| "Unsupported provider".into()));
-    }
-    if !info.can_use_cli || !info.auth_ok {
-        return Err(info.message.unwrap_or_else(|| "GitHub CLI not ready".into()));
-    }
-    Ok(())
 }
 
 fn map_issue_row(row: GhIssueRow) -> IssueSummary {

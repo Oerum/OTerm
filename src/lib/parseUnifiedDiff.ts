@@ -307,3 +307,40 @@ export function buildSideBySideRows(hunk: DiffHunk): SideBySideRow[] {
 
   return rows;
 }
+
+export interface UnifiedDiffFileSlice {
+  path: string;
+  patch: string;
+}
+
+/** Split a multi-file unified diff into per-file patches for GitDiffViewer. */
+export function splitUnifiedDiffByFile(content: string): UnifiedDiffFileSlice[] {
+  if (!content.trim()) return [];
+
+  const lines = content.split("\n");
+  const slices: UnifiedDiffFileSlice[] = [];
+  let start = -1;
+  let path = "";
+
+  const flush = (end: number) => {
+    if (start < 0) return;
+    const patch = lines.slice(start, end).join("\n").trimEnd();
+    if (patch) slices.push({ path, patch: patch.endsWith("\n") ? patch : `${patch}\n` });
+  };
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!line.startsWith("diff --git ")) continue;
+
+    flush(i);
+    start = i;
+    let match = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
+    if (!match) {
+      match = /^diff --git "a\/(.+?)" "b\/(.+?)"$/.exec(line);
+    }
+    path = match?.[2] ?? match?.[1] ?? line.slice("diff --git ".length);
+  }
+
+  flush(lines.length);
+  return slices;
+}
