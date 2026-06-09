@@ -35,14 +35,3 @@ export function canOfferCreatePrLocally(
 export function isGithubPrCapable(provider: PrProviderInfo | null): boolean {
   return provider?.provider === "github" && provider.canUseCli;
 }
-
-export function shouldOfferCreatePr(
-  status: GitSourceControlStatus | null | undefined,
-  provider: PrProviderInfo | null,
-  openPrs: PullRequestSummary[],
-): boolean {
-  if (!canOfferCreatePrLocally(status)) return false;
-  if (!isGithubPrCapable(provider)) return false;
-  if (provider?.authOk && hasOpenPrForHead(openPrs, status!.branch!)) return false;
-  return true;
-}

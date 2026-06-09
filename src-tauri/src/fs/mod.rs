@@ -336,7 +336,7 @@ pub fn find_devenv_launcher() -> Option<PathBuf> {
             })
             .unwrap_or_else(|_| root.join("Installer").join("vswhere.exe"));
         if vswhere.is_file() {
-            let output = std::process::Command::new(&vswhere)
+            let output = crate::process::hidden_command(&vswhere)
                 .args([
                     "-latest",
                     "-products",

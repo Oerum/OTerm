@@ -3,7 +3,8 @@ pub mod commands;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashSet;
-use std::process::Command;
+
+use crate::process::{docker_program, hidden_command};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -291,7 +292,7 @@ fn normalize_error(err: String) -> String {
 }
 
 fn docker_output(args: &[&str]) -> Result<String, String> {
-    let output = Command::new("docker")
+    let output = hidden_command(&docker_program())
         .args(args)
         .output()
         .map_err(|err| err.to_string())?;
@@ -304,7 +305,7 @@ fn docker_output(args: &[&str]) -> Result<String, String> {
 }
 
 fn docker_run(args: &[&str]) -> Result<(), String> {
-    let output = Command::new("docker")
+    let output = hidden_command(&docker_program())
         .args(args)
         .output()
         .map_err(|err| err.to_string())?;

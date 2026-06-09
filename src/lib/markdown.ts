@@ -1,4 +1,4 @@
-import DOMPurify, { type UponSanitizeElementHook } from "isomorphic-dompurify";
+import DOMPurify from "isomorphic-dompurify";
 import { marked } from "marked";
 
 marked.use({
@@ -17,8 +17,8 @@ export function renderMarkdown(source: string): string {
   const trimmed = source.replace(/\r\n/g, "\n").trim();
   if (!trimmed) return "";
   const raw = marked.parse(trimmed, { async: false }) as string;
-  const hook: UponSanitizeElementHook = (node) => {
-    if (!(node instanceof Element) || node.tagName.toLowerCase() !== "input") {
+  const hook = (node: Element) => {
+    if (node.tagName?.toLowerCase() !== "input") {
       return;
     }
     const input = node as HTMLInputElement;

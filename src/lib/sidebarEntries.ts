@@ -8,7 +8,7 @@ import type {
 import { isTerminalTab } from "../types/terminal";
 import { getCliAgentDefinition } from "./terminalAgentMode";
 
-export const ENTRY_COLORS = [
+const ENTRY_COLORS = [
   { id: "none" as const, hex: "#5c5c5c", label: "None" },
   { id: "green" as const, hex: "#3dd68c", label: "Green" },
   { id: "blue" as const, hex: "#58a6ff", label: "Blue" },
@@ -46,7 +46,7 @@ export function paneDisplayTitle(
   return title;
 }
 
-export function paneSubtitle(pane: WorkspaceTerminalTab["panes"][number], shellLabel: string) {
+function paneSubtitle(pane: WorkspaceTerminalTab["panes"][number], shellLabel: string) {
   const cwd = pane.cwd;
   if (!cwd || cwd === "~") return shellLabel;
   return `${shellLabel} · ${cwd}`;

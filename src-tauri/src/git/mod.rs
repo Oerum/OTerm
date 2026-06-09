@@ -6,7 +6,9 @@ pub mod pr;
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
+
+use crate::process::{git_program, hidden_command, hidden_command_with_stdin};
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -169,7 +171,7 @@ fn apply_hunk_patch(
         return Err(format!("Patch does not match file: {path}"));
     }
 
-    let mut cmd = Command::new("git");
+    let mut cmd = hidden_command_with_stdin(&git_program());
     cmd.current_dir(repo_root);
     cmd.args(["apply", "-p1", "--recount", "--unidiff-zero", "--whitespace=nowarn"]);
     cmd.args(extra_args);
@@ -833,7 +835,7 @@ fn apply_file_stats(
 }
 
 pub(crate) fn git_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("git")
+    let output = hidden_command(&git_program())
         .args(args)
         .current_dir(cwd)
         .output()
@@ -847,7 +849,7 @@ pub(crate) fn git_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
 }
 
 pub(crate) fn git_diff_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("git")
+    let output = hidden_command(&git_program())
         .args(args)
         .current_dir(cwd)
         .output()
@@ -862,7 +864,7 @@ pub(crate) fn git_diff_output(cwd: &Path, args: &[&str]) -> Result<String, Strin
 }
 
 pub(crate) fn git_run(cwd: &Path, args: &[&str]) -> Result<(), String> {
-    let output = Command::new("git")
+    let output = hidden_command(&git_program())
         .args(args)
         .current_dir(cwd)
         .output()

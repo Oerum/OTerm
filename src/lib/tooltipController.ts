@@ -39,7 +39,7 @@ function positionForElement(el: HTMLElement) {
   tooltipY.value = rect.bottom + 6;
 }
 
-export function showTooltipForElement(el: HTMLElement, text: string) {
+function showTooltipForElement(el: HTMLElement, text: string) {
   if (activeTarget === el) return;
   clearShowTimer();
   activeTarget = el;
@@ -52,7 +52,7 @@ export function showTooltipForElement(el: HTMLElement, text: string) {
   }, SHOW_DELAY_MS);
 }
 
-export function hideTooltipForElement(el: HTMLElement) {
+function hideTooltipForElement(el: HTMLElement) {
   if (activeTarget !== el) return;
   clearShowTimer();
   activeTarget = null;

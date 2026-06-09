@@ -1,7 +1,7 @@
 import type { GraphCommit } from "../types/branchManager";
 
 /** VS Code Git Graph–style lane palette */
-export const GRAPH_LANE_COLORS = [
+const GRAPH_LANE_COLORS = [
   "#3794ff",
   "#f0883e",
   "#3fb950",
@@ -12,10 +12,10 @@ export const GRAPH_LANE_COLORS = [
   "#d29922",
 ];
 
-export const GRAPH_ROW_HEIGHT = 36;
-export const GRAPH_LANE_WIDTH = 14;
-export const GRAPH_NODE_R = 4;
-export const GRAPH_HEAD_R = 5;
+const GRAPH_ROW_HEIGHT = 36;
+const GRAPH_LANE_WIDTH = 14;
+const GRAPH_NODE_R = 4;
+const GRAPH_HEAD_R = 5;
 
 /** Snap to half-pixels so strokes anti-alias cleanly. */
 function snap(n: number): number {
@@ -52,15 +52,15 @@ export type GraphLayout = {
 
 type LaneState = string | null;
 
-export function laneColor(lane: number): string {
+function laneColor(lane: number): string {
   return GRAPH_LANE_COLORS[lane % GRAPH_LANE_COLORS.length];
 }
 
-export function laneX(lane: number): number {
+function laneX(lane: number): number {
   return lane * GRAPH_LANE_WIDTH + GRAPH_LANE_WIDTH / 2;
 }
 
-export function nodeCenter(row: number, lane: number): { x: number; y: number } {
+function nodeCenter(row: number, lane: number): { x: number; y: number } {
   return {
     x: laneX(lane),
     y: row * GRAPH_ROW_HEIGHT + GRAPH_ROW_HEIGHT / 2,
@@ -235,7 +235,7 @@ export function parseDecorations(raw: string): string[] {
     .filter(Boolean);
 }
 
-export function isHeadCommit(decorations: string): boolean {
+function isHeadCommit(decorations: string): boolean {
   return decorations.includes("HEAD");
 }
 

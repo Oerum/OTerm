@@ -1,12 +1,12 @@
 /** Shown by agy (and similar TUIs) before the confirming Ctrl+D on Windows ConPTY. */
-export const AGENT_EXIT_CONFIRM_PROMPT = /press ctrl\+d again to exit/i;
+const AGENT_EXIT_CONFIRM_PROMPT = /press ctrl\+d again to exit/i;
 
 export function isAgentExitConfirmPrompt(data: string): boolean {
   return AGENT_EXIT_CONFIRM_PROMPT.test(data);
 }
 
 /** agy accepts /quit at the confirm step; a second EOT byte often does not exit on ConPTY. */
-export const AGENT_EXIT_CONFIRM_PAYLOAD = "/quit\r";
+const AGENT_EXIT_CONFIRM_PAYLOAD = "/quit\r";
 
 export function getCtrlDEofPayload(event: KeyboardEvent): string | null {
   if (event.type !== "keydown") return null;

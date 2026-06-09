@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+
+use crate::process::{gh_program, hidden_command};
 
 use super::git_output;
 
@@ -243,7 +244,7 @@ pub fn detect_provider(repo_root: String) -> Result<PrProviderInfo, String> {
 
     let (can_use_cli, auth_ok, message) = match provider.as_deref() {
         Some("github") => {
-            let gh_ok = Command::new("gh").arg("--version").output().is_ok();
+            let gh_ok = hidden_command(&gh_program()).arg("--version").output().is_ok();
             if !gh_ok {
                 (
                     false,
@@ -251,7 +252,7 @@ pub fn detect_provider(repo_root: String) -> Result<PrProviderInfo, String> {
                     Some("Install GitHub CLI (gh) to manage pull requests".into()),
                 )
             } else {
-                let auth = Command::new("gh")
+                let auth = hidden_command(&gh_program())
                     .args(["auth", "status"])
                     .current_dir(&root)
                     .output()
@@ -579,7 +580,7 @@ pub fn remote_browser_url(
 }
 
 pub(crate) fn gh_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("gh")
+    let output = hidden_command(&gh_program())
         .args(args)
         .current_dir(cwd)
         .output()
@@ -594,7 +595,7 @@ pub(crate) fn gh_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
 
 /// `gh pr checks` exits 1 with a stderr message when a branch has no checks.
 fn gh_pr_checks_json(cwd: &Path, number: &str, fields: &str) -> Result<String, String> {
-    let output = Command::new("gh")
+    let output = hidden_command(&gh_program())
         .args([
             "pr",
             "checks",
@@ -619,7 +620,7 @@ fn gh_pr_checks_json(cwd: &Path, number: &str, fields: &str) -> Result<String, S
 }
 
 pub(crate) fn gh_run(cwd: &Path, args: &[&str]) -> Result<(), String> {
-    let output = Command::new("gh")
+    let output = hidden_command(&gh_program())
         .args(args)
         .current_dir(cwd)
         .output()

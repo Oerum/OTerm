@@ -159,7 +159,7 @@ interface XtermRenderCore {
 }
 
 /** Map a mouse event to absolute buffer row/col coordinates. */
-export function getBufferCoordsFromMouseEvent(
+function getBufferCoordsFromMouseEvent(
   terminal: Terminal,
   event: MouseEvent,
 ): { col: number; row: number } | null {
@@ -186,19 +186,6 @@ export function getBufferCoordsFromMouseEvent(
   }
 
   return { col, row: bufferRow };
-}
-
-export function findPathAtMouseEvent(
-  terminal: Terminal,
-  event: MouseEvent,
-): PathMatch | null {
-  const coords = getBufferCoordsFromMouseEvent(terminal, event);
-  if (!coords) return null;
-
-  const line = terminal.buffer.active.getLine(coords.row);
-  if (!line) return null;
-
-  return findPathAtColumn(line.translateToString(false), coords.col);
 }
 
 export function findTerminalLinkAtMouseEvent(

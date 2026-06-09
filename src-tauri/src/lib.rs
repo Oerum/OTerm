@@ -3,6 +3,7 @@ mod fs;
 mod git;
 mod launch;
 mod lm;
+mod process;
 mod settings;
 mod ssh_sftp;
 mod terminal;
