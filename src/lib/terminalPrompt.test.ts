@@ -15,6 +15,15 @@ describe("detectShellPrompt", () => {
     });
   });
 
+  it("detects Windows CMD prompts", () => {
+    expect(detectShellPrompt("C:\\Users\\Filip>")).toEqual({
+      cwd: "C:\\Users\\Filip",
+    });
+    expect(detectShellPrompt("C:\\Projects\\myapp> ")).toEqual({
+      cwd: "C:\\Projects\\myapp",
+    });
+  });
+
   it("detects Unix-style path prompts", () => {
     expect(detectShellPrompt("/home/user/projects/oterm> ")).toEqual({
       cwd: "/home/user/projects/oterm",
@@ -50,6 +59,12 @@ describe("detectTrailingShellPrompt", () => {
   it("matches a trailing PowerShell prompt", () => {
     expect(detectTrailingShellPrompt("PS C:\\Users\\Filip\\Desktop\\oterm> ")).toEqual({
       cwd: "C:\\Users\\Filip\\Desktop\\oterm",
+    });
+  });
+
+  it("matches a trailing CMD prompt", () => {
+    expect(detectTrailingShellPrompt("C:\\Projects\\myapp>")).toEqual({
+      cwd: "C:\\Projects\\myapp",
     });
   });
 

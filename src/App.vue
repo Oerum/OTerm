@@ -296,13 +296,10 @@ function rememberClosedTab(tab: WorkspaceTerminalTab) {
 function reopenClosedSession() {
   const session = closedSessions.value.shift();
   if (!session) return;
-  createTab(session.shellId);
-  const tab = tabs.value[tabs.value.length - 1];
-  if (!tab || !isTerminalTab(tab)) return;
+  const tab = createTab(session.shellId, session.cwd);
+  if (!isTerminalTab(tab)) return;
   setTabTitle(tab.id, session.title);
   setTabColor(tab.id, session.color);
-  const pane = tab.panes[0];
-  if (pane) setPaneCwd(pane.id, session.cwd);
 }
 
 async function bootstrap() {

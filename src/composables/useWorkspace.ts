@@ -1,4 +1,5 @@
 import { computed, ref } from "vue";
+import { cwdForNewTerminal } from "../lib/newTerminalCwd";
 import type { CliAgentId } from "../lib/terminalAgentMode";
 import { normalizeOscTitle } from "../lib/terminalOscTitle";
 import type {
@@ -49,7 +50,10 @@ export function useWorkspace(getDefaultShellId: () => string) {
   }
 
   function createTab(shellId?: string, cwd?: string) {
-    const pane = createPane(shellId, cwd);
+    const pane = createPane(
+      shellId,
+      cwdForNewTerminal(activePane.value?.cwd, cwd),
+    );
     const tab: WorkspaceTerminalTab = {
       kind: "terminal",
       id: uid("tab"),
@@ -197,7 +201,9 @@ export function useWorkspace(getDefaultShellId: () => string) {
     const tab = activeTerminalTab.value;
     if (!tab || tab.split === "horizontal") return;
     tab.split = "horizontal";
-    tab.panes.push(createPane(shellId));
+    tab.panes.push(
+      createPane(shellId, cwdForNewTerminal(activePane.value?.cwd)),
+    );
   }
 
   function selectTab(tabId: string) {
