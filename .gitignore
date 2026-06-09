@@ -78,3 +78,6 @@ vite.config.ts.timestamp-*
 
 # Vue (https://github.com/github/gitignore/blob/main/community/JavaScript/Vue.gitignore)
 docs/_book
+
+#worktrees
+.worktrees/
