@@ -64,6 +64,12 @@ describe("scanLineForPaths()", () => {
   it("does not match bare drive letters in path scan", () => {
     expect(scanLineForPaths("Drive C: is full")).toEqual([]);
   });
+
+  it("does not match paths embedded in other words or division", () => {
+    expect(scanLineForPaths("const x = 1/2;")).toEqual([]);
+    expect(scanLineForPaths("npm install -g @vue/cli")).toEqual([]);
+    expect(scanLineForPaths("any/path/at/all")).toEqual([]);
+  });
 });
 
 describe("scanLineForUrls", () => {

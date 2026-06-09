@@ -614,6 +614,7 @@ async function mountTerminal() {
   pathRefreshDisposables.push(
     terminal.onWriteParsed(() => schedulePathDecorations()),
     terminal.onScroll(() => schedulePathDecorations()),
+    terminal.onResize(() => schedulePathDecorations()),
   );
   if (terminal.element) {
     terminalContextMenuHandler = onTerminalContextMenu;
