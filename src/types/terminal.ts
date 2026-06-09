@@ -56,6 +56,13 @@ export interface WorkspaceBranchManagerTab {
   repoRoot: string;
 }
 
+export interface WorkspaceIssuesTab {
+  kind: "issues";
+  id: string;
+  title: string;
+  repoRoot: string;
+}
+
 export interface WorkspaceDockerManagerTab {
   kind: "docker";
   id: string;
@@ -78,6 +85,7 @@ export type WorkspaceTab =
   | WorkspaceTerminalTab
   | WorkspacePullRequestsTab
   | WorkspaceBranchManagerTab
+  | WorkspaceIssuesTab
   | WorkspaceDockerManagerTab
   | WorkspaceSshSftpTab
   | WorkspaceSettingsTab;
@@ -89,7 +97,7 @@ export function isTerminalTab(tab: WorkspaceTab): tab is WorkspaceTerminalTab {
 export interface FeatureSidebarEntry {
   entryId: string;
   tabId: string;
-  kind: "pullRequests" | "branchManager" | "docker" | "sshSftp" | "settings";
+  kind: "pullRequests" | "branchManager" | "issues" | "docker" | "sshSftp" | "settings";
   title: string;
   isActive: boolean;
 }

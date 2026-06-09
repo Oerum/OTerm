@@ -71,10 +71,11 @@ const featureEntries = computed(() =>
 );
 
 function featureEntryBadge(
-  kind: "pullRequests" | "branchManager" | "docker" | "sshSftp" | "settings",
+  kind: "pullRequests" | "branchManager" | "issues" | "docker" | "sshSftp" | "settings",
 ) {
   if (kind === "pullRequests") return "PR";
   if (kind === "branchManager") return "Br";
+  if (kind === "issues") return "Is";
   if (kind === "sshSftp") return "SF";
   if (kind === "settings") return "⚙";
   return "Dk";

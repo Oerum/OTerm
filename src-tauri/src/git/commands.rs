@@ -4,6 +4,9 @@ use super::branches::{
     reset_commit, revert_commit, squash_commits, BranchRefInfo, CommitDetails, CompareResult,
     GraphCommit,
 };
+use super::issues::{
+    create_branch_from_issue, list_issues, view_issue, IssueDetail, IssueListFilters, IssueSummary,
+};
 use super::pr::{
     checkout_pull_request, create_pull_request, detect_provider, list_pull_requests,
     remote_browser_url, PrProviderInfo, PullRequestSummary,
@@ -188,6 +191,24 @@ pub async fn pr_create(
 #[tauri::command]
 pub async fn pr_checkout(repo_root: String, number: u32) -> Result<(), String> {
     blocking_git(move || checkout_pull_request(repo_root, number)).await
+}
+
+#[tauri::command]
+pub async fn issue_list(
+    repo_root: String,
+    filters: IssueListFilters,
+) -> Result<Vec<IssueSummary>, String> {
+    blocking_git(move || list_issues(repo_root, filters)).await
+}
+
+#[tauri::command]
+pub async fn issue_view(repo_root: String, number: u32) -> Result<IssueDetail, String> {
+    blocking_git(move || view_issue(repo_root, number)).await
+}
+
+#[tauri::command]
+pub async fn issue_create_branch(repo_root: String, number: u32) -> Result<(), String> {
+    blocking_git(move || create_branch_from_issue(repo_root, number)).await
 }
 
 #[tauri::command]

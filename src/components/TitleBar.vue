@@ -22,6 +22,7 @@ const emit = defineEmits<{
   openDockerManager: [];
   openPullRequests: [];
   openBranchManager: [];
+  openIssues: [];
   openSettings: [];
 }>();
 
@@ -130,6 +131,20 @@ function onDragMouseDown(event: MouseEvent) {
         @click="emit('openPullRequests')"
       >
         PRs
+      </button>
+      <button
+        type="button"
+        class="rounded-md px-2 py-1 text-xs transition"
+        :class="
+          canOpenGitFeatures
+            ? 'text-[var(--warp-muted)] hover:bg-white/5 hover:text-[var(--warp-text)]'
+            : 'cursor-not-allowed text-[var(--warp-muted)]/40'
+        "
+        title="Issues"
+        :disabled="!canOpenGitFeatures"
+        @click="emit('openIssues')"
+      >
+        Issues
       </button>
       <button
         type="button"

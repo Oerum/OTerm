@@ -1,5 +1,6 @@
 pub mod branches;
 pub mod commands;
+pub mod issues;
 pub mod pr;
 
 use std::collections::HashMap;
