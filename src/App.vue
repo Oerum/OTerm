@@ -41,9 +41,11 @@ import {
 import type { CliAgentId } from "./lib/terminalAgentMode";
 import { consumeAppShortcut, isTabCycleShortcut } from "./lib/appKeyboardShortcuts";
 import {
+  canOfferCreatePrLocally,
   defaultCreatePrTitle,
+  hasOpenPrForHead,
   initCreatePrBranches,
-  shouldOfferCreatePr,
+  isGithubPrCapable,
 } from "./lib/createPrFlow";
 import { createPullRequest, detectPrProvider, listPullRequests } from "./lib/pullRequestApi";
   buildTerminalNotificationContent,
@@ -242,14 +244,26 @@ async function submitCreatePr() {
 async function maybeOfferCreatePrAfterPush() {
   const root = gitRepoRoot.value;
   const status = sourceControlStatus.value;
-  if (!root) return;
+  if (!root || !canOfferCreatePrLocally(status)) return;
 
   try {
     const provider = await detectPrProvider(root);
-    const openPrs = provider.authOk ? await listPullRequests(root, false) : [];
-    if (!shouldOfferCreatePr(status, provider, openPrs)) return;
+    if (!isGithubPrCapable(provider)) return;
+
+    if (provider.authOk) {
+      try {
+        const openPrs = await listPullRequests(root, false);
+        if (hasOpenPrForHead(openPrs, status.branch!)) return;
+      } catch {
+        // Listing PRs failed — still offer; create may surface the real error.
+      }
+    }
 
     prepareCreatePrForm();
+    if (!sourceControlOpen.value) {
+      sourceControlOpen.value = true;
+      ensureDiffPaneWidth();
+    }
     createPrBannerVisible.value = true;
   } catch {
     // Optional flow — ignore detection failures.
@@ -257,9 +271,8 @@ async function maybeOfferCreatePrAfterPush() {
 }
 
 async function onPushGit() {
-  const hadCommitsToPush = sourceControlStatus.value.ahead > 0;
   await runGitAction(pushGitRepo);
-  if (hadCommitsToPush) await maybeOfferCreatePrAfterPush();
+  await maybeOfferCreatePrAfterPush();
 }
 
 async function onSyncGit() {
@@ -821,7 +834,8 @@ onUnmounted(() => {
           class="flex shrink-0 items-start gap-2 border-b border-[var(--oterm-border)] bg-[var(--oterm-accent)]/10 px-3 py-2"
         >
           <p class="min-w-0 flex-1 text-xs leading-relaxed text-[var(--oterm-text)]">
-            Branch pushed. Create a pull request?
+            Branch pushed. Create a pull request for
+            <span class="font-medium">{{ createPrHead || sourceControlStatus.branch }}</span>?
           </p>
           <button
             type="button"
