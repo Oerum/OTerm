@@ -31,4 +31,10 @@ describe("renderMarkdown", () => {
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noopener noreferrer"');
   });
+
+  it("preserves GFM task list checkboxes", () => {
+    const html = renderMarkdown("- [x] Done\n- [ ] Todo");
+    expect(html).toContain('type="checkbox"');
+    expect(html).toContain("checked");
+  });
 });

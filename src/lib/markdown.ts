@@ -19,6 +19,7 @@ export function renderMarkdown(source: string): string {
   const raw = marked.parse(trimmed, { async: false }) as string;
   return DOMPurify.sanitize(raw, {
     USE_PROFILES: { html: true },
-    ADD_ATTR: ["target", "rel"],
+    ADD_TAGS: ["input"],
+    ADD_ATTR: ["target", "rel", "disabled", "checked", "type"],
   });
 }
