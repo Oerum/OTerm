@@ -13,6 +13,7 @@ import PullRequestsView from "./components/PullRequestsView.vue";
 import IssuesView from "./components/IssuesView.vue";
 import SettingsView from "./components/SettingsView.vue";
 import TitleBar from "./components/TitleBar.vue";
+import TooltipLayer from "./components/TooltipLayer.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
 import { useResizablePanel } from "./composables/useResizablePanel";
 import { useSourceControl } from "./composables/useSourceControl";
@@ -520,6 +521,7 @@ onUnmounted(() => {
 
 <template>
   <div class="oterm-app relative flex h-full flex-col">
+    <TooltipLayer />
     <TitleBar
       :terminal-sidebar-open="terminalSidebarOpen"
       :tools-open="toolsOpen"

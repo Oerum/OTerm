@@ -2,7 +2,10 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useWindowDrag } from "../composables/useWindowDrag";
 import type { GitStatus } from "../types/git";
+import dockerIcon from "../assets/docker/docker-mark-ocean-blue.svg";
 import GitDiffBadge from "./GitDiffBadge.vue";
+import GitMenu from "./GitMenu.vue";
+import SshMenu from "./SshMenu.vue";
 import UserMenu from "./UserMenu.vue";
 
 defineProps<{
@@ -102,64 +105,22 @@ function onDragMouseDown(event: MouseEvent) {
     />
 
     <div class="no-drag flex items-center gap-1 pr-1">
+      <SshMenu @open-ssh-sftp="emit('openSshSftp')" />
       <button
         type="button"
-        class="rounded-md px-2 py-1 text-xs text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
-        title="SSH/SFTP manager"
-        @click="emit('openSshSftp')"
-      >
-        SSH/SFTP
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2 py-1 text-xs text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+        class="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 text-[var(--oterm-muted)] transition hover:border-white/20 hover:bg-white/5 hover:text-[#F5F5F7]"
         title="Docker manager"
+        aria-label="Docker manager"
         @click="emit('openDockerManager')"
       >
-        Docker
+        <img :src="dockerIcon" class="h-3.5 w-3.5 shrink-0 object-contain" alt="" draggable="false" />
       </button>
-      <button
-        type="button"
-        class="rounded-md px-2 py-1 text-xs transition"
-        :class="
-          canOpenGitFeatures
-            ? 'text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]'
-            : 'cursor-not-allowed text-[var(--oterm-muted)]/40'
-        "
-        title="Pull requests"
-        :disabled="!canOpenGitFeatures"
-        @click="emit('openPullRequests')"
-      >
-        PRs
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2 py-1 text-xs transition"
-        :class="
-          canOpenGitFeatures
-            ? 'text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]'
-            : 'cursor-not-allowed text-[var(--oterm-muted)]/40'
-        "
-        title="Issues"
-        :disabled="!canOpenGitFeatures"
-        @click="emit('openIssues')"
-      >
-        Issues
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-2 py-1 text-xs transition"
-        :class="
-          canOpenGitFeatures
-            ? 'text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]'
-            : 'cursor-not-allowed text-[var(--oterm-muted)]/40'
-        "
-        title="Branch manager"
-        :disabled="!canOpenGitFeatures"
-        @click="emit('openBranchManager')"
-      >
-        Branches
-      </button>
+      <GitMenu
+        :can-open-git-features="canOpenGitFeatures"
+        @open-pull-requests="emit('openPullRequests')"
+        @open-issues="emit('openIssues')"
+        @open-branch-manager="emit('openBranchManager')"
+      />
       <GitDiffBadge
         :git-status="gitStatus"
         :active="sourceControlOpen"

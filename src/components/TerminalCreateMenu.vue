@@ -221,6 +221,7 @@ onBeforeUnmount(() => {
       <div
         class="term-create-row group/row"
         :class="{ 'term-create-row--disabled': row.disabled }"
+        :title="row.disabled ? row.disabledReason : undefined"
       >
         <button
           type="button"
@@ -232,7 +233,6 @@ onBeforeUnmount(() => {
             'term-create-item--disabled': row.disabled,
           }"
           :disabled="row.disabled"
-          :title="row.disabled ? row.disabledReason : undefined"
           @click="run(row)"
         >
           <span
@@ -329,6 +329,7 @@ onBeforeUnmount(() => {
 .term-create-item--disabled {
   cursor: not-allowed;
   opacity: 0.4;
+  pointer-events: none;
 }
 
 .term-create-item__label {
