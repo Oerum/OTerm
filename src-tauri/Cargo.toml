@@ -3,6 +3,7 @@ name = "oterm"
 version = "0.1.0"
 description = "Advanced terminal emulator"
 authors = ["Filip"]
+license = "AGPL-3.0-or-later"
 edition = "2021"
 
 [lib]
