@@ -39,6 +39,17 @@
   --term-create-font: 0.8125rem;
   --term-create-pad-y: 6px;
   --term-create-pad-x: 10px;
+
+  --diff-editor-bg: #1e1e1e;
+  --diff-gutter-bg: #1e1e1e;
+  --diff-hunk-header-bg: rgba(255, 255, 255, 0.03);
+  --diff-lnum: #858585;
+  --diff-insert-bg: rgba(46, 160, 67, 0.15);
+  --diff-insert-border: #3fb950;
+  --diff-insert-text: #7ee787;
+  --diff-remove-bg: rgba(248, 81, 73, 0.15);
+  --diff-remove-border: #f85149;
+  --diff-remove-text: #ff7b72;
 }
 
 html,

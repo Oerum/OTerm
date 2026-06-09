@@ -19,9 +19,10 @@ use git::commands::{
     git_commit_graph, git_compare_commits, git_create_branch, git_create_tag, git_fetch,
     git_file_diff, git_incoming_outgoing, git_list_branch_refs, git_list_branches, git_log,
     git_pull, git_push, git_read_working_file, git_remote_browser_url, git_reset_commit,
-    git_revert_commit, git_revert_tracked_paths, git_revert_untracked_paths,
-    git_source_control_status, git_squash_commits, git_stage_paths, git_staged_diff, git_status,
-    git_sync, git_unstage_paths, git_write_working_file, pr_checkout, pr_create,
+    git_revert_commit, git_revert_hunk, git_revert_tracked_paths, git_revert_untracked_paths,
+    git_source_control_status, git_squash_commits, git_stage_hunk, git_stage_paths,
+    git_staged_diff, git_status, git_sync, git_unstage_hunk, git_unstage_paths,
+    git_write_working_file, pr_checkout, pr_create,
     pr_detect_provider, pr_list,
 };
 use lm::commands::{
@@ -83,6 +84,9 @@ pub fn run() {
             git_unstage_paths,
             git_revert_tracked_paths,
             git_revert_untracked_paths,
+            git_revert_hunk,
+            git_stage_hunk,
+            git_unstage_hunk,
             git_commit,
             git_push,
             git_fetch,

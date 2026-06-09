@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
+import {
+  SOURCE_CONTROL_DIFF_PANE_MIN_WIDTH,
+  SOURCE_CONTROL_FILE_LIST_WIDTH,
+} from "../composables/useResizablePanel";
 import { getGitFileDiff, getGitStagedDiff, readGitWorkingFile, writeGitWorkingFile } from "../lib/gitApi";
 import { generateCommitAiCompletion } from "../lib/commitAiApi";
 import { useCommitAiSettings } from "../lib/commitAiSettings";
@@ -21,8 +25,6 @@ import GitFileEditor from "./GitFileEditor.vue";
 import GitFileLineStats from "./GitFileLineStats.vue";
 
 type PaneView = "diff" | "edit";
-
-const DIFF_PANE_MIN_WIDTH = 520;
 
 const props = defineProps<{
   status: GitSourceControlStatus;
@@ -46,6 +48,10 @@ const emit = defineEmits<{
   sync: [];
   checkout: [branch: string, remote: boolean];
   refresh: [];
+  "revert-hunk": [path: string, patch: string, staged: boolean];
+  "stage-hunk": [path: string, patch: string];
+  "unstage-hunk": [path: string, patch: string];
+  "diff-expanded-change": [expanded: boolean];
 }>();
 
 const { settings: commitAiSettings } = useCommitAiSettings();
@@ -65,12 +71,110 @@ const editLoading = ref(false);
 const editError = ref<string | null>(null);
 const editMissing = ref(false);
 const saving = ref(false);
+const activeHunkIndex = ref(0);
+const hunkCount = ref(0);
+const hunkOperationKey = ref<string | null>(null);
+const hunkFeedback = ref<string | null>(null);
+const hunkFeedbackError = ref(false);
+const diffExpanded = ref(false);
+const diffPaneRef = ref<HTMLElement | null>(null);
 let diffRequestId = 0;
 let editRequestId = 0;
 
 const editDirty = computed(() => editContent.value !== editSavedContent.value);
 
-const showDiffPane = computed(() => props.panelWidth >= DIFF_PANE_MIN_WIDTH);
+const showDiffPane = computed(() => props.panelWidth >= SOURCE_CONTROL_DIFF_PANE_MIN_WIDTH);
+
+const canNavigateHunks = computed(
+  () => paneView.value === "diff" && hunkCount.value > 0 && !diffLoading.value,
+);
+
+function goToPreviousHunk() {
+  if (!canNavigateHunks.value) return;
+  activeHunkIndex.value = Math.max(0, activeHunkIndex.value - 1);
+}
+
+function goToNextHunk() {
+  if (!canNavigateHunks.value) return;
+  activeHunkIndex.value = Math.min(hunkCount.value - 1, activeHunkIndex.value + 1);
+}
+
+function onDiffPaneKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape" && diffExpanded.value) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDiffExpanded(false);
+    return;
+  }
+  if (paneView.value !== "diff") return;
+  if (!event.altKey) return;
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    goToPreviousHunk();
+  } else if (event.key === "ArrowDown") {
+    event.preventDefault();
+    goToNextHunk();
+  }
+}
+
+function setDiffExpanded(expanded: boolean) {
+  if (diffExpanded.value === expanded) return;
+  diffExpanded.value = expanded;
+  emit("diff-expanded-change", expanded);
+}
+
+function toggleDiffExpanded() {
+  setDiffExpanded(!diffExpanded.value);
+}
+
+function showHunkFeedback(message: string, isError = false) {
+  hunkFeedback.value = message;
+  hunkFeedbackError.value = isError;
+  window.setTimeout(() => {
+    hunkFeedback.value = null;
+    hunkFeedbackError.value = false;
+  }, isError ? 4000 : 2000);
+}
+
+function onRevertHunk(patch: string, opKey: string) {
+  const file = selectedFile.value;
+  if (!file) return;
+  hunkOperationKey.value = opKey;
+  emit("revert-hunk", file.path, patch, file.staged);
+}
+
+function onStageHunk(patch: string, opKey: string) {
+  const file = selectedFile.value;
+  if (!file) return;
+  hunkOperationKey.value = opKey;
+  emit("stage-hunk", file.path, patch);
+}
+
+function onUnstageHunk(patch: string, opKey: string) {
+  const file = selectedFile.value;
+  if (!file) return;
+  hunkOperationKey.value = opKey;
+  emit("unstage-hunk", file.path, patch);
+}
+
+watch(
+  () => props.busy,
+  (isBusy, wasBusy) => {
+    if (wasBusy && !isBusy) {
+      hunkOperationKey.value = null;
+    }
+  },
+);
+
+function clearHunkOperation() {
+  hunkOperationKey.value = null;
+}
+
+defineExpose({
+  showHunkFeedback,
+  clearHunkOperation,
+  collapseDiffExpanded: () => setDiffExpanded(false),
+});
 
 const canCommit = computed(
   () => props.status.isRepo && props.status.staged.length > 0 && commitMessage.value.trim().length > 0,
@@ -246,6 +350,7 @@ function selectFile(entry: GitFileEntry, staged: boolean, untracked: boolean) {
   }
   if (!confirmDiscardEdits()) return;
   selectedFile.value = { path: entry.path, staged, untracked };
+  activeHunkIndex.value = 0;
 }
 
 function setPaneView(view: PaneView) {
@@ -269,6 +374,7 @@ async function loadDiff(file: SelectedGitFile) {
   diffLoading.value = true;
   diffError.value = null;
   diffContent.value = "";
+  activeHunkIndex.value = 0;
 
   try {
     const result = await getGitFileDiff(repoRoot, file.path, file.staged, file.untracked);
@@ -365,6 +471,7 @@ watch(selectedFile, (file) => {
       void loadDiff(file);
     }
   } else {
+    setDiffExpanded(false);
     diffRequestId += 1;
     editRequestId += 1;
     diffContent.value = "";
@@ -388,11 +495,18 @@ watch(showDiffPane, (visible) => {
     };
   }
   if (!visible) {
+    setDiffExpanded(false);
     diffRequestId += 1;
     diffContent.value = "";
     diffError.value = null;
     diffLoading.value = false;
   }
+});
+
+watch(diffExpanded, async (expanded) => {
+  if (!expanded) return;
+  await nextTick();
+  diffPaneRef.value?.focus();
 });
 
 function syncSelectedFileWithStatus() {
@@ -441,8 +555,9 @@ watch(
   >
   <div class="flex min-h-0 flex-1 flex-col" :class="showDiffPane ? 'flex-row' : 'flex-col'">
     <div
-      class="flex min-h-0 min-w-0 flex-col"
-      :class="showDiffPane ? 'max-w-[45%] min-w-[200px] border-r border-[var(--warp-border)]' : 'flex-1'"
+      class="flex min-h-0 shrink-0 flex-col"
+      :style="{ width: showDiffPane ? `${SOURCE_CONTROL_FILE_LIST_WIDTH}px` : undefined }"
+      :class="showDiffPane ? 'border-r border-[var(--warp-border)]' : 'min-w-0 flex-1'"
     >
       <div class="flex items-center justify-between border-b border-[var(--warp-border)] px-3 py-2.5">
         <div class="min-w-0">
@@ -872,7 +987,14 @@ watch(
       </template>
     </div>
 
-    <div v-if="showDiffPane && status.isRepo" class="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div
+      v-if="showDiffPane && status.isRepo"
+      ref="diffPaneRef"
+      class="flex min-h-0 min-w-0 flex-1 flex-col outline-none"
+      :class="diffExpanded ? 'diff-pane-expanded' : ''"
+      tabindex="0"
+      @keydown="onDiffPaneKeydown"
+    >
       <div class="flex items-center gap-2 border-b border-[var(--warp-border)] px-3 py-2">
         <div class="min-w-0 flex-1">
           <p
@@ -888,6 +1010,31 @@ watch(
           </p>
         </div>
         <div v-if="selectedFile" class="flex shrink-0 items-center gap-1">
+          <div
+            v-if="paneView === 'diff' && canNavigateHunks"
+            class="mr-1 flex items-center gap-1 text-xs text-[var(--warp-faint)]"
+            style="font-family: var(--warp-font-ui)"
+          >
+            <button
+              type="button"
+              class="rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:opacity-40"
+              title="Previous hunk (Alt+↑)"
+              :disabled="activeHunkIndex <= 0"
+              @click="goToPreviousHunk"
+            >
+              ‹
+            </button>
+            <span>{{ activeHunkIndex + 1 }} / {{ hunkCount }}</span>
+            <button
+              type="button"
+              class="rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:opacity-40"
+              title="Next hunk (Alt+↓)"
+              :disabled="activeHunkIndex >= hunkCount - 1"
+              @click="goToNextHunk"
+            >
+              ›
+            </button>
+          </div>
           <div
             class="flex rounded border border-[var(--warp-border)] p-0.5"
             role="tablist"
@@ -930,6 +1077,46 @@ watch(
           >
             {{ saving ? "Saving…" : "Save" }}
           </button>
+          <button
+            type="button"
+            class="flex h-7 w-7 items-center justify-center rounded-md text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+            :title="diffExpanded ? 'Exit full screen (Esc)' : 'Expand diff/editor'"
+            :aria-label="diffExpanded ? 'Exit full screen' : 'Expand diff/editor'"
+            @click="toggleDiffExpanded"
+          >
+            <svg
+              v-if="diffExpanded"
+              width="13"
+              height="13"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M5 2H2v3M11 2h3v3M5 14H2v-3M11 14h3v-3"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <svg
+              v-else
+              width="13"
+              height="13"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M3 3h4M3 3v4M13 3H9M13 3v4M3 13h4M3 13V9M13 13H9M13 13V9"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
         </div>
       </div>
       <GitDiffViewer
@@ -937,6 +1124,17 @@ watch(
         :content="diffContent"
         :loading="diffLoading"
         :error="diffError"
+        :selected-file="selectedFile"
+        :busy="busy"
+        :hunk-operation-key="hunkOperationKey"
+        :active-hunk-index="activeHunkIndex"
+        :feedback="hunkFeedback"
+        :feedback-error="hunkFeedbackError"
+        @update:active-hunk-index="activeHunkIndex = $event"
+        @hunk-count="hunkCount = $event"
+        @revert-hunk="onRevertHunk"
+        @stage-hunk="onStageHunk"
+        @unstage-hunk="onUnstageHunk"
       />
       <GitFileEditor
         v-else
@@ -955,3 +1153,12 @@ watch(
     />
   </aside>
 </template>
+
+<style scoped>
+.diff-pane-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--warp-bg);
+}
+</style>

@@ -93,3 +93,28 @@ export function writeGitWorkingFile(
 ): Promise<void> {
   return invoke("git_write_working_file", { repoRoot, path, content });
 }
+
+export function revertGitHunk(
+  repoRoot: string,
+  path: string,
+  hunkPatch: string,
+  staged: boolean,
+): Promise<void> {
+  return invoke("git_revert_hunk", { repoRoot, path, hunkPatch, staged });
+}
+
+export function stageGitHunk(
+  repoRoot: string,
+  path: string,
+  hunkPatch: string,
+): Promise<void> {
+  return invoke("git_stage_hunk", { repoRoot, path, hunkPatch });
+}
+
+export function unstageGitHunk(
+  repoRoot: string,
+  path: string,
+  hunkPatch: string,
+): Promise<void> {
+  return invoke("git_unstage_hunk", { repoRoot, path, hunkPatch });
+}

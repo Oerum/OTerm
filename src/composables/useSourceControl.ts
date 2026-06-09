@@ -10,6 +10,9 @@ import {
   pushGitRepo,
   revertTrackedGitPaths,
   revertUntrackedGitPaths,
+  revertGitHunk,
+  stageGitHunk,
+  unstageGitHunk,
   stageGitPaths,
   syncGitRepo,
   unstageGitPaths,
@@ -143,6 +146,24 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     );
   }
 
+  async function revertHunk(path: string, hunkPatch: string, staged: boolean) {
+    const root = status.value.repoRoot;
+    if (!root) return;
+    await runAction("revert-hunk", () => revertGitHunk(root, path, hunkPatch, staged));
+  }
+
+  async function stageHunk(path: string, hunkPatch: string) {
+    const root = status.value.repoRoot;
+    if (!root) return;
+    await runAction("stage-hunk", () => stageGitHunk(root, path, hunkPatch));
+  }
+
+  async function unstageHunk(path: string, hunkPatch: string) {
+    const root = status.value.repoRoot;
+    if (!root) return;
+    await runAction("unstage-hunk", () => unstageGitHunk(root, path, hunkPatch));
+  }
+
   async function commit(message: string) {
     const root = status.value.repoRoot;
     if (!root) return;
@@ -193,6 +214,9 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     stage,
     unstage,
     revert,
+    revertHunk,
+    stageHunk,
+    unstageHunk,
     commit,
     fetch,
     pull,

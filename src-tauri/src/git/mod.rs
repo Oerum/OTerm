@@ -3,8 +3,9 @@ pub mod commands;
 pub mod pr;
 
 use std::collections::HashMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -147,6 +148,76 @@ pub fn revert_untracked_paths(repo_root: String, paths: Vec<String>) -> Result<(
         args.push(path.as_str());
     }
     git_run(&root, &args)
+}
+
+fn apply_hunk_patch(
+    repo_root: &Path,
+    path: &str,
+    hunk_patch: &str,
+    extra_args: &[&str],
+) -> Result<(), String> {
+    if hunk_patch.trim().is_empty() {
+        return Err("Hunk patch is empty".into());
+    }
+
+    let normalized = path.replace('\\', "/");
+    let patch_path = format!("a/{normalized}");
+    if !hunk_patch.contains(&format!("--- {patch_path}"))
+        && !hunk_patch.contains(&format!("--- a/{path}"))
+    {
+        return Err(format!("Patch does not match file: {path}"));
+    }
+
+    let mut cmd = Command::new("git");
+    cmd.current_dir(repo_root);
+    cmd.args(["apply", "-p1", "--recount", "--unidiff-zero", "--whitespace=nowarn"]);
+    cmd.args(extra_args);
+    cmd.stdin(Stdio::piped());
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    let mut child = cmd.spawn().map_err(|err| err.to_string())?;
+    if let Some(stdin) = child.stdin.as_mut() {
+        stdin
+            .write_all(hunk_patch.as_bytes())
+            .map_err(|err| err.to_string())?;
+    }
+
+    let output = child.wait_with_output().map_err(|err| err.to_string())?;
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    if stderr.trim().is_empty() {
+        Err("Failed to apply hunk patch".into())
+    } else {
+        Err(stderr)
+    }
+}
+
+pub fn revert_hunk(
+    repo_root: String,
+    path: String,
+    hunk_patch: String,
+    staged: bool,
+) -> Result<(), String> {
+    let root = PathBuf::from(repo_root);
+    if staged {
+        apply_hunk_patch(&root, &path, &hunk_patch, &["-R", "--cached"])
+    } else {
+        apply_hunk_patch(&root, &path, &hunk_patch, &["-R"])
+    }
+}
+
+pub fn stage_hunk(repo_root: String, path: String, hunk_patch: String) -> Result<(), String> {
+    let root = PathBuf::from(repo_root);
+    apply_hunk_patch(&root, &path, &hunk_patch, &["--cached"])
+}
+
+pub fn unstage_hunk(repo_root: String, path: String, hunk_patch: String) -> Result<(), String> {
+    let root = PathBuf::from(repo_root);
+    apply_hunk_patch(&root, &path, &hunk_patch, &["-R", "--cached"])
 }
 
 pub fn commit_changes(repo_root: String, message: String) -> Result<(), String> {
@@ -859,6 +930,49 @@ mod tests {
             (Some("origin/main".into()), 2, 1)
         );
         assert_eq!(parse_tracking_header("main"), (None, 0, 0));
+    }
+
+    #[test]
+    fn apply_hunk_stage_and_revert() {
+        use std::fs;
+
+        let dir = std::env::temp_dir().join(format!("oterm-hunk-apply-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        git_run(&dir, &["init"]).unwrap();
+        git_run(&dir, &["config", "user.email", "t@example.com"]).unwrap();
+        git_run(&dir, &["config", "user.name", "test"]).unwrap();
+        fs::write(dir.join("a.txt"), "line1\nline2\nline3\n").unwrap();
+        git_run(&dir, &["add", "a.txt"]).unwrap();
+        git_run(&dir, &["commit", "-m", "init"]).unwrap();
+        fs::write(dir.join("a.txt"), "line1\nline2changed\nline3\n").unwrap();
+
+        let diff = read_file_diff(&dir, "a.txt", false, false).expect("diff");
+        let patch = diff.content;
+        assert!(patch.contains("--- a/a.txt"));
+
+        stage_hunk(
+            dir.to_string_lossy().into_owned(),
+            "a.txt".into(),
+            patch.clone(),
+        )
+        .expect("stage hunk");
+
+        let staged = read_file_diff(&dir, "a.txt", true, false).expect("staged diff");
+        assert!(staged.content.contains("line2changed"));
+
+        revert_hunk(
+            dir.to_string_lossy().into_owned(),
+            "a.txt".into(),
+            patch,
+            false,
+        )
+        .expect("revert working hunk");
+
+        let content = fs::read_to_string(dir.join("a.txt")).unwrap();
+        assert_eq!(content.replace("\r\n", "\n"), "line1\nline2\nline3\n");
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

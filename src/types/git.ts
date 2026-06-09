@@ -55,6 +55,9 @@ export type GitOperation =
   | "stage"
   | "unstage"
   | "revert"
+  | "revert-hunk"
+  | "stage-hunk"
+  | "unstage-hunk"
   | "refresh";
 
 export interface GitCommitEntry {
@@ -93,5 +96,8 @@ export const GIT_OPERATION_LABELS: Record<GitOperation, string> = {
   stage: "Staging changes…",
   unstage: "Unstaging changes…",
   revert: "Reverting changes…",
+  "revert-hunk": "Reverting hunk…",
+  "stage-hunk": "Staging hunk…",
+  "unstage-hunk": "Unstaging hunk…",
   refresh: "Refreshing status…",
 };

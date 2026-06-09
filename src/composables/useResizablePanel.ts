@@ -2,7 +2,13 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 import { getSetting, setSetting } from "../lib/settingsStore";
 
 const STORAGE_KEY = "oterm:source-control-width";
-const DEFAULT_WIDTH = 288;
+export const SOURCE_CONTROL_FILE_LIST_WIDTH = 280;
+export const SOURCE_CONTROL_DIFF_PANE_MIN_WIDTH = 480;
+export const SOURCE_CONTROL_DEFAULT_WIDTH = 720;
+export const SOURCE_CONTROL_DIFF_EXPAND_WIDTH =
+  SOURCE_CONTROL_FILE_LIST_WIDTH + SOURCE_CONTROL_DIFF_PANE_MIN_WIDTH;
+
+const DEFAULT_WIDTH = SOURCE_CONTROL_DEFAULT_WIDTH;
 const MIN_WIDTH = 240;
 const MAX_VIEWPORT_RATIO = 0.8;
 
@@ -25,6 +31,7 @@ function clampWidth(value: number): number {
 export function useResizablePanel(onResize?: () => void) {
   const widthPx = ref(loadWidth());
   const resizing = ref(false);
+  let userResizedThisSession = false;
 
   function persistWidth() {
     void setSetting(STORAGE_KEY, String(widthPx.value));
@@ -39,6 +46,14 @@ export function useResizablePanel(onResize?: () => void) {
     });
   }
 
+  function ensureDiffPaneWidth() {
+    if (userResizedThisSession) return;
+    if (widthPx.value >= SOURCE_CONTROL_DIFF_EXPAND_WIDTH) return;
+    widthPx.value = clampWidth(SOURCE_CONTROL_DIFF_EXPAND_WIDTH);
+    persistWidth();
+    notifyResize();
+  }
+
   function onPointerDown(event: PointerEvent) {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -48,7 +63,11 @@ export function useResizablePanel(onResize?: () => void) {
     const startWidth = widthPx.value;
 
     function onPointerMove(moveEvent: PointerEvent) {
-      widthPx.value = clampWidth(startWidth - (moveEvent.clientX - startX));
+      const next = clampWidth(startWidth - (moveEvent.clientX - startX));
+      if (next !== widthPx.value) {
+        userResizedThisSession = true;
+      }
+      widthPx.value = next;
       notifyResize();
     }
 
@@ -81,6 +100,7 @@ export function useResizablePanel(onResize?: () => void) {
   return {
     widthPx,
     resizing,
+    ensureDiffPaneWidth,
     onResizeHandlePointerDown: onPointerDown,
   };
 }

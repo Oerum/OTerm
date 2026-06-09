@@ -12,7 +12,8 @@ use super::{
     checkout_branch, commit_changes, fetch_changes, list_branches, pull_changes, push_changes,
     read_log, resolve_file_diff, resolve_git_status, resolve_read_working_file,
     resolve_source_control, resolve_staged_diff, resolve_write_working_file, revert_tracked_paths,
-    revert_untracked_paths, stage_paths, sync_changes, unstage_paths, GitBranchList,
+    revert_hunk, revert_untracked_paths, stage_hunk, stage_paths, sync_changes, unstage_hunk,
+    unstage_paths, GitBranchList,
     GitCommitEntry, GitFileDiff, GitSourceControlStatus, GitStagedDiffContext, GitStatus,
     GitWorkingFile,
 };
@@ -55,6 +56,34 @@ pub async fn git_revert_tracked_paths(repo_root: String, paths: Vec<String>) -> 
 #[tauri::command]
 pub async fn git_revert_untracked_paths(repo_root: String, paths: Vec<String>) -> Result<(), String> {
     blocking_git(move || revert_untracked_paths(repo_root, paths)).await
+}
+
+#[tauri::command]
+pub async fn git_revert_hunk(
+    repo_root: String,
+    path: String,
+    hunk_patch: String,
+    staged: bool,
+) -> Result<(), String> {
+    blocking_git(move || revert_hunk(repo_root, path, hunk_patch, staged)).await
+}
+
+#[tauri::command]
+pub async fn git_stage_hunk(
+    repo_root: String,
+    path: String,
+    hunk_patch: String,
+) -> Result<(), String> {
+    blocking_git(move || stage_hunk(repo_root, path, hunk_patch)).await
+}
+
+#[tauri::command]
+pub async fn git_unstage_hunk(
+    repo_root: String,
+    path: String,
+    hunk_patch: String,
+) -> Result<(), String> {
+    blocking_git(move || unstage_hunk(repo_root, path, hunk_patch)).await
 }
 
 #[tauri::command]

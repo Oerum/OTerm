@@ -40,6 +40,7 @@ const gitRefreshToken = ref(0);
 const {
   widthPx: sourceControlWidth,
   resizing: sourceControlResizing,
+  ensureDiffPaneWidth,
   onResizeHandlePointerDown,
 } = useResizablePanel(() => {
   void refitTerminals();
@@ -94,6 +95,9 @@ const {
   stage: stageGitPaths,
   unstage: unstageGitPaths,
   revert: revertGitPaths,
+  revertHunk: revertGitHunk,
+  stageHunk: stageGitHunk,
+  unstageHunk: unstageGitHunk,
   commit: commitGitChanges,
   fetch: fetchGitRepo,
   pull: pullGitRepo,
@@ -138,6 +142,24 @@ async function runGitAction(action: () => Promise<void>) {
   bumpGitBadges();
 }
 
+const sourceControlPanelRef = ref<InstanceType<typeof SourceControlPanel> | null>(null);
+
+async function runGitHunkAction(action: () => Promise<void>) {
+  try {
+    await runGitAction(action);
+    sourceControlPanelRef.value?.showHunkFeedback("Change applied");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    sourceControlPanelRef.value?.showHunkFeedback(message, true);
+  } finally {
+    sourceControlPanelRef.value?.clearHunkOperation();
+  }
+}
+
+function onDiffExpandedChange() {
+  void refitTerminals();
+}
+
 function onPromptReady(paneId: string) {
   if (paneId !== activePaneId.value) return;
   window.clearTimeout(promptGitRefreshTimer);
@@ -148,6 +170,9 @@ function onPromptReady(paneId: string) {
 
 function toggleSourceControl() {
   sourceControlOpen.value = !sourceControlOpen.value;
+  if (sourceControlOpen.value) {
+    ensureDiffPaneWidth();
+  }
   void refreshGitViews();
 }
 
@@ -583,6 +608,7 @@ onUnmounted(() => {
           @pointerdown="onResizeHandlePointerDown"
         />
         <SourceControlPanel
+          ref="sourceControlPanelRef"
           :status="sourceControlStatus"
           :branches="gitBranches"
           :history="gitHistory"
@@ -601,6 +627,10 @@ onUnmounted(() => {
           @push="() => runGitAction(pushGitRepo)"
           @sync="() => runGitAction(syncGitRepo)"
           @checkout="(branch, remote) => runGitAction(() => checkoutGitBranch(branch, remote))"
+          @revert-hunk="(path, patch, staged) => runGitHunkAction(() => revertGitHunk(path, patch, staged))"
+          @stage-hunk="(path, patch) => runGitHunkAction(() => stageGitHunk(path, patch))"
+          @unstage-hunk="(path, patch) => runGitHunkAction(() => unstageGitHunk(path, patch))"
+          @diff-expanded-change="onDiffExpandedChange"
         />
       </div>
     </div>
