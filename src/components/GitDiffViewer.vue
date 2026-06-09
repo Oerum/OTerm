@@ -182,12 +182,12 @@ watch(
 
 <template>
   <div ref="viewerRootRef" class="diff-viewer flex min-h-0 flex-1 flex-col">
-    <div v-if="loading" class="px-3 py-4 text-sm text-[var(--warp-faint)]">Loading diff…</div>
+    <div v-if="loading" class="px-3 py-4 text-sm text-[var(--oterm-faint)]">Loading diff…</div>
     <div v-else-if="error" class="px-3 py-4 text-sm text-[var(--diff-remove-text)]">{{ error }}</div>
-    <div v-else-if="!content.trim()" class="px-3 py-4 text-sm text-[var(--warp-faint)]">
+    <div v-else-if="!content.trim()" class="px-3 py-4 text-sm text-[var(--oterm-faint)]">
       No diff to display
     </div>
-    <div v-else class="warp-scroll min-h-0 flex-1 overflow-auto">
+    <div v-else class="oterm-scroll min-h-0 flex-1 overflow-auto">
       <p
         v-if="feedback"
         class="diff-feedback sticky top-0 z-10 border-b px-3 py-1.5 text-xs"
@@ -197,12 +197,12 @@ watch(
       </p>
       <div
         v-if="fileHeaders.length"
-        class="border-b border-[var(--warp-border)] px-3 py-1.5 text-[11px] text-[var(--warp-faint)]"
-        style="font-family: var(--warp-font-mono)"
+        class="border-b border-[var(--oterm-border)] px-3 py-1.5 text-[11px] text-[var(--oterm-faint)]"
+        style="font-family: var(--oterm-font-mono)"
       >
         <p v-for="(line, index) in fileHeaders" :key="index" class="truncate">{{ line }}</p>
       </div>
-      <div v-if="sideBySide" class="diff-body diff-body--split" style="font-family: var(--warp-font-mono)">
+      <div v-if="sideBySide" class="diff-body diff-body--split" style="font-family: var(--oterm-font-mono)">
         <section
           v-for="{ hunk, rows } in sideBySideRows"
           :key="hunk.index"
@@ -346,7 +346,7 @@ watch(
           </div>
         </section>
       </div>
-      <div v-else class="diff-body" style="font-family: var(--warp-font-mono)">
+      <div v-else class="diff-body" style="font-family: var(--oterm-font-mono)">
         <section
           v-for="hunk in hunks"
           :key="hunk.index"
@@ -439,19 +439,19 @@ watch(
 }
 
 .diff-feedback {
-  font-family: var(--warp-font-ui);
-  background: color-mix(in srgb, var(--warp-bg) 92%, transparent);
+  font-family: var(--oterm-font-ui);
+  background: color-mix(in srgb, var(--oterm-bg) 92%, transparent);
   backdrop-filter: blur(6px);
 }
 
 .diff-feedback--ok {
   color: var(--diff-insert-text);
-  border-color: var(--warp-border);
+  border-color: var(--oterm-border);
 }
 
 .diff-feedback--error {
   color: var(--diff-remove-text);
-  border-color: color-mix(in srgb, var(--diff-remove-text) 35%, var(--warp-border));
+  border-color: color-mix(in srgb, var(--diff-remove-text) 35%, var(--oterm-border));
 }
 
 .diff-body {
@@ -460,16 +460,16 @@ watch(
 }
 
 .diff-hunk--active {
-  outline: 1px solid color-mix(in srgb, var(--warp-accent) 35%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--oterm-accent) 35%, transparent);
   outline-offset: -1px;
 }
 
 .diff-hunk-header {
   padding: 4px 12px 4px 52px;
-  color: var(--warp-faint);
+  color: var(--oterm-faint);
   background: var(--diff-hunk-header-bg);
-  border-top: 1px solid var(--warp-border);
-  border-bottom: 1px solid var(--warp-border);
+  border-top: 1px solid var(--oterm-border);
+  border-bottom: 1px solid var(--oterm-border);
   user-select: none;
 }
 
@@ -515,7 +515,7 @@ watch(
 }
 
 .diff-split-divider {
-  background: var(--warp-border);
+  background: var(--oterm-border);
 }
 
 .diff-gutter {
@@ -523,7 +523,7 @@ watch(
   align-items: stretch;
   justify-content: center;
   background: var(--diff-gutter-bg);
-  border-right: 1px solid var(--warp-border);
+  border-right: 1px solid var(--oterm-border);
 }
 
 .diff-gutter-actions {
@@ -549,7 +549,7 @@ watch(
   border-radius: 3px;
   font-size: 13px;
   line-height: 1;
-  color: var(--warp-faint);
+  color: var(--oterm-faint);
   transition: background 100ms ease, color 100ms ease;
 }
 
@@ -566,7 +566,7 @@ watch(
 }
 
 .diff-gutter-btn--unstage:hover:not(:disabled) {
-  color: var(--warp-text);
+  color: var(--oterm-text);
 }
 
 .diff-gutter-btn:disabled {
@@ -594,7 +594,7 @@ watch(
   text-align: right;
   color: var(--diff-lnum);
   user-select: none;
-  border-right: 1px solid var(--warp-border);
+  border-right: 1px solid var(--oterm-border);
 }
 
 .diff-code {
@@ -614,7 +614,7 @@ watch(
 }
 
 .diff-line--context .diff-code {
-  color: var(--warp-text);
+  color: var(--oterm-text);
 }
 
 .diff-prefix {

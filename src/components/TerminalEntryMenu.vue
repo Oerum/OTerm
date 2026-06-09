@@ -150,14 +150,14 @@ onUnmounted(() => {
   <div
     ref="menuRef"
     role="menu"
-    class="no-drag term-entry-menu absolute right-0 top-full z-50 mt-0.5 w-[var(--term-menu-width)] overflow-hidden rounded-md border border-[var(--warp-border-strong)] bg-[var(--warp-elevated)] py-0.5 shadow-xl"
+    class="no-drag term-entry-menu absolute right-0 top-full z-50 mt-0.5 w-[var(--term-menu-width)] overflow-hidden rounded-md border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-0.5 shadow-xl"
     @mousedown.stop
   >
     <template v-for="item in items" :key="item.id">
       <div
         v-if="item.separatorBefore"
         role="separator"
-        class="my-0.5 border-t border-[var(--warp-border)]"
+        class="my-0.5 border-t border-[var(--oterm-border)]"
       />
       <button
         type="button"
@@ -165,10 +165,10 @@ onUnmounted(() => {
         data-menu-item="true"
         class="flex w-full px-2 py-1 text-left text-[0.75rem] leading-[1.2] transition"
         :class="[
-          item.destructive ? 'text-[#ff7b72]' : 'text-[var(--warp-text)]',
+          item.destructive ? 'text-[#ff7b72]' : 'text-[var(--oterm-text)]',
           item.disabled
             ? 'cursor-not-allowed opacity-40'
-            : 'hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--warp-accent)] focus-visible:ring-inset',
+            : 'hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)] focus-visible:ring-inset',
         ]"
         :disabled="item.disabled"
         :title="item.disabled ? item.disabledReason : undefined"
@@ -178,7 +178,7 @@ onUnmounted(() => {
       </button>
     </template>
 
-    <div role="separator" class="my-0.5 border-t border-[var(--warp-border)]" />
+    <div role="separator" class="my-0.5 border-t border-[var(--oterm-border)]" />
 
     <div
       role="radiogroup"
@@ -190,8 +190,8 @@ onUnmounted(() => {
         :key="color.id"
         type="button"
         role="radio"
-        class="term-color-swatch h-3 w-3 shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-[var(--warp-elevated)] transition focus:outline-none focus-visible:ring-[var(--warp-text)]"
-        :class="entry.tabColor === color.id ? 'ring-[var(--warp-text)]' : 'ring-transparent'"
+        class="term-color-swatch h-3 w-3 shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-[var(--oterm-elevated)] transition focus:outline-none focus-visible:ring-[var(--oterm-text)]"
+        :class="entry.tabColor === color.id ? 'ring-[var(--oterm-text)]' : 'ring-transparent'"
         :style="{ backgroundColor: color.hex }"
         :aria-checked="entry.tabColor === color.id"
         :aria-label="color.label"

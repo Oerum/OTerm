@@ -22,9 +22,9 @@ import zedIcon from "../assets/editors/zed.svg";
 
 const MIN_SEARCH_LENGTH = 2;
 const openWithItemClass =
-  "flex w-full min-w-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-xs text-(--warp-text) transition hover:bg-white/6";
+  "flex w-full min-w-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-xs text-(--oterm-text) transition hover:bg-white/6";
 const openWithIconClass =
-  "flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md bg-(--warp-bg) ring-1 ring-(--warp-border)";
+  "flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md bg-(--oterm-bg) ring-1 ring-(--oterm-border)";
 const openWithIconImageClass = "h-5 w-5 object-contain";
 const SEARCH_DEBOUNCE_MS = 300;
 const shellMenuAvailable = navigator.userAgent.includes("Windows");
@@ -345,10 +345,10 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
-    class="relative z-10 flex w-72 shrink-0 flex-col bg-(--warp-sidebar)"
+    class="relative z-10 flex w-72 shrink-0 flex-col bg-(--oterm-sidebar)"
   >
-    <div class="relative flex items-center justify-between gap-2 border-b border-(--warp-border) px-3 py-2">
-      <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--warp-faint)">
+    <div class="relative flex items-center justify-between gap-2 border-b border-(--oterm-border) px-3 py-2">
+      <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--oterm-faint)">
         Tools
       </span>
 
@@ -356,7 +356,7 @@ onBeforeUnmount(() => {
         <button
           v-if="envImportHint"
           type="button"
-          class="no-drag truncate rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-(--warp-muted) transition hover:bg-white/5 hover:text-(--warp-text) disabled:opacity-50"
+          class="no-drag truncate rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-(--oterm-muted) transition hover:bg-white/5 hover:text-(--oterm-text) disabled:opacity-50"
           :disabled="envImportLoading"
           :title="`Copy from ${envImportHint.sourcePath}`"
           @click="importEnvFromAncestor"
@@ -368,8 +368,8 @@ onBeforeUnmount(() => {
           <button
             ref="openWithButtonRef"
             type="button"
-            class="no-drag rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-(--warp-muted) transition hover:bg-white/5 hover:text-(--warp-text)"
-            :class="openWithMenuOpen ? 'bg-white/5 text-(--warp-text)' : ''"
+            class="no-drag rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-(--oterm-muted) transition hover:bg-white/5 hover:text-(--oterm-text)"
+            :class="openWithMenuOpen ? 'bg-white/5 text-(--oterm-text)' : ''"
             title="Open current folder with an external app"
             aria-haspopup="menu"
             :aria-expanded="openWithMenuOpen"
@@ -381,7 +381,7 @@ onBeforeUnmount(() => {
           <div
             v-if="openWithMenuOpen"
             ref="openWithMenuRef"
-            class="no-drag absolute right-0 top-full z-50 mt-1.5 w-56 overflow-hidden rounded-lg border border-(--warp-border-strong) bg-(--warp-elevated) p-1 shadow-xl"
+            class="no-drag absolute right-0 top-full z-50 mt-1.5 w-56 overflow-hidden rounded-lg border border-(--oterm-border-strong) bg-(--oterm-elevated) p-1 shadow-xl"
             role="menu"
           >
             <button
@@ -392,7 +392,7 @@ onBeforeUnmount(() => {
             >
               <span :class="openWithIconClass" aria-hidden="true">
                 <svg
-                  class="h-4 w-4 text-(--warp-muted)"
+                  class="h-4 w-4 text-(--oterm-muted)"
                   viewBox="0 0 16 16"
                   fill="none"
                   stroke="currentColor"
@@ -467,34 +467,34 @@ onBeforeUnmount(() => {
 
     <p
       v-if="envImportStatus"
-      class="border-b border-(--warp-border) px-3 py-1.5 text-[10px] text-(--warp-muted)"
+      class="border-b border-(--oterm-border) px-3 py-1.5 text-[10px] text-(--oterm-muted)"
     >
       {{ envImportStatus }}
     </p>
 
-    <div class="border-b border-(--warp-border) p-3">
-      <label class="block text-[10px] uppercase tracking-wide text-(--warp-faint)">
+    <div class="border-b border-(--oterm-border) p-3">
+      <label class="block text-[10px] uppercase tracking-wide text-(--oterm-faint)">
         Search files
       </label>
       <input
         v-model="searchQuery"
         type="search"
         placeholder="Search in current directory..."
-        class="no-drag mt-1.5 w-full rounded-lg border border-(--warp-border) bg-(--warp-bg) px-2.5 py-1.5 text-xs text-(--warp-text) outline-none focus:border-(--warp-accent)"
+        class="no-drag mt-1.5 w-full rounded-lg border border-(--oterm-border) bg-(--oterm-bg) px-2.5 py-1.5 text-xs text-(--oterm-text) outline-none focus:border-(--oterm-accent)"
       />
     </div>
 
-    <div v-if="showingSearch" class="warp-scroll min-h-0 flex-1 overflow-y-auto p-2">
-      <p v-if="searchLoading" class="px-2 py-2 text-xs text-(--warp-faint)">Searching...</p>
+    <div v-if="showingSearch" class="oterm-scroll min-h-0 flex-1 overflow-y-auto p-2">
+      <p v-if="searchLoading" class="px-2 py-2 text-xs text-(--oterm-faint)">Searching...</p>
       <p
         v-else-if="searchQuery.trim().length < MIN_SEARCH_LENGTH"
-        class="px-2 py-2 text-xs text-(--warp-faint)"
+        class="px-2 py-2 text-xs text-(--oterm-faint)"
       >
         Type at least {{ MIN_SEARCH_LENGTH }} characters
       </p>
       <p
         v-else-if="searchResults.length === 0"
-        class="px-2 py-2 text-xs text-(--warp-faint)"
+        class="px-2 py-2 text-xs text-(--oterm-faint)"
       >
         No matches
       </p>
@@ -507,7 +507,7 @@ onBeforeUnmount(() => {
         @contextmenu.prevent="onEntryContextMenu($event, entry)"
       >
         <span
-          class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-(--warp-elevated) text-(--warp-muted)"
+          class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-(--oterm-elevated) text-(--oterm-muted)"
         >
           <svg
             v-if="entry.isDir"
@@ -540,25 +540,25 @@ onBeforeUnmount(() => {
             />
           </svg>
         </span>
-        <span class="min-w-0 flex-1 truncate text-(--warp-text)">{{ entry.name }}</span>
+        <span class="min-w-0 flex-1 truncate text-(--oterm-text)">{{ entry.name }}</span>
       </button>
     </div>
 
     <div v-else class="flex min-h-0 flex-1 flex-col">
-      <div class="flex flex-wrap gap-1 border-b border-(--warp-border) px-2 py-2">
+      <div class="flex flex-wrap gap-1 border-b border-(--oterm-border) px-2 py-2">
         <button
           v-for="(crumb, index) in breadcrumbs"
           :key="crumb.path"
           type="button"
-          class="no-drag truncate rounded px-1.5 py-0.5 text-[11px] text-(--warp-muted) transition hover:bg-white/5 hover:text-(--warp-text)"
+          class="no-drag truncate rounded px-1.5 py-0.5 text-[11px] text-(--oterm-muted) transition hover:bg-white/5 hover:text-(--oterm-text)"
           @click="loadDirectory(crumb.path)"
         >
-          {{ crumb.label }}<span v-if="index < breadcrumbs.length - 1" class="text-(--warp-faint)"> /</span>
+          {{ crumb.label }}<span v-if="index < breadcrumbs.length - 1" class="text-(--oterm-faint)"> /</span>
         </button>
       </div>
 
-      <div class="warp-scroll min-h-0 flex-1 overflow-y-auto p-2">
-        <p v-if="loading" class="px-2 py-2 text-xs text-(--warp-faint)">Loading...</p>
+      <div class="oterm-scroll min-h-0 flex-1 overflow-y-auto p-2">
+        <p v-if="loading" class="px-2 py-2 text-xs text-(--oterm-faint)">Loading...</p>
         <button
           v-for="entry in entries"
           :key="entry.path"
@@ -568,7 +568,7 @@ onBeforeUnmount(() => {
           @contextmenu.prevent="onEntryContextMenu($event, entry)"
         >
           <span
-            class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-(--warp-elevated) text-(--warp-muted)"
+            class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-(--oterm-elevated) text-(--oterm-muted)"
           >
             <svg
               v-if="entry.isDir"
@@ -601,7 +601,7 @@ onBeforeUnmount(() => {
               />
             </svg>
           </span>
-          <span class="truncate text-(--warp-text)">{{ entry.name }}</span>
+          <span class="truncate text-(--oterm-text)">{{ entry.name }}</span>
         </button>
       </div>
     </div>

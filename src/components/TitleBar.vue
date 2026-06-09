@@ -40,7 +40,7 @@ function onDragMouseDown(event: MouseEvent) {
 
 <template>
   <header
-    class="flex h-9 shrink-0 items-center border-b border-[var(--warp-border)] bg-[var(--warp-titlebar)]"
+    class="flex h-9 shrink-0 items-center border-b border-[var(--oterm-border)] bg-[var(--oterm-titlebar)]"
   >
     <div class="no-drag flex items-center pl-2.5 pr-2">
       <img
@@ -57,8 +57,8 @@ function onDragMouseDown(event: MouseEvent) {
           class="flex h-6 w-6 items-center justify-center rounded-full border transition"
           :class="
             terminalSidebarOpen
-              ? 'border-[#42D96B]/50 bg-[var(--warp-accent-dim)] text-[#7EF2D1]'
-              : 'border-white/10 text-[var(--warp-muted)] hover:border-white/20 hover:text-[#F5F5F7]'
+              ? 'border-[#42D96B]/50 bg-[var(--oterm-accent-dim)] text-[#7EF2D1]'
+              : 'border-white/10 text-[var(--oterm-muted)] hover:border-white/20 hover:text-[#F5F5F7]'
           "
           title="Toggle terminal sidebar"
           aria-label="Toggle terminal sidebar"
@@ -78,8 +78,8 @@ function onDragMouseDown(event: MouseEvent) {
           class="flex h-6 w-6 items-center justify-center rounded-full border transition"
           :class="
             toolsOpen
-              ? 'border-[#42D96B]/50 bg-[var(--warp-accent-dim)] text-[#7EF2D1]'
-              : 'border-white/10 text-[var(--warp-muted)] hover:border-white/20 hover:text-[#F5F5F7]'
+              ? 'border-[#42D96B]/50 bg-[var(--oterm-accent-dim)] text-[#7EF2D1]'
+              : 'border-white/10 text-[var(--oterm-muted)] hover:border-white/20 hover:text-[#F5F5F7]'
           "
           title="Toggle tools sidebar"
           aria-label="Toggle tools sidebar"
@@ -104,7 +104,7 @@ function onDragMouseDown(event: MouseEvent) {
     <div class="no-drag flex items-center gap-1 pr-1">
       <button
         type="button"
-        class="rounded-md px-2 py-1 text-xs text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+        class="rounded-md px-2 py-1 text-xs text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
         title="SSH/SFTP manager"
         @click="emit('openSshSftp')"
       >
@@ -112,7 +112,7 @@ function onDragMouseDown(event: MouseEvent) {
       </button>
       <button
         type="button"
-        class="rounded-md px-2 py-1 text-xs text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+        class="rounded-md px-2 py-1 text-xs text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
         title="Docker manager"
         @click="emit('openDockerManager')"
       >
@@ -123,8 +123,8 @@ function onDragMouseDown(event: MouseEvent) {
         class="rounded-md px-2 py-1 text-xs transition"
         :class="
           canOpenGitFeatures
-            ? 'text-[var(--warp-muted)] hover:bg-white/5 hover:text-[var(--warp-text)]'
-            : 'cursor-not-allowed text-[var(--warp-muted)]/40'
+            ? 'text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]'
+            : 'cursor-not-allowed text-[var(--oterm-muted)]/40'
         "
         title="Pull requests"
         :disabled="!canOpenGitFeatures"
@@ -137,8 +137,8 @@ function onDragMouseDown(event: MouseEvent) {
         class="rounded-md px-2 py-1 text-xs transition"
         :class="
           canOpenGitFeatures
-            ? 'text-[var(--warp-muted)] hover:bg-white/5 hover:text-[var(--warp-text)]'
-            : 'cursor-not-allowed text-[var(--warp-muted)]/40'
+            ? 'text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]'
+            : 'cursor-not-allowed text-[var(--oterm-muted)]/40'
         "
         title="Issues"
         :disabled="!canOpenGitFeatures"
@@ -151,8 +151,8 @@ function onDragMouseDown(event: MouseEvent) {
         class="rounded-md px-2 py-1 text-xs transition"
         :class="
           canOpenGitFeatures
-            ? 'text-[var(--warp-muted)] hover:bg-white/5 hover:text-[var(--warp-text)]'
-            : 'cursor-not-allowed text-[var(--warp-muted)]/40'
+            ? 'text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]'
+            : 'cursor-not-allowed text-[var(--oterm-muted)]/40'
         "
         title="Branch manager"
         :disabled="!canOpenGitFeatures"
@@ -169,7 +169,7 @@ function onDragMouseDown(event: MouseEvent) {
       <UserMenu :app-version="appVersion" class="mx-0.5" @open-settings="emit('openSettings')" />
       <button
         type="button"
-        class="flex h-9 w-11 items-center justify-center text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+        class="flex h-9 w-11 items-center justify-center text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
         aria-label="Minimize"
         @click="appWindow.minimize()"
       >
@@ -179,7 +179,7 @@ function onDragMouseDown(event: MouseEvent) {
       </button>
       <button
         type="button"
-        class="flex h-9 w-11 items-center justify-center text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+        class="flex h-9 w-11 items-center justify-center text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
         aria-label="Maximize"
         @click="appWindow.toggleMaximize()"
       >
@@ -189,7 +189,7 @@ function onDragMouseDown(event: MouseEvent) {
       </button>
       <button
         type="button"
-        class="flex h-9 w-11 items-center justify-center text-[var(--warp-muted)] transition hover:bg-[var(--warp-danger)] hover:text-white"
+        class="flex h-9 w-11 items-center justify-center text-[var(--oterm-muted)] transition hover:bg-[var(--oterm-danger)] hover:text-white"
         aria-label="Close"
         @click="appWindow.close()"
       >

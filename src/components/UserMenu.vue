@@ -58,8 +58,8 @@ onUnmounted(() => {
       class="flex h-6 w-6 items-center justify-center rounded-full border transition"
       :class="
         open
-          ? 'border-[#42D96B]/50 bg-[var(--warp-accent-dim)] text-[#7EF2D1]'
-          : 'border-white/10 text-[var(--warp-muted)] hover:border-white/20 hover:text-[#F5F5F7]'
+          ? 'border-[#42D96B]/50 bg-[var(--oterm-accent-dim)] text-[#7EF2D1]'
+          : 'border-white/10 text-[var(--oterm-muted)] hover:border-white/20 hover:text-[#F5F5F7]'
       "
       aria-label="User menu"
       :aria-expanded="open"
@@ -79,20 +79,20 @@ onUnmounted(() => {
     <div
       v-if="open"
       role="menu"
-      class="absolute right-0 top-full z-50 mt-1.5 min-w-[10.5rem] overflow-hidden rounded-lg border border-[var(--warp-border-strong)] bg-[var(--warp-elevated)] py-1 shadow-xl"
+      class="absolute right-0 top-full z-50 mt-1.5 min-w-[10.5rem] overflow-hidden rounded-lg border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-1 shadow-xl"
       @mousedown.stop
     >
       <button
         type="button"
         role="menuitem"
-        class="flex w-full px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none"
+        class="flex w-full px-3 py-1.5 text-left text-xs text-[var(--oterm-text)] transition hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none"
         @click="onSettings"
       >
         Settings
       </button>
-      <div role="separator" class="mt-1 border-t border-[var(--warp-border)]" />
+      <div role="separator" class="mt-1 border-t border-[var(--oterm-border)]" />
 
-      <p class="px-3 py-1.5 text-center font-mono text-[10px] tracking-wide text-[var(--warp-faint)]">
+      <p class="px-3 py-1.5 text-center font-mono text-[10px] tracking-wide text-[var(--oterm-faint)]">
         v{{ appVersion }}
       </p>
     </div>

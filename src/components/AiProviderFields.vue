@@ -99,37 +99,37 @@ defineExpose({ refreshModels, onLoadCopilotToken });
 <template>
   <div class="space-y-3">
     <label class="block space-y-1">
-      <span class="text-xs text-[var(--warp-muted)]">Provider</span>
+      <span class="text-xs text-[var(--oterm-muted)]">Provider</span>
       <select
         :value="provider"
-        class="w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1"
+        class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
         @change="onProviderChange"
       >
         <option v-for="option in providerOptions" :key="option.id" :value="option.id">
           {{ option.label }}
         </option>
       </select>
-      <p class="text-[10px] leading-relaxed text-[var(--warp-faint)]">
+      <p class="text-[10px] leading-relaxed text-[var(--oterm-faint)]">
         {{ COMMIT_AI_PROVIDER_PRESETS[provider].description }}
       </p>
     </label>
 
     <label class="block space-y-1">
-      <span class="text-xs text-[var(--warp-muted)]">Endpoint</span>
+      <span class="text-xs text-[var(--oterm-muted)]">Endpoint</span>
       <input
         v-model="endpoint"
         type="url"
-        class="w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1"
+        class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
       />
     </label>
 
     <div v-if="showApiKey" class="space-y-1">
       <div class="flex items-center justify-between gap-2">
-        <span class="text-xs text-[var(--warp-muted)]">{{ apiKeyLabel }}</span>
+        <span class="text-xs text-[var(--oterm-muted)]">{{ apiKeyLabel }}</span>
         <button
           v-if="provider === 'github-copilot'"
           type="button"
-          class="text-[10px] text-[var(--warp-faint)] transition hover:text-[var(--warp-muted)]"
+          class="text-[10px] text-[var(--oterm-faint)] transition hover:text-[var(--oterm-muted)]"
           @click="onLoadCopilotToken"
         >
           Load from disk
@@ -139,23 +139,23 @@ defineExpose({ refreshModels, onLoadCopilotToken });
         v-model="apiKey"
         type="password"
         autocomplete="off"
-        class="w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1"
+        class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
         :placeholder="
           provider === 'github-copilot' ? 'ghu_… (optional if found on disk)' : 'sk-…'
         "
       />
-      <p v-if="copilotTokenHint" class="text-[10px] text-[var(--warp-muted)]">
+      <p v-if="copilotTokenHint" class="text-[10px] text-[var(--oterm-muted)]">
         {{ copilotTokenHint }}
       </p>
     </div>
 
     <div class="space-y-1">
       <div class="flex items-center justify-between gap-2">
-        <span class="text-xs text-[var(--warp-muted)]">Model</span>
+        <span class="text-xs text-[var(--oterm-muted)]">Model</span>
         <div class="flex items-center gap-1.5">
           <button
             type="button"
-            class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-[10px] text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:opacity-40"
+            class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-[10px] text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40"
             :disabled="modelsLoading"
             @click="refreshModels"
           >
@@ -163,7 +163,7 @@ defineExpose({ refreshModels, onLoadCopilotToken });
           </button>
           <button
             type="button"
-            class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-[10px] text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:opacity-40"
+            class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-[10px] text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40"
             :disabled="testLoading"
             @click="onTestConnection"
           >
@@ -174,18 +174,18 @@ defineExpose({ refreshModels, onLoadCopilotToken });
       <select
         v-if="models.length > 0"
         v-model="model"
-        class="w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1"
+        class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
       >
         <option v-for="id in models" :key="id" :value="id">{{ id }}</option>
       </select>
       <input
         v-model="model"
         type="text"
-        class="w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1"
+        class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
         placeholder="Model id"
       />
-      <p v-if="modelsError" class="text-xs text-[var(--warp-danger)]">{{ modelsError }}</p>
-      <p v-else-if="testStatus" class="text-xs text-[var(--warp-muted)]">{{ testStatus }}</p>
+      <p v-if="modelsError" class="text-xs text-[var(--oterm-danger)]">{{ modelsError }}</p>
+      <p v-else-if="testStatus" class="text-xs text-[var(--oterm-muted)]">{{ testStatus }}</p>
     </div>
   </div>
 </template>

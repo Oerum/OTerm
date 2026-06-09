@@ -12,6 +12,7 @@ import {
   isCommitAiConfigured,
 } from "../types/commitAi";
 import CommitAiSettingsDialog from "./CommitAiSettingsDialog.vue";
+import ConfirmDialog from "./ConfirmDialog.vue";
 import type {
   GitBranchList,
   GitCommitEntry,
@@ -25,6 +26,14 @@ import GitFileEditor from "./GitFileEditor.vue";
 import GitFileLineStats from "./GitFileLineStats.vue";
 
 type PaneView = "diff" | "edit";
+
+type PendingConfirm = {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  dangerous?: boolean;
+  onConfirm: () => void;
+};
 
 const props = defineProps<{
   status: GitSourceControlStatus;
@@ -41,6 +50,7 @@ const emit = defineEmits<{
   stage: [paths: string[]];
   unstage: [paths: string[]];
   revert: [paths: string[], untracked: boolean];
+  "revert-all": [];
   commit: [message: string];
   fetch: [];
   pull: [];
@@ -78,6 +88,8 @@ const hunkFeedback = ref<string | null>(null);
 const hunkFeedbackError = ref(false);
 const diffExpanded = ref(false);
 const diffPaneRef = ref<HTMLElement | null>(null);
+const confirmOpen = ref(false);
+const pendingConfirm = ref<PendingConfirm | null>(null);
 let diffRequestId = 0;
 let editRequestId = 0;
 
@@ -250,6 +262,25 @@ const canStageAll = computed(() => stageAllPaths.value.length > 0);
 
 const canUnstageAll = computed(() => unstageAllPaths.value.length > 0);
 
+const canRevertAll = computed(
+  () =>
+    props.status.changes.length > 0 ||
+    props.status.staged.length > 0 ||
+    props.status.untracked.length > 0,
+);
+
+function askConfirm(options: PendingConfirm) {
+  pendingConfirm.value = options;
+  confirmOpen.value = true;
+}
+
+function resolveConfirm(confirmed: boolean) {
+  const pending = pendingConfirm.value;
+  confirmOpen.value = false;
+  pendingConfirm.value = null;
+  if (confirmed) pending?.onConfirm();
+}
+
 function onStageAll() {
   if (stageAllPaths.value.length) emit("stage", stageAllPaths.value);
 }
@@ -286,15 +317,15 @@ function syncBtnClass(op: SyncOp) {
     return [
       base,
       active
-        ? "ring-1 ring-[var(--warp-accent)] border-[var(--warp-accent)]/60 bg-[var(--warp-accent-dim)] text-[var(--warp-accent)]"
-        : "border-[var(--warp-accent)]/40 bg-[var(--warp-accent-dim)] text-[var(--warp-accent)] hover:opacity-90",
+        ? "ring-1 ring-[var(--oterm-accent)] border-[var(--oterm-accent)]/60 bg-[var(--oterm-accent-dim)] text-[var(--oterm-accent)]"
+        : "border-[var(--oterm-accent)]/40 bg-[var(--oterm-accent-dim)] text-[var(--oterm-accent)] hover:opacity-90",
     ];
   }
   return [
     base,
     active
-      ? "ring-1 ring-[var(--warp-accent)] border-[var(--warp-accent)]/40 bg-white/5 text-[var(--warp-text)]"
-      : "border-[var(--warp-border)] bg-[var(--warp-bg)]/60 text-[var(--warp-text)] hover:bg-white/5",
+      ? "ring-1 ring-[var(--oterm-accent)] border-[var(--oterm-accent)]/40 bg-white/5 text-[var(--oterm-text)]"
+      : "border-[var(--oterm-border)] bg-[var(--oterm-bg)]/60 text-[var(--oterm-text)] hover:bg-white/5",
   ];
 }
 
@@ -445,8 +476,25 @@ function confirmRevert(paths: string[], untracked: boolean) {
   const message = untracked
     ? `Delete ${paths.length} untracked ${noun}? This cannot be undone.`
     : `Discard ${paths.length} tracked ${noun}? This cannot be undone.`;
-  if (!window.confirm(message)) return;
-  emit("revert", paths, untracked);
+  askConfirm({
+    title: untracked ? "Delete untracked files?" : "Revert changes?",
+    message,
+    confirmLabel: untracked ? "Delete" : "Revert",
+    dangerous: true,
+    onConfirm: () => emit("revert", paths, untracked),
+  });
+}
+
+function onRevertAll() {
+  if (!canRevertAll.value) return;
+  askConfirm({
+    title: "Revert all changes?",
+    message:
+      "Are you sure you want to revert all changes? This will discard staged and unstaged changes, delete untracked files, and cannot be undone.",
+    confirmLabel: "Revert all",
+    dangerous: true,
+    onConfirm: () => emit("revert-all"),
+  });
 }
 
 function onCommit() {
@@ -550,27 +598,27 @@ watch(
 
 <template>
   <aside
-    class="relative flex shrink-0 flex-col border-l border-[var(--warp-border)] bg-[var(--warp-sidebar)]"
+    class="relative flex shrink-0 flex-col border-l border-[var(--oterm-border)] bg-[var(--oterm-sidebar)]"
     :style="{ width: `${panelWidth}px` }"
   >
   <div class="flex min-h-0 flex-1 flex-col" :class="showDiffPane ? 'flex-row' : 'flex-col'">
     <div
       class="flex min-h-0 shrink-0 flex-col"
       :style="{ width: showDiffPane ? `${SOURCE_CONTROL_FILE_LIST_WIDTH}px` : undefined }"
-      :class="showDiffPane ? 'border-r border-[var(--warp-border)]' : 'min-w-0 flex-1'"
+      :class="showDiffPane ? 'border-r border-[var(--oterm-border)]' : 'min-w-0 flex-1'"
     >
-      <div class="flex items-center justify-between border-b border-[var(--warp-border)] px-3 py-2.5">
+      <div class="flex items-center justify-between border-b border-[var(--oterm-border)] px-3 py-2.5">
         <div class="min-w-0">
           <p
-            class="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--warp-faint)]"
-            style="font-family: var(--warp-font-ui)"
+            class="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--oterm-faint)]"
+            style="font-family: var(--oterm-font-ui)"
           >
             Source Control
           </p>
           <p
             v-if="status.upstream || status.ahead || status.behind"
-            class="truncate text-xs text-[var(--warp-muted)]"
-            style="font-family: var(--warp-font-ui)"
+            class="truncate text-xs text-[var(--oterm-muted)]"
+            style="font-family: var(--oterm-font-ui)"
           >
             <span v-if="status.upstream">{{ status.upstream }}</span>
             <span v-if="status.upstream && (status.ahead || status.behind)"> · </span>
@@ -581,7 +629,7 @@ watch(
         </div>
         <button
           type="button"
-          class="no-drag flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+          class="no-drag flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
           title="Refresh"
           aria-label="Refresh source control"
           :disabled="busy"
@@ -611,17 +659,17 @@ watch(
         </button>
       </div>
 
-      <div v-if="!status.isRepo" class="px-3 py-4 text-sm text-[var(--warp-faint)]">
+      <div v-if="!status.isRepo" class="px-3 py-4 text-sm text-[var(--oterm-faint)]">
         Not a git repository
       </div>
 
       <template v-else>
         <div
           v-if="busy && operationLabel"
-          class="flex items-center gap-2 border-b border-[var(--warp-border)] bg-white/[0.02] px-3 py-2"
+          class="flex items-center gap-2 border-b border-[var(--oterm-border)] bg-white/[0.02] px-3 py-2"
         >
           <svg
-            class="h-3.5 w-3.5 shrink-0 animate-spin text-[var(--warp-accent)]"
+            class="h-3.5 w-3.5 shrink-0 animate-spin text-[var(--oterm-accent)]"
             viewBox="0 0 24 24"
             fill="none"
             aria-hidden="true"
@@ -640,22 +688,22 @@ watch(
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
             />
           </svg>
-          <p class="text-xs text-[var(--warp-muted)]" style="font-family: var(--warp-font-ui)">
+          <p class="text-xs text-[var(--oterm-muted)]" style="font-family: var(--oterm-font-ui)">
             {{ operationLabel }}
           </p>
         </div>
 
-        <div class="border-b border-[var(--warp-border)] p-3">
+        <div class="border-b border-[var(--oterm-border)] p-3">
           <label
-            class="mb-1 block text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warp-faint)]"
-            style="font-family: var(--warp-font-ui)"
+            class="mb-1 block text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]"
+            style="font-family: var(--oterm-font-ui)"
           >
             Branch
           </label>
           <select
             :value="branchSelectValue"
-            class="mb-3 w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
-            style="font-family: var(--warp-font-mono)"
+            class="mb-3 w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
+            style="font-family: var(--oterm-font-mono)"
             :disabled="busy || !hasBranches"
             @change="onBranchChange"
           >
@@ -684,7 +732,7 @@ watch(
             <button
               type="button"
               :class="syncBtnClass('fetch')"
-              style="font-family: var(--warp-font-ui)"
+              style="font-family: var(--oterm-font-ui)"
               title="Fetch from remotes"
               :disabled="busy"
               @click="emit('fetch')"
@@ -695,7 +743,7 @@ watch(
             <button
               type="button"
               :class="syncBtnClass('pull')"
-              style="font-family: var(--warp-font-ui)"
+              style="font-family: var(--oterm-font-ui)"
               title="Pull from upstream"
               :disabled="busy"
               @click="emit('pull')"
@@ -706,7 +754,7 @@ watch(
             <button
               type="button"
               :class="syncBtnClass('push')"
-              style="font-family: var(--warp-font-ui)"
+              style="font-family: var(--oterm-font-ui)"
               title="Push to upstream"
               :disabled="busy"
               @click="emit('push')"
@@ -717,7 +765,7 @@ watch(
             <button
               type="button"
               :class="syncBtnClass('sync')"
-              style="font-family: var(--warp-font-ui)"
+              style="font-family: var(--oterm-font-ui)"
               title="Pull then push"
               :disabled="busy"
               @click="emit('sync')"
@@ -728,12 +776,12 @@ watch(
           </div>
 
           <div class="mb-1.5 flex items-center justify-between gap-2">
-            <span class="text-[10px] uppercase tracking-wide text-[var(--warp-faint)]">Commit message</span>
+            <span class="text-[10px] uppercase tracking-wide text-[var(--oterm-faint)]">Commit message</span>
             <div class="flex items-center gap-1">
               <button
                 type="button"
-                class="flex h-6 w-6 items-center justify-center rounded-md border border-[var(--warp-border)] text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
-                style="font-family: var(--warp-font-ui)"
+                class="flex h-6 w-6 items-center justify-center rounded-md border border-[var(--oterm-border)] text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+                style="font-family: var(--oterm-font-ui)"
                 title="Commit message AI settings"
                 aria-label="Commit message AI settings"
                 @click="commitAiSettingsOpen = true"
@@ -749,8 +797,8 @@ watch(
               </button>
               <button
                 type="button"
-                class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-[10px] text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:cursor-not-allowed disabled:opacity-40"
-                style="font-family: var(--warp-font-ui)"
+                class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-[10px] text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:cursor-not-allowed disabled:opacity-40"
+                style="font-family: var(--oterm-font-ui)"
                 title="Generate commit message with AI"
                 :disabled="!canGenerateCommit"
                 @click="onGenerateCommitMessage"
@@ -766,36 +814,36 @@ watch(
           <textarea
             v-model="commitMessage"
             rows="3"
-            class="w-full resize-none rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] placeholder:text-[var(--warp-faint)] focus:ring-1"
-            style="font-family: var(--warp-font-ui)"
+            class="w-full resize-none rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] placeholder:text-[var(--oterm-faint)] focus:ring-1"
+            style="font-family: var(--oterm-font-ui)"
             placeholder="Commit message"
             :disabled="busy || generatingCommit"
           />
           <p
             v-if="generateError"
-            class="mt-1 text-xs text-[var(--warp-danger)]"
-            style="font-family: var(--warp-font-ui)"
+            class="mt-1 text-xs text-[var(--oterm-danger)]"
+            style="font-family: var(--oterm-font-ui)"
           >
             {{ generateError }}
           </p>
           <p
             v-else-if="commitAiSummary"
-            class="mt-1 truncate text-xs text-[var(--warp-faint)]"
-            style="font-family: var(--warp-font-ui)"
+            class="mt-1 truncate text-xs text-[var(--oterm-faint)]"
+            style="font-family: var(--oterm-font-ui)"
           >
             {{ commitAiSummary }}
           </p>
           <p
             v-else
-            class="mt-1 text-xs text-[var(--warp-faint)]"
-            style="font-family: var(--warp-font-ui)"
+            class="mt-1 text-xs text-[var(--oterm-faint)]"
+            style="font-family: var(--oterm-font-ui)"
           >
             Open AI settings to choose a provider and model.
           </p>
           <button
             type="button"
-            class="mt-2 w-full rounded-md bg-[var(--warp-accent)] px-3 py-2 text-sm font-medium text-[var(--warp-bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-            style="font-family: var(--warp-font-ui)"
+            class="mt-2 w-full rounded-md bg-[var(--oterm-accent)] px-3 py-2 text-sm font-medium text-[var(--oterm-bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            style="font-family: var(--oterm-font-ui)"
             :disabled="!canCommit || busy"
             @click="onCommit"
           >
@@ -803,16 +851,16 @@ watch(
           </button>
           <p
             v-if="!showDiffPane && allChangedFiles.length"
-            class="mt-2 text-xs text-[var(--warp-faint)]"
-            style="font-family: var(--warp-font-ui)"
+            class="mt-2 text-xs text-[var(--oterm-faint)]"
+            style="font-family: var(--oterm-font-ui)"
           >
             Drag the panel wider to view diffs
           </p>
           <div class="mt-2 grid grid-cols-2 gap-1.5">
             <button
               type="button"
-              class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)]/60 px-2 py-1.5 text-xs font-medium text-[#3dd68c] transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
-              style="font-family: var(--warp-font-ui)"
+              class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/60 px-2 py-1.5 text-xs font-medium text-[#3dd68c] transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              style="font-family: var(--oterm-font-ui)"
               title="Stage all changes and untracked files"
               :disabled="busy || !canStageAll"
               @click="onStageAll"
@@ -821,8 +869,8 @@ watch(
             </button>
             <button
               type="button"
-              class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)]/60 px-2 py-1.5 text-xs font-medium text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:cursor-not-allowed disabled:opacity-40"
-              style="font-family: var(--warp-font-ui)"
+              class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/60 px-2 py-1.5 text-xs font-medium text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:cursor-not-allowed disabled:opacity-40"
+              style="font-family: var(--oterm-font-ui)"
               title="Unstage all staged files"
               :disabled="busy || !canUnstageAll"
               @click="onUnstageAll"
@@ -830,13 +878,23 @@ watch(
               Unstage all
             </button>
           </div>
+          <button
+            type="button"
+            class="mt-1.5 w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/60 px-2 py-1.5 text-xs font-medium text-[#ff7b72] transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+            style="font-family: var(--oterm-font-ui)"
+            title="Revert all staged, unstaged, and untracked changes"
+            :disabled="busy || !canRevertAll"
+            @click="onRevertAll"
+          >
+            Revert all
+          </button>
         </div>
 
-        <div class="warp-scroll min-h-0 flex-1 overflow-y-auto">
-          <section v-if="status.staged.length" class="border-b border-[var(--warp-border)] py-2">
+        <div class="oterm-scroll min-h-0 flex-1 overflow-y-auto">
+          <section v-if="status.staged.length" class="border-b border-[var(--oterm-border)] py-2">
             <p
-              class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warp-faint)]"
-              style="font-family: var(--warp-font-ui)"
+              class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]"
+              style="font-family: var(--oterm-font-ui)"
             >
               Staged ({{ status.staged.length }})
             </p>
@@ -848,14 +906,14 @@ watch(
             >
               <span class="w-5 shrink-0 text-xs font-medium text-[#3dd68c]">{{ statusLabel(entry) }}</span>
               <span
-                class="min-w-0 flex-1 truncate text-sm text-[var(--warp-text)]"
-                style="font-family: var(--warp-font-ui)"
+                class="min-w-0 flex-1 truncate text-sm text-[var(--oterm-text)]"
+                style="font-family: var(--oterm-font-ui)"
               >{{ entry.path }}</span>
               <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />
               <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
                 <button
                   type="button"
-                  class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[var(--warp-faint)] hover:bg-white/5 hover:text-[var(--warp-text)]"
+                  class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[var(--oterm-faint)] hover:bg-white/5 hover:text-[var(--oterm-text)]"
                   title="Unstage"
                   @click.stop="emit('unstage', [entry.path])"
                 >
@@ -865,10 +923,10 @@ watch(
             </div>
           </section>
 
-          <section v-if="status.changes.length" class="border-b border-[var(--warp-border)] py-2">
+          <section v-if="status.changes.length" class="border-b border-[var(--oterm-border)] py-2">
             <p
-              class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warp-faint)]"
-              style="font-family: var(--warp-font-ui)"
+              class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]"
+              style="font-family: var(--oterm-font-ui)"
             >
               Changes ({{ status.changes.length }})
             </p>
@@ -878,10 +936,10 @@ watch(
               :class="rowClass(entry, false, false)"
               @click="selectFile(entry, false, false)"
             >
-              <span class="w-5 shrink-0 text-xs font-medium text-[var(--warp-muted)]">{{ statusLabel(entry) }}</span>
+              <span class="w-5 shrink-0 text-xs font-medium text-[var(--oterm-muted)]">{{ statusLabel(entry) }}</span>
               <span
-                class="min-w-0 flex-1 truncate text-sm text-[var(--warp-text)]"
-                style="font-family: var(--warp-font-ui)"
+                class="min-w-0 flex-1 truncate text-sm text-[var(--oterm-text)]"
+                style="font-family: var(--oterm-font-ui)"
               >{{ entry.path }}</span>
               <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />
               <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
@@ -905,10 +963,10 @@ watch(
             </div>
           </section>
 
-          <section v-if="status.untracked.length" class="border-b border-[var(--warp-border)] py-2">
+          <section v-if="status.untracked.length" class="border-b border-[var(--oterm-border)] py-2">
             <p
-              class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warp-faint)]"
-              style="font-family: var(--warp-font-ui)"
+              class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]"
+              style="font-family: var(--oterm-font-ui)"
             >
               Untracked ({{ status.untracked.length }})
             </p>
@@ -918,10 +976,10 @@ watch(
               :class="rowClass(entry, false, true)"
               @click="selectFile(entry, false, true)"
             >
-              <span class="w-5 shrink-0 text-xs font-medium text-[var(--warp-faint)]">U</span>
+              <span class="w-5 shrink-0 text-xs font-medium text-[var(--oterm-faint)]">U</span>
               <span
-                class="min-w-0 flex-1 truncate text-sm text-[var(--warp-text)]"
-                style="font-family: var(--warp-font-ui)"
+                class="min-w-0 flex-1 truncate text-sm text-[var(--oterm-text)]"
+                style="font-family: var(--oterm-font-ui)"
               >{{ entry.path }}</span>
               <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />
               <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
@@ -947,8 +1005,8 @@ watch(
 
           <section v-if="history.length" class="py-2">
             <p
-              class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warp-faint)]"
-              style="font-family: var(--warp-font-ui)"
+              class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]"
+              style="font-family: var(--oterm-font-ui)"
             >
               History
             </p>
@@ -958,12 +1016,12 @@ watch(
               class="px-3 py-1.5 hover:bg-white/[0.03]"
             >
               <p
-                class="truncate text-sm text-[var(--warp-text)]"
-                style="font-family: var(--warp-font-ui)"
+                class="truncate text-sm text-[var(--oterm-text)]"
+                style="font-family: var(--oterm-font-ui)"
               >{{ entry.subject }}</p>
               <p
-                class="mt-0.5 truncate text-xs text-[var(--warp-faint)]"
-                style="font-family: var(--warp-font-mono)"
+                class="mt-0.5 truncate text-xs text-[var(--oterm-faint)]"
+                style="font-family: var(--oterm-font-mono)"
               >
                 {{ entry.shortHash }} · {{ entry.author }} · {{ entry.date }}
               </p>
@@ -979,7 +1037,7 @@ watch(
               !status.ahead &&
               !status.behind
             "
-            class="px-3 py-4 text-sm text-[var(--warp-faint)]"
+            class="px-3 py-4 text-sm text-[var(--oterm-faint)]"
           >
             Working tree clean
           </p>
@@ -995,29 +1053,29 @@ watch(
       tabindex="0"
       @keydown="onDiffPaneKeydown"
     >
-      <div class="flex items-center gap-2 border-b border-[var(--warp-border)] px-3 py-2">
+      <div class="flex items-center gap-2 border-b border-[var(--oterm-border)] px-3 py-2">
         <div class="min-w-0 flex-1">
           <p
             v-if="selectedFile"
-            class="truncate text-sm text-[var(--warp-text)]"
-            style="font-family: var(--warp-font-ui)"
+            class="truncate text-sm text-[var(--oterm-text)]"
+            style="font-family: var(--oterm-font-ui)"
           >
             {{ selectedFile.path }}
-            <span v-if="paneView === 'edit' && editDirty" class="text-[var(--warp-faint)]"> · unsaved</span>
+            <span v-if="paneView === 'edit' && editDirty" class="text-[var(--oterm-faint)]"> · unsaved</span>
           </p>
-          <p v-else class="text-sm text-[var(--warp-faint)]" style="font-family: var(--warp-font-ui)">
+          <p v-else class="text-sm text-[var(--oterm-faint)]" style="font-family: var(--oterm-font-ui)">
             Select a file to view changes
           </p>
         </div>
         <div v-if="selectedFile" class="flex shrink-0 items-center gap-1">
           <div
             v-if="paneView === 'diff' && canNavigateHunks"
-            class="mr-1 flex items-center gap-1 text-xs text-[var(--warp-faint)]"
-            style="font-family: var(--warp-font-ui)"
+            class="mr-1 flex items-center gap-1 text-xs text-[var(--oterm-faint)]"
+            style="font-family: var(--oterm-font-ui)"
           >
             <button
               type="button"
-              class="rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:opacity-40"
+              class="rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40"
               title="Previous hunk (Alt+↑)"
               :disabled="activeHunkIndex <= 0"
               @click="goToPreviousHunk"
@@ -1027,7 +1085,7 @@ watch(
             <span>{{ activeHunkIndex + 1 }} / {{ hunkCount }}</span>
             <button
               type="button"
-              class="rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:opacity-40"
+              class="rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40"
               title="Next hunk (Alt+↓)"
               :disabled="activeHunkIndex >= hunkCount - 1"
               @click="goToNextHunk"
@@ -1036,7 +1094,7 @@ watch(
             </button>
           </div>
           <div
-            class="flex rounded border border-[var(--warp-border)] p-0.5"
+            class="flex rounded border border-[var(--oterm-border)] p-0.5"
             role="tablist"
             aria-label="File pane view"
           >
@@ -1045,10 +1103,10 @@ watch(
               class="rounded px-2 py-0.5 text-xs transition"
               :class="
                 paneView === 'diff'
-                  ? 'bg-white/10 text-[var(--warp-text)]'
-                  : 'text-[var(--warp-faint)] hover:text-[var(--warp-text)]'
+                  ? 'bg-white/10 text-[var(--oterm-text)]'
+                  : 'text-[var(--oterm-faint)] hover:text-[var(--oterm-text)]'
               "
-              style="font-family: var(--warp-font-ui)"
+              style="font-family: var(--oterm-font-ui)"
               @click="setPaneView('diff')"
             >
               Diff
@@ -1058,10 +1116,10 @@ watch(
               class="rounded px-2 py-0.5 text-xs transition"
               :class="
                 paneView === 'edit'
-                  ? 'bg-white/10 text-[var(--warp-text)]'
-                  : 'text-[var(--warp-faint)] hover:text-[var(--warp-text)]'
+                  ? 'bg-white/10 text-[var(--oterm-text)]'
+                  : 'text-[var(--oterm-faint)] hover:text-[var(--oterm-text)]'
               "
-              style="font-family: var(--warp-font-ui)"
+              style="font-family: var(--oterm-font-ui)"
               @click="setPaneView('edit')"
             >
               Edit
@@ -1070,8 +1128,8 @@ watch(
           <button
             v-if="paneView === 'edit' && editDirty"
             type="button"
-            class="rounded border border-[var(--warp-border)] px-2 py-0.5 text-xs text-[var(--warp-text)] transition hover:bg-white/5 disabled:opacity-50"
-            style="font-family: var(--warp-font-ui)"
+            class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5 disabled:opacity-50"
+            style="font-family: var(--oterm-font-ui)"
             :disabled="saving"
             @click="saveEdit"
           >
@@ -1079,7 +1137,7 @@ watch(
           </button>
           <button
             type="button"
-            class="flex h-7 w-7 items-center justify-center rounded-md text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+            class="flex h-7 w-7 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
             :title="diffExpanded ? 'Exit full screen (Esc)' : 'Expand diff/editor'"
             :aria-label="diffExpanded ? 'Exit full screen' : 'Expand diff/editor'"
             @click="toggleDiffExpanded"
@@ -1151,6 +1209,16 @@ watch(
       :open="commitAiSettingsOpen"
       @close="commitAiSettingsOpen = false"
     />
+
+    <ConfirmDialog
+      :open="confirmOpen"
+      :title="pendingConfirm?.title ?? ''"
+      :message="pendingConfirm?.message ?? ''"
+      :confirm-label="pendingConfirm?.confirmLabel"
+      :dangerous="pendingConfirm?.dangerous"
+      @confirm="resolveConfirm(true)"
+      @cancel="resolveConfirm(false)"
+    />
   </aside>
 </template>
 
@@ -1159,6 +1227,6 @@ watch(
   position: fixed;
   inset: 0;
   z-index: 200;
-  background: var(--warp-bg);
+  background: var(--oterm-bg);
 }
 </style>

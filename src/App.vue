@@ -20,11 +20,22 @@ import { useTerminalHistory } from "./composables/useTerminalHistory";
 import { useWorkspace } from "./composables/useWorkspace";
 import type { ClosedTerminalSession, SaveProfileDraft, WorkspaceTerminalTab } from "./types/terminal";
 import { isTerminalTab } from "./types/terminal";
-import { loadDefaultShellId, saveDefaultShellId } from "./lib/shellSettings";
+import {
+  DEFAULT_SHELL_SETTING_KEY,
+  loadDefaultShellId,
+  saveDefaultShellId,
+} from "./lib/shellSettings";
+import { getSetting } from "./lib/settingsStore";
 import type { DockerContainer } from "./types/docker";
 import type { SshEndpoint } from "./types/sshSftp";
 import { getLaunchInitialCwd } from "./lib/launchApi";
-import { killTerminal, listShells, listenTerminalAgentChanged, writeTerminal } from "./lib/terminalApi";
+import {
+  getDefaultShellId,
+  killTerminal,
+  listShells,
+  listenTerminalAgentChanged,
+  writeTerminal,
+} from "./lib/terminalApi";
 import type { CliAgentId } from "./lib/terminalAgentMode";
 import { consumeAppShortcut, isTabCycleShortcut } from "./lib/appKeyboardShortcuts";
 import {
@@ -35,8 +46,8 @@ import { shellLabelFor } from "./lib/sidebarEntries";
 
 const appVersion = "0.1.0";
 
-const FALLBACK_SHELL_ID = "pwsh";
-const defaultShellId = ref(loadDefaultShellId(FALLBACK_SHELL_ID));
+const systemDefaultShellId = ref("cmd");
+const defaultShellId = ref("");
 const closedSessions = ref<ClosedTerminalSession[]>([]);
 const pendingTerminalCommands = new Map<string, string>();
 const canReopenClosed = computed(() => closedSessions.value.length > 0);
@@ -107,6 +118,7 @@ const {
   stage: stageGitPaths,
   unstage: unstageGitPaths,
   revert: revertGitPaths,
+  revertAll: revertAllGitChanges,
   revertHunk: revertGitHunk,
   stageHunk: stageGitHunk,
   unstageHunk: unstageGitHunk,
@@ -274,8 +286,9 @@ function openDockerContainerTerminal(
 function resolveDefaultShellId() {
   return (
     shells.value.find((shell) => shell.id === defaultShellId.value)?.id ??
+    shells.value.find((shell) => shell.id === systemDefaultShellId.value)?.id ??
     shells.value[0]?.id ??
-    FALLBACK_SHELL_ID
+    systemDefaultShellId.value
   );
 }
 
@@ -310,6 +323,16 @@ function reopenClosedSession() {
 
 async function bootstrap() {
   shells.value = await listShells();
+  systemDefaultShellId.value = await getDefaultShellId();
+
+  const saved = getSetting(DEFAULT_SHELL_SETTING_KEY);
+  if (!saved) {
+    defaultShellId.value = systemDefaultShellId.value;
+    saveDefaultShellId(defaultShellId.value);
+  } else {
+    defaultShellId.value = loadDefaultShellId(systemDefaultShellId.value);
+  }
+
   const resolved = resolveDefaultShellId();
   if (defaultShellId.value !== resolved) {
     defaultShellId.value = resolved;
@@ -524,7 +547,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="warp-app relative flex h-full flex-col">
+  <div class="oterm-app relative flex h-full flex-col">
     <TitleBar
       :terminal-sidebar-open="terminalSidebarOpen"
       :tools-open="toolsOpen"
@@ -569,14 +592,14 @@ onUnmounted(() => {
 
       <ToolsPanel
         v-if="toolsOpen"
-        :class="terminalSidebarOpen ? 'border-l border-[var(--warp-border)]' : ''"
+        :class="terminalSidebarOpen ? 'border-l border-[var(--oterm-border)]' : ''"
         :root-path="projectRoot"
         @navigate="cdFromExplorer"
       />
 
       <div
         class="relative flex min-w-0 flex-1 flex-col"
-        :class="terminalSidebarOpen || toolsOpen ? 'border-l border-[var(--warp-border)]' : ''"
+        :class="terminalSidebarOpen || toolsOpen ? 'border-l border-[var(--oterm-border)]' : ''"
       >
         <SessionHeader
           v-if="activePane && activeTerminalTab"
@@ -600,7 +623,7 @@ onUnmounted(() => {
             <section
               v-if="tab.kind === 'terminal'"
               v-show="tab.id === activeTabId"
-              class="flex min-h-0 flex-1 divide-[var(--warp-border)]"
+              class="flex min-h-0 flex-1 divide-[var(--oterm-border)]"
               :class="tab.split === 'horizontal' ? 'flex-row divide-x' : 'flex-col'"
             >
               <TerminalPane
@@ -688,7 +711,7 @@ onUnmounted(() => {
       <div v-if="sourceControlOpen" class="relative flex shrink-0">
         <div
           class="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
-          :class="sourceControlResizing ? 'bg-[var(--warp-accent)]/30' : 'hover:bg-white/5'"
+          :class="sourceControlResizing ? 'bg-[var(--oterm-accent)]/30' : 'hover:bg-white/5'"
           title="Drag to resize"
           @pointerdown="onResizeHandlePointerDown"
         />
@@ -706,6 +729,7 @@ onUnmounted(() => {
           @stage="(paths) => runGitAction(() => stageGitPaths(paths))"
           @unstage="(paths) => runGitAction(() => unstageGitPaths(paths))"
           @revert="(paths, untracked) => runGitAction(() => revertGitPaths(paths, untracked))"
+          @revert-all="() => runGitAction(revertAllGitChanges)"
           @commit="(message) => runGitAction(() => commitGitChanges(message))"
           @fetch="() => runGitAction(fetchGitRepo)"
           @pull="() => runGitAction(pullGitRepo)"

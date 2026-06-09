@@ -183,16 +183,16 @@ function onResetCommitPrompt() {
     <div
       role="dialog"
       aria-labelledby="commit-ai-settings-title"
-      class="flex max-h-[90%] w-[calc(100%-1.5rem)] max-w-md flex-col overflow-hidden rounded-xl border border-[var(--warp-border-strong)] bg-[var(--warp-elevated)] shadow-2xl"
+      class="flex max-h-[90%] w-[calc(100%-1.5rem)] max-w-md flex-col overflow-hidden rounded-xl border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] shadow-2xl"
       @mousedown.stop
     >
-      <div class="flex items-center justify-between border-b border-[var(--warp-border)] px-3 py-2.5">
-        <h2 id="commit-ai-settings-title" class="text-sm font-medium text-[var(--warp-text)]">
+      <div class="flex items-center justify-between border-b border-[var(--oterm-border)] px-3 py-2.5">
+        <h2 id="commit-ai-settings-title" class="text-sm font-medium text-[var(--oterm-text)]">
           Commit message AI
         </h2>
         <button
           type="button"
-          class="text-xs text-[var(--warp-faint)] transition hover:text-[var(--warp-muted)]"
+          class="text-xs text-[var(--oterm-faint)] transition hover:text-[var(--oterm-muted)]"
           @click="emit('close')"
         >
           Esc
@@ -201,37 +201,37 @@ function onResetCommitPrompt() {
 
       <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
         <label class="block space-y-1">
-          <span class="text-xs text-[var(--warp-muted)]">Provider</span>
+          <span class="text-xs text-[var(--oterm-muted)]">Provider</span>
           <select
             :value="draft.provider"
-            class="w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1"
+            class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
             @change="onProviderChange"
           >
             <option v-for="option in providerOptions" :key="option.id" :value="option.id">
               {{ option.label }}
             </option>
           </select>
-          <p class="text-[10px] leading-relaxed text-[var(--warp-faint)]">
+          <p class="text-[10px] leading-relaxed text-[var(--oterm-faint)]">
             {{ COMMIT_AI_PROVIDER_PRESETS[draft.provider].description }}
           </p>
         </label>
 
         <label class="block space-y-1">
-          <span class="text-xs text-[var(--warp-muted)]">Endpoint</span>
+          <span class="text-xs text-[var(--oterm-muted)]">Endpoint</span>
           <input
             v-model="draft.endpoint"
             type="url"
-            class="w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1"
+            class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
           />
         </label>
 
         <div v-if="showApiKey" class="space-y-1">
           <div class="flex items-center justify-between gap-2">
-            <span class="text-xs text-[var(--warp-muted)]">{{ apiKeyLabel }}</span>
+            <span class="text-xs text-[var(--oterm-muted)]">{{ apiKeyLabel }}</span>
             <button
               v-if="draft.provider === 'github-copilot'"
               type="button"
-              class="text-[10px] text-[var(--warp-faint)] transition hover:text-[var(--warp-muted)]"
+              class="text-[10px] text-[var(--oterm-faint)] transition hover:text-[var(--oterm-muted)]"
               @click="onLoadCopilotToken"
             >
               Load from disk
@@ -241,25 +241,25 @@ function onResetCommitPrompt() {
             v-model="draft.apiKey"
             type="password"
             autocomplete="off"
-            class="w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1"
+            class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
             :placeholder="
               draft.provider === 'github-copilot'
                 ? 'ghu_… (optional if found on disk)'
                 : 'sk-…'
             "
           />
-          <p v-if="copilotTokenHint" class="text-[10px] text-[var(--warp-muted)]">
+          <p v-if="copilotTokenHint" class="text-[10px] text-[var(--oterm-muted)]">
             {{ copilotTokenHint }}
           </p>
         </div>
 
         <div class="space-y-1">
           <div class="flex items-center justify-between gap-2">
-            <span class="text-xs text-[var(--warp-muted)]">Model</span>
+            <span class="text-xs text-[var(--oterm-muted)]">Model</span>
             <div class="flex items-center gap-1.5">
               <button
                 type="button"
-                class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-[10px] text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:opacity-40"
+                class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-[10px] text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40"
                 :disabled="modelsLoading"
                 @click="refreshModels"
               >
@@ -267,7 +267,7 @@ function onResetCommitPrompt() {
               </button>
               <button
                 type="button"
-                class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-[10px] text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:opacity-40"
+                class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-[10px] text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40"
                 :disabled="testLoading"
                 @click="onTestConnection"
               >
@@ -278,26 +278,26 @@ function onResetCommitPrompt() {
           <select
             v-if="models.length > 0"
             v-model="draft.model"
-            class="w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1"
+            class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
           >
             <option v-for="id in models" :key="id" :value="id">{{ id }}</option>
           </select>
           <input
             v-model="draft.model"
             type="text"
-            class="w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 text-sm text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1"
+            class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
             placeholder="Model id"
           />
-          <p v-if="modelsError" class="text-xs text-[var(--warp-danger)]">{{ modelsError }}</p>
-          <p v-else-if="testStatus" class="text-xs text-[var(--warp-muted)]">{{ testStatus }}</p>
+          <p v-if="modelsError" class="text-xs text-[var(--oterm-danger)]">{{ modelsError }}</p>
+          <p v-else-if="testStatus" class="text-xs text-[var(--oterm-muted)]">{{ testStatus }}</p>
         </div>
 
         <div class="space-y-1">
           <div class="flex items-center justify-between gap-2">
-            <span class="text-xs text-[var(--warp-muted)]">Commit prompt</span>
+            <span class="text-xs text-[var(--oterm-muted)]">Commit prompt</span>
             <button
               type="button"
-              class="text-[10px] text-[var(--warp-faint)] transition hover:text-[var(--warp-muted)]"
+              class="text-[10px] text-[var(--oterm-faint)] transition hover:text-[var(--oterm-muted)]"
               @click="onResetCommitPrompt"
             >
               Reset
@@ -306,24 +306,24 @@ function onResetCommitPrompt() {
           <textarea
             v-model="draft.prompts.commitMessage"
             rows="8"
-            class="w-full resize-y rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1"
+            class="w-full resize-y rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
           />
         </div>
 
-        <p v-if="saveError" class="text-xs text-[var(--warp-danger)]">{{ saveError }}</p>
+        <p v-if="saveError" class="text-xs text-[var(--oterm-danger)]">{{ saveError }}</p>
       </div>
 
-      <div class="flex justify-end gap-2 border-t border-[var(--warp-border)] px-3 py-2.5">
+      <div class="flex justify-end gap-2 border-t border-[var(--oterm-border)] px-3 py-2.5">
         <button
           type="button"
-          class="rounded-md border border-[var(--warp-border)] px-3 py-1.5 text-xs text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
           @click="emit('close')"
         >
           Cancel
         </button>
         <button
           type="button"
-          class="rounded-md bg-[var(--warp-accent)] px-3 py-1.5 text-xs font-medium text-[var(--warp-bg)] transition hover:opacity-90"
+          class="rounded-md bg-[var(--oterm-accent)] px-3 py-1.5 text-xs font-medium text-[var(--oterm-bg)] transition hover:opacity-90"
           @click="onSave"
         >
           Save

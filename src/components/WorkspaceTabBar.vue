@@ -80,18 +80,18 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocumentClick)
       class="group flex max-w-[12rem] shrink-0 items-center gap-2 rounded-full px-3 py-1 text-xs transition"
       :class="
         tab.id === activeTabId
-          ? 'bg-[var(--warp-elevated)] text-[var(--warp-text)] shadow-[inset_0_0_0_1px_var(--warp-border-strong)]'
-          : 'text-[var(--warp-muted)] hover:bg-white/[0.04] hover:text-[var(--warp-text)]'
+          ? 'bg-[var(--oterm-elevated)] text-[var(--oterm-text)] shadow-[inset_0_0_0_1px_var(--oterm-border-strong)]'
+          : 'text-[var(--oterm-muted)] hover:bg-white/[0.04] hover:text-[var(--oterm-text)]'
       "
       @click="emit('select', tab.id)"
     >
       <span
         class="h-1.5 w-1.5 shrink-0 rounded-full"
-        :class="tab.id === activeTabId ? 'bg-[var(--warp-accent)]' : 'bg-[var(--warp-faint)]'"
+        :class="tab.id === activeTabId ? 'bg-[var(--oterm-accent)]' : 'bg-[var(--oterm-faint)]'"
       />
       <span class="truncate">{{ tabLabel(tab) }}</span>
       <span
-        class="rounded-full px-1 text-[10px] leading-none text-[var(--warp-faint)] opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-[var(--warp-text)]"
+        class="rounded-full px-1 text-[10px] leading-none text-[var(--oterm-faint)] opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-[var(--oterm-text)]"
         @click.stop="emit('close', tab.id)"
       >
         ×
@@ -102,7 +102,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocumentClick)
       <button
         ref="newButtonRef"
         type="button"
-        class="flex h-7 w-7 items-center justify-center rounded-full text-[var(--warp-muted)] transition hover:bg-white/[0.04] hover:text-[var(--warp-text)] disabled:opacity-40"
+        class="flex h-7 w-7 items-center justify-center rounded-full text-[var(--oterm-muted)] transition hover:bg-white/[0.04] hover:text-[var(--oterm-text)] disabled:opacity-40"
         title="New terminal"
         aria-label="New terminal"
         aria-haspopup="menu"
@@ -133,7 +133,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", onDocumentClick)
 
     <button
       type="button"
-      class="ml-1 flex h-7 shrink-0 items-center rounded-full px-2.5 text-[11px] text-[var(--warp-muted)] transition hover:bg-white/[0.04] hover:text-[var(--warp-text)] disabled:opacity-40"
+      class="ml-1 flex h-7 shrink-0 items-center rounded-full px-2.5 text-[11px] text-[var(--oterm-muted)] transition hover:bg-white/[0.04] hover:text-[var(--oterm-text)] disabled:opacity-40"
       title="Split pane"
       :disabled="shells.length === 0"
       @click="emit('split', defaultShellId)"

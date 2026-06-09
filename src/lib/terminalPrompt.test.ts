@@ -8,8 +8,8 @@ import {
 
 describe("detectShellPrompt", () => {
   it("detects PowerShell prompts", () => {
-    expect(detectShellPrompt("PS C:\\Users\\Filip\\Desktop\\oterm> ")).toEqual({
-      cwd: "C:\\Users\\Filip\\Desktop\\oterm",
+    expect(detectShellPrompt("PS C:\\Users\\Oerum\\Desktop\\oterm> ")).toEqual({
+      cwd: "C:\\Users\\Oerum\\Desktop\\oterm",
     });
     expect(detectShellPrompt("\r\nPS D:\\Projects>")).toEqual({
       cwd: "D:\\Projects",
@@ -17,8 +17,8 @@ describe("detectShellPrompt", () => {
   });
 
   it("detects Windows CMD prompts", () => {
-    expect(detectShellPrompt("C:\\Users\\Filip>")).toEqual({
-      cwd: "C:\\Users\\Filip",
+    expect(detectShellPrompt("C:\\Users\\Oerum>")).toEqual({
+      cwd: "C:\\Users\\Oerum",
     });
     expect(detectShellPrompt("C:\\Projects\\myapp> ")).toEqual({
       cwd: "C:\\Projects\\myapp",
@@ -61,8 +61,8 @@ describe("detectShellPrompt", () => {
 
 describe("detectTrailingShellPrompt", () => {
   it("matches a trailing PowerShell prompt", () => {
-    expect(detectTrailingShellPrompt("PS C:\\Users\\Filip\\Desktop\\oterm> ")).toEqual({
-      cwd: "C:\\Users\\Filip\\Desktop\\oterm",
+    expect(detectTrailingShellPrompt("PS C:\\Users\\Oerum\\Desktop\\oterm> ")).toEqual({
+      cwd: "C:\\Users\\Oerum\\Desktop\\oterm",
     });
   });
 
@@ -75,7 +75,7 @@ describe("detectTrailingShellPrompt", () => {
   it("does not match when the prompt is not on the last line", () => {
     expect(
       detectTrailingShellPrompt(
-        "Welcome to Agy\r\nPS C:\\Users\\Filip\\Desktop\\oterm> \r\nAntigravity ready",
+        "Welcome to Agy\r\nPS C:\\Users\\Oerum\\Desktop\\oterm> \r\nAntigravity ready",
       ),
     ).toBeNull();
   });
@@ -86,9 +86,9 @@ describe("appendPromptScanBuffer", () => {
     const first = appendPromptScanBuffer("", "PS C:\\Users");
     expect(first.trailingPrompt).toBeNull();
 
-    const second = appendPromptScanBuffer(first.buffer, "\\Filip\\Desktop\\oterm> ");
+    const second = appendPromptScanBuffer(first.buffer, "\\Oerum\\Desktop\\oterm> ");
     expect(second.trailingPrompt).toEqual({
-      cwd: "C:\\Users\\Filip\\Desktop\\oterm",
+      cwd: "C:\\Users\\Oerum\\Desktop\\oterm",
     });
   });
 

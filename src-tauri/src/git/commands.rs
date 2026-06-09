@@ -8,8 +8,10 @@ use super::issues::{
     create_branch_from_issue, list_issues, view_issue, IssueDetail, IssueListFilters, IssueSummary,
 };
 use super::pr::{
-    checkout_pull_request, create_pull_request, detect_provider, list_pull_requests,
-    remote_browser_url, PrProviderInfo, PullRequestSummary,
+    checkout_pull_request, comment_on_pull_request, create_pull_request, detect_provider,
+    list_pr_checks, list_pr_commits, list_pr_files, list_pull_requests, pull_request_diff,
+    remote_browser_url, PrChangedFile, PrCheck, PrCommit, PrProviderInfo, PullRequestDetail,
+    PullRequestSummary, view_pull_request,
 };
 use super::{
     checkout_branch, commit_changes, fetch_changes, list_branches, pull_changes, push_changes,
@@ -191,6 +193,36 @@ pub async fn pr_create(
 #[tauri::command]
 pub async fn pr_checkout(repo_root: String, number: u32) -> Result<(), String> {
     blocking_git(move || checkout_pull_request(repo_root, number)).await
+}
+
+#[tauri::command]
+pub async fn pr_view(repo_root: String, number: u32) -> Result<PullRequestDetail, String> {
+    blocking_git(move || view_pull_request(repo_root, number)).await
+}
+
+#[tauri::command]
+pub async fn pr_commits(repo_root: String, number: u32) -> Result<Vec<PrCommit>, String> {
+    blocking_git(move || list_pr_commits(repo_root, number)).await
+}
+
+#[tauri::command]
+pub async fn pr_checks(repo_root: String, number: u32) -> Result<Vec<PrCheck>, String> {
+    blocking_git(move || list_pr_checks(repo_root, number)).await
+}
+
+#[tauri::command]
+pub async fn pr_files(repo_root: String, number: u32) -> Result<Vec<PrChangedFile>, String> {
+    blocking_git(move || list_pr_files(repo_root, number)).await
+}
+
+#[tauri::command]
+pub async fn pr_diff(repo_root: String, number: u32) -> Result<String, String> {
+    blocking_git(move || pull_request_diff(repo_root, number)).await
+}
+
+#[tauri::command]
+pub async fn pr_comment(repo_root: String, number: u32, body: String) -> Result<(), String> {
+    blocking_git(move || comment_on_pull_request(repo_root, number, body)).await
 }
 
 #[tauri::command]

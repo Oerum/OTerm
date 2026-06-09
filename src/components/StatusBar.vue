@@ -34,7 +34,7 @@ const shellLabel = computed(
 
 <template>
   <footer
-    class="flex h-9 shrink-0 items-center gap-3 border-t border-[var(--warp-border)] bg-[var(--warp-panel)] px-3 text-[11px] text-[var(--warp-faint)]"
+    class="flex h-9 shrink-0 items-center gap-3 border-t border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-3 text-[11px] text-[var(--oterm-faint)]"
   >
     <div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
       <AgentFooterBadge
@@ -44,13 +44,13 @@ const shellLabel = computed(
 
       <span
         v-if="pane?.activeAgentId"
-        class="hidden h-3 w-px shrink-0 bg-[var(--warp-border-strong)] sm:block"
+        class="hidden h-3 w-px shrink-0 bg-[var(--oterm-border-strong)] sm:block"
       />
 
       <button
         type="button"
-        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--warp-text)]"
-        :class="terminalSidebarOpen ? 'text-[var(--warp-accent)]' : ''"
+        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+        :class="terminalSidebarOpen ? 'text-[var(--oterm-accent)]' : ''"
         title="Toggle terminals sidebar"
         aria-label="Toggle terminals sidebar"
         @click="emit('toggleTerminalSidebar')"
@@ -67,8 +67,8 @@ const shellLabel = computed(
 
       <button
         type="button"
-        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--warp-text)]"
-        :class="toolsOpen ? 'text-[var(--warp-accent)]' : ''"
+        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+        :class="toolsOpen ? 'text-[var(--oterm-accent)]' : ''"
         title="Toggle file explorer"
         aria-label="Toggle file explorer"
         @click="emit('toggleTools')"
@@ -82,9 +82,9 @@ const shellLabel = computed(
         </svg>
       </button>
 
-      <span class="hidden h-3 w-px shrink-0 bg-[var(--warp-border-strong)] sm:block" />
+      <span class="hidden h-3 w-px shrink-0 bg-[var(--oterm-border-strong)] sm:block" />
 
-      <span class="flex min-w-0 items-center gap-1 truncate font-mono text-[var(--warp-muted)]">
+      <span class="flex min-w-0 items-center gap-1 truncate font-mono text-[var(--oterm-muted)]">
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" class="shrink-0" aria-hidden="true">
           <path
             d="M2.5 5.5h4l1.2-1.5H13a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V6a.5.5 0 0 1 .5-.5Z"
@@ -96,7 +96,7 @@ const shellLabel = computed(
       </span>
 
       <template v-if="gitStatus.isRepo">
-        <span class="hidden h-3 w-px shrink-0 bg-[var(--warp-border-strong)] lg:block" />
+        <span class="hidden h-3 w-px shrink-0 bg-[var(--oterm-border-strong)] lg:block" />
         <GitDiffBadge
           class="hidden lg:flex"
           :git-status="gitStatus"
@@ -107,7 +107,7 @@ const shellLabel = computed(
     </div>
 
     <div class="hidden shrink-0 items-center gap-3 sm:flex">
-      <span class="text-[var(--warp-muted)]">{{ shellLabel }}</span>
+      <span class="text-[var(--oterm-muted)]">{{ shellLabel }}</span>
       <span>Ctrl+R history</span>
     </div>
   </footer>

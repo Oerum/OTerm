@@ -487,8 +487,8 @@ function endpointSubtitle(endpoint: SshEndpoint) {
 
 function rowClass(endpoint: SshEndpoint) {
   return selectedEndpointId.value === endpoint.id
-    ? "border-[var(--warp-accent)]/50 bg-[var(--warp-accent)]/5"
-    : "border-[var(--warp-border)] bg-[var(--warp-panel)]";
+    ? "border-[var(--oterm-accent)]/50 bg-[var(--oterm-accent)]/5"
+    : "border-[var(--oterm-border)] bg-[var(--oterm-panel)]";
 }
 
 watch(selectedEndpoint, (endpoint) => {
@@ -508,44 +508,44 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative flex min-h-0 flex-1 flex-col bg-[var(--warp-bg)] text-[var(--warp-text)]">
+  <div class="relative flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)]">
     <header
-      class="flex shrink-0 items-center gap-2 border-b border-[var(--warp-border)] px-4 py-2"
+      class="flex shrink-0 items-center gap-2 border-b border-[var(--oterm-border)] px-4 py-2"
     >
       <h2 class="text-sm font-medium">SSH / SFTP</h2>
-      <span class="truncate text-xs text-[var(--warp-muted)]">Saved hosts and native SFTP</span>
+      <span class="truncate text-xs text-[var(--oterm-muted)]">Saved hosts and native SFTP</span>
       <div class="flex-1" />
       <button
         type="button"
-        class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-xs hover:bg-white/5"
+        class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
         @click="emit('close')"
       >
         Close tab
       </button>
     </header>
 
-    <p v-if="error" class="px-4 py-2 text-sm text-[var(--warp-danger)]">{{ error }}</p>
+    <p v-if="error" class="px-4 py-2 text-sm text-[var(--oterm-danger)]">{{ error }}</p>
 
     <div class="grid min-h-0 flex-1 lg:grid-cols-[280px_minmax(0,1fr)]">
-      <aside class="flex min-h-0 flex-col border-r border-[var(--warp-border)]">
-        <div class="space-y-2 border-b border-[var(--warp-border)] p-3">
+      <aside class="flex min-h-0 flex-col border-r border-[var(--oterm-border)]">
+        <div class="space-y-2 border-b border-[var(--oterm-border)] p-3">
           <input
             v-model="search"
             type="search"
             placeholder="Search hosts..."
-            class="w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-panel)] px-2 py-1.5 text-sm outline-none focus:border-[var(--warp-accent)]/50"
+            class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm outline-none focus:border-[var(--oterm-accent)]/50"
           />
           <div class="flex gap-1">
             <button
               type="button"
-              class="flex-1 rounded border border-[var(--warp-border)] px-2 py-1 text-xs hover:bg-white/5"
+              class="flex-1 rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
               @click="addCategory"
             >
               Category
             </button>
             <button
               type="button"
-              class="flex-1 rounded border border-[var(--warp-accent)]/40 px-2 py-1 text-xs text-[var(--warp-accent)] hover:bg-[var(--warp-accent)]/10"
+              class="flex-1 rounded border border-[var(--oterm-accent)]/40 px-2 py-1 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10"
               @click="startNewEndpoint"
             >
               Host
@@ -553,14 +553,14 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="warp-scroll min-h-0 flex-1 overflow-auto p-2">
+        <div class="oterm-scroll min-h-0 flex-1 overflow-auto p-2">
           <button
             type="button"
             class="mb-1 w-full rounded px-2 py-1 text-left text-xs"
             :class="
               selectedCategoryId === 'all'
-                ? 'bg-[var(--warp-accent)]/10 text-[var(--warp-accent)]'
-                : 'text-[var(--warp-muted)] hover:bg-white/5'
+                ? 'bg-[var(--oterm-accent)]/10 text-[var(--oterm-accent)]'
+                : 'text-[var(--oterm-muted)] hover:bg-white/5'
             "
             @click="selectedCategoryId = 'all'"
           >
@@ -571,8 +571,8 @@ onUnmounted(() => {
             class="mb-2 w-full rounded px-2 py-1 text-left text-xs"
             :class="
               selectedCategoryId === 'uncategorized'
-                ? 'bg-[var(--warp-accent)]/10 text-[var(--warp-accent)]'
-                : 'text-[var(--warp-muted)] hover:bg-white/5'
+                ? 'bg-[var(--oterm-accent)]/10 text-[var(--oterm-accent)]'
+                : 'text-[var(--oterm-muted)] hover:bg-white/5'
             "
             @click="selectedCategoryId = 'uncategorized'"
           >
@@ -585,8 +585,8 @@ onUnmounted(() => {
               class="mb-1 w-full rounded px-2 py-1 text-left text-xs font-medium"
               :class="
                 selectedCategoryId === category.id
-                  ? 'bg-[var(--warp-accent)]/10 text-[var(--warp-accent)]'
-                  : 'text-[var(--warp-muted)] hover:bg-white/5'
+                  ? 'bg-[var(--oterm-accent)]/10 text-[var(--oterm-accent)]'
+                  : 'text-[var(--oterm-muted)] hover:bg-white/5'
               "
               @click="selectedCategoryId = category.id"
             >
@@ -605,11 +605,11 @@ onUnmounted(() => {
               @click="selectEndpoint(endpoint)"
             >
               <div class="truncate font-medium">{{ endpoint.name }}</div>
-              <div class="mt-0.5 truncate text-[10px] text-[var(--warp-muted)]">
+              <div class="mt-0.5 truncate text-[10px] text-[var(--oterm-muted)]">
                 {{ endpointSubtitle(endpoint) }}
               </div>
             </button>
-            <p v-if="filteredEndpoints.length === 0" class="px-2 py-4 text-xs text-[var(--warp-muted)]">
+            <p v-if="filteredEndpoints.length === 0" class="px-2 py-4 text-xs text-[var(--oterm-muted)]">
               No hosts in this view.
             </p>
           </div>
@@ -619,48 +619,48 @@ onUnmounted(() => {
       <section class="flex min-h-0 flex-1 flex-col">
         <div
           v-if="panel === 'edit'"
-          class="warp-scroll min-h-0 flex-1 overflow-auto p-4"
+          class="oterm-scroll min-h-0 flex-1 overflow-auto p-4"
         >
           <h3 class="text-sm font-medium">{{ draft.id ? "Edit host" : "New host" }}</h3>
           <div class="mt-4 grid max-w-xl gap-3">
-            <label class="grid gap-1 text-xs text-[var(--warp-muted)]">
+            <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
               Name
               <input
                 v-model="draft.name"
-                class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-panel)] px-2 py-1.5 text-sm text-[var(--warp-text)]"
+                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
               />
             </label>
-            <label class="grid gap-1 text-xs text-[var(--warp-muted)]">
+            <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
               Host
               <input
                 v-model="draft.host"
-                class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-panel)] px-2 py-1.5 text-sm text-[var(--warp-text)]"
+                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
               />
             </label>
             <div class="grid grid-cols-2 gap-3">
-              <label class="grid gap-1 text-xs text-[var(--warp-muted)]">
+              <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
                 Port
                 <input
                   v-model.number="draft.port"
                   type="number"
                   min="1"
                   max="65535"
-                  class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-panel)] px-2 py-1.5 text-sm text-[var(--warp-text)]"
+                  class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
                 />
               </label>
-              <label class="grid gap-1 text-xs text-[var(--warp-muted)]">
+              <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
                 Username
                 <input
                   v-model="draft.username"
-                  class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-panel)] px-2 py-1.5 text-sm text-[var(--warp-text)]"
+                  class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
                 />
               </label>
             </div>
-            <label class="grid gap-1 text-xs text-[var(--warp-muted)]">
+            <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
               Category
               <select
                 v-model="draft.categoryId"
-                class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-panel)] px-2 py-1.5 text-sm text-[var(--warp-text)]"
+                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
               >
                 <option :value="null">Uncategorized</option>
                 <option v-for="category in categories" :key="category.id" :value="category.id">
@@ -668,11 +668,11 @@ onUnmounted(() => {
                 </option>
               </select>
             </label>
-            <label class="grid gap-1 text-xs text-[var(--warp-muted)]">
+            <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
               Authentication
               <select
                 v-model="draft.authMethod"
-                class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-panel)] px-2 py-1.5 text-sm text-[var(--warp-text)]"
+                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
               >
                 <option value="password">Password</option>
                 <option value="publicKey">Public key</option>
@@ -680,41 +680,41 @@ onUnmounted(() => {
             </label>
             <label
               v-if="draft.authMethod === 'publicKey'"
-              class="grid gap-1 text-xs text-[var(--warp-muted)]"
+              class="grid gap-1 text-xs text-[var(--oterm-muted)]"
             >
               Private key path
               <input
                 v-model="draft.keyPath"
                 placeholder="~/.ssh/id_rsa"
-                class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-panel)] px-2 py-1.5 text-sm text-[var(--warp-text)]"
+                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
               />
             </label>
-            <label class="grid gap-1 text-xs text-[var(--warp-muted)]">
+            <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
               Default SFTP path
               <input
                 v-model="draft.defaultPath"
-                class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-panel)] px-2 py-1.5 text-sm text-[var(--warp-text)]"
+                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
               />
             </label>
-            <label class="grid gap-1 text-xs text-[var(--warp-muted)]">
+            <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
               Notes
               <textarea
                 v-model="draft.notes"
                 rows="3"
-                class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-panel)] px-2 py-1.5 text-sm text-[var(--warp-text)]"
+                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
               />
             </label>
             <div class="flex gap-2 pt-2">
               <button
                 type="button"
-                class="rounded-md border border-[var(--warp-accent)]/40 px-3 py-1.5 text-xs text-[var(--warp-accent)] hover:bg-[var(--warp-accent)]/10"
+                class="rounded-md border border-[var(--oterm-accent)]/40 px-3 py-1.5 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10"
                 @click="saveEndpointDraft"
               >
                 Save host
               </button>
               <button
                 type="button"
-                class="rounded-md border border-[var(--warp-border)] px-3 py-1.5 text-xs hover:bg-white/5"
+                class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs hover:bg-white/5"
                 @click="panel = 'browse'"
               >
                 Cancel
@@ -724,17 +724,17 @@ onUnmounted(() => {
         </div>
 
         <template v-else-if="selectedEndpoint">
-          <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--warp-border)] px-4 py-3">
+          <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--oterm-border)] px-4 py-3">
             <div class="min-w-0">
               <div class="truncate text-sm font-medium">{{ selectedEndpoint.name }}</div>
-              <div class="truncate text-xs text-[var(--warp-muted)]">
+              <div class="truncate text-xs text-[var(--oterm-muted)]">
                 {{ endpointSubtitle(selectedEndpoint) }}
               </div>
             </div>
             <div class="flex-1" />
             <button
               type="button"
-              class="rounded border border-[var(--warp-accent)]/40 px-2 py-1 text-xs text-[var(--warp-accent)] hover:bg-[var(--warp-accent)]/10 disabled:opacity-50"
+              class="rounded border border-[var(--oterm-accent)]/40 px-2 py-1 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10 disabled:opacity-50"
               :disabled="busy"
               @click="openTerminal(selectedEndpoint)"
             >
@@ -743,7 +743,7 @@ onUnmounted(() => {
             <button
               v-if="!activeSession || activeSession.endpointId !== selectedEndpoint.id"
               type="button"
-              class="rounded border border-[var(--warp-accent)]/40 px-2 py-1 text-xs text-[var(--warp-accent)] hover:bg-[var(--warp-accent)]/10 disabled:opacity-50"
+              class="rounded border border-[var(--oterm-accent)]/40 px-2 py-1 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10 disabled:opacity-50"
               :disabled="busy"
               @click="connectSftp(selectedEndpoint)"
             >
@@ -752,7 +752,7 @@ onUnmounted(() => {
             <button
               v-else
               type="button"
-              class="rounded border border-[var(--warp-border)] px-2 py-1 text-xs hover:bg-white/5 disabled:opacity-50"
+              class="rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5 disabled:opacity-50"
               :disabled="busy"
               @click="disconnectSftp"
             >
@@ -760,14 +760,14 @@ onUnmounted(() => {
             </button>
             <button
               type="button"
-              class="rounded border border-[var(--warp-border)] px-2 py-1 text-xs hover:bg-white/5"
+              class="rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
               @click="startEditEndpoint(selectedEndpoint)"
             >
               Edit
             </button>
             <button
               type="button"
-              class="rounded border border-[var(--warp-danger)]/40 px-2 py-1 text-xs text-[var(--warp-danger)] hover:bg-[var(--warp-danger)]/10"
+              class="rounded border border-[var(--oterm-danger)]/40 px-2 py-1 text-xs text-[var(--oterm-danger)] hover:bg-[var(--oterm-danger)]/10"
               @click="deleteEndpoint(selectedEndpoint)"
             >
               Delete
@@ -778,7 +778,7 @@ onUnmounted(() => {
             v-if="activeSession && activeSession.endpointId === selectedEndpoint.id"
             class="flex min-h-0 flex-1 flex-col"
           >
-            <div class="flex flex-wrap items-center gap-1 border-b border-[var(--warp-border)] px-4 py-2 text-xs">
+            <div class="flex flex-wrap items-center gap-1 border-b border-[var(--oterm-border)] px-4 py-2 text-xs">
               <button
                 type="button"
                 class="rounded px-1.5 py-0.5 hover:bg-white/5 disabled:opacity-40"
@@ -788,7 +788,7 @@ onUnmounted(() => {
                 Up
               </button>
               <template v-for="(segment, index) in pathSegments" :key="`${segment}-${index}`">
-                <span class="text-[var(--warp-faint)]">/</span>
+                <span class="text-[var(--oterm-faint)]">/</span>
                 <button
                   type="button"
                   class="rounded px-1.5 py-0.5 hover:bg-white/5"
@@ -800,7 +800,7 @@ onUnmounted(() => {
               <div class="flex-1" />
               <button
                 type="button"
-                class="rounded border border-[var(--warp-border)] px-2 py-0.5 hover:bg-white/5 disabled:opacity-50"
+                class="rounded border border-[var(--oterm-border)] px-2 py-0.5 hover:bg-white/5 disabled:opacity-50"
                 :disabled="busy"
                 @click="pickUploadFiles"
               >
@@ -808,7 +808,7 @@ onUnmounted(() => {
               </button>
               <button
                 type="button"
-                class="rounded border border-[var(--warp-border)] px-2 py-0.5 hover:bg-white/5 disabled:opacity-50"
+                class="rounded border border-[var(--oterm-border)] px-2 py-0.5 hover:bg-white/5 disabled:opacity-50"
                 :disabled="busy"
                 @click="createRemoteFolder"
               >
@@ -816,7 +816,7 @@ onUnmounted(() => {
               </button>
               <button
                 type="button"
-                class="rounded border border-[var(--warp-border)] px-2 py-0.5 hover:bg-white/5 disabled:opacity-50"
+                class="rounded border border-[var(--oterm-border)] px-2 py-0.5 hover:bg-white/5 disabled:opacity-50"
                 :disabled="busy"
                 @click="loadRemoteDir(activeSession.path)"
               >
@@ -831,34 +831,34 @@ onUnmounted(() => {
               />
             </div>
 
-            <div class="warp-scroll min-h-0 flex-1 overflow-auto p-4">
+            <div class="oterm-scroll min-h-0 flex-1 overflow-auto p-4">
               <div
                 v-for="entry in activeSession.entries"
                 :key="entry.path"
-                class="mb-1 grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg border border-[var(--warp-border)] bg-[var(--warp-panel)] px-3 py-2 text-sm hover:bg-white/[0.02]"
+                class="mb-1 grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-3 py-2 text-sm hover:bg-white/[0.02]"
                 @click="openRemoteEntry(entry)"
               >
                 <div class="min-w-0">
                   <div class="truncate font-medium">
                     {{ entry.isDir ? "📁" : "📄" }} {{ entry.name }}
                   </div>
-                  <div class="truncate text-[10px] text-[var(--warp-muted)]">{{ entry.path }}</div>
+                  <div class="truncate text-[10px] text-[var(--oterm-muted)]">{{ entry.path }}</div>
                 </div>
-                <div class="text-xs text-[var(--warp-muted)]">
+                <div class="text-xs text-[var(--oterm-muted)]">
                   {{ entry.isDir ? "folder" : formatSize(entry.size) }}
                 </div>
                 <div class="flex items-center gap-1" @click.stop>
                   <button
                     v-if="!entry.isDir"
                     type="button"
-                    class="rounded border border-[var(--warp-accent)]/40 px-2 py-0.5 text-xs text-[var(--warp-accent)] hover:bg-[var(--warp-accent)]/10"
+                    class="rounded border border-[var(--oterm-accent)]/40 px-2 py-0.5 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10"
                     @click="downloadRemoteEntry(entry)"
                   >
                     Download
                   </button>
                   <button
                     type="button"
-                    class="rounded border border-[var(--warp-danger)]/40 px-2 py-0.5 text-xs text-[var(--warp-danger)] hover:bg-[var(--warp-danger)]/10"
+                    class="rounded border border-[var(--oterm-danger)]/40 px-2 py-0.5 text-xs text-[var(--oterm-danger)] hover:bg-[var(--oterm-danger)]/10"
                     @click="deleteRemoteEntry(entry)"
                   >
                     Delete
@@ -867,7 +867,7 @@ onUnmounted(() => {
               </div>
               <p
                 v-if="activeSession.entries.length === 0"
-                class="py-8 text-center text-sm text-[var(--warp-muted)]"
+                class="py-8 text-center text-sm text-[var(--oterm-muted)]"
               >
                 This folder is empty.
               </p>
@@ -876,10 +876,10 @@ onUnmounted(() => {
 
           <div
             v-else
-            class="flex flex-1 items-center justify-center px-6 text-center text-sm text-[var(--warp-muted)]"
+            class="flex flex-1 items-center justify-center px-6 text-center text-sm text-[var(--oterm-muted)]"
           >
             <div>
-              <p class="font-medium text-[var(--warp-text)]">{{ selectedEndpoint.name }}</p>
+              <p class="font-medium text-[var(--oterm-text)]">{{ selectedEndpoint.name }}</p>
               <p class="mt-1">{{ selectedEndpoint.notes || "Connect SFTP to browse remote files." }}</p>
             </div>
           </div>
@@ -887,7 +887,7 @@ onUnmounted(() => {
 
         <div
           v-else
-          class="flex flex-1 items-center justify-center px-6 text-center text-sm text-[var(--warp-muted)]"
+          class="flex flex-1 items-center justify-center px-6 text-center text-sm text-[var(--oterm-muted)]"
         >
           Select a host or create a new one.
         </div>
@@ -900,30 +900,30 @@ onUnmounted(() => {
       @click.self="cancelSecretPrompt"
     >
       <form
-        class="w-full max-w-sm rounded-xl border border-[var(--warp-border-strong)] bg-[var(--warp-elevated)] p-4 shadow-2xl"
+        class="w-full max-w-sm rounded-xl border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] p-4 shadow-2xl"
         @submit.prevent="secretPrompt?.onSubmit(secretPrompt.value)"
       >
         <h3 class="text-sm font-medium">{{ secretPrompt.title }}</h3>
-        <label class="mt-3 grid gap-1 text-xs text-[var(--warp-muted)]">
+        <label class="mt-3 grid gap-1 text-xs text-[var(--oterm-muted)]">
           {{ secretPrompt.label }}
           <input
             v-model="secretPrompt.value"
             type="password"
             autofocus
-            class="rounded-md border border-[var(--warp-border)] bg-[var(--warp-panel)] px-2 py-1.5 text-sm"
+            class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm"
           />
         </label>
         <div class="mt-4 flex justify-end gap-2">
           <button
             type="button"
-            class="rounded-md border border-[var(--warp-border)] px-3 py-1.5 text-xs hover:bg-white/5"
+            class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs hover:bg-white/5"
             @click="cancelSecretPrompt"
           >
             Cancel
           </button>
           <button
             type="submit"
-            class="rounded-md border border-[var(--warp-accent)]/40 px-3 py-1.5 text-xs text-[var(--warp-accent)] hover:bg-[var(--warp-accent)]/10"
+            class="rounded-md border border-[var(--oterm-accent)]/40 px-3 py-1.5 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10"
           >
             Continue
           </button>

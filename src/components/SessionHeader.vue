@@ -22,16 +22,16 @@ const oscTitle = computed(() => props.pane?.oscTitle?.trim() ?? "");
 
 <template>
   <div
-    class="drag-region flex h-9 shrink-0 items-center border-b border-[var(--warp-border)] bg-[var(--warp-panel)] px-4"
+    class="drag-region flex h-9 shrink-0 items-center border-b border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-4"
     data-tauri-drag-region
     @mousedown="startDrag"
   >
-    <span class="truncate text-xs text-[var(--warp-muted)]">
-      <span class="text-[var(--warp-text)]">
+    <span class="truncate text-xs text-[var(--oterm-muted)]">
+      <span class="text-[var(--oterm-text)]">
         {{ manualTabTitle ? tabTitle : (oscTitle || shellLabel) }}
       </span>
-      <span class="text-[var(--warp-faint)]"> / </span>
-      <span class="text-[var(--warp-text)]">{{ pane?.cwd ?? "~" }}</span>
+      <span class="text-[var(--oterm-faint)]"> / </span>
+      <span class="text-[var(--oterm-text)]">{{ pane?.cwd ?? "~" }}</span>
     </span>
   </div>
 </template>

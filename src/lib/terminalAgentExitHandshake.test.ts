@@ -4,7 +4,7 @@ import { applyAgentExitHandshakeFromOutput } from "./terminalAgentExitHandshake"
 describe("applyAgentExitHandshakeFromOutput", () => {
   it("sets exit confirm pending before prompt-based badge clear", () => {
     const chunk =
-      "Press Ctrl+D again to exit\r\nPS C:\\Users\\Filip\\Desktop\\oterm> ";
+      "Press Ctrl+D again to exit\r\nPS C:\\Users\\Oerum\\Desktop\\oterm> ";
 
     const next = applyAgentExitHandshakeFromOutput(chunk, {
       activeAgentId: "agy",
@@ -38,7 +38,7 @@ describe("applyAgentExitHandshakeFromOutput", () => {
   });
 
   it("keeps the badge during agy screen refresh with an embedded shell prompt", () => {
-    const chunk = "\x1b[2J\x1b[H\r\nPS C:\\Users\\Filip\\Desktop\\oterm> ";
+    const chunk = "\x1b[2J\x1b[H\r\nPS C:\\Users\\Oerum\\Desktop\\oterm> ";
 
     const next = applyAgentExitHandshakeFromOutput(chunk, {
       activeAgentId: "agy",
@@ -47,12 +47,12 @@ describe("applyAgentExitHandshakeFromOutput", () => {
 
     expect(next.activeAgentId).toBe("agy");
     expect(next.trailingPrompt).toEqual({
-      cwd: "C:\\Users\\Filip\\Desktop\\oterm",
+      cwd: "C:\\Users\\Oerum\\Desktop\\oterm",
     });
   });
 
   it("clears agy after a real return-to-shell prompt", () => {
-    const next = applyAgentExitHandshakeFromOutput("PS C:\\Users\\Filip\\Desktop\\oterm> ", {
+    const next = applyAgentExitHandshakeFromOutput("PS C:\\Users\\Oerum\\Desktop\\oterm> ", {
       activeAgentId: "agy",
       agentExitConfirmPending: false,
       promptClearSuppressUntil: 0,
@@ -63,7 +63,7 @@ describe("applyAgentExitHandshakeFromOutput", () => {
 
   it("keeps copilot badge during startup shell prompt inside launch suppress window", () => {
     const chunk =
-      "Welcome to GitHub Copilot\r\nPS C:\\Users\\Filip\\Desktop\\oterm> ";
+      "Welcome to GitHub Copilot\r\nPS C:\\Users\\Oerum\\Desktop\\oterm> ";
 
     const next = applyAgentExitHandshakeFromOutput(chunk, {
       activeAgentId: "copilot",
@@ -73,12 +73,12 @@ describe("applyAgentExitHandshakeFromOutput", () => {
 
     expect(next.activeAgentId).toBe("copilot");
     expect(next.trailingPrompt).toEqual({
-      cwd: "C:\\Users\\Filip\\Desktop\\oterm",
+      cwd: "C:\\Users\\Oerum\\Desktop\\oterm",
     });
   });
 
   it("clears copilot after return-to-shell once launch suppress window expired", () => {
-    const chunk = "PS C:\\Users\\Filip\\Desktop\\oterm> ";
+    const chunk = "PS C:\\Users\\Oerum\\Desktop\\oterm> ";
 
     const next = applyAgentExitHandshakeFromOutput(chunk, {
       activeAgentId: "copilot",
@@ -88,7 +88,7 @@ describe("applyAgentExitHandshakeFromOutput", () => {
 
     expect(next.activeAgentId).toBeNull();
     expect(next.trailingPrompt).toEqual({
-      cwd: "C:\\Users\\Filip\\Desktop\\oterm",
+      cwd: "C:\\Users\\Oerum\\Desktop\\oterm",
     });
   });
 });

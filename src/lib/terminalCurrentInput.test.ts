@@ -8,14 +8,14 @@ import {
 
 describe("extractInputAfterPrompt", () => {
   it("strips PowerShell prompts", () => {
-    expect(extractInputAfterPrompt("PS C:\\Users\\Filip\\Desktop\\oterm> hello")).toBe(
+    expect(extractInputAfterPrompt("PS C:\\Users\\Oerum\\Desktop\\oterm> hello")).toBe(
       "hello",
     );
     expect(extractInputAfterPrompt("PS D:\\Projects> ")).toBe("");
   });
 
   it("strips CMD prompts", () => {
-    expect(extractInputAfterPrompt("C:\\Users\\Filip> dir")).toBe("dir");
+    expect(extractInputAfterPrompt("C:\\Users\\Oerum> dir")).toBe("dir");
     expect(extractInputAfterPrompt("C:\\Projects\\myapp> ")).toBe("");
   });
 
@@ -43,7 +43,7 @@ describe("extractInputAfterPrompt", () => {
     expect(extractInputAfterPrompt('user@host:~$ git commit -m "fixes #12"')).toBe(
       'git commit -m "fixes #12"',
     );
-    expect(extractInputAfterPrompt('C:\\Users\\Filip> echo "hello > world"')).toBe(
+    expect(extractInputAfterPrompt('C:\\Users\\Oerum> echo "hello > world"')).toBe(
       'echo "hello > world"',
     );
   });

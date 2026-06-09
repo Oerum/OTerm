@@ -1,7 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   CreatePullRequestInput,
+  PrChangedFile,
+  PrCheck,
+  PrCommit,
   PrProviderInfo,
+  PullRequestDetail,
   PullRequestSummary,
 } from "../types/pullRequest";
 
@@ -14,6 +18,37 @@ export function listPullRequests(
   includeClosed = false,
 ): Promise<PullRequestSummary[]> {
   return invoke<PullRequestSummary[]>("pr_list", { repoRoot, includeClosed });
+}
+
+export function viewPullRequest(
+  repoRoot: string,
+  number: number,
+): Promise<PullRequestDetail> {
+  return invoke<PullRequestDetail>("pr_view", { repoRoot, number });
+}
+
+export function listPrCommits(repoRoot: string, number: number): Promise<PrCommit[]> {
+  return invoke<PrCommit[]>("pr_commits", { repoRoot, number });
+}
+
+export function listPrChecks(repoRoot: string, number: number): Promise<PrCheck[]> {
+  return invoke<PrCheck[]>("pr_checks", { repoRoot, number });
+}
+
+export function listPrFiles(repoRoot: string, number: number): Promise<PrChangedFile[]> {
+  return invoke<PrChangedFile[]>("pr_files", { repoRoot, number });
+}
+
+export function getPrDiff(repoRoot: string, number: number): Promise<string> {
+  return invoke<string>("pr_diff", { repoRoot, number });
+}
+
+export function commentOnPullRequest(
+  repoRoot: string,
+  number: number,
+  body: string,
+): Promise<void> {
+  return invoke("pr_comment", { repoRoot, number, body });
 }
 
 export function createPullRequest(input: CreatePullRequestInput): Promise<PullRequestSummary> {
