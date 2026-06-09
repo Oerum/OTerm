@@ -8,6 +8,11 @@ pub fn terminal_list_shells(manager: State<'_, PtyManager>) -> Vec<ShellProfile>
 }
 
 #[tauri::command]
+pub fn terminal_default_shell_id() -> String {
+    crate::terminal::profiles::default_shell_id()
+}
+
+#[tauri::command]
 pub fn terminal_spawn(
     app: tauri::AppHandle,
     manager: State<'_, PtyManager>,

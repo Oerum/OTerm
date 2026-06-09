@@ -6,6 +6,10 @@ export function listShells(): Promise<ShellProfile[]> {
   return invoke<ShellProfile[]>("terminal_list_shells");
 }
 
+export function getDefaultShellId(): Promise<string> {
+  return invoke<string>("terminal_default_shell_id");
+}
+
 export function spawnTerminal(
   shellId: string,
   cols: number,
