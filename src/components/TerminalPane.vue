@@ -740,8 +740,15 @@ async function disposeSession() {
   emit("sessionEnded", props.paneId);
 }
 
+async function scheduleTerminalFocus() {
+  if (!props.active || !props.tabActive || !terminal) return;
+  await nextTick();
+  if (!props.active || !props.tabActive || !terminal) return;
+  terminal.focus();
+}
+
 function focusTerminal() {
-  terminal?.focus();
+  void scheduleTerminalFocus();
 }
 
 defineExpose({
@@ -756,15 +763,15 @@ onMounted(async () => {
 });
 
 watch(
-  () => props.active,
-  (active) => {
-    if (active) {
+  () => [props.active, props.tabActive] as const,
+  ([active, tabActive]) => {
+    if (active && tabActive) {
       awaitingOutputSinceFocus.value = false;
       window.clearTimeout(outputNotifyTimer);
-      terminal?.focus();
+      void scheduleTerminalFocus();
       void handleResize();
       scheduleSuggestion();
-    } else {
+    } else if (!active) {
       clearSuggestion();
     }
   },

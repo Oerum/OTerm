@@ -28,6 +28,14 @@ pub struct GraphCommit {
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CommitGraphPage {
+    pub commits: Vec<GraphCommit>,
+    pub has_more: bool,
+    pub next_skip: u32,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CommitDetails {
     pub hash: String,
     pub short_hash: String,
@@ -98,25 +106,58 @@ pub fn list_branch_refs(repo_root: String) -> Result<Vec<BranchRefInfo>, String>
     Ok(refs)
 }
 
-pub fn read_commit_graph(repo_root: String, limit: u32) -> Result<Vec<GraphCommit>, String> {
+pub fn read_commit_graph(
+    repo_root: String,
+    limit: u32,
+    skip: u32,
+    scope: &str,
+) -> Result<CommitGraphPage, String> {
     let root = PathBuf::from(&repo_root);
     let count = limit.clamp(1, 500);
-    let output = git_output(
-        &root,
-        &[
-            "log",
-            "--all",
-            "--topo-order",
-            &format!("-n{count}"),
-            "--pretty=format:%H|%P|%h|%s|%an|%ai|%d",
-        ],
-    )?;
+    let pretty = "--pretty=format:%H|%P|%h|%s|%an|%ai|%d";
 
-    Ok(output
+    let mut args: Vec<String> = vec![
+        "log".into(),
+        "--topo-order".into(),
+        format!("-n{count}"),
+        format!("--skip={skip}"),
+        pretty.into(),
+    ];
+
+    if scope == "all" {
+        args.insert(1, "--all".into());
+    } else {
+        args.push("HEAD".into());
+    }
+
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let output = git_output(&root, &arg_refs)?;
+
+    let raw_line_count = output
         .lines()
         .filter(|line| !line.trim().is_empty())
-        .filter_map(parse_graph_line)
-        .collect())
+        .count() as u32;
+    let commits = dedupe_graph_commits(
+        output
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .filter_map(parse_graph_line)
+            .collect(),
+    );
+
+    Ok(CommitGraphPage {
+        has_more: raw_line_count >= count,
+        next_skip: skip.saturating_add(raw_line_count),
+        commits,
+    })
+}
+
+fn dedupe_graph_commits(commits: Vec<GraphCommit>) -> Vec<GraphCommit> {
+    let mut seen = std::collections::HashSet::new();
+    commits
+        .into_iter()
+        .filter(|commit| seen.insert(commit.hash.clone()))
+        .collect()
 }
 
 pub fn read_commit_details(repo_root: String, hash: String) -> Result<CommitDetails, String> {
@@ -354,5 +395,26 @@ mod tests {
     #[test]
     fn parses_track_string() {
         assert_eq!(parse_track("[ahead 2, behind 1]"), (2, 1));
+    }
+
+    #[test]
+    fn dedupes_graph_commits_by_hash() {
+        let sample = |hash: &str| GraphCommit {
+            hash: hash.into(),
+            short_hash: hash[..1.min(hash.len())].into(),
+            parents: vec![],
+            subject: "s".into(),
+            author: "a".into(),
+            date: "d".into(),
+            decorations: String::new(),
+        };
+        let deduped = dedupe_graph_commits(vec![
+            sample("aaa"),
+            sample("aaa"),
+            sample("bbb"),
+        ]);
+        assert_eq!(deduped.len(), 2);
+        assert_eq!(deduped[0].hash, "aaa");
+        assert_eq!(deduped[1].hash, "bbb");
     }
 }

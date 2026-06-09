@@ -3,8 +3,8 @@ import type { GitCommitEntry } from "../types/git";
 import type {
   BranchRefInfo,
   CommitDetails,
+  CommitGraphPage,
   CompareResult,
-  GraphCommit,
   ResetMode,
 } from "../types/branchManager";
 
@@ -12,8 +12,20 @@ export function listBranchRefs(repoRoot: string): Promise<BranchRefInfo[]> {
   return invoke<BranchRefInfo[]>("git_list_branch_refs", { repoRoot });
 }
 
-export function getCommitGraph(repoRoot: string, limit = 200): Promise<GraphCommit[]> {
-  return invoke<GraphCommit[]>("git_commit_graph", { repoRoot, limit });
+export type GraphScope = "branch" | "all";
+
+export type CommitGraphOptions = {
+  limit?: number;
+  skip?: number;
+  scope?: GraphScope;
+};
+
+export function getCommitGraph(
+  repoRoot: string,
+  options: CommitGraphOptions = {},
+): Promise<CommitGraphPage> {
+  const { limit = 50, skip = 0, scope = "branch" } = options;
+  return invoke<CommitGraphPage>("git_commit_graph", { repoRoot, limit, skip, scope });
 }
 
 export function getCommitDetails(repoRoot: string, hash: string): Promise<CommitDetails> {

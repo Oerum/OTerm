@@ -1,9 +1,11 @@
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use std::io::{Read, Write};
 use std::time::{Duration, Instant};
 
-#[test]
-fn pwsh_reads_and_writes_in_pty() {
+fn open_pty_shell(
+    program: &str,
+    args: &[&str],
+) -> Option<(Box<dyn MasterPty + Send>, Box<dyn portable_pty::Child + Send + Sync>)> {
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -14,12 +16,53 @@ fn pwsh_reads_and_writes_in_pty() {
         })
         .expect("openpty");
 
-    let mut cmd = CommandBuilder::new("pwsh");
-    cmd.arg("-NoLogo");
+    let mut cmd = CommandBuilder::new(program);
+    for arg in args {
+        cmd.arg(arg.to_string());
+    }
 
-    let _child = pair.slave.spawn_command(cmd).expect("spawn pwsh");
-    let mut writer = pair.master.take_writer().expect("writer");
-    let mut reader = pair.master.try_clone_reader().expect("reader");
+    let child = pair.slave.spawn_command(cmd).ok()?;
+    drop(pair.slave);
+    let master: Box<dyn MasterPty + Send> = pair.master;
+    Some((master, child))
+}
+
+fn open_pwsh_pty() -> Option<(Box<dyn MasterPty + Send>, Box<dyn portable_pty::Child + Send + Sync>)> {
+    open_pty_shell("pwsh", &["-NoLogo"])
+}
+
+fn open_cmd_pty() -> Option<(Box<dyn MasterPty + Send>, Box<dyn portable_pty::Child + Send + Sync>)> {
+    open_pty_shell("cmd", &["/Q", "/K"])
+}
+
+#[test]
+fn shell_exits_on_exit_command() {
+    let (master, mut child) = open_pwsh_pty()
+        .or_else(open_cmd_pty)
+        .expect("pwsh or cmd must be available for PTY integration tests");
+    let mut writer = master.take_writer().expect("writer");
+
+    std::thread::sleep(Duration::from_millis(750));
+    writer.write_all(b"exit\r\n").expect("write exit");
+    writer.flush().expect("flush");
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline {
+        if child.try_wait().ok().flatten().is_some() {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+
+    panic!("shell did not exit after exit command within timeout");
+}
+
+#[test]
+fn pwsh_reads_and_writes_in_pty() {
+    let (master, _child) =
+        open_pwsh_pty().expect("pwsh must be available for PTY integration tests");
+    let mut writer = master.take_writer().expect("writer");
+    let mut reader = master.try_clone_reader().expect("reader");
 
     writer
         .write_all(b"echo oterm-pty-test\r")

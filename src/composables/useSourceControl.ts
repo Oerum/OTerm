@@ -64,6 +64,8 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     }
   }
 
+  const graphRefreshToken = ref(0);
+
   async function refreshData(includeHistory = false) {
     const path = cwd.value;
     if (!path || path === "~") {
@@ -83,6 +85,7 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
         if (includeHistory) {
           history.value = await getGitLog(next.repoRoot);
         }
+        graphRefreshToken.value += 1;
       } else {
         branches.value = emptyBranches();
         history.value = [];
@@ -223,6 +226,7 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     status,
     branches,
     history,
+    graphRefreshToken,
     loading,
     operation,
     operationLabel,

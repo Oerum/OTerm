@@ -18,8 +18,10 @@ struct PtySession {
     master: Mutex<Box<dyn MasterPty + Send>>,
     writer: Mutex<Box<dyn Write + Send>>,
     pending_output: Arc<Mutex<String>>,
-    _child: Box<dyn portable_pty::Child + Send + Sync>,
+    child: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
     agent_poll_cancel: Arc<AtomicBool>,
+    exit_watch_cancel: Arc<AtomicBool>,
+    exit_emitted: Arc<AtomicBool>,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -86,6 +88,10 @@ impl PtyManager {
             .slave
             .spawn_command(cmd)
             .map_err(|err| err.to_string())?;
+        // Release the slave handle so ConPTY can signal EOF on the master when the
+        // shell exits (required on Windows; see portable-pty whoami example).
+        drop(pair.slave);
+
         let root_pid = child
             .process_id()
             .ok_or_else(|| "Failed to get shell process id".to_string())?;
@@ -95,12 +101,18 @@ impl PtyManager {
 
         let pending_output = Arc::new(Mutex::new(String::new()));
         let agent_poll_cancel = Arc::new(AtomicBool::new(false));
+        let exit_watch_cancel = Arc::new(AtomicBool::new(false));
+        let exit_emitted = Arc::new(AtomicBool::new(false));
+        let child = Arc::new(Mutex::new(child));
+
         let session = PtySession {
             master: Mutex::new(master),
             writer: Mutex::new(writer),
             pending_output: Arc::clone(&pending_output),
-            _child: child,
+            child: Arc::clone(&child),
             agent_poll_cancel: Arc::clone(&agent_poll_cancel),
+            exit_watch_cancel: Arc::clone(&exit_watch_cancel),
+            exit_emitted: Arc::clone(&exit_emitted),
         };
 
         self.sessions
@@ -108,7 +120,20 @@ impl PtyManager {
             .map_err(|_| "Session lock poisoned".to_string())?
             .insert(session_id.clone(), session);
 
-        spawn_reader(app.clone(), session_id.clone(), reader, pending_output);
+        spawn_reader(
+            app.clone(),
+            session_id.clone(),
+            reader,
+            pending_output,
+            Arc::clone(&exit_emitted),
+        );
+        spawn_child_exit_watcher(
+            app.clone(),
+            session_id.clone(),
+            child,
+            exit_watch_cancel,
+            exit_emitted,
+        );
         spawn_agent_poller(app, session_id.clone(), root_pid, agent_poll_cancel);
         Ok(session_id)
     }
@@ -185,6 +210,13 @@ impl PtyManager {
         session
             .agent_poll_cancel
             .store(true, Ordering::Relaxed);
+        session
+            .exit_watch_cancel
+            .store(true, Ordering::Relaxed);
+        session.exit_emitted.store(true, Ordering::Relaxed);
+        if let Ok(mut child) = session.child.lock() {
+            let _ = child.kill();
+        }
         Ok(())
     }
 }
@@ -201,6 +233,40 @@ fn emit_output(app: &AppHandle, session_id: &str, data: String) {
         data,
     };
     let _ = app.emit("terminal-output", payload);
+}
+
+fn emit_terminal_exit(app: &AppHandle, session_id: &str, exit_emitted: &Arc<AtomicBool>) {
+    if exit_emitted.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    let payload = TerminalExitEvent {
+        session_id: session_id.to_string(),
+    };
+    let _ = app.emit("terminal-exit", payload);
+}
+
+fn spawn_child_exit_watcher(
+    app: AppHandle,
+    session_id: String,
+    child: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
+    cancel: Arc<AtomicBool>,
+    exit_emitted: Arc<AtomicBool>,
+) {
+    thread::spawn(move || {
+        while !cancel.load(Ordering::Relaxed) {
+            let exited = child
+                .lock()
+                .map(|mut c| c.try_wait().ok().flatten().is_some())
+                .unwrap_or(false);
+            if exited {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        if !cancel.load(Ordering::Relaxed) {
+            emit_terminal_exit(&app, &session_id, &exit_emitted);
+        }
+    });
 }
 
 fn spawn_agent_poller(
@@ -236,6 +302,7 @@ fn spawn_reader(
     session_id: String,
     mut reader: Box<dyn Read + Send>,
     pending_output: Arc<Mutex<String>>,
+    exit_emitted: Arc<AtomicBool>,
 ) {
     thread::spawn(move || {
         let mut buffer = [0u8; 8192];
@@ -261,9 +328,6 @@ fn spawn_reader(
                 }
             }
         }
-        let payload = TerminalExitEvent {
-            session_id: session_id.clone(),
-        };
-        let _ = app.emit("terminal-exit", payload);
+        emit_terminal_exit(&app, &session_id, &exit_emitted);
     });
 }

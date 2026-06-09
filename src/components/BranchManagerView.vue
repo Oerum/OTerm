@@ -81,14 +81,14 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    const [branchRows, graphRows] = await Promise.all([
+    const [branchRows, graphPage] = await Promise.all([
       listBranchRefs(props.repoRoot),
-      getCommitGraph(props.repoRoot, 250),
+      getCommitGraph(props.repoRoot, { limit: 250, scope: "all" }),
     ]);
     branches.value = branchRows;
-    graph.value = graphRows;
-    if (!selectedHash.value && graphRows.length > 0) {
-      selectedHash.value = graphRows[0].hash;
+    graph.value = graphPage.commits;
+    if (!selectedHash.value && graphPage.commits.length > 0) {
+      selectedHash.value = graphPage.commits[0].hash;
     }
     await refreshSyncMarkers();
     await loadDetails();

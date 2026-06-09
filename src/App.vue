@@ -131,6 +131,7 @@ const {
   status: sourceControlStatus,
   branches: gitBranches,
   history: gitHistory,
+  graphRefreshToken: gitGraphRefreshToken,
   loading: sourceControlLoading,
   operation: sourceControlOperation,
   operationLabel: sourceControlOperationLabel,
@@ -892,7 +893,9 @@ onUnmounted(() => {
           :operation="sourceControlOperation"
           :operation-label="sourceControlOperationLabel"
           :panel-width="sourceControlWidth"
+          :graph-refresh-token="gitGraphRefreshToken"
           @refresh="() => runGitAction(refreshSourceControl)"
+          @expand-panel="ensureDiffPaneWidth"
           @stage="(paths) => runGitAction(() => stageGitPaths(paths))"
           @unstage="(paths) => runGitAction(() => unstageGitPaths(paths))"
           @revert="(paths, untracked) => runGitAction(() => revertGitPaths(paths, untracked))"

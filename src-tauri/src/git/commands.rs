@@ -1,8 +1,8 @@
 use super::branches::{
     cherry_pick_commit, checkout_detached, compare_commits, create_branch, create_tag,
     list_branch_refs, list_incoming_outgoing, read_commit_details, read_commit_graph,
-    reset_commit, revert_commit, squash_commits, BranchRefInfo, CommitDetails, CompareResult,
-    GraphCommit,
+    reset_commit, revert_commit, squash_commits, BranchRefInfo, CommitDetails, CommitGraphPage,
+    CompareResult,
 };
 use super::issues::{
     create_branch_from_issue, list_issues, view_issue, IssueDetail, IssueListFilters, IssueSummary,
@@ -261,9 +261,13 @@ pub async fn git_list_branch_refs(repo_root: String) -> Result<Vec<BranchRefInfo
 pub async fn git_commit_graph(
     repo_root: String,
     limit: Option<u32>,
-) -> Result<Vec<GraphCommit>, String> {
-    let count = limit.unwrap_or(200);
-    blocking_git(move || read_commit_graph(repo_root, count)).await
+    skip: Option<u32>,
+    scope: Option<String>,
+) -> Result<CommitGraphPage, String> {
+    let count = limit.unwrap_or(50);
+    let skip = skip.unwrap_or(0);
+    let scope = scope.unwrap_or_else(|| "branch".into());
+    blocking_git(move || read_commit_graph(repo_root, count, skip, &scope)).await
 }
 
 #[tauri::command]

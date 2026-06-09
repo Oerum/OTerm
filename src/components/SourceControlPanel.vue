@@ -4,7 +4,9 @@ import {
   SOURCE_CONTROL_DIFF_PANE_MIN_WIDTH,
   SOURCE_CONTROL_FILE_LIST_WIDTH,
 } from "../composables/useResizablePanel";
+import { getCommitDetails } from "../lib/branchManagerApi";
 import { getGitFileDiff, getGitStagedDiff, readGitWorkingFile, writeGitWorkingFile } from "../lib/gitApi";
+import type { CommitDetails } from "../types/branchManager";
 import { generateCommitAiCompletion } from "../lib/commitAiApi";
 import { useCommitAiSettings } from "../lib/commitAiSettings";
 import {
@@ -21,6 +23,7 @@ import type {
   GitSourceControlStatus,
   SelectedGitFile,
 } from "../types/git";
+import GitCommitGraph from "./GitCommitGraph.vue";
 import GitDiffViewer from "./GitDiffViewer.vue";
 import GitFileEditor from "./GitFileEditor.vue";
 import GitFileLineStats from "./GitFileLineStats.vue";
@@ -44,6 +47,7 @@ const props = defineProps<{
   operation: GitOperation | null;
   operationLabel: string | null;
   panelWidth: number;
+  graphRefreshToken: number;
 }>();
 
 const emit = defineEmits<{
@@ -62,6 +66,7 @@ const emit = defineEmits<{
   "stage-hunk": [path: string, patch: string];
   "unstage-hunk": [path: string, patch: string];
   "diff-expanded-change": [expanded: boolean];
+  "expand-panel": [];
 }>();
 
 const { settings: commitAiSettings } = useCommitAiSettings();
@@ -71,6 +76,8 @@ const commitAiSettingsOpen = ref(false);
 const generatingCommit = ref(false);
 const generateError = ref<string | null>(null);
 const selectedFile = ref<SelectedGitFile | null>(null);
+const selectedCommitHash = ref<string | null>(null);
+const commitDetails = ref<CommitDetails | null>(null);
 const paneView = ref<PaneView>("diff");
 const diffContent = ref("");
 const diffLoading = ref(false);
@@ -383,6 +390,17 @@ function confirmDiscardEdits(): boolean {
   return window.confirm("Discard unsaved changes?");
 }
 
+function selectCommit(hash: string) {
+  if (selectedCommitHash.value === hash) return;
+  if (!confirmDiscardEdits()) return;
+  selectedCommitHash.value = hash;
+  selectedFile.value = null;
+  paneView.value = "diff";
+  activeHunkIndex.value = 0;
+  void loadCommitDiff(hash);
+  emit("expand-panel");
+}
+
 function selectFile(entry: GitFileEntry, staged: boolean, untracked: boolean) {
   if (
     selectedFile.value?.path === entry.path &&
@@ -392,6 +410,8 @@ function selectFile(entry: GitFileEntry, staged: boolean, untracked: boolean) {
     return;
   }
   if (!confirmDiscardEdits()) return;
+  selectedCommitHash.value = null;
+  commitDetails.value = null;
   selectedFile.value = { path: entry.path, staged, untracked };
   activeHunkIndex.value = 0;
 }
@@ -417,12 +437,39 @@ async function loadDiff(file: SelectedGitFile) {
   diffLoading.value = true;
   diffError.value = null;
   diffContent.value = "";
+  commitDetails.value = null;
   activeHunkIndex.value = 0;
 
   try {
     const result = await getGitFileDiff(repoRoot, file.path, file.staged, file.untracked);
     if (requestId !== diffRequestId) return;
     diffContent.value = result.content;
+  } catch (err) {
+    if (requestId !== diffRequestId) return;
+    diffError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    if (requestId === diffRequestId) {
+      diffLoading.value = false;
+    }
+  }
+}
+
+async function loadCommitDiff(hash: string) {
+  const repoRoot = props.status.repoRoot;
+  if (!repoRoot) return;
+
+  const requestId = ++diffRequestId;
+  diffLoading.value = true;
+  diffError.value = null;
+  diffContent.value = "";
+  commitDetails.value = null;
+  activeHunkIndex.value = 0;
+
+  try {
+    const details = await getCommitDetails(repoRoot, hash);
+    if (requestId !== diffRequestId) return;
+    commitDetails.value = details;
+    diffContent.value = details.diff;
   } catch (err) {
     if (requestId !== diffRequestId) return;
     diffError.value = err instanceof Error ? err.message : String(err);
@@ -530,13 +577,14 @@ watch(selectedFile, (file) => {
     } else {
       void loadDiff(file);
     }
-  } else {
+  } else if (!selectedCommitHash.value) {
     setDiffExpanded(false);
     diffRequestId += 1;
     editRequestId += 1;
     diffContent.value = "";
     diffError.value = null;
     diffLoading.value = false;
+    commitDetails.value = null;
     editContent.value = "";
     editSavedContent.value = "";
     editError.value = null;
@@ -545,14 +593,32 @@ watch(selectedFile, (file) => {
   }
 });
 
+watch(
+  () => props.graphRefreshToken,
+  () => {
+    if (selectedCommitHash.value) {
+      void loadCommitDiff(selectedCommitHash.value);
+    }
+  },
+);
+
 watch(showDiffPane, (visible) => {
-  if (visible && !selectedFile.value && allChangedFiles.value.length > 0) {
+  if (visible && !selectedFile.value && !selectedCommitHash.value && allChangedFiles.value.length > 0) {
     const first = allChangedFiles.value[0];
     selectedFile.value = {
       path: first.path,
       staged: first.staged,
       untracked: first.untracked,
     };
+  }
+  if (visible && selectedCommitHash.value) {
+    void loadCommitDiff(selectedCommitHash.value);
+  } else if (visible && selectedFile.value) {
+    if (paneView.value === "edit") {
+      void loadEditContent(selectedFile.value);
+    } else {
+      void loadDiff(selectedFile.value);
+    }
   }
   if (!visible) {
     setDiffExpanded(false);
@@ -1027,6 +1093,17 @@ watch(
             </div>
           </section>
 
+          <GitCommitGraph
+            v-if="status.isRepo && status.repoRoot"
+            :repo-root="status.repoRoot"
+            :ahead="status.ahead"
+            :behind="status.behind"
+            :selected-hash="selectedCommitHash"
+            :refresh-token="graphRefreshToken"
+            @select-commit="selectCommit"
+            @expand-panel="emit('expand-panel')"
+          />
+
           <section v-if="history.length" class="py-2">
             <p
               class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]"
@@ -1080,7 +1157,22 @@ watch(
       <div class="flex items-center gap-2 border-b border-[var(--oterm-border)] px-3 py-2">
         <div class="min-w-0 flex-1">
           <p
-            v-if="selectedFile"
+            v-if="selectedCommitHash && commitDetails"
+            class="truncate text-sm text-[var(--oterm-text)]"
+            style="font-family: var(--oterm-font-ui)"
+          >
+            {{ commitDetails.subject }}
+            <span class="text-[var(--oterm-faint)]"> · {{ commitDetails.shortHash }}</span>
+          </p>
+          <p
+            v-else-if="selectedCommitHash"
+            class="truncate text-sm text-[var(--oterm-faint)]"
+            style="font-family: var(--oterm-font-mono)"
+          >
+            {{ selectedCommitHash.slice(0, 7) }}
+          </p>
+          <p
+            v-else-if="selectedFile"
             class="truncate text-sm text-[var(--oterm-text)]"
             style="font-family: var(--oterm-font-ui)"
           >
@@ -1088,7 +1180,14 @@ watch(
             <span v-if="paneView === 'edit' && editDirty" class="text-[var(--oterm-faint)]"> · unsaved</span>
           </p>
           <p v-else class="text-sm text-[var(--oterm-faint)]" style="font-family: var(--oterm-font-ui)">
-            Select a file to view changes
+            Select a file or commit to view changes
+          </p>
+          <p
+            v-if="selectedCommitHash && commitDetails"
+            class="mt-0.5 truncate text-xs text-[var(--oterm-faint)]"
+            style="font-family: var(--oterm-font-ui)"
+          >
+            {{ commitDetails.author }} · {{ commitDetails.date }}
           </p>
         </div>
         <div v-if="selectedFile" class="flex shrink-0 items-center gap-1">

@@ -1,0 +1,480 @@
+<script setup lang="ts">
+import { computed, onMounted, ref, watch } from "vue";
+import type { GitCommitEntry } from "../types/git";
+import type { GraphCommit } from "../types/branchManager";
+import {
+  buildGraphLayout,
+  GRAPH_HEAD_R,
+  GRAPH_LANE_WIDTH,
+  GRAPH_NODE_R,
+  GRAPH_ROW_HEIGHT,
+  isHeadCommit,
+  parseDecorations,
+  primaryBranchLabel,
+} from "../lib/gitGraphLayout";
+import { getCommitGraph, listIncomingOutgoing } from "../lib/branchManagerApi";
+
+const STORAGE_KEY = "oterm:sc-graph-collapsed";
+const HEIGHT_STORAGE_KEY = "oterm:sc-graph-height";
+const DEFAULT_GRAPH_HEIGHT = 240;
+const MIN_GRAPH_HEIGHT = 160;
+const MAX_GRAPH_HEIGHT = 560;
+
+const props = defineProps<{
+  repoRoot: string;
+  ahead: number;
+  behind: number;
+  selectedHash: string | null;
+  refreshToken: number;
+}>();
+
+const emit = defineEmits<{
+  selectCommit: [hash: string];
+  expandPanel: [];
+}>();
+
+const collapsed = ref(localStorage.getItem(STORAGE_KEY) === "1");
+const commits = ref<GraphCommit[]>([]);
+const incoming = ref<GitCommitEntry[]>([]);
+const outgoing = ref<GitCommitEntry[]>([]);
+const loading = ref(false);
+const loadingMore = ref(false);
+const hasMore = ref(true);
+const error = ref<string | null>(null);
+const scrollRoot = ref<HTMLElement | null>(null);
+const graphExpanded = ref(false);
+const graphHeight = ref(readStoredGraphHeight());
+
+const graphSkip = ref(0);
+
+const PAGE_SIZE = 50;
+
+function appendCommits(existing: GraphCommit[], page: GraphCommit[]): GraphCommit[] {
+  const seen = new Set(existing.map((commit) => commit.hash));
+  const merged = [...existing];
+  for (const commit of page) {
+    if (seen.has(commit.hash)) continue;
+    seen.add(commit.hash);
+    merged.push(commit);
+  }
+  return merged;
+}
+
+function readStoredGraphHeight(): number {
+  const stored = Number(localStorage.getItem(HEIGHT_STORAGE_KEY));
+  if (!Number.isFinite(stored)) return DEFAULT_GRAPH_HEIGHT;
+  return Math.min(MAX_GRAPH_HEIGHT, Math.max(MIN_GRAPH_HEIGHT, stored));
+}
+
+function persistGraphHeight() {
+  localStorage.setItem(HEIGHT_STORAGE_KEY, String(graphHeight.value));
+}
+
+function toggleGraphExpanded(event: MouseEvent) {
+  event.stopPropagation();
+  graphExpanded.value = !graphExpanded.value;
+  graphHeight.value = graphExpanded.value ? MAX_GRAPH_HEIGHT : DEFAULT_GRAPH_HEIGHT;
+  persistGraphHeight();
+}
+
+function onResizePointerDown(event: PointerEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  const startY = event.clientY;
+  const startHeight = graphHeight.value;
+  graphExpanded.value = false;
+
+  const onMove = (moveEvent: PointerEvent) => {
+    graphHeight.value = Math.min(
+      MAX_GRAPH_HEIGHT,
+      Math.max(MIN_GRAPH_HEIGHT, startHeight + (moveEvent.clientY - startY)),
+    );
+  };
+
+  const onUp = () => {
+    persistGraphHeight();
+    graphExpanded.value = graphHeight.value >= MAX_GRAPH_HEIGHT - 8;
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+  };
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+
+const layout = computed(() => buildGraphLayout(commits.value));
+
+watch(collapsed, (value) => {
+  localStorage.setItem(STORAGE_KEY, value ? "1" : "0");
+  if (!value && commits.value.length === 0) {
+    void loadGraph(true);
+  }
+});
+
+watch(
+  () => [props.repoRoot, props.refreshToken] as const,
+  () => {
+    if (!collapsed.value) {
+      void loadGraph(true);
+    } else {
+      commits.value = [];
+      incoming.value = [];
+      outgoing.value = [];
+      hasMore.value = true;
+      graphSkip.value = 0;
+    }
+  },
+);
+
+onMounted(() => {
+  if (!collapsed.value) {
+    void loadGraph(true);
+  }
+});
+
+async function loadSyncMarkers() {
+  incoming.value = [];
+  outgoing.value = [];
+  if (props.behind > 0) {
+    try {
+      incoming.value = await listIncomingOutgoing(props.repoRoot, "incoming");
+    } catch {
+      incoming.value = [];
+    }
+  }
+  if (props.ahead > 0) {
+    try {
+      outgoing.value = await listIncomingOutgoing(props.repoRoot, "outgoing");
+    } catch {
+      outgoing.value = [];
+    }
+  }
+}
+
+async function loadGraph(reset: boolean) {
+  if (!props.repoRoot) return;
+  if (reset) {
+    loading.value = true;
+    error.value = null;
+    hasMore.value = true;
+    graphSkip.value = 0;
+  } else {
+    loadingMore.value = true;
+  }
+
+  try {
+    const page = await getCommitGraph(props.repoRoot, {
+      limit: PAGE_SIZE,
+      skip: graphSkip.value,
+      scope: "branch",
+    });
+    if (reset) {
+      commits.value = page.commits;
+      await loadSyncMarkers();
+    } else {
+      commits.value = appendCommits(commits.value, page.commits);
+    }
+    graphSkip.value = page.nextSkip;
+    hasMore.value = page.hasMore;
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err);
+    if (reset) {
+      commits.value = [];
+    }
+  } finally {
+    loading.value = false;
+    loadingMore.value = false;
+  }
+}
+
+function toggleCollapsed() {
+  collapsed.value = !collapsed.value;
+}
+
+function onSelect(hash: string) {
+  emit("selectCommit", hash);
+  emit("expandPanel");
+}
+
+function onScroll() {
+  const el = scrollRoot.value;
+  if (!el || loading.value || loadingMore.value || !hasMore.value || collapsed.value) return;
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 48) {
+    void loadGraph(false);
+  }
+}
+
+function isSelected(hash: string): boolean {
+  return props.selectedHash === hash;
+}
+</script>
+
+<template>
+  <section class="border-b border-[var(--oterm-border)] py-2">
+    <div class="flex w-full items-center gap-1 px-3 pb-1.5">
+      <button
+        type="button"
+        class="flex min-w-0 flex-1 items-center gap-1 text-left"
+        @click="toggleCollapsed"
+      >
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="currentColor"
+          class="shrink-0 text-[var(--oterm-faint)] transition"
+          :class="collapsed ? '-rotate-90' : ''"
+        >
+          <path d="M3 1.5 7.5 5 3 8.5z" />
+        </svg>
+        <p
+          class="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]"
+          style="font-family: var(--oterm-font-ui)"
+        >
+          Graph
+        </p>
+      </button>
+      <div v-if="!collapsed" class="ml-auto flex shrink-0 items-center gap-1">
+        <span
+          v-if="loading"
+          class="text-[10px] text-[var(--oterm-muted)]"
+          style="font-family: var(--oterm-font-ui)"
+        >
+          Loading…
+        </span>
+        <button
+          type="button"
+          class="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+          :title="graphExpanded ? 'Reset graph height' : 'Expand graph'"
+          :aria-label="graphExpanded ? 'Reset graph height' : 'Expand graph'"
+          @click="toggleGraphExpanded"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              v-if="graphExpanded"
+              d="M5 2H2v3M11 2h3v3M5 14H2v-3M11 14h3v-3"
+              stroke-width="1.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              v-else
+              d="M3 3h4M3 3v4M13 3H9M13 3v4M3 13h4M3 13V9M13 13H9M13 13V9"
+              stroke-width="1.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div v-if="!collapsed">
+      <p v-if="error" class="px-3 pb-2 text-xs text-[var(--oterm-danger)]">{{ error }}</p>
+
+      <div
+        ref="scrollRoot"
+        class="overflow-y-auto oterm-scroll"
+        :style="{ height: `${graphHeight}px` }"
+        @scroll.passive="onScroll"
+      >
+        <div
+          v-if="behind > 0"
+          class="border-b border-[var(--oterm-border)]/60 px-3 py-2"
+        >
+          <p
+            class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#e3b341]"
+            style="font-family: var(--oterm-font-ui)"
+          >
+            Incoming ({{ behind }})
+          </p>
+          <button
+            v-for="entry in incoming"
+            :key="`incoming:${entry.hash}`"
+            type="button"
+            class="mt-1.5 block w-full rounded px-1 py-1.5 text-left hover:bg-white/[0.03]"
+            :class="isSelected(entry.hash) ? 'bg-white/[0.05]' : ''"
+            @click="onSelect(entry.hash)"
+          >
+            <p class="truncate text-xs leading-snug text-[var(--oterm-text)]">{{ entry.subject }}</p>
+            <p class="mt-0.5 truncate text-[10px] leading-snug text-[var(--oterm-faint)]">{{ entry.shortHash }}</p>
+          </button>
+        </div>
+
+        <div
+          v-if="ahead > 0"
+          class="border-b border-[var(--oterm-border)]/60 px-3 py-2"
+        >
+          <p
+            class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#58a6ff]"
+            style="font-family: var(--oterm-font-ui)"
+          >
+            Outgoing ({{ ahead }})
+          </p>
+          <button
+            v-for="entry in outgoing"
+            :key="`outgoing:${entry.hash}`"
+            type="button"
+            class="mt-1.5 block w-full rounded px-1 py-1.5 text-left hover:bg-white/[0.03]"
+            :class="isSelected(entry.hash) ? 'bg-white/[0.05]' : ''"
+            @click="onSelect(entry.hash)"
+          >
+            <p class="truncate text-xs leading-snug text-[var(--oterm-text)]">{{ entry.subject }}</p>
+            <p class="mt-0.5 truncate text-[10px] leading-snug text-[var(--oterm-faint)]">{{ entry.shortHash }}</p>
+          </button>
+        </div>
+
+        <div
+          v-if="commits.length"
+          class="relative pl-3"
+          :style="{ minHeight: `${layout.totalHeight}px` }"
+        >
+          <svg
+            class="graph-lines pointer-events-none absolute left-3 top-0 overflow-visible"
+            :viewBox="`0 0 ${layout.totalWidth} ${layout.totalHeight}`"
+            :width="layout.totalWidth"
+            :height="layout.totalHeight"
+            shape-rendering="geometricPrecision"
+            aria-hidden="true"
+          >
+            <template v-for="row in layout.rows" :key="`paths:${row.hash}`">
+              <path
+                v-for="(path, pathIndex) in row.paths"
+                :key="`${row.hash}:${pathIndex}`"
+                :d="path.d"
+                fill="none"
+                :stroke="path.color"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </template>
+          </svg>
+
+          <button
+            v-for="(commit, index) in commits"
+            :key="commit.hash"
+            type="button"
+            class="relative flex w-full items-stretch gap-2 pr-3 text-left hover:bg-white/[0.03]"
+            :class="isSelected(commit.hash) ? 'bg-white/[0.05]' : ''"
+            :style="{ minHeight: `${GRAPH_ROW_HEIGHT}px` }"
+            @click="onSelect(commit.hash)"
+          >
+            <div
+              class="relative shrink-0"
+              :style="{
+                width: `${Math.max(layout.rows[index]?.laneCount ?? 1, 1) * GRAPH_LANE_WIDTH}px`,
+                height: `${GRAPH_ROW_HEIGHT}px`,
+              }"
+            >
+              <span
+                v-if="isHeadCommit(commit.decorations)"
+                class="absolute rounded-full border-2 bg-[var(--oterm-bg)]"
+                :style="{
+                  left: `${(layout.rows[index]?.nodeX ?? GRAPH_LANE_WIDTH / 2) - GRAPH_HEAD_R}px`,
+                  top: `${GRAPH_ROW_HEIGHT / 2 - GRAPH_HEAD_R}px`,
+                  width: `${GRAPH_HEAD_R * 2}px`,
+                  height: `${GRAPH_HEAD_R * 2}px`,
+                  borderColor: layout.rows[index]?.color ?? '#3794ff',
+                }"
+              />
+              <span
+                v-else
+                class="absolute rounded-full"
+                :style="{
+                  left: `${(layout.rows[index]?.nodeX ?? GRAPH_LANE_WIDTH / 2) - GRAPH_NODE_R}px`,
+                  top: `${GRAPH_ROW_HEIGHT / 2 - GRAPH_NODE_R}px`,
+                  width: `${GRAPH_NODE_R * 2}px`,
+                  height: `${GRAPH_NODE_R * 2}px`,
+                  backgroundColor: layout.rows[index]?.color ?? '#3794ff',
+                }"
+              />
+              <span
+                v-if="isHeadCommit(commit.decorations)"
+                class="absolute rounded-full"
+                :style="{
+                  left: `${(layout.rows[index]?.nodeX ?? GRAPH_LANE_WIDTH / 2) - 2}px`,
+                  top: `${GRAPH_ROW_HEIGHT / 2 - 2}px`,
+                  width: '4px',
+                  height: '4px',
+                  backgroundColor: layout.rows[index]?.color ?? '#3794ff',
+                }"
+              />
+            </div>
+            <div class="min-w-0 flex-1 py-0.5">
+              <p
+                class="truncate text-xs leading-snug text-[var(--oterm-text)]"
+                style="font-family: var(--oterm-font-ui)"
+              >
+                {{ commit.subject }}
+                <span
+                  v-if="primaryBranchLabel(commit.decorations)"
+                  class="ml-1.5 inline-flex items-center rounded px-1.5 py-px text-[10px] font-medium leading-none text-white"
+                  :style="{ backgroundColor: layout.rows[index]?.color ?? '#3794ff' }"
+                >
+                  {{ primaryBranchLabel(commit.decorations) }}
+                </span>
+              </p>
+              <p
+                class="mt-0.5 truncate text-[10px] leading-snug text-[var(--oterm-faint)]"
+                style="font-family: var(--oterm-font-mono)"
+              >
+                {{ commit.shortHash }}
+                <span
+                  v-for="badge in parseDecorations(commit.decorations).filter(
+                    (b) => !b.startsWith('HEAD ->') && b !== primaryBranchLabel(commit.decorations),
+                  )"
+                  :key="`${commit.hash}:${badge}`"
+                  class="ml-1 text-[var(--oterm-muted)]"
+                >
+                  {{ badge }}
+                </span>
+              </p>
+            </div>
+          </button>
+        </div>
+
+        <p
+          v-else-if="!loading && !error"
+          class="px-3 py-2 text-xs text-[var(--oterm-faint)]"
+          style="font-family: var(--oterm-font-ui)"
+        >
+          No commits
+        </p>
+
+        <p
+          v-if="loadingMore"
+          class="px-3 py-2 text-[10px] text-[var(--oterm-muted)]"
+          style="font-family: var(--oterm-font-ui)"
+        >
+          Loading more…
+        </p>
+      </div>
+
+      <div
+        class="group flex h-2 cursor-row-resize items-center justify-center border-t border-[var(--oterm-border)]/60 hover:bg-white/[0.03]"
+        title="Drag to resize graph"
+        @pointerdown="onResizePointerDown"
+      >
+        <span
+          class="h-0.5 w-8 rounded-full bg-[var(--oterm-border)] transition group-hover:bg-[var(--oterm-muted)]"
+          aria-hidden="true"
+        />
+      </div>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.graph-lines {
+  shape-rendering: geometricPrecision;
+  transform: translateZ(0);
+}
+</style>

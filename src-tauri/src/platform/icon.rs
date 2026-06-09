@@ -11,7 +11,7 @@ const NOTIFICATION_ICON_NAMES: &[&str] =
     &["128x128@2x.png", "icon.png", "128x128.png", "icon.ico"];
 
 #[cfg(windows)]
-const BRANDING_ICON_NAMES: &[&str] = &["icon.ico", "128x128@2x.png", "icon.png"];
+const BRANDING_ICON_NAMES: &[&str] = &["icon.ico"];
 
 #[cfg(target_os = "macos")]
 const NOTIFICATION_ICON_NAMES: &[&str] = &["icon.icns", "icon.png", "128x128@2x.png"];
@@ -34,14 +34,27 @@ pub fn resolve_notification_icon(exe: &Path) -> PathBuf {
     resolve_from_names(exe, NOTIFICATION_ICON_NAMES)
 }
 #[cfg(windows)]
+pub fn resolve_branding_icon(exe: &Path) -> Option<PathBuf> {
+    resolve_from_names(exe, BRANDING_ICON_NAMES)
+        .canonicalize()
+        .ok()
+        .filter(|path| path.is_file() && is_valid_ico(path))
+}
+
+#[cfg(windows)]
 pub fn prepare_notification_assets(exe: &Path) -> Result<NotificationAssets, String> {
     let source_png = resolve_from_names(exe, NOTIFICATION_ICON_NAMES);
-    let source_ico = resolve_from_names(exe, BRANDING_ICON_NAMES);
+    let source_ico = resolve_branding_icon(exe).ok_or_else(|| {
+        format!(
+            "missing branding icon source: {}",
+            resolve_from_names(exe, BRANDING_ICON_NAMES).display()
+        )
+    })?;
     let cache_dir = notification_cache_dir()?;
     let toast_icon = cache_dir.join(TOAST_ICON_NAME);
     let app_icon = cache_dir.join(APP_ICON_NAME);
     copy_if_newer(&source_png, &toast_icon)?;
-    copy_if_newer(&source_ico, &app_icon)?;
+    copy_branding_icon(&source_ico, &app_icon)?;
     Ok(NotificationAssets {
         toast_icon,
         app_icon,
@@ -68,6 +81,9 @@ fn resolve_from_names(exe: &Path, names: &[&str]) -> PathBuf {
         for name in names {
             candidates.push(parent.join(format!("../../{ICON_DIR}/{name}")));
             candidates.push(parent.join(format!("{ICON_DIR}/{name}")));
+            candidates.push(parent.join(format!("resources/{ICON_DIR}/{name}")));
+            candidates.push(parent.join(format!("../resources/{ICON_DIR}/{name}")));
+            candidates.push(parent.join(format!("_up_/{ICON_DIR}/{name}")));
         }
     }
 
@@ -103,6 +119,27 @@ fn strip_extended_path_prefix(path: String) -> String {
 fn notification_cache_dir() -> Result<PathBuf, String> {
     let base = std::env::var("LOCALAPPDATA").map_err(|e| e.to_string())?;
     Ok(PathBuf::from(base).join(CACHE_DIR_NAME))
+}
+
+#[cfg(windows)]
+fn is_valid_ico(path: &Path) -> bool {
+    let mut header = [0u8; 4];
+    let Ok(mut file) = fs::File::open(path) else {
+        return false;
+    };
+    use std::io::Read;
+    file.read_exact(&mut header).is_ok() && header == [0x00, 0x00, 0x01, 0x00]
+}
+
+#[cfg(windows)]
+fn copy_branding_icon(source: &Path, dest: &Path) -> Result<(), String> {
+    if !is_valid_ico(source) {
+        return Err(format!(
+            "branding icon is not a valid .ico file: {}",
+            source.display()
+        ));
+    }
+    copy_if_newer(source, dest)
 }
 
 #[cfg(windows)]

@@ -18,6 +18,12 @@ export interface GraphCommit {
   decorations: string;
 }
 
+export interface CommitGraphPage {
+  commits: GraphCommit[];
+  hasMore: boolean;
+  nextSkip: number;
+}
+
 export interface CommitDetails {
   hash: string;
   shortHash: string;

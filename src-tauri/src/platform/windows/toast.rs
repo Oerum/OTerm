@@ -5,7 +5,11 @@ use windows::Data::Xml::Dom::XmlDocument;
 use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
 use windows_registry::CURRENT_USER;
 
-use crate::platform::icon::{icon_display_path, toast_file_uri, xml_escape, NotificationAssets};
+use crate::platform::icon::{
+    icon_display_path, resolve_branding_icon, toast_file_uri, xml_escape, NotificationAssets,
+};
+
+const LEGACY_APP_IDS: &[&str] = &["com.filip.oterm"];
 
 const START_MENU_SHORTCUT: &str = "OTerm.lnk";
 
@@ -17,6 +21,7 @@ pub struct ToastIdentity {
 }
 
 pub fn init(identity: &ToastIdentity) -> Result<(), String> {
+    cleanup_legacy_aumid_branding();
     register_process_aumid(&identity.app_id)?;
     register_aumid_branding(identity)?;
     if let Err(error) = ensure_start_menu_shortcut(identity) {
@@ -71,11 +76,16 @@ fn register_process_aumid(app_id: &str) -> Result<(), String> {
 
 fn register_aumid_branding(identity: &ToastIdentity) -> Result<(), String> {
     // Taskbar / shell branding requires an .ico; PNG IconUri shows as a blank document icon.
-    let icon = identity
-        .assets
-        .app_icon
-        .canonicalize()
-        .unwrap_or_else(|_| identity.assets.app_icon.clone());
+    let icon = resolve_branding_icon(&identity.exe_path)
+        .or_else(|| {
+            identity
+                .assets
+                .app_icon
+                .canonicalize()
+                .ok()
+                .filter(|path| path.is_file())
+        })
+        .ok_or_else(|| "no valid .ico available for taskbar branding".to_string())?;
 
     let key = CURRENT_USER
         .create(format!(
@@ -90,6 +100,12 @@ fn register_aumid_branding(identity: &ToastIdentity) -> Result<(), String> {
     key.set_string("IconUri", &toast_file_uri(&icon))
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+fn cleanup_legacy_aumid_branding() {
+    for app_id in LEGACY_APP_IDS {
+        let _ = CURRENT_USER.remove_tree(format!(r"SOFTWARE\Classes\AppUserModelId\{app_id}"));
+    }
 }
 
 fn start_menu_shortcut_path() -> Result<PathBuf, String> {
