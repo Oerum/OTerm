@@ -159,3 +159,22 @@ body {
   text-decoration-color: rgba(0, 212, 170, 0.9);
   text-underline-offset: 2px;
 }
+
+.oterm-tooltip-enter-active,
+.oterm-tooltip-leave-active {
+  transition:
+    opacity var(--term-transition),
+    transform var(--term-transition);
+}
+
+.oterm-tooltip-enter-from,
+.oterm-tooltip-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(2px);
+}
+
+.oterm-tooltip-enter-to,
+.oterm-tooltip-leave-from {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

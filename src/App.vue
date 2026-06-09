@@ -9,10 +9,12 @@ import TerminalPane from "./components/TerminalPane.vue";
 import BranchManagerView from "./components/BranchManagerView.vue";
 import DockerManagerView from "./components/DockerManagerView.vue";
 import SshSftpManagerView from "./components/SshSftpManagerView.vue";
+import CreatePullRequestDialog from "./components/CreatePullRequestDialog.vue";
 import PullRequestsView from "./components/PullRequestsView.vue";
 import IssuesView from "./components/IssuesView.vue";
 import SettingsView from "./components/SettingsView.vue";
 import TitleBar from "./components/TitleBar.vue";
+import TooltipLayer from "./components/TooltipLayer.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
 import { useResizablePanel } from "./composables/useResizablePanel";
 import { useSourceControl } from "./composables/useSourceControl";
@@ -39,10 +41,19 @@ import {
 import type { CliAgentId } from "./lib/terminalAgentMode";
 import { consumeAppShortcut, isTabCycleShortcut } from "./lib/appKeyboardShortcuts";
 import {
+  canOfferCreatePrLocally,
+  defaultCreatePrTitle,
+  hasOpenPrForHead,
+  initCreatePrBranches,
+  isGithubPrCapable,
+} from "./lib/createPrFlow";
+import { createPullRequest, detectPrProvider, listPullRequests } from "./lib/pullRequestApi";
+import {
   buildTerminalNotificationContent,
   sendTerminalSystemNotification,
 } from "./lib/systemNotification";
 import { shellLabelFor } from "./lib/sidebarEntries";
+import { formatGitOperationError } from "./lib/formatGitError";
 
 const appVersion = "0.1.0";
 
@@ -55,6 +66,16 @@ const terminalSidebarOpen = ref(true);
 const toolsOpen = ref(false);
 const sourceControlOpen = ref(false);
 const gitRefreshToken = ref(0);
+
+const createPrOpen = ref(false);
+const createPrBannerVisible = ref(false);
+const createPrTitle = ref("");
+const createPrBody = ref("");
+const createPrBase = ref("");
+const createPrHead = ref("");
+const createPrDraft = ref(false);
+const createPrBusy = ref(false);
+const createPrError = ref<string | null>(null);
 
 const {
   widthPx: sourceControlWidth,
@@ -164,6 +185,119 @@ function bumpGitBadges() {
 async function runGitAction(action: () => Promise<void>) {
   await action();
   bumpGitBadges();
+}
+
+async function runGitActionWithFeedback(action: () => Promise<void>) {
+  try {
+    await runGitAction(action);
+  } catch (err) {
+    sourceControlPanelRef.value?.showPanelFeedback(formatGitOperationError(err), true);
+    throw err;
+  }
+}
+
+function closeCreatePrDialog() {
+  createPrOpen.value = false;
+  createPrError.value = null;
+}
+
+function dismissCreatePrBanner() {
+  createPrBannerVisible.value = false;
+}
+
+function prepareCreatePrForm() {
+  const status = sourceControlStatus.value;
+  const { base, head } = initCreatePrBranches(gitBranches.value, status.upstream);
+  createPrHead.value = head;
+  createPrBase.value = base;
+  createPrTitle.value = defaultCreatePrTitle(gitHistory.value, head);
+  createPrBody.value = "";
+  createPrDraft.value = false;
+  createPrError.value = null;
+}
+
+function openCreatePrDialog() {
+  prepareCreatePrForm();
+  createPrBannerVisible.value = false;
+  createPrOpen.value = true;
+}
+
+async function submitCreatePr() {
+  const root = gitRepoRoot.value;
+  if (!root || !createPrTitle.value.trim() || !createPrBase.value || !createPrHead.value) return;
+  if (createPrBase.value === createPrHead.value) {
+    createPrError.value = "Base and compare branches must be different.";
+    return;
+  }
+
+  createPrBusy.value = true;
+  createPrError.value = null;
+  try {
+    await createPullRequest({
+      repoRoot: root,
+      title: createPrTitle.value.trim(),
+      body: createPrBody.value,
+      base: createPrBase.value,
+      head: createPrHead.value,
+      draft: createPrDraft.value,
+    });
+    closeCreatePrDialog();
+    dismissCreatePrBanner();
+    openPullRequestsTab(root);
+    bumpGitBadges();
+  } catch (err) {
+    createPrError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    createPrBusy.value = false;
+  }
+}
+
+async function maybeOfferCreatePrAfterPush() {
+  const root = gitRepoRoot.value;
+  const status = sourceControlStatus.value;
+  if (!root || !canOfferCreatePrLocally(status)) return;
+
+  try {
+    const provider = await detectPrProvider(root);
+    if (!isGithubPrCapable(provider)) return;
+
+    if (provider.authOk) {
+      try {
+        const openPrs = await listPullRequests(root, false);
+        if (hasOpenPrForHead(openPrs, status.branch!)) return;
+      } catch {
+        // Listing PRs failed — still offer; create may surface the real error.
+      }
+    }
+
+    prepareCreatePrForm();
+    if (!sourceControlOpen.value) {
+      sourceControlOpen.value = true;
+      ensureDiffPaneWidth();
+    }
+    createPrBannerVisible.value = true;
+  } catch {
+    // Optional flow — ignore detection failures.
+  }
+}
+
+async function onPushGit() {
+  try {
+    await runGitActionWithFeedback(pushGitRepo);
+    await maybeOfferCreatePrAfterPush();
+  } catch {
+    // Error shown in source control panel.
+  }
+}
+
+async function onSyncGit() {
+  const hadCommitsToPush = sourceControlStatus.value.ahead > 0;
+  try {
+    await runGitActionWithFeedback(syncGitRepo);
+    if (hadCommitsToPush) await maybeOfferCreatePrAfterPush();
+  } catch {
+    // Error shown in source control panel.
+  }
 }
 
 const sourceControlPanelRef = ref<InstanceType<typeof SourceControlPanel> | null>(null);
@@ -547,7 +681,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="oterm-app relative flex h-full flex-col">
+  <div class="oterm-app relative flex h-full flex-col overflow-hidden">
+    <TooltipLayer />
     <TitleBar
       :terminal-sidebar-open="terminalSidebarOpen"
       :tools-open="toolsOpen"
@@ -566,7 +701,7 @@ onUnmounted(() => {
       @open-settings="openSettings"
     />
 
-    <div class="flex min-h-0 flex-1">
+    <div class="flex min-h-0 flex-1 overflow-hidden">
       <SidebarRail
         v-if="terminalSidebarOpen"
         :tabs="tabs"
@@ -708,9 +843,41 @@ onUnmounted(() => {
         />
       </div>
 
-      <div v-if="sourceControlOpen" class="relative flex shrink-0">
+      <div
+        v-if="sourceControlOpen"
+        class="flex shrink-0 flex-col overflow-hidden border-l border-[var(--oterm-border)]"
+        :style="{ width: `${sourceControlWidth}px` }"
+      >
         <div
-          class="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
+          v-if="createPrBannerVisible"
+          class="flex shrink-0 items-start gap-2 border-b border-[var(--oterm-border)] bg-[var(--oterm-accent)]/10 px-3 py-2"
+        >
+          <p class="min-w-0 flex-1 text-xs leading-relaxed text-[var(--oterm-text)]">
+            Branch pushed. Create a pull request for
+            <span class="font-medium">{{ createPrHead || sourceControlStatus.branch }}</span>?
+          </p>
+          <button
+            type="button"
+            class="shrink-0 rounded px-2 py-0.5 text-xs font-medium text-[var(--oterm-accent)] transition hover:bg-white/5"
+            @click="openCreatePrDialog"
+          >
+            Create PR
+          </button>
+          <button
+            type="button"
+            class="shrink-0 rounded p-0.5 text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+            title="Dismiss"
+            aria-label="Dismiss"
+            @click="dismissCreatePrBanner"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor">
+              <path d="M3 3l8 8M11 3L3 11" stroke-width="1.4" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+        <div class="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div
+          class="absolute inset-y-0 left-0 z-20 w-2 cursor-col-resize"
           :class="sourceControlResizing ? 'bg-[var(--oterm-accent)]/30' : 'hover:bg-white/5'"
           title="Drag to resize"
           @pointerdown="onResizeHandlePointerDown"
@@ -731,18 +898,37 @@ onUnmounted(() => {
           @revert="(paths, untracked) => runGitAction(() => revertGitPaths(paths, untracked))"
           @revert-all="() => runGitAction(revertAllGitChanges)"
           @commit="(message) => runGitAction(() => commitGitChanges(message))"
-          @fetch="() => runGitAction(fetchGitRepo)"
-          @pull="() => runGitAction(pullGitRepo)"
-          @push="() => runGitAction(pushGitRepo)"
-          @sync="() => runGitAction(syncGitRepo)"
+          @fetch="() => runGitActionWithFeedback(fetchGitRepo)"
+          @pull="() => runGitActionWithFeedback(pullGitRepo)"
+          @push="onPushGit"
+          @sync="onSyncGit"
           @checkout="(branch, remote) => runGitAction(() => checkoutGitBranch(branch, remote))"
           @revert-hunk="(path, patch, staged) => runGitHunkAction(() => revertGitHunk(path, patch, staged))"
           @stage-hunk="(path, patch) => runGitHunkAction(() => stageGitHunk(path, patch))"
           @unstage-hunk="(path, patch) => runGitHunkAction(() => unstageGitHunk(path, patch))"
           @diff-expanded-change="onDiffExpandedChange"
         />
+        </div>
       </div>
     </div>
 
+    <CreatePullRequestDialog
+      :open="createPrOpen"
+      :branches="gitBranches"
+      :title="createPrTitle"
+      :body="createPrBody"
+      :base="createPrBase"
+      :head="createPrHead"
+      :draft="createPrDraft"
+      :busy="createPrBusy"
+      :error="createPrError"
+      @update:title="createPrTitle = $event"
+      @update:body="createPrBody = $event"
+      @update:base="createPrBase = $event"
+      @update:head="createPrHead = $event"
+      @update:draft="createPrDraft = $event"
+      @confirm="submitCreatePr"
+      @cancel="closeCreatePrDialog"
+    />
   </div>
 </template>

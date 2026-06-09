@@ -86,6 +86,8 @@ const hunkCount = ref(0);
 const hunkOperationKey = ref<string | null>(null);
 const hunkFeedback = ref<string | null>(null);
 const hunkFeedbackError = ref(false);
+const panelFeedback = ref<string | null>(null);
+const panelFeedbackError = ref(false);
 const diffExpanded = ref(false);
 const diffPaneRef = ref<HTMLElement | null>(null);
 const confirmOpen = ref(false);
@@ -148,6 +150,15 @@ function showHunkFeedback(message: string, isError = false) {
   }, isError ? 4000 : 2000);
 }
 
+function showPanelFeedback(message: string, isError = false) {
+  panelFeedback.value = message;
+  panelFeedbackError.value = isError;
+  window.setTimeout(() => {
+    panelFeedback.value = null;
+    panelFeedbackError.value = false;
+  }, isError ? 6000 : 2500);
+}
+
 function onRevertHunk(patch: string, opKey: string) {
   const file = selectedFile.value;
   if (!file) return;
@@ -184,6 +195,7 @@ function clearHunkOperation() {
 
 defineExpose({
   showHunkFeedback,
+  showPanelFeedback,
   clearHunkOperation,
   collapseDiffExpanded: () => setDiffExpanded(false),
 });
@@ -598,8 +610,7 @@ watch(
 
 <template>
   <aside
-    class="relative flex shrink-0 flex-col border-l border-[var(--oterm-border)] bg-[var(--oterm-sidebar)]"
-    :style="{ width: `${panelWidth}px` }"
+    class="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--oterm-sidebar)]"
   >
   <div class="flex min-h-0 flex-1 flex-col" :class="showDiffPane ? 'flex-row' : 'flex-col'">
     <div
@@ -766,7 +777,7 @@ watch(
               type="button"
               :class="syncBtnClass('sync')"
               style="font-family: var(--oterm-font-ui)"
-              title="Pull then push"
+              title="Pull (rebase) then push"
               :disabled="busy"
               @click="emit('sync')"
             >
@@ -774,6 +785,19 @@ watch(
               Sync
             </button>
           </div>
+
+          <p
+            v-if="panelFeedback"
+            class="mb-3 rounded-md border px-2.5 py-2 text-xs leading-snug"
+            :class="
+              panelFeedbackError
+                ? 'border-red-500/40 bg-red-500/10 text-red-200'
+                : 'border-[var(--oterm-border)] bg-white/[0.03] text-[var(--oterm-muted)]'
+            "
+            style="font-family: var(--oterm-font-ui)"
+          >
+            {{ panelFeedback }}
+          </p>
 
           <div class="mb-1.5 flex items-center justify-between gap-2">
             <span class="text-[10px] uppercase tracking-wide text-[var(--oterm-faint)]">Commit message</span>

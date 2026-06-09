@@ -49,36 +49,17 @@ export function buildTerminalNotificationContent(
   };
 }
 
-let permissionReady: Promise<boolean> | null = null;
-
-async function ensureNotificationPermission(): Promise<boolean> {
-  if (!isTauri()) return false;
-
-  if (!permissionReady) {
-    permissionReady = (async () => {
-      const { isPermissionGranted, requestPermission } = await import(
-        "@tauri-apps/plugin-notification"
-      );
-      if (await isPermissionGranted()) return true;
-      return (await requestPermission()) === "granted";
-    })();
-  }
-
-  return permissionReady;
-}
-
 export async function sendTerminalSystemNotification(
   content: TerminalNotificationContent,
 ): Promise<void> {
-  if (!isTauri() || !(await ensureNotificationPermission())) return;
+  if (!isTauri()) return;
 
-  await invoke("send_desktop_notification", {
-    title: content.title,
-    body: content.body,
-  });
-}
-
-/** @internal Resets cached permission state for tests. */
-export function resetSystemNotificationStateForTests() {
-  permissionReady = null;
+  try {
+    await invoke("send_desktop_notification", {
+      title: content.title,
+      body: content.body,
+    });
+  } catch {
+    // OS denied notification or platform send failed — non-fatal.
+  }
 }

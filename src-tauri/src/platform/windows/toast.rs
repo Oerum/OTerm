@@ -70,11 +70,12 @@ fn register_process_aumid(app_id: &str) -> Result<(), String> {
 }
 
 fn register_aumid_branding(identity: &ToastIdentity) -> Result<(), String> {
+    // Taskbar / shell branding requires an .ico; PNG IconUri shows as a blank document icon.
     let icon = identity
         .assets
-        .toast_icon
+        .app_icon
         .canonicalize()
-        .unwrap_or_else(|_| identity.assets.toast_icon.clone());
+        .unwrap_or_else(|_| identity.assets.app_icon.clone());
 
     let key = CURRENT_USER
         .create(format!(
@@ -132,21 +133,18 @@ fn write_start_menu_shortcut(
             .SetDescription(&HSTRING::from(&identity.display_name))
             .map_err(|e| e.to_string())?;
 
-        let icon = identity
-            .assets
-            .app_icon
-            .canonicalize()
-            .unwrap_or_else(|_| identity.assets.app_icon.clone());
-        let icon_location = format!("{},0", icon_display_path(&icon));
+        let icon_location = format!("{},0", icon_display_path(exe));
         shell_link
             .SetIconLocation(&HSTRING::from(icon_location), 0)
             .map_err(|e| e.to_string())?;
 
         let property_store: IPropertyStore = shell_link.cast().map_err(|e| e.to_string())?;
-        let (prop, _app_id_wide) = prop_variant_from_str(&identity.app_id);
-        property_store
+        let mut prop = prop_variant_from_str(&identity.app_id)?;
+        let set_err = property_store
             .SetValue(&PKEY_AppUserModel_ID, &prop)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string());
+        clear_prop_variant(&mut prop)?;
+        set_err?;
         property_store.Commit().map_err(|e| e.to_string())?;
 
         let persist: IPersistFile = shell_link.cast().map_err(|e| e.to_string())?;
@@ -158,28 +156,45 @@ fn write_start_menu_shortcut(
     Ok(())
 }
 
-fn prop_variant_from_str(value: &str) -> (windows::Win32::System::Com::StructuredStorage::PROPVARIANT, Vec<u16>) {
+fn prop_variant_from_str(value: &str) -> Result<windows::Win32::System::Com::StructuredStorage::PROPVARIANT, String> {
     use windows::core::PWSTR;
+    use windows::Win32::System::Com::CoTaskMemAlloc;
     use windows::Win32::System::Com::StructuredStorage::{
         PROPVARIANT, PROPVARIANT_0, PROPVARIANT_0_0, PROPVARIANT_0_0_0,
     };
-    use windows::Win32::System::Variant::VARENUM;
+    use windows::Win32::System::Variant::VT_LPWSTR;
 
-    let mut wide: Vec<u16> = value.encode_utf16().chain([0]).collect();
-    let prop = PROPVARIANT {
+    let wide: Vec<u16> = value.encode_utf16().chain([0]).collect();
+    let byte_len = wide.len() * std::mem::size_of::<u16>();
+    let ptr = unsafe { CoTaskMemAlloc(byte_len) as *mut u16 };
+    if ptr.is_null() {
+        return Err("CoTaskMemAlloc failed".into());
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(wide.as_ptr(), ptr, wide.len());
+    }
+
+    Ok(PROPVARIANT {
         Anonymous: PROPVARIANT_0 {
             Anonymous: core::mem::ManuallyDrop::new(PROPVARIANT_0_0 {
-                vt: VARENUM(31u16),
+                vt: VT_LPWSTR,
                 wReserved1: 0,
                 wReserved2: 0,
                 wReserved3: 0,
                 Anonymous: PROPVARIANT_0_0_0 {
-                    pwszVal: PWSTR(wide.as_mut_ptr()),
+                    pwszVal: PWSTR(ptr as *mut _),
                 },
             }),
         },
-    };
-    (prop, wide)
+    })
+}
+
+fn clear_prop_variant(
+    prop: &mut windows::Win32::System::Com::StructuredStorage::PROPVARIANT,
+) -> Result<(), String> {
+    use windows::Win32::System::Com::StructuredStorage::PropVariantClear;
+
+    unsafe { PropVariantClear(prop as *mut _).map_err(|e| e.to_string()) }
 }
 
 fn com_apartment() -> Result<(), String> {

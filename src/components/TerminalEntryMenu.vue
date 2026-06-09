@@ -159,23 +159,27 @@ onUnmounted(() => {
         role="separator"
         class="my-0.5 border-t border-[var(--oterm-border)]"
       />
-      <button
-        type="button"
-        role="menuitem"
-        data-menu-item="true"
-        class="flex w-full px-2 py-1 text-left text-[0.75rem] leading-[1.2] transition"
-        :class="[
-          item.destructive ? 'text-[#ff7b72]' : 'text-[var(--oterm-text)]',
-          item.disabled
-            ? 'cursor-not-allowed opacity-40'
-            : 'hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)] focus-visible:ring-inset',
-        ]"
-        :disabled="item.disabled"
+      <div
+        class="w-full"
         :title="item.disabled ? item.disabledReason : undefined"
-        @click="run(item.id)"
       >
-        {{ item.label }}
-      </button>
+        <button
+          type="button"
+          role="menuitem"
+          data-menu-item="true"
+          class="flex w-full px-2 py-1 text-left text-[0.75rem] leading-[1.2] transition"
+          :class="[
+            item.destructive ? 'text-[#ff7b72]' : 'text-[var(--oterm-text)]',
+            item.disabled
+              ? 'pointer-events-none cursor-not-allowed opacity-40'
+              : 'hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)] focus-visible:ring-inset',
+          ]"
+          :disabled="item.disabled"
+          @click="run(item.id)"
+        >
+          {{ item.label }}
+        </button>
+      </div>
     </template>
 
     <div role="separator" class="my-0.5 border-t border-[var(--oterm-border)]" />

@@ -267,30 +267,47 @@ pub fn fetch_changes(repo_root: String) -> Result<(), String> {
     git_run(&root, &["fetch", "--all", "--prune"])
 }
 
+enum PullMode {
+    FastForwardOnly,
+    Rebase,
+}
+
 pub fn pull_changes(repo_root: String) -> Result<(), String> {
+    pull_with_mode(repo_root, PullMode::FastForwardOnly)
+}
+
+pub fn sync_changes(repo_root: String) -> Result<(), String> {
+    pull_with_mode(repo_root.clone(), PullMode::Rebase)?;
+    push_changes(repo_root)
+}
+
+fn pull_with_mode(repo_root: String, mode: PullMode) -> Result<(), String> {
     let root = PathBuf::from(repo_root);
     if !root.is_dir() {
         return Err("Repository root does not exist".into());
     }
 
     let has_upstream = git_output(&root, &["rev-parse", "--abbrev-ref", "@{upstream}"]).is_ok();
-    if has_upstream {
-        return git_run(&root, &["pull", "--ff-only"]);
+    match mode {
+        PullMode::FastForwardOnly if has_upstream => git_run(&root, &["pull", "--ff-only"]),
+        PullMode::Rebase if has_upstream => git_run(&root, &["pull", "--rebase", "--autostash"]),
+        _ => {
+            let branch = git_output(&root, &["branch", "--show-current"])?
+                .trim()
+                .to_string();
+            if branch.is_empty() {
+                return Err("Cannot pull: detached HEAD".into());
+            }
+            match mode {
+                PullMode::FastForwardOnly => {
+                    git_run(&root, &["pull", "--ff-only", "origin", &branch])
+                }
+                PullMode::Rebase => {
+                    git_run(&root, &["pull", "--rebase", "--autostash", "origin", &branch])
+                }
+            }
+        }
     }
-
-    let branch = git_output(&root, &["branch", "--show-current"])?
-        .trim()
-        .to_string();
-    if branch.is_empty() {
-        return Err("Cannot pull: detached HEAD".into());
-    }
-
-    git_run(&root, &["pull", "--ff-only", "origin", &branch])
-}
-
-pub fn sync_changes(repo_root: String) -> Result<(), String> {
-    pull_changes(repo_root.clone())?;
-    push_changes(repo_root)
 }
 
 pub fn list_branches(repo_root: String) -> Result<GitBranchList, String> {

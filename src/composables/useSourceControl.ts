@@ -121,8 +121,11 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
 
   async function runAction(op: GitOperation, action: () => Promise<void>, includeHistory = false) {
     await withBusy(op, async () => {
-      await action();
-      await refreshData(includeHistory);
+      try {
+        await action();
+      } finally {
+        await refreshData(includeHistory);
+      }
     });
   }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { computed, onMounted, ref, watch } from "vue";
+import CreatePullRequestDialog from "./CreatePullRequestDialog.vue";
 import {
   checkoutPullRequest,
   commentOnPullRequest,
@@ -14,7 +15,10 @@ import {
   listPullRequests,
   viewPullRequest,
 } from "../lib/pullRequestApi";
+import { defaultCreatePrTitle, initCreatePrBranches } from "../lib/createPrFlow";
+import { getGitLog, getSourceControlStatus, listGitBranches } from "../lib/gitApi";
 import { splitUnifiedDiffByFile } from "../lib/parseUnifiedDiff";
+import type { GitBranchList } from "../types/git";
 import type {
   PrChangedFile,
   PrCheck,
@@ -44,9 +48,13 @@ const tabError = ref<string | null>(null);
 const includeClosed = ref(false);
 const selectedNumber = ref<number | null>(null);
 const showCreate = ref(false);
+const createBranches = ref<GitBranchList>({ current: null, local: [], remote: [] });
 const createTitle = ref("");
 const createBody = ref("");
+const createBase = ref("");
+const createHead = ref("");
 const createDraft = ref(false);
+const createError = ref<string | null>(null);
 const busy = ref(false);
 
 const activeTab = ref<PullRequestTab>("conversation");
@@ -313,25 +321,58 @@ async function onOpenCommit(oid: string) {
   await openUrl(url);
 }
 
-async function onCreate() {
-  if (!createTitle.value.trim()) return;
+async function openCreateDialog() {
+  createError.value = null;
   busy.value = true;
+  try {
+    const [branchList, status, log] = await Promise.all([
+      listGitBranches(props.repoRoot),
+      getSourceControlStatus(props.repoRoot),
+      getGitLog(props.repoRoot, 5),
+    ]);
+    createBranches.value = branchList;
+    const { base, head } = initCreatePrBranches(branchList, status.upstream);
+    createBase.value = base;
+    createHead.value = head;
+    createTitle.value = defaultCreatePrTitle(log, head);
+    createBody.value = "";
+    createDraft.value = false;
+    showCreate.value = true;
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    busy.value = false;
+  }
+}
+
+function closeCreateDialog() {
+  showCreate.value = false;
+  createError.value = null;
+}
+
+async function onCreate() {
+  if (!createTitle.value.trim() || !createBase.value || !createHead.value) return;
+  if (createBase.value === createHead.value) {
+    createError.value = "Base and compare branches must be different.";
+    return;
+  }
+  busy.value = true;
+  createError.value = null;
   error.value = null;
   try {
     const created = await createPullRequest({
       repoRoot: props.repoRoot,
-      title: createTitle.value,
+      title: createTitle.value.trim(),
       body: createBody.value,
+      base: createBase.value,
+      head: createHead.value,
       draft: createDraft.value,
     });
-    showCreate.value = false;
-    createTitle.value = "";
-    createBody.value = "";
-    createDraft.value = false;
+    closeCreateDialog();
     await load();
     selectedNumber.value = created.number;
   } catch (err) {
-    error.value = err instanceof Error ? err.message : String(err);
+    createError.value = err instanceof Error ? err.message : String(err);
   } finally {
     busy.value = false;
   }
@@ -370,7 +411,7 @@ watch(selectedNumber, (number) => {
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)]">
+  <div class="relative flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)]">
     <header
       class="flex shrink-0 items-center gap-2 border-b border-[var(--oterm-border)] px-4 py-2"
     >
@@ -393,7 +434,7 @@ watch(selectedNumber, (number) => {
         type="button"
         class="rounded-md bg-[var(--oterm-accent)] px-2 py-1 text-xs text-black disabled:opacity-50"
         :disabled="!provider?.authOk || busy"
-        @click="showCreate = true"
+        @click="openCreateDialog"
       >
         New PR
       </button>
@@ -412,41 +453,24 @@ watch(selectedNumber, (number) => {
 
     <p v-if="error" class="px-4 py-2 text-sm text-[var(--oterm-danger)]">{{ error }}</p>
 
-    <div v-if="showCreate" class="border-b border-[var(--oterm-border)] px-4 py-3">
-      <input
-        v-model="createTitle"
-        type="text"
-        placeholder="PR title"
-        class="mb-2 w-full rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-sm"
-      />
-      <textarea
-        v-model="createBody"
-        rows="4"
-        placeholder="Description"
-        class="mb-2 w-full rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-sm"
-      />
-      <label class="mb-2 flex items-center gap-2 text-xs text-[var(--oterm-muted)]">
-        <input v-model="createDraft" type="checkbox" class="accent-[var(--oterm-accent)]" />
-        Create as draft
-      </label>
-      <div class="flex gap-2">
-        <button
-          type="button"
-          class="rounded bg-[var(--oterm-accent)] px-3 py-1 text-xs text-black"
-          :disabled="busy"
-          @click="onCreate"
-        >
-          Create
-        </button>
-        <button
-          type="button"
-          class="rounded border border-[var(--oterm-border)] px-3 py-1 text-xs"
-          @click="showCreate = false"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
+    <CreatePullRequestDialog
+      :open="showCreate"
+      :branches="createBranches"
+      :title="createTitle"
+      :body="createBody"
+      :base="createBase"
+      :head="createHead"
+      :draft="createDraft"
+      :busy="busy"
+      :error="createError"
+      @update:title="createTitle = $event"
+      @update:body="createBody = $event"
+      @update:base="createBase = $event"
+      @update:head="createHead = $event"
+      @update:draft="createDraft = $event"
+      @confirm="onCreate"
+      @cancel="closeCreateDialog"
+    />
 
     <div class="flex min-h-0 flex-1">
       <aside class="w-80 shrink-0 overflow-auto border-r border-[var(--oterm-border)]">
