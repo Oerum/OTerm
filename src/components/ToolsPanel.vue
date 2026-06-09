@@ -301,7 +301,11 @@ async function importEnvFromAncestor() {
     await refreshDirectoryHints(directory);
   } catch (error) {
     envImportStatus.value =
-      error instanceof Error ? error.message : "Could not import .env";
+      typeof error === "string"
+        ? error
+        : error instanceof Error
+          ? error.message
+          : "Could not import .env";
   } finally {
     envImportLoading.value = false;
   }

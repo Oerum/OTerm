@@ -54,9 +54,15 @@ fn resolve_launch_cwd(raw: &str) -> Option<String> {
         return None;
     }
 
-    let path = expand_path(trimmed).ok()?;
+    let mut path = expand_path(trimmed).ok()?;
     if !path.is_dir() {
         return None;
+    }
+
+    if path.is_relative() {
+        if let Ok(current_dir) = std::env::current_dir() {
+            path = current_dir.join(path);
+        }
     }
 
     path_to_string(path)

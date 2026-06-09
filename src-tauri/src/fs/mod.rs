@@ -261,7 +261,7 @@ pub fn find_env_import_hint(dir: &Path) -> Option<(PathBuf, PathBuf)> {
     }
 
     let target = dir.join(".env");
-    if target.is_file() {
+    if target.exists() {
         return None;
     }
 
@@ -327,7 +327,14 @@ pub fn find_devenv_launcher() -> Option<PathBuf> {
             }
         }
 
-        let vswhere = root.join("Installer").join("vswhere.exe");
+        let vswhere = std::env::var("ProgramFiles(x86)")
+            .map(|path| {
+                PathBuf::from(path)
+                    .join("Microsoft Visual Studio")
+                    .join("Installer")
+                    .join("vswhere.exe")
+            })
+            .unwrap_or_else(|_| root.join("Installer").join("vswhere.exe"));
         if vswhere.is_file() {
             let output = std::process::Command::new(&vswhere)
                 .args([
