@@ -11,12 +11,26 @@ import {
   watch,
 } from "vue";
 import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE } from "../lib/terminalFont";
-import { isAgentExitCommand, isAgentLaunchCommand } from "../lib/terminalAgentMode";
+import {
+  detectCliAgent,
+  isAgentExitCommand,
+  type CliAgentId,
+} from "../lib/terminalAgentMode";
+import {
+  agentLaunchPromptClearSuppressUntil,
+  applyAgentExitHandshakeFromOutput,
+} from "../lib/terminalAgentExitHandshake";
 import { fetchTerminalAutocompleteSuggestion } from "../lib/terminalAutocompleteApi";
 import {
   useTerminalAutocompleteSettings,
 } from "../lib/terminalAutocompleteSettings";
 import { applyTerminalInputDraft } from "../lib/terminalInputDraft";
+import {
+  getCtrlDEofPayload,
+  getMultilineEnterPayload,
+  resolveCtrlDTerminalPayload,
+  shouldForwardPtyKeyOverride,
+} from "../lib/terminalMultilineEnter";
 import {
   killTerminal,
   resizeTerminal,
@@ -45,10 +59,12 @@ const emit = defineEmits<{
   cwdChanged: [paneId: string, cwd: string];
   promptReady: [paneId: string];
   commandSubmitted: [command: string];
+  agentModeChanged: [paneId: string, agentId: CliAgentId | null];
   focusPane: [];
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
+const paneRootRef = ref<HTMLElement | null>(null);
 const localSessionId = ref<string | null>(props.sessionId);
 const pendingInput = ref("");
 const draftInput = ref("");
@@ -56,7 +72,15 @@ const exchanges = ref<TerminalCommandExchange[]>([]);
 const suggestion = ref<string | null>(null);
 const suggestionLoading = ref(false);
 const paneCwd = ref("");
-const agentModeActive = ref(false);
+const activeAgentId = ref<CliAgentId | null>(null);
+const agentExitConfirmPending = ref(false);
+const promptClearSuppressUntil = ref(0);
+
+function setActiveAgent(agentId: CliAgentId | null) {
+  if (activeAgentId.value === agentId) return;
+  activeAgentId.value = agentId;
+  emit("agentModeChanged", props.paneId, agentId);
+}
 
 let terminal: Terminal | null = null;
 let fitAddon: FitAddon | null = null;
@@ -69,9 +93,6 @@ let suggestionRequestId = 0;
 let capturingResponse = false;
 let lastSubmittedCommand = "";
 let responseBuffer = "";
-
-const cwdPattern =
-  /(?:PS\s+([A-Za-z]:\\[^\r\n>]+)|(?:\/[\w.-]+)+)(?:>|$)/;
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\r/g, "");
@@ -107,7 +128,7 @@ function canSuggest(): boolean {
     props.active &&
     cfg.enabled &&
     isTerminalAutocompleteConfigured(cfg) &&
-    !agentModeActive.value
+    !activeAgentId.value
   );
 }
 
@@ -192,15 +213,24 @@ async function ensureSession() {
 }
 
 function trackCwd(data: string) {
-  const match = data.match(cwdPattern);
-  if (match?.[1]) {
-    const cwd = match[1].trim();
-    paneCwd.value = cwd;
-    finalizeExchange();
-    emit("cwdChanged", props.paneId, cwd);
-    emit("promptReady", props.paneId);
-    scheduleSuggestion();
+  const next = applyAgentExitHandshakeFromOutput(data, {
+    activeAgentId: activeAgentId.value,
+    agentExitConfirmPending: agentExitConfirmPending.value,
+    promptClearSuppressUntil: promptClearSuppressUntil.value,
+  });
+
+  if (next.activeAgentId !== activeAgentId.value) {
+    setActiveAgent(next.activeAgentId);
   }
+  agentExitConfirmPending.value = next.agentExitConfirmPending;
+
+  if (!next.trailingPrompt) return;
+
+  paneCwd.value = next.trailingPrompt.cwd;
+  finalizeExchange();
+  emit("cwdChanged", props.paneId, next.trailingPrompt.cwd);
+  emit("promptReady", props.paneId);
+  scheduleSuggestion();
 }
 
 function maybeRecordCommand(data: string) {
@@ -215,14 +245,54 @@ function maybeRecordCommand(data: string) {
     return;
   }
 
-  if (isAgentLaunchCommand(command)) agentModeActive.value = true;
-  if (isAgentExitCommand(command)) agentModeActive.value = false;
+  const agentId = detectCliAgent(command);
+  if (agentId) {
+    setActiveAgent(agentId);
+    agentExitConfirmPending.value = false;
+    promptClearSuppressUntil.value = agentLaunchPromptClearSuppressUntil();
+  }
+  if (isAgentExitCommand(command)) {
+    setActiveAgent(null);
+    agentExitConfirmPending.value = false;
+    promptClearSuppressUntil.value = 0;
+  }
 
   lastSubmittedCommand = command;
   capturingResponse = true;
   responseBuffer = "";
   clearSuggestion();
   emit("commandSubmitted", command);
+}
+
+async function forwardTerminalInput(data: string) {
+  draftInput.value = applyTerminalInputDraft(draftInput.value, data);
+  maybeRecordCommand(data);
+  scheduleSuggestion();
+  if (!localSessionId.value) {
+    await ensureSession();
+  }
+  if (localSessionId.value) {
+    await writeTerminal(localSessionId.value, data);
+  }
+}
+
+function onWindowKeyCapture(event: KeyboardEvent) {
+  if (!shouldForwardPtyKeyOverride(event, props.active, paneRootRef.value)) return;
+
+  const multilinePayload = getMultilineEnterPayload(event);
+  const ctrlDPayload = getCtrlDEofPayload(event)
+    ? resolveCtrlDTerminalPayload(agentExitConfirmPending.value)
+    : null;
+  const ptyPayload = ctrlDPayload ?? multilinePayload;
+  if (!ptyPayload) return;
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (ctrlDPayload) {
+    agentExitConfirmPending.value = false;
+  }
+  void forwardTerminalInput(ptyPayload);
+  terminal?.focus();
 }
 
 async function handleResize() {
@@ -295,15 +365,7 @@ async function mountTerminal() {
   });
 
   terminal.onData(async (data) => {
-    draftInput.value = applyTerminalInputDraft(draftInput.value, data);
-    maybeRecordCommand(data);
-    scheduleSuggestion();
-    if (!localSessionId.value) {
-      await ensureSession();
-    }
-    if (localSessionId.value) {
-      await writeTerminal(localSessionId.value, data);
-    }
+    await forwardTerminalInput(data);
   });
 
   unlistenOutput = await listen<TerminalOutputEvent>("terminal-output", (event) => {
@@ -315,6 +377,9 @@ async function mountTerminal() {
 
   unlistenExit = await listen<TerminalExitEvent>("terminal-exit", (event) => {
     if (event.payload.sessionId !== localSessionId.value || !terminal) return;
+    setActiveAgent(null);
+    agentExitConfirmPending.value = false;
+    promptClearSuppressUntil.value = 0;
     terminal.writeln("\r\n[session ended]");
     localSessionId.value = null;
     emit("sessionEnded", props.paneId);
@@ -351,6 +416,7 @@ defineExpose({
 onMounted(async () => {
   localSessionId.value = props.sessionId;
   await nextTick();
+  window.addEventListener("keydown", onWindowKeyCapture, true);
   await mountTerminal();
 });
 
@@ -383,6 +449,7 @@ watch(
 );
 
 onBeforeUnmount(async () => {
+  window.removeEventListener("keydown", onWindowKeyCapture, true);
   window.clearTimeout(resizeTimer);
   window.clearTimeout(suggestionTimer);
   suggestionRequestId += 1;
@@ -413,6 +480,7 @@ watch(suggestionStripVisible, () => {
 
 <template>
   <div
+    ref="paneRootRef"
     class="terminal-pane relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--warp-bg)]"
     :class="active ? 'terminal-pane--active' : ''"
     @mousedown="emit('focusPane')"

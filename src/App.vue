@@ -23,6 +23,7 @@ import { loadDefaultShellId, saveDefaultShellId } from "./lib/shellSettings";
 import type { DockerContainer } from "./types/docker";
 import type { SshEndpoint } from "./types/sshSftp";
 import { killTerminal, listShells, writeTerminal } from "./lib/terminalApi";
+import type { CliAgentId } from "./lib/terminalAgentMode";
 
 const appVersion = "0.1.0";
 
@@ -63,6 +64,7 @@ const {
   setPaneSession,
   clearPaneSession,
   setPaneCwd,
+  setPaneAgent,
   setTabTitle,
   setTabColor,
   moveTab,
@@ -383,6 +385,10 @@ function onCommandSubmitted(command: string) {
   void refreshGitViews();
 }
 
+function onAgentModeChanged(paneId: string, agentId: CliAgentId | null) {
+  setPaneAgent(paneId, agentId);
+}
+
 async function openPathInTerminal(path: string) {
   const pane = activePane.value;
   if (!pane?.sessionId) return;
@@ -512,6 +518,7 @@ onUnmounted(() => {
                 @cwd-changed="setPaneCwd"
                 @prompt-ready="onPromptReady"
                 @command-submitted="onCommandSubmitted"
+                @agent-mode-changed="onAgentModeChanged"
                 @focus-pane="selectPane(pane.id)"
               />
             </section>

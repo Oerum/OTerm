@@ -1,0 +1,62 @@
+/** Shown by agy (and similar TUIs) before the confirming Ctrl+D on Windows ConPTY. */
+export const AGENT_EXIT_CONFIRM_PROMPT = /press ctrl\+d again to exit/i;
+
+export function isAgentExitConfirmPrompt(data: string): boolean {
+  return AGENT_EXIT_CONFIRM_PROMPT.test(data);
+}
+
+/** agy accepts /quit at the confirm step; a second EOT byte often does not exit on ConPTY. */
+export const AGENT_EXIT_CONFIRM_PAYLOAD = "/quit\r";
+
+export function getCtrlDEofPayload(event: KeyboardEvent): string | null {
+  if (event.type !== "keydown") return null;
+  if (!event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return null;
+  if (event.key.toLowerCase() !== "d") return null;
+  return "\x04";
+}
+
+export function resolveCtrlDTerminalPayload(exitConfirmPending: boolean): string {
+  return exitConfirmPending ? AGENT_EXIT_CONFIRM_PAYLOAD : "\x04";
+}
+
+export function getMultilineEnterPayload(event: KeyboardEvent): string | null {
+  if (event.type !== "keydown" || event.key !== "Enter") return null;
+  if (event.altKey || event.metaKey) return null;
+  if (!event.shiftKey && !event.ctrlKey) return null;
+  return "\n";
+}
+
+export function getPtyKeyOverride(event: KeyboardEvent): string | null {
+  return getCtrlDEofPayload(event) ?? getMultilineEnterPayload(event);
+}
+
+const FOREIGN_INPUT_SELECTOR =
+  'input, textarea, select, [contenteditable="true"], [contenteditable=""], [role="textbox"]';
+
+/** Route PTY overrides when the pane is active, even if xterm lost focus after a TUI redraw. */
+export function shouldForwardPtyKeyOverride(
+  event: KeyboardEvent,
+  active: boolean,
+  terminalContainer: HTMLElement | null,
+): boolean {
+  if (!active || event.type !== "keydown") return false;
+  const target = event.target;
+  if (
+    terminalContainer &&
+    target != null &&
+    typeof terminalContainer.contains === "function" &&
+    terminalContainer.contains(target as Node)
+  ) {
+    return true;
+  }
+  if (
+    target != null &&
+    typeof (target as HTMLElement).closest === "function"
+  ) {
+    const foreignInput = (target as HTMLElement).closest(FOREIGN_INPUT_SELECTOR);
+    if (foreignInput && (!terminalContainer || !terminalContainer.contains(foreignInput))) {
+      return false;
+    }
+  }
+  return true;
+}
