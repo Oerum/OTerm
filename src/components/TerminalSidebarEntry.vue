@@ -36,6 +36,10 @@ const gitStatus = computed(() => ({
   deletions: props.entry.gitDeletions,
 }));
 
+const showUnseenNotification = computed(
+  () => props.entry.hasUnseenNotification && !props.entry.isActive,
+);
+
 const accentStyle = computed(() => {
   const color = entryAccentColor(props.entry.tabColor);
   const accentWidth = props.entry.isActive ? "3px" : "2px";
@@ -208,6 +212,22 @@ function onRenameKeyDown(event: KeyboardEvent) {
         </span>
       </span>
     </div>
+
+    <svg
+      v-if="showUnseenNotification"
+      class="h-3 w-3 shrink-0 text-[var(--warp-accent)]"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-label="Unseen notification"
+      role="status"
+    >
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
 
     <div class="relative shrink-0">
       <button

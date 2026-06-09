@@ -37,6 +37,7 @@ export interface WorkspacePane {
   customTitle: string | null;
   activeAgentId: CliAgentId | null;
   oscTitle: string | null;
+  hasUnseenNotification: boolean;
 }
 
 export interface WorkspaceTerminalTab {
@@ -142,6 +143,7 @@ export interface TerminalSidebarEntry {
   gitAdditions: number;
   gitDeletions: number;
   isActive: boolean;
+  hasUnseenNotification: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
   entriesBelowCount: number;

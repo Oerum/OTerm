@@ -7,6 +7,8 @@ mod settings;
 mod ssh_sftp;
 mod terminal;
 
+mod platform;
+
 use docker::commands::{
     docker_container_action, docker_container_logs, docker_prune_unused, docker_remove_image,
     docker_remove_network, docker_remove_volume, docker_summary,
@@ -47,6 +49,26 @@ use terminal::manager::PtyManager;
 
 use std::sync::Arc;
 
+#[tauri::command]
+fn send_desktop_notification(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+) -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let icon = platform::icon::resolve_notification_icon(&exe);
+
+    #[cfg(windows)]
+    {
+        let app_id = app.config().identifier.clone();
+        return platform::windows::toast::send(&app_id, &title, &body, &icon);
+    }
+    #[cfg(not(windows))]
+    {
+        platform::desktop::send(&app, &title, &body, &icon)
+    }
+}
+
 #[cfg(debug_assertions)]
 fn prevent_default() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri_plugin_prevent_default::debug()
@@ -67,12 +89,38 @@ pub fn run() {
     let launch_state = LaunchState::from_args();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(prevent_default())
         .manage(launch_state)
         .manage(PtyManager::new())
         .manage(SftpManager::new())
         .manage(Arc::new(FsSearchState::new()))
+        .setup(|app| {
+            #[cfg(windows)]
+            {
+                let config = app.config();
+                let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+                let assets = platform::icon::prepare_notification_assets(&exe)
+                    .map_err(|e| format!("notification icon cache failed: {e}"))?;
+                let display_name = config
+                    .product_name
+                    .clone()
+                    .unwrap_or_else(|| "OTerm".to_string());
+                if let Err(error) = platform::windows::toast::init(
+                    &platform::windows::toast::ToastIdentity {
+                        app_id: config.identifier.clone(),
+                        display_name,
+                        assets,
+                        exe_path: exe,
+                    },
+                ) {
+                    eprintln!("oterm: toast branding init failed: {error}");
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
+            send_desktop_notification,
             launch_initial_cwd,
             terminal_list_shells,
             terminal_spawn,

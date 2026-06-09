@@ -46,6 +46,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
       customTitle: null,
       activeAgentId: null,
       oscTitle: null,
+      hasUnseenNotification: false,
     };
   }
 
@@ -215,6 +216,18 @@ export function useWorkspace(getDefaultShellId: () => string) {
 
   function selectPane(paneId: string) {
     activePaneId.value = paneId;
+    setPaneUnseenNotification(paneId, false);
+  }
+
+  function setPaneUnseenNotification(paneId: string, value: boolean) {
+    for (const tab of tabs.value) {
+      if (!isTerminalTab(tab)) continue;
+      const pane = tab.panes.find((item) => item.id === paneId);
+      if (pane) {
+        pane.hasUnseenNotification = value;
+        return;
+      }
+    }
   }
 
   function setPaneSession(paneId: string, sessionId: string) {
@@ -236,6 +249,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
         pane.sessionId = null;
         pane.activeAgentId = null;
         pane.oscTitle = null;
+        pane.hasUnseenNotification = false;
         return;
       }
     }
@@ -359,6 +373,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     setPaneCwd,
     setPaneAgent,
     setPaneOscTitle,
+    setPaneUnseenNotification,
     setPaneShell,
     setTabTitle,
     setTabColor,
