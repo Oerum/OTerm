@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendPromptScanBuffer,
   detectShellPrompt,
   detectTrailingShellPrompt,
   looksLikeTuiTransition,
@@ -77,6 +78,24 @@ describe("detectTrailingShellPrompt", () => {
         "Welcome to Agy\r\nPS C:\\Users\\Filip\\Desktop\\oterm> \r\nAntigravity ready",
       ),
     ).toBeNull();
+  });
+});
+
+describe("appendPromptScanBuffer", () => {
+  it("detects a PowerShell prompt split across PTY chunks", () => {
+    const first = appendPromptScanBuffer("", "PS C:\\Users");
+    expect(first.trailingPrompt).toBeNull();
+
+    const second = appendPromptScanBuffer(first.buffer, "\\Filip\\Desktop\\oterm> ");
+    expect(second.trailingPrompt).toEqual({
+      cwd: "C:\\Users\\Filip\\Desktop\\oterm",
+    });
+  });
+
+  it("caps buffer size", () => {
+    const filler = "x".repeat(9000);
+    const result = appendPromptScanBuffer("", filler);
+    expect(result.buffer.length).toBeLessThanOrEqual(8192);
   });
 });
 

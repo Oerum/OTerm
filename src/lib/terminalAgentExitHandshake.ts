@@ -27,6 +27,7 @@ export function agentLaunchPromptClearSuppressUntil(
 export function applyAgentExitHandshakeFromOutput(
   data: string,
   state: AgentExitHandshakeState,
+  trailingPromptOverride?: { cwd: string } | null,
 ): AgentExitHandshakeResult {
   let { activeAgentId, agentExitConfirmPending } = state;
   const promptClearSuppressUntil = state.promptClearSuppressUntil ?? 0;
@@ -35,7 +36,10 @@ export function applyAgentExitHandshakeFromOutput(
     agentExitConfirmPending = true;
   }
 
-  const trailingPrompt = detectTrailingShellPrompt(data);
+  const trailingPrompt =
+    trailingPromptOverride !== undefined
+      ? trailingPromptOverride
+      : detectTrailingShellPrompt(data);
   if (
     trailingPrompt &&
     activeAgentId &&

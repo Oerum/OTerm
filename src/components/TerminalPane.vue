@@ -24,7 +24,13 @@ import { fetchTerminalAutocompleteSuggestion } from "../lib/terminalAutocomplete
 import {
   useTerminalAutocompleteSettings,
 } from "../lib/terminalAutocompleteSettings";
-import { applyTerminalInputDraft } from "../lib/terminalInputDraft";
+import {
+  applyTerminalInputDraft,
+  isRecordableCommand,
+  normalizeSubmittedCommand,
+} from "../lib/terminalInputDraft";
+import { resolveTerminalDraftInput } from "../lib/terminalCurrentInput";
+import { appendPromptScanBuffer } from "../lib/terminalPrompt";
 import {
   getCtrlDEofPayload,
   getMultilineEnterPayload,
@@ -103,6 +109,7 @@ let suggestionRequestId = 0;
 let capturingResponse = false;
 let lastSubmittedCommand = "";
 let responseBuffer = "";
+let promptScanBuffer = "";
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\r/g, "");
@@ -116,7 +123,7 @@ function trimExchanges() {
 }
 
 function finalizeExchange() {
-  if (!capturingResponse || !lastSubmittedCommand) return;
+  if (!lastSubmittedCommand) return;
   exchanges.value.push({
     command: lastSubmittedCommand,
     response: stripAnsi(responseBuffer).trim(),
@@ -130,6 +137,10 @@ function finalizeExchange() {
 function clearSuggestion() {
   suggestion.value = null;
   suggestionLoading.value = false;
+}
+
+function getActiveDraft(): string {
+  return resolveTerminalDraftInput(terminal, draftInput.value);
 }
 
 function canSuggest(): boolean {
@@ -149,15 +160,19 @@ function scheduleSuggestion() {
     return;
   }
 
-  const draft = draftInput.value.trim();
-  if (draft.length < 2) {
+  if (getActiveDraft().trim().length < 2) {
     clearSuggestion();
     return;
   }
 
   suggestionTimer = window.setTimeout(() => {
+    const draft = getActiveDraft().trim();
+    if (draft.length < 2) {
+      clearSuggestion();
+      return;
+    }
     void requestSuggestion(draft);
-  }, 450);
+  }, 650);
 }
 
 async function requestSuggestion(draft: string) {
@@ -171,7 +186,7 @@ async function requestSuggestion(draft: string) {
       draft,
       paneCwd.value,
     );
-    if (requestId !== suggestionRequestId || draft !== draftInput.value.trim()) return;
+    if (requestId !== suggestionRequestId || draft !== getActiveDraft().trim()) return;
     suggestion.value = result;
   } catch {
     if (requestId === suggestionRequestId) suggestion.value = null;
@@ -183,7 +198,7 @@ async function requestSuggestion(draft: string) {
 async function acceptSuggestion() {
   const line = suggestion.value;
   if (!line || !localSessionId.value) return;
-  const draft = draftInput.value;
+  const draft = getActiveDraft();
   const toWrite = line.startsWith(draft) ? line.slice(draft.length) : line;
   if (!toWrite) return;
   await writeTerminal(localSessionId.value, toWrite);
@@ -226,11 +241,18 @@ async function ensureSession() {
 }
 
 function trackCwd(data: string) {
-  const next = applyAgentExitHandshakeFromOutput(data, {
-    activeAgentId: activeAgentId.value,
-    agentExitConfirmPending: agentExitConfirmPending.value,
-    promptClearSuppressUntil: promptClearSuppressUntil.value,
-  });
+  const scan = appendPromptScanBuffer(promptScanBuffer, data);
+  promptScanBuffer = scan.buffer;
+
+  const next = applyAgentExitHandshakeFromOutput(
+    data,
+    {
+      activeAgentId: activeAgentId.value,
+      agentExitConfirmPending: agentExitConfirmPending.value,
+      promptClearSuppressUntil: promptClearSuppressUntil.value,
+    },
+    scan.trailingPrompt,
+  );
 
   if (next.activeAgentId !== activeAgentId.value) {
     setActiveAgent(next.activeAgentId);
@@ -241,20 +263,24 @@ function trackCwd(data: string) {
 
   paneCwd.value = next.trailingPrompt.cwd;
   finalizeExchange();
+  promptScanBuffer = "";
   emit("cwdChanged", props.paneId, next.trailingPrompt.cwd);
   emit("promptReady", props.paneId);
   scheduleSuggestion();
 }
 
-function maybeRecordCommand(data: string) {
+function maybeRecordCommand(data: string, preferredLine = "") {
   pendingInput.value += data;
   if (!pendingInput.value.includes("\r") && !pendingInput.value.includes("\n")) {
     return;
   }
 
-  const command = pendingInput.value.replace(/[\r\n]+/g, "").trim();
+  finalizeExchange();
+
+  const fromPending = normalizeSubmittedCommand(pendingInput.value);
   pendingInput.value = "";
-  if (!command || command.length > 200 || /[\u001b\u0007]/.test(command)) {
+  const command = normalizeSubmittedCommand(preferredLine) || fromPending;
+  if (!isRecordableCommand(command)) {
     return;
   }
 
@@ -278,8 +304,15 @@ function maybeRecordCommand(data: string) {
 }
 
 async function forwardTerminalInput(data: string) {
+  const isEnter = /[\r\n]/.test(data);
+  const commandLine = isEnter ? getActiveDraft() : "";
+
   draftInput.value = applyTerminalInputDraft(draftInput.value, data);
-  maybeRecordCommand(data);
+  if (lastSubmittedCommand && draftInput.value.trim().length > 0) {
+    finalizeExchange();
+    promptScanBuffer = "";
+  }
+  maybeRecordCommand(data, commandLine);
   scheduleSuggestion();
   if (!localSessionId.value) {
     await ensureSession();
@@ -484,13 +517,13 @@ onBeforeUnmount(async () => {
 const isReady = computed(() => Boolean(localSessionId.value));
 
 const suggestionVisible = computed(
-  () => canSuggest() && Boolean(suggestion.value) && draftInput.value.trim().length >= 2,
+  () => canSuggest() && Boolean(suggestion.value) && getActiveDraft().trim().length >= 2,
 );
 
 const suggestionStripVisible = computed(
   () =>
     suggestionVisible.value ||
-    (suggestionLoading.value && canSuggest() && draftInput.value.trim().length >= 2),
+    (suggestionLoading.value && canSuggest() && getActiveDraft().trim().length >= 2),
 );
 
 watch(suggestionStripVisible, () => {
