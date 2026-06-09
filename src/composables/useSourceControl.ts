@@ -146,6 +146,20 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     );
   }
 
+  async function revertAll() {
+    const root = status.value.repoRoot;
+    const tracked = Array.from(
+      new Set([...status.value.changes, ...status.value.staged].map((e) => e.path)),
+    );
+    const untracked = status.value.untracked.map((e) => e.path);
+    if (!root || (tracked.length === 0 && untracked.length === 0)) return;
+
+    await runAction("revert", async () => {
+      if (tracked.length) await revertTrackedGitPaths(root, tracked);
+      if (untracked.length) await revertUntrackedGitPaths(root, untracked);
+    });
+  }
+
   async function revertHunk(path: string, hunkPatch: string, staged: boolean) {
     const root = status.value.repoRoot;
     if (!root) return;
@@ -214,6 +228,7 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     stage,
     unstage,
     revert,
+    revertAll,
     revertHunk,
     stageHunk,
     unstageHunk,

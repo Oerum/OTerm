@@ -20,18 +20,29 @@ import { useTerminalHistory } from "./composables/useTerminalHistory";
 import { useWorkspace } from "./composables/useWorkspace";
 import type { ClosedTerminalSession, SaveProfileDraft, WorkspaceTerminalTab } from "./types/terminal";
 import { isTerminalTab } from "./types/terminal";
-import { loadDefaultShellId, saveDefaultShellId } from "./lib/shellSettings";
+import {
+  DEFAULT_SHELL_SETTING_KEY,
+  loadDefaultShellId,
+  saveDefaultShellId,
+} from "./lib/shellSettings";
+import { getSetting } from "./lib/settingsStore";
 import type { DockerContainer } from "./types/docker";
 import type { SshEndpoint } from "./types/sshSftp";
 import { getLaunchInitialCwd } from "./lib/launchApi";
-import { killTerminal, listShells, listenTerminalAgentChanged, writeTerminal } from "./lib/terminalApi";
+import {
+  getDefaultShellId,
+  killTerminal,
+  listShells,
+  listenTerminalAgentChanged,
+  writeTerminal,
+} from "./lib/terminalApi";
 import type { CliAgentId } from "./lib/terminalAgentMode";
 import { consumeAppShortcut, isTabCycleShortcut } from "./lib/appKeyboardShortcuts";
 
 const appVersion = "0.1.0";
 
-const FALLBACK_SHELL_ID = "pwsh";
-const defaultShellId = ref(loadDefaultShellId(FALLBACK_SHELL_ID));
+const systemDefaultShellId = ref("cmd");
+const defaultShellId = ref("");
 const closedSessions = ref<ClosedTerminalSession[]>([]);
 const pendingTerminalCommands = new Map<string, string>();
 const canReopenClosed = computed(() => closedSessions.value.length > 0);
@@ -101,6 +112,7 @@ const {
   stage: stageGitPaths,
   unstage: unstageGitPaths,
   revert: revertGitPaths,
+  revertAll: revertAllGitChanges,
   revertHunk: revertGitHunk,
   stageHunk: stageGitHunk,
   unstageHunk: unstageGitHunk,
@@ -268,8 +280,9 @@ function openDockerContainerTerminal(
 function resolveDefaultShellId() {
   return (
     shells.value.find((shell) => shell.id === defaultShellId.value)?.id ??
+    shells.value.find((shell) => shell.id === systemDefaultShellId.value)?.id ??
     shells.value[0]?.id ??
-    FALLBACK_SHELL_ID
+    systemDefaultShellId.value
   );
 }
 
@@ -304,6 +317,16 @@ function reopenClosedSession() {
 
 async function bootstrap() {
   shells.value = await listShells();
+  systemDefaultShellId.value = await getDefaultShellId();
+
+  const saved = getSetting(DEFAULT_SHELL_SETTING_KEY);
+  if (!saved) {
+    defaultShellId.value = systemDefaultShellId.value;
+    saveDefaultShellId(defaultShellId.value);
+  } else {
+    defaultShellId.value = loadDefaultShellId(systemDefaultShellId.value);
+  }
+
   const resolved = resolveDefaultShellId();
   if (defaultShellId.value !== resolved) {
     defaultShellId.value = resolved;
@@ -676,6 +699,7 @@ onUnmounted(() => {
           @stage="(paths) => runGitAction(() => stageGitPaths(paths))"
           @unstage="(paths) => runGitAction(() => unstageGitPaths(paths))"
           @revert="(paths, untracked) => runGitAction(() => revertGitPaths(paths, untracked))"
+          @revert-all="() => runGitAction(revertAllGitChanges)"
           @commit="(message) => runGitAction(() => commitGitChanges(message))"
           @fetch="() => runGitAction(fetchGitRepo)"
           @pull="() => runGitAction(pullGitRepo)"
