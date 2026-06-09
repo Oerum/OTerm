@@ -29,7 +29,7 @@ function tabLabel(tab: WorkspaceTab) {
 
 <template>
   <header
-    class="flex h-10 shrink-0 items-center gap-1 border-b border-[var(--warp-border)] bg-[var(--warp-panel)] px-3"
+    class="flex h-10 shrink-0 items-center gap-1 border-b border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-3"
   >
     <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
       <button
@@ -39,18 +39,18 @@ function tabLabel(tab: WorkspaceTab) {
         class="group flex max-w-[11rem] items-center gap-2 rounded-full px-3 py-1 text-xs transition"
         :class="
           tab.id === activeTabId
-            ? 'bg-[var(--warp-elevated)] text-[var(--warp-text)] shadow-[inset_0_0_0_1px_var(--warp-border-strong)]'
-            : 'text-[var(--warp-muted)] hover:bg-white/[0.04] hover:text-[var(--warp-text)]'
+            ? 'bg-[var(--oterm-elevated)] text-[var(--oterm-text)] shadow-[inset_0_0_0_1px_var(--oterm-border-strong)]'
+            : 'text-[var(--oterm-muted)] hover:bg-white/[0.04] hover:text-[var(--oterm-text)]'
         "
         @click="emit('select', tab.id)"
       >
         <span
           class="h-1.5 w-1.5 shrink-0 rounded-full"
-          :class="tab.id === activeTabId ? 'bg-[var(--warp-accent)]' : 'bg-[var(--warp-faint)]'"
+          :class="tab.id === activeTabId ? 'bg-[var(--oterm-accent)]' : 'bg-[var(--oterm-faint)]'"
         />
         <span class="truncate">{{ tabLabel(tab) }}</span>
         <span
-          class="rounded-full px-1 text-[10px] leading-none text-[var(--warp-faint)] opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-[var(--warp-text)]"
+          class="rounded-full px-1 text-[10px] leading-none text-[var(--oterm-faint)] opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-[var(--oterm-text)]"
           @click.stop="emit('close', tab.id)"
         >
           ×
@@ -59,7 +59,7 @@ function tabLabel(tab: WorkspaceTab) {
 
       <button
         type="button"
-        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--warp-muted)] transition hover:bg-white/[0.04] hover:text-[var(--warp-text)] disabled:opacity-40"
+        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--oterm-muted)] transition hover:bg-white/[0.04] hover:text-[var(--oterm-text)] disabled:opacity-40"
         title="New tab"
         aria-label="New tab"
         :disabled="shells.length === 0"

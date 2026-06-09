@@ -17,7 +17,7 @@ const isEmpty = computed(() => !props.source.trim());
 </script>
 
 <template>
-  <p v-if="isEmpty" class="text-sm text-[var(--warp-muted)]">{{ emptyText }}</p>
+  <p v-if="isEmpty" class="text-sm text-[var(--oterm-muted)]">{{ emptyText }}</p>
   <div v-else class="markdown-content text-sm leading-relaxed" v-html="html" />
 </template>
 
@@ -41,7 +41,7 @@ const isEmpty = computed(() => !props.source.trim());
   margin: 1.25em 0 0.5em;
   font-weight: 600;
   line-height: 1.3;
-  color: var(--warp-text);
+  color: var(--oterm-text);
 }
 
 .markdown-content :deep(h1) {
@@ -86,12 +86,12 @@ const isEmpty = computed(() => !props.source.trim());
 .markdown-content :deep(blockquote) {
   margin: 0.75em 0;
   padding-left: 0.75em;
-  border-left: 3px solid var(--warp-border-strong);
-  color: var(--warp-muted);
+  border-left: 3px solid var(--oterm-border-strong);
+  color: var(--oterm-muted);
 }
 
 .markdown-content :deep(a) {
-  color: var(--warp-accent);
+  color: var(--oterm-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -101,7 +101,7 @@ const isEmpty = computed(() => !props.source.trim());
 }
 
 .markdown-content :deep(code) {
-  font-family: var(--warp-font-mono);
+  font-family: var(--oterm-font-mono);
   font-size: 0.9em;
   padding: 0.1em 0.35em;
   border-radius: 4px;
@@ -113,8 +113,8 @@ const isEmpty = computed(() => !props.source.trim());
   padding: 0.75em 1em;
   overflow-x: auto;
   border-radius: 6px;
-  border: 1px solid var(--warp-border);
-  background: var(--warp-elevated);
+  border: 1px solid var(--oterm-border);
+  background: var(--oterm-elevated);
 }
 
 .markdown-content :deep(pre code) {
@@ -133,7 +133,7 @@ const isEmpty = computed(() => !props.source.trim());
 .markdown-content :deep(th),
 .markdown-content :deep(td) {
   padding: 0.35em 0.6em;
-  border: 1px solid var(--warp-border);
+  border: 1px solid var(--oterm-border);
 }
 
 .markdown-content :deep(th) {
@@ -144,12 +144,12 @@ const isEmpty = computed(() => !props.source.trim());
 .markdown-content :deep(hr) {
   margin: 1em 0;
   border: none;
-  border-top: 1px solid var(--warp-border);
+  border-top: 1px solid var(--oterm-border);
 }
 
 .markdown-content :deep(input[type="checkbox"]) {
   margin-right: 0.35em;
-  accent-color: var(--warp-accent);
+  accent-color: var(--oterm-accent);
 }
 
 .markdown-content :deep(img) {

@@ -519,7 +519,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="warp-app relative flex h-full flex-col">
+  <div class="oterm-app relative flex h-full flex-col">
     <TitleBar
       :terminal-sidebar-open="terminalSidebarOpen"
       :tools-open="toolsOpen"
@@ -564,14 +564,14 @@ onUnmounted(() => {
 
       <ToolsPanel
         v-if="toolsOpen"
-        :class="terminalSidebarOpen ? 'border-l border-[var(--warp-border)]' : ''"
+        :class="terminalSidebarOpen ? 'border-l border-[var(--oterm-border)]' : ''"
         :root-path="projectRoot"
         @navigate="cdFromExplorer"
       />
 
       <div
         class="relative flex min-w-0 flex-1 flex-col"
-        :class="terminalSidebarOpen || toolsOpen ? 'border-l border-[var(--warp-border)]' : ''"
+        :class="terminalSidebarOpen || toolsOpen ? 'border-l border-[var(--oterm-border)]' : ''"
       >
         <SessionHeader
           v-if="activePane && activeTerminalTab"
@@ -595,7 +595,7 @@ onUnmounted(() => {
             <section
               v-if="tab.kind === 'terminal'"
               v-show="tab.id === activeTabId"
-              class="flex min-h-0 flex-1 divide-[var(--warp-border)]"
+              class="flex min-h-0 flex-1 divide-[var(--oterm-border)]"
               :class="tab.split === 'horizontal' ? 'flex-row divide-x' : 'flex-col'"
             >
               <TerminalPane
@@ -681,7 +681,7 @@ onUnmounted(() => {
       <div v-if="sourceControlOpen" class="relative flex shrink-0">
         <div
           class="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
-          :class="sourceControlResizing ? 'bg-[var(--warp-accent)]/30' : 'hover:bg-white/5'"
+          :class="sourceControlResizing ? 'bg-[var(--oterm-accent)]/30' : 'hover:bg-white/5'"
           title="Drag to resize"
           @pointerdown="onResizeHandlePointerDown"
         />

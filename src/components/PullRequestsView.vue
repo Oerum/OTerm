@@ -134,14 +134,14 @@ function reviewStateClass(state: string) {
   if (upper.includes("APPROVED")) return "bg-green-500/20 text-green-300";
   if (upper.includes("CHANGES")) return "bg-red-500/20 text-red-300";
   if (upper.includes("COMMENTED")) return "bg-blue-500/20 text-blue-300";
-  return "bg-white/10 text-[var(--warp-muted)]";
+  return "bg-white/10 text-[var(--oterm-muted)]";
 }
 
 function checkBucketClass(bucket: string) {
   if (bucket === "pass") return "bg-green-500/20 text-green-300";
   if (bucket === "fail") return "bg-red-500/20 text-red-300";
   if (bucket === "pending") return "bg-yellow-500/20 text-yellow-300";
-  return "bg-white/10 text-[var(--warp-muted)]";
+  return "bg-white/10 text-[var(--oterm-muted)]";
 }
 
 function changeTypeLabel(changeType: string) {
@@ -370,20 +370,20 @@ watch(selectedNumber, (number) => {
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col bg-[var(--warp-bg)] text-[var(--warp-text)]">
+  <div class="flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)]">
     <header
-      class="flex shrink-0 items-center gap-2 border-b border-[var(--warp-border)] px-4 py-2"
+      class="flex shrink-0 items-center gap-2 border-b border-[var(--oterm-border)] px-4 py-2"
     >
       <h2 class="text-sm font-medium">Pull Requests</h2>
-      <span class="truncate text-xs text-[var(--warp-muted)]">{{ repoRoot }}</span>
+      <span class="truncate text-xs text-[var(--oterm-muted)]">{{ repoRoot }}</span>
       <div class="flex-1" />
-      <label class="flex items-center gap-1.5 text-xs text-[var(--warp-muted)]">
-        <input v-model="includeClosed" type="checkbox" class="accent-[var(--warp-accent)]" />
+      <label class="flex items-center gap-1.5 text-xs text-[var(--oterm-muted)]">
+        <input v-model="includeClosed" type="checkbox" class="accent-[var(--oterm-accent)]" />
         Show closed
       </label>
       <button
         type="button"
-        class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-xs hover:bg-white/5"
+        class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
         :disabled="loading"
         @click="load"
       >
@@ -391,7 +391,7 @@ watch(selectedNumber, (number) => {
       </button>
       <button
         type="button"
-        class="rounded-md bg-[var(--warp-accent)] px-2 py-1 text-xs text-black disabled:opacity-50"
+        class="rounded-md bg-[var(--oterm-accent)] px-2 py-1 text-xs text-black disabled:opacity-50"
         :disabled="!provider?.authOk || busy"
         @click="showCreate = true"
       >
@@ -399,40 +399,40 @@ watch(selectedNumber, (number) => {
       </button>
       <button
         type="button"
-        class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-xs hover:bg-white/5"
+        class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
         @click="emit('close')"
       >
         Close tab
       </button>
     </header>
 
-    <p v-if="provider && !provider.authOk" class="px-4 py-3 text-sm text-[var(--warp-muted)]">
+    <p v-if="provider && !provider.authOk" class="px-4 py-3 text-sm text-[var(--oterm-muted)]">
       {{ provider.message ?? "Pull requests are unavailable for this repository." }}
     </p>
 
-    <p v-if="error" class="px-4 py-2 text-sm text-[var(--warp-danger)]">{{ error }}</p>
+    <p v-if="error" class="px-4 py-2 text-sm text-[var(--oterm-danger)]">{{ error }}</p>
 
-    <div v-if="showCreate" class="border-b border-[var(--warp-border)] px-4 py-3">
+    <div v-if="showCreate" class="border-b border-[var(--oterm-border)] px-4 py-3">
       <input
         v-model="createTitle"
         type="text"
         placeholder="PR title"
-        class="mb-2 w-full rounded border border-[var(--warp-border)] bg-transparent px-2 py-1 text-sm"
+        class="mb-2 w-full rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-sm"
       />
       <textarea
         v-model="createBody"
         rows="4"
         placeholder="Description"
-        class="mb-2 w-full rounded border border-[var(--warp-border)] bg-transparent px-2 py-1 text-sm"
+        class="mb-2 w-full rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-sm"
       />
-      <label class="mb-2 flex items-center gap-2 text-xs text-[var(--warp-muted)]">
-        <input v-model="createDraft" type="checkbox" class="accent-[var(--warp-accent)]" />
+      <label class="mb-2 flex items-center gap-2 text-xs text-[var(--oterm-muted)]">
+        <input v-model="createDraft" type="checkbox" class="accent-[var(--oterm-accent)]" />
         Create as draft
       </label>
       <div class="flex gap-2">
         <button
           type="button"
-          class="rounded bg-[var(--warp-accent)] px-3 py-1 text-xs text-black"
+          class="rounded bg-[var(--oterm-accent)] px-3 py-1 text-xs text-black"
           :disabled="busy"
           @click="onCreate"
         >
@@ -440,7 +440,7 @@ watch(selectedNumber, (number) => {
         </button>
         <button
           type="button"
-          class="rounded border border-[var(--warp-border)] px-3 py-1 text-xs"
+          class="rounded border border-[var(--oterm-border)] px-3 py-1 text-xs"
           @click="showCreate = false"
         >
           Cancel
@@ -449,61 +449,61 @@ watch(selectedNumber, (number) => {
     </div>
 
     <div class="flex min-h-0 flex-1">
-      <aside class="w-80 shrink-0 overflow-auto border-r border-[var(--warp-border)]">
-        <p v-if="loading" class="p-4 text-xs text-[var(--warp-muted)]">Loading…</p>
+      <aside class="w-80 shrink-0 overflow-auto border-r border-[var(--oterm-border)]">
+        <p v-if="loading" class="p-4 text-xs text-[var(--oterm-muted)]">Loading…</p>
         <button
           v-for="pr in pullRequests"
           :key="pr.number"
           type="button"
-          class="block w-full border-b border-[var(--warp-border)] px-3 py-2 text-left text-sm transition hover:bg-white/5"
+          class="block w-full border-b border-[var(--oterm-border)] px-3 py-2 text-left text-sm transition hover:bg-white/5"
           :class="selectedNumber === pr.number ? 'bg-white/5' : ''"
           @click="selectedNumber = pr.number"
         >
           <div class="flex items-center gap-2">
-            <span class="text-[var(--warp-muted)]">#{{ pr.number }}</span>
+            <span class="text-[var(--oterm-muted)]">#{{ pr.number }}</span>
             <span
               class="rounded px-1 text-[10px] uppercase"
               :class="
                 pr.state === 'OPEN'
                   ? 'bg-green-500/20 text-green-300'
-                  : 'bg-white/10 text-[var(--warp-muted)]'
+                  : 'bg-white/10 text-[var(--oterm-muted)]'
               "
             >
               {{ pr.state }}
             </span>
-            <span v-if="pr.isDraft" class="text-[10px] text-[var(--warp-muted)]">draft</span>
+            <span v-if="pr.isDraft" class="text-[10px] text-[var(--oterm-muted)]">draft</span>
           </div>
           <div class="mt-1 truncate font-medium">{{ pr.title }}</div>
-          <div class="mt-0.5 truncate text-xs text-[var(--warp-muted)]">
+          <div class="mt-0.5 truncate text-xs text-[var(--oterm-muted)]">
             {{ pr.headRef }} → {{ pr.baseRef }}
           </div>
         </button>
         <p
           v-if="!loading && pullRequests.length === 0 && provider?.authOk"
-          class="p-4 text-xs text-[var(--warp-muted)]"
+          class="p-4 text-xs text-[var(--oterm-muted)]"
         >
           No pull requests found.
         </p>
       </aside>
 
       <section v-if="selected" class="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div class="shrink-0 border-b border-[var(--warp-border)] px-4 py-3">
+        <div class="shrink-0 border-b border-[var(--oterm-border)] px-4 py-3">
           <h3 class="text-lg font-medium">{{ selected.title }}</h3>
-          <p class="mt-1 text-sm text-[var(--warp-muted)]">
+          <p class="mt-1 text-sm text-[var(--oterm-muted)]">
             #{{ selected.number }} · {{ selected.author }} · {{ selected.headRef }} →
             {{ selected.baseRef }}
           </p>
           <div class="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
-              class="rounded border border-[var(--warp-border)] px-3 py-1 text-xs hover:bg-white/5"
+              class="rounded border border-[var(--oterm-border)] px-3 py-1 text-xs hover:bg-white/5"
               @click="onOpen(selected)"
             >
               Open in browser
             </button>
             <button
               type="button"
-              class="rounded border border-[var(--warp-border)] px-3 py-1 text-xs hover:bg-white/5"
+              class="rounded border border-[var(--oterm-border)] px-3 py-1 text-xs hover:bg-white/5"
               :disabled="busy"
               @click="onCheckout(selected)"
             >
@@ -513,15 +513,15 @@ watch(selectedNumber, (number) => {
         </div>
 
         <nav
-          class="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--warp-border)] px-4"
+          class="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--oterm-border)] px-4"
         >
           <button
             type="button"
             class="border-b-2 px-3 py-2 text-xs transition"
             :class="
               activeTab === 'conversation'
-                ? 'border-[var(--warp-accent)] text-[var(--warp-text)]'
-                : 'border-transparent text-[var(--warp-muted)] hover:text-[var(--warp-text)]'
+                ? 'border-[var(--oterm-accent)] text-[var(--oterm-text)]'
+                : 'border-transparent text-[var(--oterm-muted)] hover:text-[var(--oterm-text)]'
             "
             @click="selectTab('conversation')"
           >
@@ -532,15 +532,15 @@ watch(selectedNumber, (number) => {
             class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs transition"
             :class="
               activeTab === 'commits'
-                ? 'border-[var(--warp-accent)] text-[var(--warp-text)]'
-                : 'border-transparent text-[var(--warp-muted)] hover:text-[var(--warp-text)]'
+                ? 'border-[var(--oterm-accent)] text-[var(--oterm-text)]'
+                : 'border-transparent text-[var(--oterm-muted)] hover:text-[var(--oterm-text)]'
             "
             @click="selectTab('commits')"
           >
             Commits
             <span
               v-if="commits.length"
-              class="rounded bg-white/10 px-1 text-[10px] text-[var(--warp-muted)]"
+              class="rounded bg-white/10 px-1 text-[10px] text-[var(--oterm-muted)]"
             >
               {{ commits.length }}
             </span>
@@ -554,8 +554,8 @@ watch(selectedNumber, (number) => {
             class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs transition"
             :class="
               activeTab === 'checks'
-                ? 'border-[var(--warp-accent)] text-[var(--warp-text)]'
-                : 'border-transparent text-[var(--warp-muted)] hover:text-[var(--warp-text)]'
+                ? 'border-[var(--oterm-accent)] text-[var(--oterm-text)]'
+                : 'border-transparent text-[var(--oterm-muted)] hover:text-[var(--oterm-text)]'
             "
             @click="selectTab('checks')"
           >
@@ -573,15 +573,15 @@ watch(selectedNumber, (number) => {
             class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs transition"
             :class="
               activeTab === 'files'
-                ? 'border-[var(--warp-accent)] text-[var(--warp-text)]'
-                : 'border-transparent text-[var(--warp-muted)] hover:text-[var(--warp-text)]'
+                ? 'border-[var(--oterm-accent)] text-[var(--oterm-text)]'
+                : 'border-transparent text-[var(--oterm-muted)] hover:text-[var(--oterm-text)]'
             "
             @click="selectTab('files')"
           >
             Files changed
             <span
               v-if="files.length || detail?.changedFiles"
-              class="rounded bg-white/10 px-1 text-[10px] text-[var(--warp-muted)]"
+              class="rounded bg-white/10 px-1 text-[10px] text-[var(--oterm-muted)]"
             >
               {{ files.length || detail?.changedFiles }}
             </span>
@@ -589,20 +589,20 @@ watch(selectedNumber, (number) => {
         </nav>
 
         <div class="min-h-0 flex-1 overflow-auto">
-          <p v-if="tabError" class="px-4 py-2 text-sm text-[var(--warp-danger)]">{{ tabError }}</p>
+          <p v-if="tabError" class="px-4 py-2 text-sm text-[var(--oterm-danger)]">{{ tabError }}</p>
 
           <!-- Conversation -->
           <div v-if="activeTab === 'conversation'" class="p-4">
-            <p v-if="detailLoading" class="text-xs text-[var(--warp-muted)]">Loading…</p>
+            <p v-if="detailLoading" class="text-xs text-[var(--oterm-muted)]">Loading…</p>
             <template v-else-if="detail">
               <div>
-                <h4 class="text-xs font-medium uppercase tracking-wide text-[var(--warp-muted)]">
+                <h4 class="text-xs font-medium uppercase tracking-wide text-[var(--oterm-muted)]">
                   Description
                 </h4>
                 <MarkdownContent class="mt-2" :source="detail.body" empty-text="No description." />
                 <p
                   v-if="detail.additions || detail.deletions"
-                  class="mt-2 text-xs text-[var(--warp-muted)]"
+                  class="mt-2 text-xs text-[var(--oterm-muted)]"
                 >
                   +{{ detail.additions }} −{{ detail.deletions }} across
                   {{ detail.changedFiles }} files
@@ -610,15 +610,15 @@ watch(selectedNumber, (number) => {
               </div>
 
               <div v-if="timelineItems.length" class="mt-6 space-y-4">
-                <h4 class="text-xs font-medium uppercase tracking-wide text-[var(--warp-muted)]">
+                <h4 class="text-xs font-medium uppercase tracking-wide text-[var(--oterm-muted)]">
                   Timeline
                 </h4>
                 <article
                   v-for="item in timelineItems"
                   :key="item.key"
-                  class="rounded border border-[var(--warp-border)] p-3"
+                  class="rounded border border-[var(--oterm-border)] p-3"
                 >
-                  <div class="flex flex-wrap items-center gap-2 text-xs text-[var(--warp-muted)]">
+                  <div class="flex flex-wrap items-center gap-2 text-xs text-[var(--oterm-muted)]">
                     <span>{{ item.author }} · {{ item.at }}</span>
                     <span
                       v-if="item.kind === 'review'"
@@ -637,19 +637,19 @@ watch(selectedNumber, (number) => {
                 </article>
               </div>
 
-              <div class="mt-6 border-t border-[var(--warp-border)] pt-4">
-                <h4 class="text-xs font-medium uppercase tracking-wide text-[var(--warp-muted)]">
+              <div class="mt-6 border-t border-[var(--oterm-border)] pt-4">
+                <h4 class="text-xs font-medium uppercase tracking-wide text-[var(--oterm-muted)]">
                   Add a comment
                 </h4>
                 <textarea
                   v-model="commentBody"
                   rows="4"
                   placeholder="Leave a comment"
-                  class="mt-2 w-full rounded border border-[var(--warp-border)] bg-transparent px-2 py-1 text-sm"
+                  class="mt-2 w-full rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-sm"
                 />
                 <button
                   type="button"
-                  class="mt-2 rounded bg-[var(--warp-accent)] px-3 py-1 text-xs text-black disabled:opacity-50"
+                  class="mt-2 rounded bg-[var(--oterm-accent)] px-3 py-1 text-xs text-black disabled:opacity-50"
                   :disabled="commentBusy || !commentBody.trim()"
                   @click="onSubmitComment"
                 >
@@ -661,42 +661,42 @@ watch(selectedNumber, (number) => {
 
           <!-- Commits -->
           <div v-else-if="activeTab === 'commits'" class="p-4">
-            <p v-if="commitsLoading" class="text-xs text-[var(--warp-muted)]">Loading commits…</p>
+            <p v-if="commitsLoading" class="text-xs text-[var(--oterm-muted)]">Loading commits…</p>
             <ul v-else-if="commits.length" class="space-y-2">
               <li
                 v-for="commit in commits"
                 :key="commit.oid"
-                class="flex items-start gap-3 rounded border border-[var(--warp-border)] px-3 py-2"
+                class="flex items-start gap-3 rounded border border-[var(--oterm-border)] px-3 py-2"
               >
                 <div class="min-w-0 flex-1">
                   <p class="font-medium">{{ commit.messageHeadline }}</p>
-                  <p v-if="commit.messageBody" class="mt-1 text-xs text-[var(--warp-muted)]">
+                  <p v-if="commit.messageBody" class="mt-1 text-xs text-[var(--oterm-muted)]">
                     {{ commit.messageBody }}
                   </p>
-                  <p class="mt-1 text-xs text-[var(--warp-muted)]">
+                  <p class="mt-1 text-xs text-[var(--oterm-muted)]">
                     {{ commit.author }} · {{ commit.committedDate }}
                   </p>
                 </div>
                 <button
                   type="button"
-                  class="shrink-0 rounded border border-[var(--warp-border)] px-2 py-0.5 font-mono text-xs hover:bg-white/5"
+                  class="shrink-0 rounded border border-[var(--oterm-border)] px-2 py-0.5 font-mono text-xs hover:bg-white/5"
                   @click="onOpenCommit(commit.oid)"
                 >
                   {{ commit.shortOid }}
                 </button>
               </li>
             </ul>
-            <p v-else class="text-sm text-[var(--warp-muted)]">No commits found.</p>
+            <p v-else class="text-sm text-[var(--oterm-muted)]">No commits found.</p>
           </div>
 
           <!-- Checks -->
           <div v-else-if="activeTab === 'checks'" class="p-4">
-            <p v-if="checksLoading" class="text-xs text-[var(--warp-muted)]">Loading checks…</p>
+            <p v-if="checksLoading" class="text-xs text-[var(--oterm-muted)]">Loading checks…</p>
             <ul v-else-if="checks.length" class="space-y-2">
               <li
                 v-for="(check, index) in checks"
                 :key="`${check.name}-${check.startedAt}-${check.workflow}-${index}`"
-                class="flex items-center gap-3 rounded border border-[var(--warp-border)] px-3 py-2"
+                class="flex items-center gap-3 rounded border border-[var(--oterm-border)] px-3 py-2"
               >
                 <span
                   class="shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase"
@@ -706,32 +706,32 @@ watch(selectedNumber, (number) => {
                 </span>
                 <div class="min-w-0 flex-1">
                   <p class="truncate font-medium">{{ check.name }}</p>
-                  <p v-if="check.description" class="truncate text-xs text-[var(--warp-muted)]">
+                  <p v-if="check.description" class="truncate text-xs text-[var(--oterm-muted)]">
                     {{ check.description }}
                   </p>
-                  <p v-if="check.workflow" class="text-[10px] text-[var(--warp-muted)]">
+                  <p v-if="check.workflow" class="text-[10px] text-[var(--oterm-muted)]">
                     {{ check.workflow }}
                   </p>
                 </div>
                 <a
                   v-if="check.link"
                   :href="check.link"
-                  class="shrink-0 text-xs text-[var(--warp-accent)] hover:underline"
+                  class="shrink-0 text-xs text-[var(--oterm-accent)] hover:underline"
                   @click.prevent="openUrl(check.link!)"
                 >
                   Details
                 </a>
               </li>
             </ul>
-            <p v-else class="text-sm text-[var(--warp-muted)]">No checks reported.</p>
+            <p v-else class="text-sm text-[var(--oterm-muted)]">No checks reported.</p>
           </div>
 
           <!-- Files changed -->
           <div v-else-if="activeTab === 'files'" class="flex min-h-0 h-full">
             <aside
-              class="w-64 shrink-0 overflow-auto border-r border-[var(--warp-border)] p-2"
+              class="w-64 shrink-0 overflow-auto border-r border-[var(--oterm-border)] p-2"
             >
-              <p v-if="filesLoading" class="p-2 text-xs text-[var(--warp-muted)]">Loading files…</p>
+              <p v-if="filesLoading" class="p-2 text-xs text-[var(--oterm-muted)]">Loading files…</p>
               <button
                 v-for="file in files"
                 :key="file.path"
@@ -741,13 +741,13 @@ watch(selectedNumber, (number) => {
                 @click="selectedFilePath = file.path"
               >
                 <span class="block truncate font-medium">{{ file.path }}</span>
-                <span class="mt-0.5 block text-[10px] text-[var(--warp-muted)]">
+                <span class="mt-0.5 block text-[10px] text-[var(--oterm-muted)]">
                   <span class="text-green-400">+{{ file.additions }}</span>
                   <span class="text-red-400"> −{{ file.deletions }}</span>
                   · {{ changeTypeLabel(file.changeType) }}
                 </span>
               </button>
-              <p v-if="!filesLoading && files.length === 0" class="p-2 text-xs text-[var(--warp-muted)]">
+              <p v-if="!filesLoading && files.length === 0" class="p-2 text-xs text-[var(--oterm-muted)]">
                 No changed files.
               </p>
             </aside>
@@ -759,7 +759,7 @@ watch(selectedNumber, (number) => {
               />
               <p
                 v-if="!diffLoading && selectedFilePath && !selectedFilePatch"
-                class="p-4 text-sm text-[var(--warp-muted)]"
+                class="p-4 text-sm text-[var(--oterm-muted)]"
               >
                 No diff available for this file.
               </p>
@@ -770,7 +770,7 @@ watch(selectedNumber, (number) => {
 
       <section
         v-else-if="!loading && provider?.authOk"
-        class="flex flex-1 items-center justify-center text-sm text-[var(--warp-muted)]"
+        class="flex flex-1 items-center justify-center text-sm text-[var(--oterm-muted)]"
       >
         Select a pull request
       </section>

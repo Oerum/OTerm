@@ -37,12 +37,12 @@ const lightTile = computed(() => {
     <span
       v-else
       class="flex h-4 w-4 items-center justify-center rounded-full"
-      :class="lightTile ? 'border border-[var(--warp-border-strong)] bg-[var(--warp-surface)]' : ''"
+      :class="lightTile ? 'border border-[var(--oterm-border-strong)] bg-[var(--oterm-surface)]' : ''"
       :style="lightTile ? undefined : { backgroundColor: agent.brandColor }"
     >
       <span
         class="text-[9px] font-semibold leading-none"
-        :class="lightTile ? 'text-[var(--warp-text)]' : 'text-white'"
+        :class="lightTile ? 'text-[var(--oterm-text)]' : 'text-white'"
       >
         {{ initial }}
       </span>

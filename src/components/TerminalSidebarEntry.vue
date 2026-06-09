@@ -40,7 +40,7 @@ const accentStyle = computed(() => {
   const color = entryAccentColor(props.entry.tabColor);
   const accentWidth = props.entry.isActive ? "3px" : "2px";
   if (props.entry.isActive && props.entry.tabColor === "none") {
-    return { boxShadow: `inset ${accentWidth} 0 0 0 var(--warp-accent)` };
+    return { boxShadow: `inset ${accentWidth} 0 0 0 var(--oterm-accent)` };
   }
   if (props.entry.tabColor === "none") return undefined;
   return { boxShadow: `inset ${accentWidth} 0 0 0 ${color}` };
@@ -113,10 +113,10 @@ function onRenameKeyDown(event: KeyboardEvent) {
     class="no-drag group relative mb-0.5 flex w-full items-center gap-1.5 rounded-md border px-1.5 py-1 transition-colors duration-[120ms]"
     :class="[
       entry.isActive
-        ? 'border-[var(--warp-accent)]/25 bg-[var(--warp-accent-dim)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] ring-1 ring-inset ring-[var(--warp-accent)]/15'
-        : 'border-[var(--warp-border)] bg-[var(--term-entry-bg)] hover:border-[var(--warp-border-strong)] hover:bg-white/[0.04]',
+        ? 'border-[var(--oterm-accent)]/25 bg-[var(--oterm-accent-dim)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] ring-1 ring-inset ring-[var(--oterm-accent)]/15'
+        : 'border-[var(--oterm-border)] bg-[var(--term-entry-bg)] hover:border-[var(--oterm-border-strong)] hover:bg-white/[0.04]',
       entry.splitIndex != null && entry.splitIndex > 1 ? 'ml-4 border-l border-white/[0.08] pl-1.5' : '',
-      renaming ? 'ring-1 ring-[var(--warp-border-strong)]' : '',
+      renaming ? 'ring-1 ring-[var(--oterm-border-strong)]' : '',
     ]"
     :style="accentStyle"
     :aria-current="entry.isActive ? 'true' : undefined"
@@ -133,11 +133,11 @@ function onRenameKeyDown(event: KeyboardEvent) {
           iconSizeClass,
           entry.activeAgentId
             ? entry.isActive
-              ? 'bg-white/[0.08] ring-1 ring-[var(--warp-accent)]/20'
-              : 'bg-[var(--warp-elevated)] ring-1 ring-white/[0.06]'
+              ? 'bg-white/[0.08] ring-1 ring-[var(--oterm-accent)]/20'
+              : 'bg-[var(--oterm-elevated)] ring-1 ring-white/[0.06]'
             : entry.isActive
-              ? 'bg-white/[0.08] text-[var(--warp-text)] ring-1 ring-[var(--warp-accent)]/20'
-              : 'bg-[var(--warp-elevated)] text-[var(--warp-muted)]',
+              ? 'bg-white/[0.08] text-[var(--oterm-text)] ring-1 ring-[var(--oterm-accent)]/20'
+              : 'bg-[var(--oterm-elevated)] text-[var(--oterm-muted)]',
         ]"
       >
         <AgentFooterBadge
@@ -184,7 +184,7 @@ function onRenameKeyDown(event: KeyboardEvent) {
           ref="renameInputRef"
           v-model="renameDraft"
           type="text"
-          class="block h-[18px] w-full truncate rounded border border-[var(--warp-border-strong)] bg-[var(--warp-bg)] px-1 text-[0.75rem] font-medium leading-[1.2] text-[var(--warp-text)] outline-none ring-[var(--warp-accent)] focus:ring-1"
+          class="block h-[18px] w-full truncate rounded border border-[var(--oterm-border-strong)] bg-[var(--oterm-bg)] px-1 text-[0.75rem] font-medium leading-[1.2] text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
           aria-label="Tab name"
           @click.stop
           @keydown="onRenameKeyDown"
@@ -193,11 +193,11 @@ function onRenameKeyDown(event: KeyboardEvent) {
         <span
           v-else
           class="block truncate text-[0.75rem] font-medium leading-[1.2]"
-          :class="entry.isActive ? 'text-[var(--warp-text)]' : 'text-[var(--term-entry-text)]'"
+          :class="entry.isActive ? 'text-[var(--oterm-text)]' : 'text-[var(--term-entry-text)]'"
         >
           {{ entry.title }}
         </span>
-        <span class="flex items-center gap-1 text-[10px] leading-[1.2] text-[var(--warp-faint)]">
+        <span class="flex items-center gap-1 text-[10px] leading-[1.2] text-[var(--oterm-faint)]">
           <span class="min-w-0 truncate">{{ entry.subtitle }}</span>
           <GitDiffBadge
             v-if="entry.gitIsRepo"
@@ -219,8 +219,8 @@ function onRenameKeyDown(event: KeyboardEvent) {
             ? 'opacity-100'
             : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
           menuOpen
-            ? 'bg-white/5 text-[var(--warp-text)]'
-            : 'text-[var(--warp-faint)] hover:bg-white/10 hover:text-[var(--warp-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--warp-accent)]',
+            ? 'bg-white/5 text-[var(--oterm-text)]'
+            : 'text-[var(--oterm-faint)] hover:bg-white/10 hover:text-[var(--oterm-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]',
         ]"
         title="Terminal actions"
         aria-label="Terminal actions"

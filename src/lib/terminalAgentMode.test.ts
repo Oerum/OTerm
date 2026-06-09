@@ -7,7 +7,7 @@ import {
   type CliAgentId,
 } from "./terminalAgentMode";
 
-const WARP_AGENT_IDS: CliAgentId[] = [
+const oterm_AGENT_IDS: CliAgentId[] = [
   "claude",
   "gemini",
   "codex",
@@ -33,13 +33,13 @@ describe("detectCliAgent", () => {
     }
   });
 
-  it("covers all Warp agents plus agy", () => {
+  it("covers all oterm agents plus agy", () => {
     const ids = new Set(CLI_AGENTS.map((agent) => agent.id));
-    for (const id of WARP_AGENT_IDS) {
+    for (const id of oterm_AGENT_IDS) {
       expect(ids.has(id)).toBe(true);
     }
     expect(ids.has("agy")).toBe(true);
-    expect(ids.size).toBe(WARP_AGENT_IDS.length + 1);
+    expect(ids.size).toBe(oterm_AGENT_IDS.length + 1);
   });
 
   it("maps vibe-acp to vibe", () => {
@@ -73,7 +73,7 @@ describe("detectCliAgent", () => {
     expect(isAgentLaunchCommand("npx codex")).toBe(true);
   });
 
-  it("assigns logo files for Warp agents with bundled assets", () => {
+  it("assigns logo files for oterm agents with bundled assets", () => {
     const withLogo = [
       "claude",
       "gemini",

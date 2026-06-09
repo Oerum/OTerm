@@ -337,19 +337,19 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
-    class="relative z-10 flex w-56 shrink-0 flex-col bg-[var(--warp-sidebar)]"
+    class="relative z-10 flex w-56 shrink-0 flex-col bg-[var(--oterm-sidebar)]"
   >
     <div class="relative px-3 py-2.5">
       <div class="flex items-center justify-between">
-        <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--warp-faint)]">
+        <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--oterm-faint)]">
           Terminals
         </span>
 
         <button
           ref="newButtonRef"
           type="button"
-          class="no-drag flex h-7 w-7 items-center justify-center rounded-md text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)] disabled:opacity-40"
-          :class="newMenuOpen ? 'bg-white/5 text-[var(--warp-text)]' : ''"
+          class="no-drag flex h-7 w-7 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40"
+          :class="newMenuOpen ? 'bg-white/5 text-[var(--oterm-text)]' : ''"
           title="New terminal"
           aria-label="New terminal"
           aria-haspopup="menu"
@@ -380,11 +380,11 @@ onBeforeUnmount(() => {
     </div>
 
     <div
-      class="warp-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-2"
+      class="oterm-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-2"
       @scroll="onSidebarScroll"
     >
       <div v-if="featureEntries.length > 0" class="mb-2 space-y-0.5">
-        <p class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--warp-faint)]">
+        <p class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--oterm-faint)]">
           Tools
         </p>
         <button
@@ -394,13 +394,13 @@ onBeforeUnmount(() => {
           class="no-drag group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition"
           :class="
             entry.isActive
-              ? 'bg-white/[0.08] text-[var(--warp-text)]'
-              : 'text-[var(--warp-muted)] hover:bg-white/5 hover:text-[var(--warp-text)]'
+              ? 'bg-white/[0.08] text-[var(--oterm-text)]'
+              : 'text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]'
           "
           @click="selectFeatureTab(entry.tabId)"
         >
           <span
-            class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--warp-bg)] text-[10px] font-semibold uppercase text-[var(--warp-muted)]"
+            class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--oterm-bg)] text-[10px] font-semibold uppercase text-[var(--oterm-muted)]"
           >
             {{ featureEntryBadge(entry.kind) }}
           </span>
@@ -408,7 +408,7 @@ onBeforeUnmount(() => {
           <span
             role="button"
             tabindex="0"
-            class="no-drag shrink-0 rounded p-0.5 text-[var(--warp-faint)] opacity-0 transition hover:bg-white/10 hover:text-[var(--warp-text)] group-hover:opacity-100"
+            class="no-drag shrink-0 rounded p-0.5 text-[var(--oterm-faint)] opacity-0 transition hover:bg-white/10 hover:text-[var(--oterm-text)] group-hover:opacity-100"
             title="Close"
             aria-label="Close tab"
             @click.stop="emit('close', entry.tabId)"
@@ -424,7 +424,7 @@ onBeforeUnmount(() => {
 
       <p
         v-if="terminalEntries.length === 0 && featureEntries.length === 0"
-        class="px-1.5 py-2 text-[0.75rem] text-[var(--warp-faint)]"
+        class="px-1.5 py-2 text-[0.75rem] text-[var(--oterm-faint)]"
       >
         No open terminals
       </p>
@@ -445,10 +445,10 @@ onBeforeUnmount(() => {
       />
     </div>
 
-    <div class="no-drag border-t border-[var(--warp-border)] p-3">
+    <div class="no-drag border-t border-[var(--oterm-border)] p-3">
       <button
         type="button"
-        class="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--warp-border)] bg-[var(--warp-elevated)] px-3 py-2 text-xs text-[var(--warp-muted)] transition hover:border-[var(--warp-border-strong)] hover:text-[var(--warp-text)] disabled:opacity-40"
+        class="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-elevated)] px-3 py-2 text-xs text-[var(--oterm-muted)] transition hover:border-[var(--oterm-border-strong)] hover:text-[var(--oterm-text)] disabled:opacity-40"
         :disabled="shells.length === 0"
         @click="emit('split', defaultShellId)"
       >
@@ -463,7 +463,7 @@ onBeforeUnmount(() => {
     <Transition name="sidebar-toast">
       <p
         v-if="toastMessage"
-        class="no-drag pointer-events-none absolute bottom-16 left-2 right-2 rounded-md bg-[var(--warp-elevated)] px-2 py-1.5 text-center text-[11px] text-[var(--warp-text)] shadow-lg ring-1 ring-[var(--warp-border-strong)]"
+        class="no-drag pointer-events-none absolute bottom-16 left-2 right-2 rounded-md bg-[var(--oterm-elevated)] px-2 py-1.5 text-center text-[11px] text-[var(--oterm-text)] shadow-lg ring-1 ring-[var(--oterm-border-strong)]"
       >
         {{ toastMessage }}
       </p>

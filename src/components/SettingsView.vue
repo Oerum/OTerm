@@ -24,16 +24,16 @@ const activeMeta = computed(
 </script>
 
 <template>
-  <div class="relative flex min-h-0 flex-1 flex-col bg-[var(--warp-bg)] text-[var(--warp-text)]">
+  <div class="relative flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)]">
     <header
-      class="flex shrink-0 items-center gap-3 border-b border-[var(--warp-border)] px-4 py-2.5"
+      class="flex shrink-0 items-center gap-3 border-b border-[var(--oterm-border)] px-4 py-2.5"
     >
       <h2 class="text-sm font-medium">Settings</h2>
-      <span class="truncate text-xs text-[var(--warp-muted)]">{{ activeMeta.description }}</span>
+      <span class="truncate text-xs text-[var(--oterm-muted)]">{{ activeMeta.description }}</span>
       <div class="flex-1" />
       <button
         type="button"
-        class="rounded-md border border-[var(--warp-border)] px-2.5 py-1 text-xs text-[var(--warp-muted)] transition hover:bg-white/5 hover:text-[var(--warp-text)]"
+        class="rounded-md border border-[var(--oterm-border)] px-2.5 py-1 text-xs text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
         @click="emit('close')"
       >
         Close
@@ -42,9 +42,9 @@ const activeMeta = computed(
 
     <div class="flex min-h-0 flex-1">
       <aside
-        class="flex w-52 shrink-0 flex-col border-r border-[var(--warp-border)] bg-[var(--warp-sidebar)]"
+        class="flex w-52 shrink-0 flex-col border-r border-[var(--oterm-border)] bg-[var(--oterm-sidebar)]"
       >
-        <nav class="warp-scroll flex-1 overflow-y-auto p-2" aria-label="Settings sections">
+        <nav class="oterm-scroll flex-1 overflow-y-auto p-2" aria-label="Settings sections">
           <button
             v-for="section in sections"
             :key="section.id"
@@ -52,20 +52,20 @@ const activeMeta = computed(
             class="mb-0.5 w-full rounded-md px-2.5 py-2 text-left transition"
             :class="
               section.id === activeSection
-                ? 'bg-[var(--warp-accent-dim)] text-[var(--warp-text)] ring-1 ring-[var(--warp-accent)]/25'
-                : 'text-[var(--warp-muted)] hover:bg-white/5 hover:text-[var(--warp-text)]'
+                ? 'bg-[var(--oterm-accent-dim)] text-[var(--oterm-text)] ring-1 ring-[var(--oterm-accent)]/25'
+                : 'text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]'
             "
             @click="activeSection = section.id"
           >
             <span class="block text-xs font-medium">{{ section.label }}</span>
-            <span class="mt-0.5 block text-[10px] leading-snug text-[var(--warp-faint)]">
+            <span class="mt-0.5 block text-[10px] leading-snug text-[var(--oterm-faint)]">
               {{ section.description }}
             </span>
           </button>
         </nav>
       </aside>
 
-      <div class="warp-scroll min-h-0 min-w-0 flex-1 overflow-y-auto">
+      <div class="oterm-scroll min-h-0 min-w-0 flex-1 overflow-y-auto">
         <div class="mx-auto max-w-2xl px-6 py-6">
           <TerminalAutocompleteSettingsPage v-if="activeSection === 'terminal-autocomplete'" />
         </div>

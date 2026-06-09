@@ -277,30 +277,30 @@ watch(selectedHash, () => void loadDetails());
 </script>
 
 <template>
-  <div class="relative flex min-h-0 flex-1 flex-col bg-[var(--warp-bg)] text-[var(--warp-text)]">
+  <div class="relative flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)]">
     <header
-      class="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--warp-border)] px-4 py-2"
+      class="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--oterm-border)] px-4 py-2"
     >
       <h2 class="text-sm font-medium">Branches</h2>
-      <span class="truncate text-xs text-[var(--warp-muted)]">{{ repoRoot }}</span>
+      <span class="truncate text-xs text-[var(--oterm-muted)]">{{ repoRoot }}</span>
       <div class="flex-1" />
       <input
         v-model="filter"
         type="search"
         placeholder="Filter commits"
-        class="rounded border border-[var(--warp-border)] bg-transparent px-2 py-1 text-xs"
+        class="rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
       />
-      <label class="flex items-center gap-1 text-xs text-[var(--warp-muted)]">
-        <input v-model="showIncomingOnly" type="checkbox" class="accent-[var(--warp-accent)]" />
+      <label class="flex items-center gap-1 text-xs text-[var(--oterm-muted)]">
+        <input v-model="showIncomingOnly" type="checkbox" class="accent-[var(--oterm-accent)]" />
         Incoming
       </label>
-      <label class="flex items-center gap-1 text-xs text-[var(--warp-muted)]">
-        <input v-model="showOutgoingOnly" type="checkbox" class="accent-[var(--warp-accent)]" />
+      <label class="flex items-center gap-1 text-xs text-[var(--oterm-muted)]">
+        <input v-model="showOutgoingOnly" type="checkbox" class="accent-[var(--oterm-accent)]" />
         Outgoing
       </label>
       <button
         type="button"
-        class="rounded border border-[var(--warp-border)] px-2 py-1 text-xs hover:bg-white/5"
+        class="rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
         :disabled="loading"
         @click="load"
       >
@@ -308,22 +308,22 @@ watch(selectedHash, () => void loadDetails());
       </button>
       <button
         type="button"
-        class="rounded border border-[var(--warp-border)] px-2 py-1 text-xs hover:bg-white/5"
+        class="rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
         @click="emit('close')"
       >
         Close tab
       </button>
     </header>
 
-    <p v-if="error" class="px-4 py-2 text-sm text-[var(--warp-danger)]">{{ error }}</p>
+    <p v-if="error" class="px-4 py-2 text-sm text-[var(--oterm-danger)]">{{ error }}</p>
 
     <div class="flex min-h-0 flex-1">
-      <aside class="warp-scroll w-56 shrink-0 overflow-auto border-r border-[var(--warp-border)] p-2">
+      <aside class="oterm-scroll w-56 shrink-0 overflow-auto border-r border-[var(--oterm-border)] p-2">
         <div class="mb-2 flex items-center justify-between gap-1">
-          <h3 class="text-xs font-medium uppercase text-[var(--warp-muted)]">Branches</h3>
+          <h3 class="text-xs font-medium uppercase text-[var(--oterm-muted)]">Branches</h3>
           <button
             type="button"
-            class="rounded border border-[var(--warp-border)] px-1.5 py-0.5 text-[10px] text-[var(--warp-muted)] hover:bg-white/5 hover:text-[var(--warp-text)]"
+            class="rounded border border-[var(--oterm-border)] px-1.5 py-0.5 text-[10px] text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]"
             title="Create new branch"
             :disabled="busy"
             @click="openCreateDialog()"
@@ -335,12 +335,12 @@ watch(selectedHash, () => void loadDetails());
           v-for="branch in branches"
           :key="branch.name"
           class="mb-1 flex items-stretch gap-0.5 rounded"
-          :class="branch.isCurrent ? 'bg-[var(--warp-accent-dim)]' : ''"
+          :class="branch.isCurrent ? 'bg-[var(--oterm-accent-dim)]' : ''"
         >
           <button
             type="button"
             class="min-w-0 flex-1 rounded px-2 py-1 text-left text-xs hover:bg-white/5"
-            :class="branch.isCurrent ? 'text-[var(--warp-accent)]' : ''"
+            :class="branch.isCurrent ? 'text-[var(--oterm-accent)]' : ''"
             @click="
               runAction(() =>
                 checkoutGitBranch(props.repoRoot, branch.name, branch.isRemote),
@@ -348,13 +348,13 @@ watch(selectedHash, () => void loadDetails());
             "
           >
             <div class="truncate">{{ branch.name }}</div>
-            <div v-if="branch.ahead || branch.behind" class="text-[10px] text-[var(--warp-muted)]">
+            <div v-if="branch.ahead || branch.behind" class="text-[10px] text-[var(--oterm-muted)]">
               ↑{{ branch.ahead }} ↓{{ branch.behind }}
             </div>
           </button>
           <button
             type="button"
-            class="shrink-0 rounded px-1.5 text-xs text-[var(--warp-muted)] hover:bg-white/5 hover:text-[var(--warp-text)]"
+            class="shrink-0 rounded px-1.5 text-xs text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]"
             title="Create branch from this branch"
             :disabled="busy"
             @click.stop="openCreateDialog(branch.name)"
@@ -364,19 +364,19 @@ watch(selectedHash, () => void loadDetails());
         </div>
       </aside>
 
-      <section class="flex min-w-0 flex-1 flex-col border-r border-[var(--warp-border)]">
-        <div class="warp-scroll min-h-0 flex-1 overflow-auto font-mono text-xs">
+      <section class="flex min-w-0 flex-1 flex-col border-r border-[var(--oterm-border)]">
+        <div class="oterm-scroll min-h-0 flex-1 overflow-auto font-mono text-xs">
           <button
             v-for="commit in filteredGraph"
             :key="commit.hash"
             type="button"
-            class="block w-full border-b border-[var(--warp-border)] px-3 py-1.5 text-left hover:bg-white/5"
+            class="block w-full border-b border-[var(--oterm-border)] px-3 py-1.5 text-left hover:bg-white/5"
             :class="selectedHash === commit.hash ? 'bg-white/5' : ''"
             @click="selectCommit(commit.hash)"
           >
-            <span class="text-[var(--warp-accent)]">{{ commit.shortHash }}</span>
+            <span class="text-[var(--oterm-accent)]">{{ commit.shortHash }}</span>
             <span class="ml-2">{{ commit.subject }}</span>
-            <span class="ml-2 text-[var(--warp-muted)]">{{ commit.decorations }}</span>
+            <span class="ml-2 text-[var(--oterm-muted)]">{{ commit.decorations }}</span>
           </button>
         </div>
       </section>
@@ -385,19 +385,19 @@ watch(selectedHash, () => void loadDetails());
         <template v-if="details">
           <div class="shrink-0 overflow-visible p-3 pb-2">
             <h3 class="font-medium">{{ details.subject }}</h3>
-            <p class="mt-1 text-xs text-[var(--warp-muted)]">
+            <p class="mt-1 text-xs text-[var(--oterm-muted)]">
               {{ details.shortHash }} · {{ details.author }} · {{ details.date }}
             </p>
             <pre
               v-if="details.body"
-              class="mt-2 whitespace-pre-wrap text-xs text-[var(--warp-muted)]"
+              class="mt-2 whitespace-pre-wrap text-xs text-[var(--oterm-muted)]"
               >{{ details.body }}</pre
             >
 
             <div class="mt-3 flex flex-wrap gap-1">
             <button
               type="button"
-              class="rounded border border-[var(--warp-border)] px-2 py-0.5 text-xs"
+              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
               :disabled="busy"
               @click="runAction(() => checkoutDetached(repoRoot, details!.hash))"
             >
@@ -405,14 +405,14 @@ watch(selectedHash, () => void loadDetails());
             </button>
             <button
               type="button"
-              class="rounded border border-[var(--warp-border)] px-2 py-0.5 text-xs"
+              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
               @click="openCommitInBrowser"
             >
               Open in browser
             </button>
             <button
               type="button"
-              class="rounded border border-[var(--warp-border)] px-2 py-0.5 text-xs"
+              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
               :disabled="busy"
               @click="runAction(() => revertCommit(repoRoot, details!.hash))"
             >
@@ -421,7 +421,7 @@ watch(selectedHash, () => void loadDetails());
             <div class="relative" data-reset-menu-root>
               <button
                 type="button"
-                class="flex items-center gap-1 rounded border border-[var(--warp-border)] px-2 py-0.5 text-xs"
+                class="flex items-center gap-1 rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
                 :disabled="busy"
                 @click.stop="resetMenuOpen = !resetMenuOpen"
               >
@@ -439,7 +439,7 @@ watch(selectedHash, () => void loadDetails());
               </button>
               <div
                 v-if="resetMenuOpen"
-                class="absolute right-0 top-full z-30 mt-1 w-max max-w-[calc(100vw-2rem)] overflow-hidden rounded-md border border-[var(--warp-border-strong)] bg-[var(--warp-elevated)] py-1 shadow-lg"
+                class="absolute right-0 top-full z-30 mt-1 w-max max-w-[calc(100vw-2rem)] overflow-hidden rounded-md border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-1 shadow-lg"
               >
                 <button
                   type="button"
@@ -459,7 +459,7 @@ watch(selectedHash, () => void loadDetails());
             </div>
             <button
               type="button"
-              class="rounded border border-[var(--warp-border)] px-2 py-0.5 text-xs"
+              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
               :disabled="busy"
               @click="runAction(() => cherryPickCommit(repoRoot, details!.hash))"
             >
@@ -467,7 +467,7 @@ watch(selectedHash, () => void loadDetails());
             </button>
             <button
               type="button"
-              class="rounded border border-[var(--warp-border)] px-2 py-0.5 text-xs"
+              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
               :disabled="busy"
               @click="createBranchFromSelection"
             >
@@ -475,7 +475,7 @@ watch(selectedHash, () => void loadDetails());
             </button>
             <button
               type="button"
-              class="rounded border border-[var(--warp-border)] px-2 py-0.5 text-xs"
+              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
               :disabled="busy"
               @click="runAction(createTagFromSelection)"
             >
@@ -483,7 +483,7 @@ watch(selectedHash, () => void loadDetails());
             </button>
             <button
               type="button"
-              class="rounded border border-[var(--warp-border)] px-2 py-0.5 text-xs"
+              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
               :disabled="busy"
               @click="runAction(squashFromSelection)"
             >
@@ -492,23 +492,23 @@ watch(selectedHash, () => void loadDetails());
             </div>
 
             <div class="mt-4 min-w-0 space-y-2">
-              <div class="text-xs font-medium text-[var(--warp-muted)]">Compare</div>
+              <div class="text-xs font-medium text-[var(--oterm-muted)]">Compare</div>
               <div
                 class="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2"
               >
                 <input
                   v-model="compareBase"
                   placeholder="Base"
-                  class="min-w-0 rounded border border-[var(--warp-border)] bg-transparent px-2 py-1 text-xs"
+                  class="min-w-0 rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
                 />
                 <input
                   v-model="compareTarget"
                   placeholder="Target"
-                  class="min-w-0 rounded border border-[var(--warp-border)] bg-transparent px-2 py-1 text-xs"
+                  class="min-w-0 rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
                 />
                 <button
                   type="button"
-                  class="shrink-0 whitespace-nowrap rounded border border-[var(--warp-border)] px-3 py-1 text-xs"
+                  class="shrink-0 whitespace-nowrap rounded border border-[var(--oterm-border)] px-3 py-1 text-xs"
                   @click="onCompare"
                 >
                   Compare
@@ -520,16 +520,16 @@ watch(selectedHash, () => void loadDetails());
           <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-3 pb-3">
             <pre
               v-if="compareContent"
-              class="warp-scroll max-h-48 shrink-0 overflow-auto rounded border border-[var(--warp-border)] bg-[var(--warp-panel)] p-2 text-[10px] leading-relaxed whitespace-pre-wrap"
+              class="oterm-scroll max-h-48 shrink-0 overflow-auto rounded border border-[var(--oterm-border)] bg-[var(--oterm-panel)] p-2 text-[10px] leading-relaxed whitespace-pre-wrap"
               >{{ compareContent }}</pre
             >
             <pre
-              class="warp-scroll min-h-0 flex-1 overflow-auto rounded border border-[var(--warp-border)] bg-[var(--warp-panel)] p-2 text-[10px] leading-relaxed whitespace-pre-wrap text-[var(--warp-muted)]"
+              class="oterm-scroll min-h-0 flex-1 overflow-auto rounded border border-[var(--oterm-border)] bg-[var(--oterm-panel)] p-2 text-[10px] leading-relaxed whitespace-pre-wrap text-[var(--oterm-muted)]"
               >{{ details.diff }}</pre
             >
           </div>
         </template>
-        <p v-else class="p-3 text-sm text-[var(--warp-muted)]">Select a commit</p>
+        <p v-else class="p-3 text-sm text-[var(--oterm-muted)]">Select a commit</p>
       </section>
     </div>
 

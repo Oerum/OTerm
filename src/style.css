@@ -6,22 +6,22 @@
 }
 
 :root {
-  --warp-bg: #0a0a0a;
-  --warp-panel: #111111;
-  --warp-elevated: #181818;
-  --warp-line: var(--warp-elevated);
-  --warp-border: rgba(255, 255, 255, 0.06);
-  --warp-border-strong: rgba(255, 255, 255, 0.1);
-  --warp-text: #ececec;
-  --warp-muted: #8a8a8a;
-  --warp-faint: #5c5c5c;
-  --warp-accent: #00d4aa;
-  --warp-accent-dim: rgba(0, 212, 170, 0.14);
-  --warp-danger: #ff5f57;
-  --warp-titlebar: #0a0a0a;
-  --warp-sidebar: #0f0f0f;
-  --warp-font-ui: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
-  --warp-font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  --oterm-bg: #0a0a0a;
+  --oterm-panel: #111111;
+  --oterm-elevated: #181818;
+  --oterm-line: var(--oterm-elevated);
+  --oterm-border: rgba(255, 255, 255, 0.06);
+  --oterm-border-strong: rgba(255, 255, 255, 0.1);
+  --oterm-text: #ececec;
+  --oterm-muted: #8a8a8a;
+  --oterm-faint: #5c5c5c;
+  --oterm-accent: #00d4aa;
+  --oterm-accent-dim: rgba(0, 212, 170, 0.14);
+  --oterm-danger: #ff5f57;
+  --oterm-titlebar: #0a0a0a;
+  --oterm-sidebar: #0f0f0f;
+  --oterm-font-ui: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  --oterm-font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
 
   --term-entry-bg: #1e1e1e;
   --term-entry-text: #ccc;
@@ -30,8 +30,8 @@
 
   --term-create-bg: #1e1e1e;
   --term-create-text: #ccc;
-  --term-create-text-muted: var(--warp-muted);
-  --term-create-accent: var(--warp-accent);
+  --term-create-text-muted: var(--oterm-muted);
+  --term-create-accent: var(--oterm-accent);
   --term-create-tooltip-bg: #2a2a2a;
   --term-create-border: rgba(255, 255, 255, 0.1);
   --term-create-radius: 4px;
@@ -60,20 +60,20 @@ body,
 }
 
 body {
-  background: var(--warp-bg);
-  color: var(--warp-text);
-  font-family: var(--warp-font-ui);
+  background: var(--oterm-bg);
+  color: var(--oterm-text);
+  font-family: var(--oterm-font-ui);
   -webkit-font-smoothing: antialiased;
 }
 
-.warp-app {
-  background: var(--warp-bg);
+.oterm-app {
+  background: var(--oterm-bg);
 }
 
 .xterm,
 .xterm .xterm-screen,
 .xterm-char-measure-element {
-  font-family: var(--warp-font-mono);
+  font-family: var(--oterm-font-mono);
   font-size: 14px;
   font-variant-ligatures: none;
   font-feature-settings: "liga" 0, "calt" 0;
@@ -94,7 +94,7 @@ body {
 }
 
 .xterm .xterm-cursor-layer .xterm-cursor {
-  background-color: var(--warp-accent) !important;
+  background-color: var(--oterm-accent) !important;
 }
 
 .drag-region {
@@ -108,41 +108,41 @@ body {
   app-region: no-drag;
 }
 
-.warp-scroll {
+.oterm-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
 }
 
-.warp-scroll::-webkit-scrollbar {
+.oterm-scroll::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-.warp-scroll::-webkit-scrollbar-track {
+.oterm-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.warp-scroll::-webkit-scrollbar-thumb {
+.oterm-scroll::-webkit-scrollbar-thumb {
   background-color: rgba(255, 255, 255, 0.1);
   border: 2px solid transparent;
   border-radius: 999px;
   background-clip: padding-box;
 }
 
-.warp-scroll::-webkit-scrollbar-thumb:hover {
+.oterm-scroll::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.18);
 }
 
-.warp-scroll::-webkit-scrollbar-thumb:active {
+.oterm-scroll::-webkit-scrollbar-thumb:active {
   background-color: rgba(255, 255, 255, 0.24);
 }
 
-.warp-scroll::-webkit-scrollbar-corner {
+.oterm-scroll::-webkit-scrollbar-corner {
   background: transparent;
 }
 
 .terminal-pane--active {
-  box-shadow: inset 2px 0 0 0 var(--warp-line);
+  box-shadow: inset 2px 0 0 0 var(--oterm-line);
 }
 
 .terminal-output .xterm {

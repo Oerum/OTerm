@@ -216,21 +216,21 @@ watch(filteredIssues, (rows) => {
   <div
     ref="rootRef"
     tabindex="0"
-    class="flex min-h-0 flex-1 flex-col bg-[var(--warp-bg)] text-[var(--warp-text)] outline-none"
+    class="flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)] outline-none"
   >
     <header
-      class="flex shrink-0 items-center gap-2 border-b border-[var(--warp-border)] px-4 py-2"
+      class="flex shrink-0 items-center gap-2 border-b border-[var(--oterm-border)] px-4 py-2"
     >
       <h2 class="text-sm font-medium">Issues</h2>
-      <span class="truncate text-xs text-[var(--warp-muted)]">{{ repoRoot }}</span>
+      <span class="truncate text-xs text-[var(--oterm-muted)]">{{ repoRoot }}</span>
       <div class="flex-1" />
-      <label class="flex items-center gap-1.5 text-xs text-[var(--warp-muted)]">
-        <input v-model="includeClosed" type="checkbox" class="accent-[var(--warp-accent)]" />
+      <label class="flex items-center gap-1.5 text-xs text-[var(--oterm-muted)]">
+        <input v-model="includeClosed" type="checkbox" class="accent-[var(--oterm-accent)]" />
         Show closed
       </label>
       <button
         type="button"
-        class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-xs hover:bg-white/5"
+        class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
         :disabled="loading"
         @click="loadIssues"
       >
@@ -238,7 +238,7 @@ watch(filteredIssues, (rows) => {
       </button>
       <button
         type="button"
-        class="rounded-md border border-[var(--warp-border)] px-2 py-1 text-xs hover:bg-white/5"
+        class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
         @click="emit('close')"
       >
         Close tab
@@ -246,66 +246,66 @@ watch(filteredIssues, (rows) => {
     </header>
 
     <div
-      class="grid shrink-0 gap-2 border-b border-[var(--warp-border)] px-4 py-2 sm:grid-cols-2 lg:grid-cols-4"
+      class="grid shrink-0 gap-2 border-b border-[var(--oterm-border)] px-4 py-2 sm:grid-cols-2 lg:grid-cols-4"
     >
       <input
         v-model="search"
         type="search"
         placeholder="Filter list…"
-        class="rounded border border-[var(--warp-border)] bg-transparent px-2 py-1 text-xs"
+        class="rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
       />
       <input
         v-model="filterLabel"
         type="text"
         placeholder="Label"
-        class="rounded border border-[var(--warp-border)] bg-transparent px-2 py-1 text-xs"
+        class="rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
       />
       <input
         v-model="filterAuthor"
         type="text"
         placeholder="Author"
-        class="rounded border border-[var(--warp-border)] bg-transparent px-2 py-1 text-xs"
+        class="rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
       />
       <input
         v-model="filterAssignee"
         type="text"
         placeholder="Assignee"
-        class="rounded border border-[var(--warp-border)] bg-transparent px-2 py-1 text-xs"
+        class="rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
       />
     </div>
 
-    <p v-if="provider && !provider.authOk" class="px-4 py-3 text-sm text-[var(--warp-muted)]">
+    <p v-if="provider && !provider.authOk" class="px-4 py-3 text-sm text-[var(--oterm-muted)]">
       {{ provider.message ?? "Issues are unavailable for this repository." }}
     </p>
 
-    <p v-if="error" class="px-4 py-2 text-sm text-[var(--warp-danger)]">{{ error }}</p>
+    <p v-if="error" class="px-4 py-2 text-sm text-[var(--oterm-danger)]">{{ error }}</p>
 
     <div class="flex min-h-0 flex-1">
-      <aside class="w-80 shrink-0 overflow-auto border-r border-[var(--warp-border)]">
-        <p v-if="loading" class="p-4 text-xs text-[var(--warp-muted)]">Loading…</p>
+      <aside class="w-80 shrink-0 overflow-auto border-r border-[var(--oterm-border)]">
+        <p v-if="loading" class="p-4 text-xs text-[var(--oterm-muted)]">Loading…</p>
         <button
           v-for="issue in filteredIssues"
           :key="issue.number"
           type="button"
-          class="block w-full border-b border-[var(--warp-border)] px-3 py-2 text-left text-sm transition hover:bg-white/5"
+          class="block w-full border-b border-[var(--oterm-border)] px-3 py-2 text-left text-sm transition hover:bg-white/5"
           :class="selectedNumber === issue.number ? 'bg-white/5' : ''"
           @click="selectIssue(issue.number)"
         >
           <div class="flex items-center gap-2">
-            <span class="text-[var(--warp-muted)]">#{{ issue.number }}</span>
+            <span class="text-[var(--oterm-muted)]">#{{ issue.number }}</span>
             <span
               class="rounded px-1 text-[10px] uppercase"
               :class="
                 issue.state === 'OPEN'
                   ? 'bg-green-500/20 text-green-300'
-                  : 'bg-white/10 text-[var(--warp-muted)]'
+                  : 'bg-white/10 text-[var(--oterm-muted)]'
               "
             >
               {{ issue.state }}
             </span>
           </div>
           <div class="mt-1 truncate font-medium">{{ issue.title }}</div>
-          <div class="mt-0.5 truncate text-xs text-[var(--warp-muted)]">
+          <div class="mt-0.5 truncate text-xs text-[var(--oterm-muted)]">
             {{ issue.author }}
             <span v-if="issue.assignees.length"> · {{ issue.assignees.join(", ") }}</span>
           </div>
@@ -313,7 +313,7 @@ watch(filteredIssues, (rows) => {
             <span
               v-for="label in issue.labels"
               :key="label"
-              class="rounded bg-white/10 px-1 text-[10px] text-[var(--warp-muted)]"
+              class="rounded bg-white/10 px-1 text-[10px] text-[var(--oterm-muted)]"
             >
               {{ label }}
             </span>
@@ -321,7 +321,7 @@ watch(filteredIssues, (rows) => {
         </button>
         <p
           v-if="!loading && filteredIssues.length === 0 && provider?.authOk"
-          class="p-4 text-xs text-[var(--warp-muted)]"
+          class="p-4 text-xs text-[var(--oterm-muted)]"
         >
           No issues found.
         </p>
@@ -329,7 +329,7 @@ watch(filteredIssues, (rows) => {
 
       <section v-if="selected" class="min-w-0 flex-1 overflow-auto p-4">
         <h3 class="text-lg font-medium">{{ selected.title }}</h3>
-        <p class="mt-1 text-sm text-[var(--warp-muted)]">
+        <p class="mt-1 text-sm text-[var(--oterm-muted)]">
           #{{ selected.number }} · {{ selected.author }}
           <span v-if="selected.assignees.length"> · {{ selected.assignees.join(", ") }}</span>
         </p>
@@ -337,7 +337,7 @@ watch(filteredIssues, (rows) => {
           <span
             v-for="label in selected.labels"
             :key="label"
-            class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-[var(--warp-muted)]"
+            class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-[var(--oterm-muted)]"
           >
             {{ label }}
           </span>
@@ -345,21 +345,21 @@ watch(filteredIssues, (rows) => {
         <div class="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
-            class="rounded border border-[var(--warp-border)] px-3 py-1 text-xs hover:bg-white/5"
+            class="rounded border border-[var(--oterm-border)] px-3 py-1 text-xs hover:bg-white/5"
             @click="onOpen(selected)"
           >
             Open in browser
           </button>
           <button
             type="button"
-            class="rounded border border-[var(--warp-border)] px-3 py-1 text-xs hover:bg-white/5"
+            class="rounded border border-[var(--oterm-border)] px-3 py-1 text-xs hover:bg-white/5"
             @click="onCopyUrl(selected)"
           >
             Copy URL
           </button>
           <button
             type="button"
-            class="rounded border border-[var(--warp-border)] px-3 py-1 text-xs hover:bg-white/5"
+            class="rounded border border-[var(--oterm-border)] px-3 py-1 text-xs hover:bg-white/5"
             :disabled="busy"
             @click="onCreateBranch(selected)"
           >
@@ -367,24 +367,24 @@ watch(filteredIssues, (rows) => {
           </button>
         </div>
 
-        <p v-if="detailLoading" class="mt-6 text-xs text-[var(--warp-muted)]">Loading details…</p>
+        <p v-if="detailLoading" class="mt-6 text-xs text-[var(--oterm-muted)]">Loading details…</p>
         <template v-else-if="detail">
           <div class="mt-6">
-            <h4 class="text-xs font-medium uppercase tracking-wide text-[var(--warp-muted)]">
+            <h4 class="text-xs font-medium uppercase tracking-wide text-[var(--oterm-muted)]">
               Description
             </h4>
             <MarkdownContent class="mt-2" :source="detail.body" empty-text="No description." />
           </div>
           <div v-if="detail.comments.length" class="mt-6 space-y-4">
-            <h4 class="text-xs font-medium uppercase tracking-wide text-[var(--warp-muted)]">
+            <h4 class="text-xs font-medium uppercase tracking-wide text-[var(--oterm-muted)]">
               Comments
             </h4>
             <article
               v-for="(comment, index) in detail.comments"
               :key="`${comment.author}-${comment.createdAt}-${index}`"
-              class="rounded border border-[var(--warp-border)] p-3"
+              class="rounded border border-[var(--oterm-border)] p-3"
             >
-              <p class="text-xs text-[var(--warp-muted)]">
+              <p class="text-xs text-[var(--oterm-muted)]">
                 {{ comment.author }} · {{ comment.createdAt }}
               </p>
               <MarkdownContent class="mt-2" :source="comment.body" />
@@ -394,7 +394,7 @@ watch(filteredIssues, (rows) => {
       </section>
       <section
         v-else-if="!loading && provider?.authOk"
-        class="flex flex-1 items-center justify-center text-sm text-[var(--warp-muted)]"
+        class="flex flex-1 items-center justify-center text-sm text-[var(--oterm-muted)]"
       >
         Select an issue
       </section>
@@ -402,7 +402,7 @@ watch(filteredIssues, (rows) => {
 
     <p
       v-if="toastMessage"
-      class="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded bg-[var(--warp-elevated)] px-3 py-1.5 text-xs text-[var(--warp-text)] shadow-lg"
+      class="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded bg-[var(--oterm-elevated)] px-3 py-1.5 text-xs text-[var(--oterm-text)] shadow-lg"
     >
       {{ toastMessage }}
     </p>

@@ -41,14 +41,14 @@ onUnmounted(() => {
       @contextmenu.prevent="emit('close')"
     >
       <div
-        class="no-drag absolute min-w-44 rounded-lg border border-[var(--warp-border)] bg-[var(--warp-elevated)] py-1 shadow-xl"
+        class="no-drag absolute min-w-44 rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-elevated)] py-1 shadow-xl"
         :style="{ left: `${x}px`, top: `${y}px` }"
         @mousedown.stop
         @contextmenu.stop.prevent
       >
         <button
           type="button"
-          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
+          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--oterm-text)] transition hover:bg-white/[0.06]"
           @click="emit('cd')"
         >
           Cd in terminal
@@ -56,7 +56,7 @@ onUnmounted(() => {
         <button
           v-if="shellMenuAvailable"
           type="button"
-          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
+          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--oterm-text)] transition hover:bg-white/[0.06]"
           @click="emit('shellMenu')"
         >
           System context menu
@@ -64,7 +64,7 @@ onUnmounted(() => {
         <button
           v-if="!entry.isDir"
           type="button"
-          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
+          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--oterm-text)] transition hover:bg-white/[0.06]"
           @click="emit('open')"
         >
           Open

@@ -534,7 +534,7 @@ watch(suggestionStripVisible, () => {
 <template>
   <div
     ref="paneRootRef"
-    class="terminal-pane relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--warp-bg)]"
+    class="terminal-pane relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--oterm-bg)]"
     :class="active ? 'terminal-pane--active' : ''"
     @mousedown="emit('focusPane')"
   >
@@ -544,18 +544,18 @@ watch(suggestionStripVisible, () => {
       class="flex shrink-0 justify-center px-4 pb-3 pt-1"
     >
       <div
-        class="w-[75%] max-w-3xl rounded-xl border border-[var(--warp-border)] bg-[var(--warp-elevated)] px-4 py-2.5 text-center shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+        class="w-[75%] max-w-3xl rounded-xl border border-[var(--oterm-border)] bg-[var(--oterm-elevated)] px-4 py-2.5 text-center shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
       >
         <div v-if="suggestionVisible" class="space-y-1 text-xs">
-          <p class="text-[var(--warp-faint)]">Tab to accept</p>
-          <p class="truncate font-mono text-[var(--warp-text)]">{{ suggestion }}</p>
+          <p class="text-[var(--oterm-faint)]">Tab to accept</p>
+          <p class="truncate font-mono text-[var(--oterm-text)]">{{ suggestion }}</p>
         </div>
-        <p v-else class="text-xs text-[var(--warp-faint)]">Suggesting…</p>
+        <p v-else class="text-xs text-[var(--oterm-faint)]">Suggesting…</p>
       </div>
     </div>
     <div
       v-if="!isReady"
-      class="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-[var(--warp-faint)]"
+      class="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-[var(--oterm-faint)]"
     >
       Starting shell...
     </div>
