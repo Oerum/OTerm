@@ -1,4 +1,5 @@
 import { computed, ref } from "vue";
+import type { CliAgentId } from "../lib/terminalAgentMode";
 import type {
   ShellProfile,
   TerminalEntryColor,
@@ -41,6 +42,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
       shellId: shellId ?? getDefaultShellId(),
       cwd: "~",
       customTitle: null,
+      activeAgentId: null,
     };
   }
 
@@ -203,6 +205,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
       const pane = tab.panes.find((item) => item.id === paneId);
       if (pane) {
         pane.sessionId = null;
+        pane.activeAgentId = null;
         return;
       }
     }
@@ -214,6 +217,17 @@ export function useWorkspace(getDefaultShellId: () => string) {
       const pane = tab.panes.find((item) => item.id === paneId);
       if (pane) {
         pane.cwd = cwd;
+        return;
+      }
+    }
+  }
+
+  function setPaneAgent(paneId: string, agentId: CliAgentId | null) {
+    for (const tab of tabs.value) {
+      if (!isTerminalTab(tab)) continue;
+      const pane = tab.panes.find((item) => item.id === paneId);
+      if (pane) {
+        pane.activeAgentId = agentId;
         return;
       }
     }
@@ -301,6 +315,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     setPaneSession,
     clearPaneSession,
     setPaneCwd,
+    setPaneAgent,
     setPaneShell,
     setTabTitle,
     setTabColor,

@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { GitStatus } from "../types/git";
 import type { ShellProfile, WorkspacePane } from "../types/terminal";
+import AgentFooterBadge from "./AgentFooterBadge.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
 
 const props = defineProps<{
@@ -36,6 +37,16 @@ const shellLabel = computed(
     class="flex h-9 shrink-0 items-center gap-3 border-t border-[var(--warp-border)] bg-[var(--warp-panel)] px-3 text-[11px] text-[var(--warp-faint)]"
   >
     <div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+      <AgentFooterBadge
+        v-if="pane?.activeAgentId"
+        :agent-id="pane.activeAgentId"
+      />
+
+      <span
+        v-if="pane?.activeAgentId"
+        class="hidden h-3 w-px shrink-0 bg-[var(--warp-border-strong)] sm:block"
+      />
+
       <button
         type="button"
         class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--warp-text)]"

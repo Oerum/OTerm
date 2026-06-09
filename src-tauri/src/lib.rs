@@ -50,10 +50,11 @@ fn prevent_default() -> tauri::plugin::TauriPlugin<tauri::Wry> {
 
 #[cfg(not(debug_assertions))]
 fn prevent_default() -> tauri::plugin::TauriPlugin<tauri::Wry> {
-    use tauri_plugin_prevent_default::Flags;
+    use tauri_plugin_prevent_default::{Flags, KeyboardShortcut, ModifierKey};
 
     tauri_plugin_prevent_default::Builder::new()
         .with_flags(Flags::CONTEXT_MENU | Flags::DEV_TOOLS)
+        .shortcut(KeyboardShortcut::with_modifiers("D", &[ModifierKey::CtrlKey]))
         .build()
 }
 

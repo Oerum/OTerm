@@ -1,3 +1,5 @@
+import type { CliAgentId } from "../lib/terminalAgentMode";
+
 export interface ShellProfile {
   id: string;
   label: string;
@@ -28,6 +30,7 @@ export interface WorkspacePane {
   shellId: string;
   cwd: string;
   customTitle: string | null;
+  activeAgentId: CliAgentId | null;
 }
 
 export interface WorkspaceTerminalTab {
