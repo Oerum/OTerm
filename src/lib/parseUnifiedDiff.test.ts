@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildLinePatch, buildSideBySideRows, parseUnifiedDiff } from "./parseUnifiedDiff";
+import {
+  buildLinePatch,
+  buildSideBySideRows,
+  parseUnifiedDiff,
+  splitUnifiedDiffByFile,
+} from "./parseUnifiedDiff";
 
 const SAMPLE = `diff --git a/src/foo.ts b/src/foo.ts
 index abc123..def456 100644
@@ -114,5 +119,43 @@ describe("buildSideBySideRows", () => {
     const added = rows.find((row) => row.right.text === "line four");
     expect(added?.left.kind).toBe("empty");
     expect(added?.right.kind).toBe("add");
+  });
+});
+
+const MULTI_FILE = `diff --git a/src/a.ts b/src/a.ts
+index 111..222 100644
+--- a/src/a.ts
++++ b/src/a.ts
+@@ -1 +1 @@
+-old
++new
+diff --git a/src/b.ts b/src/b.ts
+index 333..444 100644
+--- a/src/b.ts
++++ b/src/b.ts
+@@ -1 +1 @@
+-foo
++bar
+`;
+
+describe("splitUnifiedDiffByFile", () => {
+  it("returns empty for blank content", () => {
+    expect(splitUnifiedDiffByFile("")).toEqual([]);
+    expect(splitUnifiedDiffByFile("   \n  ")).toEqual([]);
+  });
+
+  it("splits multi-file diffs by path", () => {
+    const slices = splitUnifiedDiffByFile(MULTI_FILE);
+    expect(slices).toHaveLength(2);
+    expect(slices[0].path).toBe("src/a.ts");
+    expect(slices[0].patch).toContain("-old");
+    expect(slices[1].path).toBe("src/b.ts");
+    expect(slices[1].patch).toContain("-foo");
+  });
+
+  it("handles single-file diff", () => {
+    const slices = splitUnifiedDiffByFile(SAMPLE);
+    expect(slices).toHaveLength(1);
+    expect(slices[0].path).toBe("src/foo.ts");
   });
 });

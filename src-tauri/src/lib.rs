@@ -24,8 +24,8 @@ use git::commands::{
     git_revert_commit, git_revert_hunk, git_revert_tracked_paths, git_revert_untracked_paths,
     git_source_control_status, git_squash_commits, git_stage_hunk, git_stage_paths,
     git_staged_diff, git_status, git_sync, git_unstage_hunk, git_unstage_paths,
-    git_write_working_file, issue_create_branch, issue_list, issue_view, pr_checkout, pr_create,
-    pr_detect_provider, pr_list,
+    git_write_working_file, issue_create_branch, issue_list, issue_view, pr_checkout, pr_comment,
+    pr_commits, pr_checks, pr_create, pr_detect_provider, pr_diff, pr_files, pr_list, pr_view,
 };
 use lm::commands::{
     lm_chat_completion, lm_detect_github_copilot_token, lm_list_models, lm_test_connection,
@@ -119,6 +119,12 @@ pub fn run() {
             pr_list,
             pr_create,
             pr_checkout,
+            pr_view,
+            pr_commits,
+            pr_checks,
+            pr_files,
+            pr_diff,
+            pr_comment,
             issue_list,
             issue_view,
             issue_create_branch,

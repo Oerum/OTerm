@@ -53,6 +53,185 @@ struct GhAuthor {
     login: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PullRequestComment {
+    pub author: String,
+    pub body: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PullRequestReview {
+    pub author: String,
+    pub state: String,
+    pub body: String,
+    pub submitted_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PullRequestDetail {
+    pub number: u32,
+    pub title: String,
+    pub state: String,
+    pub url: String,
+    pub head_ref: String,
+    pub base_ref: String,
+    pub author: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub is_draft: bool,
+    pub body: String,
+    pub comments: Vec<PullRequestComment>,
+    pub reviews: Vec<PullRequestReview>,
+    pub additions: u32,
+    pub deletions: u32,
+    pub changed_files: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrCommit {
+    pub oid: String,
+    pub short_oid: String,
+    pub message_headline: String,
+    pub message_body: String,
+    pub author: String,
+    pub committed_date: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrCheck {
+    pub name: String,
+    pub state: String,
+    pub bucket: String,
+    pub link: Option<String>,
+    pub description: Option<String>,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
+    pub workflow: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrChangedFile {
+    pub path: String,
+    pub additions: u32,
+    pub deletions: u32,
+    pub change_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhPrView {
+    title: String,
+    body: Option<String>,
+    state: String,
+    url: String,
+    #[serde(rename = "headRefName")]
+    head_ref_name: String,
+    #[serde(rename = "baseRefName")]
+    base_ref_name: String,
+    author: GhAuthor,
+    #[serde(rename = "createdAt")]
+    created_at: String,
+    #[serde(rename = "updatedAt")]
+    updated_at: String,
+    #[serde(rename = "isDraft")]
+    is_draft: bool,
+    comments: Vec<GhPrComment>,
+    reviews: Vec<GhPrReview>,
+    additions: u32,
+    deletions: u32,
+    #[serde(rename = "changedFiles")]
+    changed_files: u32,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhPrComment {
+    author: GhAuthor,
+    body: Option<String>,
+    #[serde(rename = "createdAt")]
+    created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhPrReview {
+    author: GhAuthor,
+    body: Option<String>,
+    state: String,
+    #[serde(rename = "submittedAt")]
+    submitted_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhCommitsResponse {
+    commits: Vec<GhCommitRow>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhCommitRow {
+    oid: String,
+    #[serde(rename = "messageHeadline")]
+    message_headline: String,
+    #[serde(rename = "messageBody")]
+    message_body: Option<String>,
+    authors: Vec<GhCommitAuthor>,
+    #[serde(rename = "committedDate")]
+    committed_date: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhCommitAuthor {
+    login: Option<String>,
+    name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhFilesResponse {
+    files: Vec<GhFileRow>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhFileRow {
+    path: String,
+    additions: u32,
+    deletions: u32,
+    #[serde(rename = "changeType", default = "default_file_change_type")]
+    change_type: String,
+}
+
+fn default_file_change_type() -> String {
+    "MODIFIED".into()
+}
+
+#[derive(Debug, Deserialize)]
+struct GhCheckRow {
+    name: String,
+    state: String,
+    bucket: String,
+    link: Option<String>,
+    description: Option<String>,
+    #[serde(rename = "startedAt")]
+    started_at: Option<String>,
+    #[serde(rename = "completedAt")]
+    completed_at: Option<String>,
+    workflow: Option<String>,
+}
+
+pub fn ensure_github_ready(repo_root: String) -> Result<(), String> {
+    let info = detect_provider(repo_root)?;
+    if info.provider.as_deref() != Some("github") {
+        return Err(info.message.unwrap_or_else(|| "Unsupported provider".into()));
+    }
+    if !info.can_use_cli || !info.auth_ok {
+        return Err(info.message.unwrap_or_else(|| "GitHub CLI not ready".into()));
+    }
+    Ok(())
+}
+
 pub fn detect_provider(repo_root: String) -> Result<PrProviderInfo, String> {
     let root = PathBuf::from(&repo_root);
     if !root.is_dir() {
@@ -115,13 +294,7 @@ pub fn list_pull_requests(
     include_closed: bool,
 ) -> Result<Vec<PullRequestSummary>, String> {
     let root = PathBuf::from(&repo_root);
-    let info = detect_provider(repo_root.clone())?;
-    if info.provider.as_deref() != Some("github") {
-        return Err(info.message.unwrap_or_else(|| "Unsupported provider".into()));
-    }
-    if !info.can_use_cli || !info.auth_ok {
-        return Err(info.message.unwrap_or_else(|| "GitHub CLI not ready".into()));
-    }
+    ensure_github_ready(repo_root)?;
 
     let state = if include_closed { "all" } else { "open" };
     let output = gh_output(
@@ -214,6 +387,170 @@ pub fn checkout_pull_request(repo_root: String, number: u32) -> Result<(), Strin
     gh_run(&root, &["pr", "checkout", &number.to_string()])
 }
 
+pub fn view_pull_request(repo_root: String, number: u32) -> Result<PullRequestDetail, String> {
+    let root = PathBuf::from(&repo_root);
+    ensure_github_ready(repo_root)?;
+
+    let output = gh_output(
+        &root,
+        &[
+            "pr",
+            "view",
+            &number.to_string(),
+            "--json",
+            "title,body,state,url,author,headRefName,baseRefName,createdAt,updatedAt,isDraft,comments,reviews,additions,deletions,changedFiles",
+        ],
+    )?;
+
+    let row: GhPrView = serde_json::from_str(&output).map_err(|err| err.to_string())?;
+    Ok(map_pr_view(number, row))
+}
+
+pub fn list_pr_commits(repo_root: String, number: u32) -> Result<Vec<PrCommit>, String> {
+    let root = PathBuf::from(&repo_root);
+    ensure_github_ready(repo_root)?;
+
+    let output = gh_output(
+        &root,
+        &["pr", "view", &number.to_string(), "--json", "commits"],
+    )?;
+
+    let row: GhCommitsResponse = serde_json::from_str(&output).map_err(|err| err.to_string())?;
+    Ok(row.commits.into_iter().map(map_pr_commit).collect())
+}
+
+pub fn list_pr_checks(repo_root: String, number: u32) -> Result<Vec<PrCheck>, String> {
+    let root = PathBuf::from(&repo_root);
+    ensure_github_ready(repo_root)?;
+
+    let output = gh_pr_checks_json(
+        &root,
+        &number.to_string(),
+        "name,state,bucket,link,description,startedAt,completedAt,workflow",
+    )?;
+
+    let rows: Vec<GhCheckRow> = serde_json::from_str(&output).map_err(|err| err.to_string())?;
+    Ok(rows
+        .into_iter()
+        .map(|row| PrCheck {
+            name: row.name,
+            state: row.state,
+            bucket: row.bucket,
+            link: row.link,
+            description: row.description,
+            started_at: row.started_at,
+            completed_at: row.completed_at,
+            workflow: row.workflow,
+        })
+        .collect())
+}
+
+pub fn list_pr_files(repo_root: String, number: u32) -> Result<Vec<PrChangedFile>, String> {
+    let root = PathBuf::from(&repo_root);
+    ensure_github_ready(repo_root)?;
+
+    let output = gh_output(
+        &root,
+        &["pr", "view", &number.to_string(), "--json", "files"],
+    )?;
+
+    let row: GhFilesResponse = serde_json::from_str(&output).map_err(|err| err.to_string())?;
+    Ok(row
+        .files
+        .into_iter()
+        .map(|file| PrChangedFile {
+            path: file.path,
+            additions: file.additions,
+            deletions: file.deletions,
+            change_type: file.change_type,
+        })
+        .collect())
+}
+
+pub fn pull_request_diff(repo_root: String, number: u32) -> Result<String, String> {
+    let root = PathBuf::from(&repo_root);
+    ensure_github_ready(repo_root)?;
+    gh_output(&root, &["pr", "diff", &number.to_string(), "--patch"])
+}
+
+pub fn comment_on_pull_request(
+    repo_root: String,
+    number: u32,
+    body: String,
+) -> Result<(), String> {
+    let root = PathBuf::from(&repo_root);
+    ensure_github_ready(repo_root)?;
+    let trimmed = body.trim();
+    if trimmed.is_empty() {
+        return Err("Comment body is required".into());
+    }
+    gh_run(
+        &root,
+        &[
+            "pr",
+            "comment",
+            &number.to_string(),
+            "--body",
+            trimmed,
+        ],
+    )
+}
+
+fn map_pr_view(number: u32, row: GhPrView) -> PullRequestDetail {
+    PullRequestDetail {
+        number,
+        title: row.title,
+        state: row.state,
+        url: row.url,
+        head_ref: row.head_ref_name,
+        base_ref: row.base_ref_name,
+        author: row.author.login,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        is_draft: row.is_draft,
+        body: row.body.unwrap_or_default(),
+        comments: row
+            .comments
+            .into_iter()
+            .map(|comment| PullRequestComment {
+                author: comment.author.login,
+                body: comment.body.unwrap_or_default(),
+                created_at: comment.created_at,
+            })
+            .collect(),
+        reviews: row
+            .reviews
+            .into_iter()
+            .map(|review| PullRequestReview {
+                author: review.author.login,
+                state: review.state,
+                body: review.body.unwrap_or_default(),
+                submitted_at: review.submitted_at,
+            })
+            .collect(),
+        additions: row.additions,
+        deletions: row.deletions,
+        changed_files: row.changed_files,
+    }
+}
+
+fn map_pr_commit(row: GhCommitRow) -> PrCommit {
+    let author = row
+        .authors
+        .first()
+        .and_then(|a| a.login.clone().or_else(|| a.name.clone()))
+        .unwrap_or_default();
+    let short_len = row.oid.len().min(7);
+    PrCommit {
+        short_oid: row.oid[..short_len].to_string(),
+        oid: row.oid,
+        message_headline: row.message_headline,
+        message_body: row.message_body.unwrap_or_default(),
+        author,
+        committed_date: row.committed_date,
+    }
+}
+
 pub fn remote_browser_url(
     repo_root: String,
     kind: String,
@@ -253,6 +590,32 @@ pub(crate) fn gh_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// `gh pr checks` exits 1 with a stderr message when a branch has no checks.
+fn gh_pr_checks_json(cwd: &Path, number: &str, fields: &str) -> Result<String, String> {
+    let output = Command::new("gh")
+        .args([
+            "pr",
+            "checks",
+            number,
+            "--json",
+            fields,
+        ])
+        .current_dir(cwd)
+        .output()
+        .map_err(|err| format!("Failed to run gh: {err}"))?;
+
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.to_ascii_lowercase().contains("no checks reported") {
+        return Ok("[]".into());
+    }
+
+    Err(stderr.into_owned())
 }
 
 pub(crate) fn gh_run(cwd: &Path, args: &[&str]) -> Result<(), String> {
@@ -315,5 +678,73 @@ mod tests {
         let (owner, repo) = parse_github_remote("git@github.com:oerum/oterm.git").unwrap();
         assert_eq!(owner, "oerum");
         assert_eq!(repo, "oterm");
+    }
+
+    #[test]
+    fn deserializes_pr_view_with_null_body() {
+        let json = r#"{
+            "title": "Feature",
+            "body": null,
+            "state": "OPEN",
+            "url": "https://github.com/oerum/oterm/pull/12",
+            "headRefName": "feature",
+            "baseRefName": "main",
+            "author": {"login": "alice"},
+            "createdAt": "2026-01-01",
+            "updatedAt": "2026-01-02",
+            "isDraft": false,
+            "comments": [],
+            "reviews": [],
+            "additions": 10,
+            "deletions": 2,
+            "changedFiles": 3
+        }"#;
+        let row: GhPrView = serde_json::from_str(json).unwrap();
+        let detail = map_pr_view(12, row);
+        assert_eq!(detail.body, "");
+        assert_eq!(detail.changed_files, 3);
+    }
+
+    #[test]
+    fn maps_pr_commit_author_from_login() {
+        let row = GhCommitRow {
+            oid: "abc123def456".into(),
+            message_headline: "Fix bug".into(),
+            message_body: Some("Details".into()),
+            authors: vec![GhCommitAuthor {
+                login: Some("bob".into()),
+                name: Some("Bob".into()),
+            }],
+            committed_date: "2026-01-01".into(),
+        };
+        let commit = map_pr_commit(row);
+        assert_eq!(commit.short_oid, "abc123d");
+        assert_eq!(commit.author, "bob");
+    }
+
+    #[test]
+    fn deserializes_pr_checks() {
+        let json = r#"[
+            {
+                "name": "build",
+                "state": "SUCCESS",
+                "bucket": "pass",
+                "link": "https://example.com/build/1",
+                "description": null,
+                "startedAt": "2026-01-01T00:00:00Z",
+                "completedAt": "2026-01-01T00:05:00Z",
+                "workflow": "CI"
+            }
+        ]"#;
+        let rows: Vec<GhCheckRow> = serde_json::from_str(json).unwrap();
+        assert_eq!(rows[0].bucket, "pass");
+    }
+
+    #[test]
+    fn deserializes_pr_files_without_change_type() {
+        let json = r#"{"files":[{"path":"src/a.ts","additions":2,"deletions":0}]}"#;
+        let row: GhFilesResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(row.files[0].path, "src/a.ts");
+        assert_eq!(row.files[0].change_type, "MODIFIED");
     }
 }
