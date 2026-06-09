@@ -1,6 +1,8 @@
 const PS_PROMPT =
   /PS\s+([A-Za-z]:\\[^\r\n>]+)>$/;
 
+const CMD_PROMPT = /([A-Za-z]:\\[^>\r\n]*)>$/;
+
 /** Paths ending with `>` (pwsh/bash on some setups). */
 const UNIX_PROMPT_GT =
   /((?:\/[\w.-]+)+)>$/;
@@ -22,6 +24,11 @@ export function detectShellPrompt(text: string): { cwd: string } | null {
   const psMatch = line.match(PS_PROMPT);
   if (psMatch?.[1]) {
     return { cwd: psMatch[1].trim() };
+  }
+
+  const cmdMatch = line.match(CMD_PROMPT);
+  if (cmdMatch?.[1]) {
+    return { cwd: cmdMatch[1].trim() };
   }
 
   const unixGtMatch = line.match(UNIX_PROMPT_GT);
