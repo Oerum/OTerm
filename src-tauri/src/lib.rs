@@ -1,6 +1,7 @@
 mod docker;
 mod fs;
 mod git;
+mod launch;
 mod lm;
 mod settings;
 mod ssh_sftp;
@@ -11,8 +12,9 @@ use docker::commands::{
     docker_remove_network, docker_remove_volume, docker_summary,
 };
 use fs::commands::{
-    fs_list_directory, fs_open_in_vscode, fs_search_files, fs_show_shell_context_menu,
-    FsSearchState,
+    fs_import_env_file, fs_list_directory, fs_open_in_file_explorer, fs_open_in_rider,
+    fs_open_in_visual_studio, fs_open_in_vscode, fs_open_in_zed, fs_search_files,
+    fs_show_shell_context_menu, fs_tools_directory_hints, FsSearchState,
 };
 use git::commands::{
     git_checkout_branch, git_checkout_detached, git_cherry_pick, git_commit, git_commit_details,
@@ -36,6 +38,7 @@ use ssh_sftp::commands::{
     ssh_sftp_list_dir, ssh_sftp_remove_path, ssh_sftp_upload,
 };
 use ssh_sftp::session::SftpManager;
+use launch::{launch_initial_cwd, LaunchState};
 use terminal::commands::{
     terminal_drain_output, terminal_kill, terminal_list_shells, terminal_resize, terminal_spawn,
     terminal_write,
@@ -61,13 +64,16 @@ fn prevent_default() -> tauri::plugin::TauriPlugin<tauri::Wry> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let launch_state = LaunchState::from_args();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(prevent_default())
+        .manage(launch_state)
         .manage(PtyManager::new())
         .manage(SftpManager::new())
         .manage(Arc::new(FsSearchState::new()))
         .invoke_handler(tauri::generate_handler![
+            launch_initial_cwd,
             terminal_list_shells,
             terminal_spawn,
             terminal_write,
@@ -75,7 +81,13 @@ pub fn run() {
             terminal_kill,
             terminal_drain_output,
             fs_list_directory,
+            fs_tools_directory_hints,
+            fs_open_in_visual_studio,
+            fs_open_in_rider,
+            fs_import_env_file,
             fs_open_in_vscode,
+            fs_open_in_zed,
+            fs_open_in_file_explorer,
             fs_search_files,
             fs_show_shell_context_menu,
             git_status,
