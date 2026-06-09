@@ -16,6 +16,11 @@ export interface TerminalExitEvent {
   sessionId: string;
 }
 
+export interface TerminalAgentChangedEvent {
+  sessionId: string;
+  agentId: string | null;
+}
+
 export type TerminalEntryColor =
   | "none"
   | "green"
@@ -31,6 +36,7 @@ export interface WorkspacePane {
   cwd: string;
   customTitle: string | null;
   activeAgentId: CliAgentId | null;
+  oscTitle: string | null;
 }
 
 export interface WorkspaceTerminalTab {
@@ -126,6 +132,7 @@ export interface TerminalSidebarEntry {
   shellLabel: string;
   cwd: string;
   sessionId: string | null;
+  activeAgentId: CliAgentId | null;
   tabTitle: string;
   renameDefault: string;
   tabColor: TerminalEntryColor;

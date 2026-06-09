@@ -6,6 +6,7 @@ import type {
   WorkspaceTerminalTab,
 } from "../types/terminal";
 import { isTerminalTab } from "../types/terminal";
+import { getCliAgentDefinition } from "./terminalAgentMode";
 
 export const ENTRY_COLORS = [
   { id: "none" as const, hex: "#5c5c5c", label: "None" },
@@ -31,6 +32,10 @@ export function paneDisplayTitle(
   splitIndex: number | null,
 ) {
   if (pane.customTitle?.trim()) return pane.customTitle.trim();
+  if (pane.oscTitle?.trim()) return pane.oscTitle.trim();
+  if (pane.activeAgentId) {
+    return getCliAgentDefinition(pane.activeAgentId).displayName;
+  }
   const cwd = pane.cwd;
   let title = shellLabel;
   if (cwd && cwd !== "~") {
@@ -88,6 +93,7 @@ export function buildTerminalEntries(
         shellLabel,
         cwd: pane.cwd,
         sessionId: pane.sessionId,
+        activeAgentId: pane.activeAgentId,
         tabTitle: tab.title,
         renameDefault: baseTitle,
         tabColor: tab.color,

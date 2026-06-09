@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ShellProfile } from "../types/terminal";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { ShellProfile, TerminalAgentChangedEvent } from "../types/terminal";
 
 export function listShells(): Promise<ShellProfile[]> {
   return invoke<ShellProfile[]>("terminal_list_shells");
@@ -32,4 +33,12 @@ export function killTerminal(sessionId: string): Promise<void> {
 
 export function drainTerminalOutput(sessionId: string): Promise<string> {
   return invoke<string>("terminal_drain_output", { sessionId });
+}
+
+export function listenTerminalAgentChanged(
+  handler: (event: TerminalAgentChangedEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<TerminalAgentChangedEvent>("terminal-agent-changed", (event) => {
+    handler(event.payload);
+  });
 }
