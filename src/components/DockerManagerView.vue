@@ -160,7 +160,7 @@ function pruneAllUnused() {
   pruneUnused(
     "all",
     "Remove all unused resources?",
-    "This will prune stopped containers, unused images, dangling volumes, and custom networks. This cannot be undone.",
+    "This will prune stopped containers, unused images, unused volumes, and custom networks. This cannot be undone.",
   );
 }
 

@@ -141,12 +141,12 @@ pub fn prune_unused(kind: String) -> Result<(), String> {
     match kind.as_str() {
         "containers" => docker_run(&["container", "prune", "-f"]),
         "images" => docker_run(&["image", "prune", "-a", "-f"]),
-        "volumes" => docker_run(&["volume", "prune", "-f"]),
+        "volumes" => docker_run(&["volume", "prune", "-a", "-f"]),
         "networks" => docker_run(&["network", "prune", "-f"]),
         "all" => {
             docker_run(&["container", "prune", "-f"])?;
             docker_run(&["image", "prune", "-a", "-f"])?;
-            docker_run(&["volume", "prune", "-f"])?;
+            docker_run(&["volume", "prune", "-a", "-f"])?;
             docker_run(&["network", "prune", "-f"])
         }
         _ => Err("Prune kind must be containers, images, volumes, networks, or all".into()),

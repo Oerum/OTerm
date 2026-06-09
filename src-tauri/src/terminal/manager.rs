@@ -1,7 +1,9 @@
+use crate::terminal::agent_process::detect_agent_in_tree;
 use crate::terminal::profiles::{resolve_shell, ShellProfile};
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
 use std::io::{ErrorKind, Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -17,6 +19,7 @@ struct PtySession {
     writer: Mutex<Box<dyn Write + Send>>,
     pending_output: Arc<Mutex<String>>,
     _child: Box<dyn portable_pty::Child + Send + Sync>,
+    agent_poll_cancel: Arc<AtomicBool>,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -30,6 +33,13 @@ struct TerminalOutputEvent {
 #[serde(rename_all = "camelCase")]
 struct TerminalExitEvent {
     session_id: String,
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TerminalAgentChangedEvent {
+    session_id: String,
+    agent_id: Option<String>,
 }
 
 impl PtyManager {
@@ -76,16 +86,21 @@ impl PtyManager {
             .slave
             .spawn_command(cmd)
             .map_err(|err| err.to_string())?;
+        let root_pid = child
+            .process_id()
+            .ok_or_else(|| "Failed to get shell process id".to_string())?;
         let writer = pair.master.take_writer().map_err(|err| err.to_string())?;
         let reader = pair.master.try_clone_reader().map_err(|err| err.to_string())?;
         let master: Box<dyn MasterPty + Send> = pair.master;
 
         let pending_output = Arc::new(Mutex::new(String::new()));
+        let agent_poll_cancel = Arc::new(AtomicBool::new(false));
         let session = PtySession {
             master: Mutex::new(master),
             writer: Mutex::new(writer),
             pending_output: Arc::clone(&pending_output),
             _child: child,
+            agent_poll_cancel: Arc::clone(&agent_poll_cancel),
         };
 
         self.sessions
@@ -93,7 +108,8 @@ impl PtyManager {
             .map_err(|_| "Session lock poisoned".to_string())?
             .insert(session_id.clone(), session);
 
-        spawn_reader(app, session_id.clone(), reader, pending_output);
+        spawn_reader(app.clone(), session_id.clone(), reader, pending_output);
+        spawn_agent_poller(app, session_id.clone(), root_pid, agent_poll_cancel);
         Ok(session_id)
     }
 
@@ -160,11 +176,15 @@ impl PtyManager {
     }
 
     pub fn kill(&self, session_id: &str) -> Result<(), String> {
-        self.sessions
+        let session = self
+            .sessions
             .lock()
             .map_err(|_| "Session lock poisoned".to_string())?
             .remove(session_id)
             .ok_or_else(|| format!("Unknown session: {session_id}"))?;
+        session
+            .agent_poll_cancel
+            .store(true, Ordering::Relaxed);
         Ok(())
     }
 }
@@ -181,6 +201,29 @@ fn emit_output(app: &AppHandle, session_id: &str, data: String) {
         data,
     };
     let _ = app.emit("terminal-output", payload);
+}
+
+fn spawn_agent_poller(
+    app: AppHandle,
+    session_id: String,
+    root_pid: u32,
+    cancel: Arc<AtomicBool>,
+) {
+    thread::spawn(move || {
+        let mut last: Option<String> = None;
+        while !cancel.load(Ordering::Relaxed) {
+            let current = detect_agent_in_tree(root_pid);
+            if current != last {
+                let payload = TerminalAgentChangedEvent {
+                    session_id: session_id.clone(),
+                    agent_id: current.clone(),
+                };
+                let _ = app.emit("terminal-agent-changed", payload);
+                last = current;
+            }
+            thread::sleep(Duration::from_millis(1500));
+        }
+    });
 }
 
 fn spawn_reader(

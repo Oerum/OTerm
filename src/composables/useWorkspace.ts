@@ -1,5 +1,6 @@
 import { computed, ref } from "vue";
 import type { CliAgentId } from "../lib/terminalAgentMode";
+import { normalizeOscTitle } from "../lib/terminalOscTitle";
 import type {
   ShellProfile,
   TerminalEntryColor,
@@ -43,6 +44,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
       cwd: cwd ?? "~",
       customTitle: null,
       activeAgentId: null,
+      oscTitle: null,
     };
   }
 
@@ -227,6 +229,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
       if (pane) {
         pane.sessionId = null;
         pane.activeAgentId = null;
+        pane.oscTitle = null;
         return;
       }
     }
@@ -249,6 +252,17 @@ export function useWorkspace(getDefaultShellId: () => string) {
       const pane = tab.panes.find((item) => item.id === paneId);
       if (pane) {
         pane.activeAgentId = agentId;
+        return;
+      }
+    }
+  }
+
+  function setPaneOscTitle(paneId: string, title: string | null) {
+    for (const tab of tabs.value) {
+      if (!isTerminalTab(tab)) continue;
+      const pane = tab.panes.find((item) => item.id === paneId);
+      if (pane) {
+        pane.oscTitle = title === null ? null : normalizeOscTitle(title);
         return;
       }
     }
@@ -338,6 +352,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     clearPaneSession,
     setPaneCwd,
     setPaneAgent,
+    setPaneOscTitle,
     setPaneShell,
     setTabTitle,
     setTabColor,

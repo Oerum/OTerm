@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { entryAccentColor } from "../lib/sidebarEntries";
 import type { TerminalMenuActionId, TerminalSidebarEntry } from "../types/terminal";
+import AgentFooterBadge from "./AgentFooterBadge.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
 import TerminalEntryMenu from "./TerminalEntryMenu.vue";
 
@@ -36,13 +37,18 @@ const gitStatus = computed(() => ({
 }));
 
 const accentStyle = computed(() => {
-  if (props.entry.tabColor === "none" && !props.entry.isActive) return undefined;
   const color = entryAccentColor(props.entry.tabColor);
+  const accentWidth = props.entry.isActive ? "3px" : "2px";
   if (props.entry.isActive && props.entry.tabColor === "none") {
-    return { boxShadow: "inset 2px 0 0 0 var(--warp-line)" };
+    return { boxShadow: `inset ${accentWidth} 0 0 0 var(--warp-accent)` };
   }
-  return { boxShadow: `inset 2px 0 0 0 ${color}` };
+  if (props.entry.tabColor === "none") return undefined;
+  return { boxShadow: `inset ${accentWidth} 0 0 0 ${color}` };
 });
+
+const iconSizeClass = computed(() =>
+  props.entry.splitIndex != null && props.entry.splitIndex > 1 ? "h-4 w-4" : "h-5 w-5",
+);
 
 watch(
   () => props.renaming,
@@ -107,7 +113,7 @@ function onRenameKeyDown(event: KeyboardEvent) {
     class="no-drag group relative mb-0.5 flex w-full items-center gap-1.5 rounded-md border px-1.5 py-1 transition-colors duration-[120ms]"
     :class="[
       entry.isActive
-        ? 'border-[var(--warp-border-strong)] bg-[var(--warp-elevated)]'
+        ? 'border-[var(--warp-accent)]/25 bg-[var(--warp-accent-dim)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] ring-1 ring-inset ring-[var(--warp-accent)]/15'
         : 'border-[var(--warp-border)] bg-[var(--term-entry-bg)] hover:border-[var(--warp-border-strong)] hover:bg-white/[0.04]',
       entry.splitIndex != null && entry.splitIndex > 1 ? 'ml-4 border-l border-white/[0.08] pl-1.5' : '',
       renaming ? 'ring-1 ring-[var(--warp-border-strong)]' : '',
@@ -122,16 +128,24 @@ function onRenameKeyDown(event: KeyboardEvent) {
       @click="onRowClick"
     >
       <span
-        class="flex shrink-0 items-center justify-center rounded"
+        class="flex shrink-0 items-center justify-center rounded-md"
         :class="[
-          entry.splitIndex != null && entry.splitIndex > 1 ? 'h-4 w-4' : 'h-5 w-5',
-          entry.isActive
-            ? 'bg-white/[0.07] text-[var(--warp-text)]'
-            : 'bg-[var(--warp-elevated)] text-[var(--warp-muted)]',
+          iconSizeClass,
+          entry.activeAgentId
+            ? entry.isActive
+              ? 'bg-white/[0.08] ring-1 ring-[var(--warp-accent)]/20'
+              : 'bg-[var(--warp-elevated)] ring-1 ring-white/[0.06]'
+            : entry.isActive
+              ? 'bg-white/[0.08] text-[var(--warp-text)] ring-1 ring-[var(--warp-accent)]/20'
+              : 'bg-[var(--warp-elevated)] text-[var(--warp-muted)]',
         ]"
       >
+        <AgentFooterBadge
+          v-if="entry.activeAgentId"
+          :agent-id="entry.activeAgentId"
+        />
         <svg
-          v-if="entry.splitIndex != null && entry.splitIndex > 1"
+          v-else-if="entry.splitIndex != null && entry.splitIndex > 1"
           width="10"
           height="10"
           viewBox="0 0 16 16"

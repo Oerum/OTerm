@@ -1,13 +1,23 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { useWindowDrag } from "../composables/useWindowDrag";
 import type { ShellProfile, WorkspacePane } from "../types/terminal";
 
-defineProps<{
+const props = defineProps<{
   pane: WorkspacePane | null;
   shells: ShellProfile[];
+  tabTitle: string;
 }>();
 
 const { startDrag } = useWindowDrag();
+
+const shellLabel = computed(
+  () => props.shells.find((shell) => shell.id === props.pane?.shellId)?.label ?? "Terminal",
+);
+
+const manualTabTitle = computed(() => props.tabTitle !== "Terminal");
+
+const oscTitle = computed(() => props.pane?.oscTitle?.trim() ?? "");
 </script>
 
 <template>
@@ -16,10 +26,14 @@ const { startDrag } = useWindowDrag();
     data-tauri-drag-region
     @mousedown="startDrag"
   >
-    <span class="truncate text-xs text-[var(--warp-muted)]">
-      {{
-        shells.find((shell) => shell.id === pane?.shellId)?.label ?? "Terminal"
-      }}
+    <span v-if="manualTabTitle" class="truncate text-xs text-[var(--warp-text)]">
+      {{ tabTitle }}
+    </span>
+    <span v-else-if="oscTitle" class="truncate text-xs text-[var(--warp-text)]">
+      {{ oscTitle }}
+    </span>
+    <span v-else class="truncate text-xs text-[var(--warp-muted)]">
+      {{ shellLabel }}
       <span class="text-[var(--warp-faint)]"> / </span>
       <span class="text-[var(--warp-text)]">{{ pane?.cwd ?? "~" }}</span>
     </span>

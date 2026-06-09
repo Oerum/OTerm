@@ -24,8 +24,9 @@ import { loadDefaultShellId, saveDefaultShellId } from "./lib/shellSettings";
 import type { DockerContainer } from "./types/docker";
 import type { SshEndpoint } from "./types/sshSftp";
 import { getLaunchInitialCwd } from "./lib/launchApi";
-import { killTerminal, listShells, writeTerminal } from "./lib/terminalApi";
+import { killTerminal, listShells, listenTerminalAgentChanged, writeTerminal } from "./lib/terminalApi";
 import type { CliAgentId } from "./lib/terminalAgentMode";
+import { consumeAppShortcut, isTabCycleShortcut } from "./lib/appKeyboardShortcuts";
 
 const appVersion = "0.1.0";
 
@@ -54,6 +55,7 @@ const {
   activeTabId,
   activePaneId,
   activePane,
+  activeTerminalTab,
   createTab,
   openPullRequestsTab,
   openBranchManagerTab,
@@ -69,6 +71,7 @@ const {
   clearPaneSession,
   setPaneCwd,
   setPaneAgent,
+  setPaneOscTitle,
   setTabTitle,
   setTabColor,
   moveTab,
@@ -374,22 +377,23 @@ function onSessionEnded(paneId: string) {
 
 function onKeyDown(event: KeyboardEvent) {
   if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "t") {
-    event.preventDefault();
+    consumeAppShortcut(event);
     createTab(resolveDefaultShellId());
     return;
   }
   if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "t") {
-    event.preventDefault();
+    consumeAppShortcut(event);
     reopenClosedSession();
     return;
   }
   if (event.ctrlKey && event.key.toLowerCase() === "r") {
-    event.preventDefault();
+    consumeAppShortcut(event);
     openSearch();
+    return;
   }
-  if ((event.ctrlKey || event.metaKey) && event.key === "Tab") {
+  if (isTabCycleShortcut(event)) {
     if (tabs.value.length <= 1) return;
-    event.preventDefault();
+    consumeAppShortcut(event);
     const currentIndex = tabs.value.findIndex((t) => t.id === activeTabId.value);
     const startIndex = currentIndex === -1 ? 0 : currentIndex;
     const nextIndex = event.shiftKey
@@ -399,6 +403,7 @@ function onKeyDown(event: KeyboardEvent) {
     return;
   }
   if (event.key === "Escape" && historyOpen.value) {
+    consumeAppShortcut(event);
     closeSearch();
   }
 }
@@ -422,6 +427,21 @@ function onCommandSubmitted(command: string) {
 
 function onAgentModeChanged(paneId: string, agentId: CliAgentId | null) {
   setPaneAgent(paneId, agentId);
+}
+
+function onOscTitleChanged(paneId: string, title: string | null) {
+  setPaneOscTitle(paneId, title);
+}
+
+function onTerminalAgentChanged(sessionId: string, agentId: CliAgentId | null) {
+  for (const tab of tabs.value) {
+    if (!isTerminalTab(tab)) continue;
+    const pane = tab.panes.find((entry) => entry.sessionId === sessionId);
+    if (pane) {
+      setPaneAgent(pane.id, agentId);
+      return;
+    }
+  }
 }
 
 async function openPathInTerminal(path: string) {
@@ -452,9 +472,19 @@ async function refitTerminals() {
   window.dispatchEvent(new Event("resize"));
 }
 
+let unlistenTerminalAgentChanged: (() => void) | null = null;
+
 onMounted(() => {
   void bootstrap();
-  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keydown", onKeyDown, true);
+  void listenTerminalAgentChanged((event) => {
+    onTerminalAgentChanged(
+      event.sessionId,
+      event.agentId as CliAgentId | null,
+    );
+  }).then((unlisten) => {
+    unlistenTerminalAgentChanged = unlisten;
+  });
 });
 
 watch([terminalSidebarOpen, toolsOpen, sourceControlOpen, sourceControlWidth], () => {
@@ -462,8 +492,9 @@ watch([terminalSidebarOpen, toolsOpen, sourceControlOpen, sourceControlWidth], (
 });
 
 onUnmounted(() => {
-  window.removeEventListener("keydown", onKeyDown);
+  window.removeEventListener("keydown", onKeyDown, true);
   window.clearTimeout(promptGitRefreshTimer);
+  unlistenTerminalAgentChanged?.();
 });
 </script>
 
@@ -522,7 +553,12 @@ onUnmounted(() => {
         class="relative flex min-w-0 flex-1 flex-col"
         :class="terminalSidebarOpen || toolsOpen ? 'border-l border-[var(--warp-border)]' : ''"
       >
-        <SessionHeader v-if="activePane" :pane="activePane" :shells="shells" />
+        <SessionHeader
+          v-if="activePane && activeTerminalTab"
+          :pane="activePane"
+          :shells="shells"
+          :tab-title="activeTerminalTab.title"
+        />
 
         <main class="relative flex min-h-0 flex-1 flex-col">
           <HistorySearch
@@ -550,12 +586,14 @@ onUnmounted(() => {
                 :shell-id="pane.shellId"
                 :initial-cwd="pane.cwd"
                 :active="pane.id === activePaneId"
+                :active-agent-id="pane.activeAgentId"
                 @session-created="onSessionCreated"
                 @session-ended="onSessionEnded"
                 @cwd-changed="setPaneCwd"
                 @prompt-ready="onPromptReady"
                 @command-submitted="onCommandSubmitted"
                 @agent-mode-changed="onAgentModeChanged"
+                @osc-title-changed="onOscTitleChanged"
                 @focus-pane="selectPane(pane.id)"
               />
             </section>

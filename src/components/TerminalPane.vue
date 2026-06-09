@@ -52,6 +52,7 @@ const props = defineProps<{
   shellId: string;
   initialCwd: string;
   active: boolean;
+  activeAgentId?: CliAgentId | null;
 }>();
 
 const emit = defineEmits<{
@@ -61,6 +62,7 @@ const emit = defineEmits<{
   promptReady: [paneId: string];
   commandSubmitted: [command: string];
   agentModeChanged: [paneId: string, agentId: CliAgentId | null];
+  oscTitleChanged: [paneId: string, title: string | null];
   focusPane: [];
 }>();
 
@@ -77,11 +79,18 @@ const activeAgentId = ref<CliAgentId | null>(null);
 const agentExitConfirmPending = ref(false);
 const promptClearSuppressUntil = ref(0);
 
-function setActiveAgent(agentId: CliAgentId | null) {
+function setActiveAgent(agentId: CliAgentId | null, emitChange = true) {
   if (activeAgentId.value === agentId) return;
   activeAgentId.value = agentId;
-  emit("agentModeChanged", props.paneId, agentId);
+  if (emitChange) emit("agentModeChanged", props.paneId, agentId);
 }
+
+watch(
+  () => props.activeAgentId,
+  (agentId) => {
+    setActiveAgent(agentId ?? null, false);
+  },
+);
 
 let terminal: Terminal | null = null;
 let fitAddon: FitAddon | null = null;
@@ -353,6 +362,11 @@ async function mountTerminal() {
   fitAddon.fit();
   terminal.focus();
 
+  terminal.onTitleChange((title) => {
+    const normalized = title.trim() || null;
+    emit("oscTitleChanged", props.paneId, normalized);
+  });
+
   terminal.attachCustomKeyEventHandler((event) => {
     if (!suggestion.value) return true;
     if (event.key === "Tab" && !event.shiftKey) {
@@ -386,6 +400,7 @@ async function mountTerminal() {
     promptClearSuppressUntil.value = 0;
     terminal.writeln("\r\n[session ended]");
     localSessionId.value = null;
+    emit("oscTitleChanged", props.paneId, null);
     emit("sessionEnded", props.paneId);
   });
 
@@ -406,6 +421,7 @@ async function disposeSession() {
   } catch {
     // Session may already be gone.
   }
+  emit("oscTitleChanged", props.paneId, null);
   emit("sessionEnded", props.paneId);
 }
 
