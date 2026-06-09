@@ -23,6 +23,7 @@ import type {
   GraphCommit,
   ResetMode,
 } from "../types/branchManager";
+import CreateBranchDialog from "./CreateBranchDialog.vue";
 
 const props = defineProps<{
   repoRoot: string;
@@ -49,6 +50,10 @@ const showOutgoingOnly = ref(false);
 const incomingHashes = ref<Set<string>>(new Set());
 const outgoingHashes = ref<Set<string>>(new Set());
 const resetMenuOpen = ref(false);
+const createDialogOpen = ref(false);
+const newBranchName = ref("");
+const createSourceBranch = ref("");
+const createExtraSource = ref<{ label: string; value: string } | null>(null);
 
 const filteredGraph = computed(() => {
   let rows = graph.value;
@@ -169,10 +174,48 @@ function promptInput(message: string, defaultValue = ""): string | null {
   return globalThis.prompt(message, defaultValue);
 }
 
-async function createBranchFromSelection() {
-  const name = promptInput("New branch name");
-  if (!name?.trim() || !details.value) return;
-  await createBranch(props.repoRoot, name.trim(), details.value.hash);
+function resolveDefaultSource(preferred?: string): string {
+  if (preferred?.trim()) return preferred.trim();
+  const current = branches.value.find((b) => b.isCurrent);
+  if (current) return current.name;
+  const firstLocal = branches.value.find((b) => !b.isRemote);
+  if (firstLocal) return firstLocal.name;
+  return branches.value[0]?.name ?? "";
+}
+
+function openCreateDialog(source?: string) {
+  createExtraSource.value = null;
+  newBranchName.value = "";
+  createSourceBranch.value = resolveDefaultSource(source);
+  createDialogOpen.value = true;
+}
+
+function openCreateDialogFromCommit(hash: string, shortHash: string) {
+  createExtraSource.value = {
+    label: `Commit ${shortHash}`,
+    value: hash,
+  };
+  newBranchName.value = "";
+  createSourceBranch.value = hash;
+  createDialogOpen.value = true;
+}
+
+function closeCreateDialog() {
+  createDialogOpen.value = false;
+  createExtraSource.value = null;
+}
+
+function submitCreateBranch() {
+  const name = newBranchName.value.trim();
+  const source = createSourceBranch.value.trim();
+  if (!name || !source) return;
+  closeCreateDialog();
+  void runAction(() => createBranch(props.repoRoot, name, source));
+}
+
+function createBranchFromSelection() {
+  if (!details.value) return;
+  openCreateDialogFromCommit(details.value.hash, details.value.shortHash);
 }
 
 async function createTagFromSelection() {
@@ -229,7 +272,7 @@ watch(selectedHash, () => void loadDetails());
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col bg-[var(--warp-bg)] text-[var(--warp-text)]">
+  <div class="relative flex min-h-0 flex-1 flex-col bg-[var(--warp-bg)] text-[var(--warp-text)]">
     <header
       class="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--warp-border)] px-4 py-2"
     >
@@ -271,24 +314,49 @@ watch(selectedHash, () => void loadDetails());
 
     <div class="flex min-h-0 flex-1">
       <aside class="warp-scroll w-56 shrink-0 overflow-auto border-r border-[var(--warp-border)] p-2">
-        <h3 class="mb-2 text-xs font-medium uppercase text-[var(--warp-muted)]">Branches</h3>
-        <button
+        <div class="mb-2 flex items-center justify-between gap-1">
+          <h3 class="text-xs font-medium uppercase text-[var(--warp-muted)]">Branches</h3>
+          <button
+            type="button"
+            class="rounded border border-[var(--warp-border)] px-1.5 py-0.5 text-[10px] text-[var(--warp-muted)] hover:bg-white/5 hover:text-[var(--warp-text)]"
+            title="Create new branch"
+            :disabled="busy"
+            @click="openCreateDialog()"
+          >
+            New branch
+          </button>
+        </div>
+        <div
           v-for="branch in branches"
           :key="branch.name"
-          type="button"
-          class="mb-1 block w-full rounded px-2 py-1 text-left text-xs hover:bg-white/5"
-          :class="branch.isCurrent ? 'bg-[var(--warp-accent-dim)] text-[var(--warp-accent)]' : ''"
-          @click="
-            runAction(() =>
-              checkoutGitBranch(props.repoRoot, branch.name, branch.isRemote),
-            )
-          "
+          class="mb-1 flex items-stretch gap-0.5 rounded"
+          :class="branch.isCurrent ? 'bg-[var(--warp-accent-dim)]' : ''"
         >
-          <div class="truncate">{{ branch.isRemote ? branch.name : branch.name }}</div>
-          <div v-if="branch.ahead || branch.behind" class="text-[10px] text-[var(--warp-muted)]">
-            ↑{{ branch.ahead }} ↓{{ branch.behind }}
-          </div>
-        </button>
+          <button
+            type="button"
+            class="min-w-0 flex-1 rounded px-2 py-1 text-left text-xs hover:bg-white/5"
+            :class="branch.isCurrent ? 'text-[var(--warp-accent)]' : ''"
+            @click="
+              runAction(() =>
+                checkoutGitBranch(props.repoRoot, branch.name, branch.isRemote),
+              )
+            "
+          >
+            <div class="truncate">{{ branch.name }}</div>
+            <div v-if="branch.ahead || branch.behind" class="text-[10px] text-[var(--warp-muted)]">
+              ↑{{ branch.ahead }} ↓{{ branch.behind }}
+            </div>
+          </button>
+          <button
+            type="button"
+            class="shrink-0 rounded px-1.5 text-xs text-[var(--warp-muted)] hover:bg-white/5 hover:text-[var(--warp-text)]"
+            title="Create branch from this branch"
+            :disabled="busy"
+            @click.stop="openCreateDialog(branch.name)"
+          >
+            +
+          </button>
+        </div>
       </aside>
 
       <section class="flex min-w-0 flex-1 flex-col border-r border-[var(--warp-border)]">
@@ -396,7 +464,7 @@ watch(selectedHash, () => void loadDetails());
               type="button"
               class="rounded border border-[var(--warp-border)] px-2 py-0.5 text-xs"
               :disabled="busy"
-              @click="runAction(createBranchFromSelection)"
+              @click="createBranchFromSelection"
             >
               New branch
             </button>
@@ -459,5 +527,16 @@ watch(selectedHash, () => void loadDetails());
         <p v-else class="p-3 text-sm text-[var(--warp-muted)]">Select a commit</p>
       </section>
     </div>
+
+    <CreateBranchDialog
+      :open="createDialogOpen"
+      :branches="branches"
+      :extra-source="createExtraSource"
+      :submit-disabled="busy"
+      v-model:name="newBranchName"
+      v-model:source="createSourceBranch"
+      @confirm="submitCreateBranch"
+      @cancel="closeCreateDialog"
+    />
   </div>
 </template>
