@@ -40,6 +40,7 @@ function positionForElement(el: HTMLElement) {
 }
 
 export function showTooltipForElement(el: HTMLElement, text: string) {
+  if (activeTarget === el) return;
   clearShowTimer();
   activeTarget = el;
   showTimer = setTimeout(() => {

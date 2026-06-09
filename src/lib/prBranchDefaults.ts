@@ -20,7 +20,7 @@ export function inferDefaultBaseBranch(
     if (slash < 0) return upstream;
   }
 
-  const locals = branches.local;
+  const locals = branches?.local ?? [];
   for (const candidate of ["main", "master", "develop"]) {
     if (locals.includes(candidate) && candidate !== current) return candidate;
   }

@@ -48,10 +48,12 @@ import {
   isGithubPrCapable,
 } from "./lib/createPrFlow";
 import { createPullRequest, detectPrProvider, listPullRequests } from "./lib/pullRequestApi";
+import {
   buildTerminalNotificationContent,
   sendTerminalSystemNotification,
 } from "./lib/systemNotification";
 import { shellLabelFor } from "./lib/sidebarEntries";
+import { formatGitOperationError } from "./lib/formatGitError";
 
 const appVersion = "0.1.0";
 
@@ -185,6 +187,15 @@ async function runGitAction(action: () => Promise<void>) {
   bumpGitBadges();
 }
 
+async function runGitActionWithFeedback(action: () => Promise<void>) {
+  try {
+    await runGitAction(action);
+  } catch (err) {
+    sourceControlPanelRef.value?.showPanelFeedback(formatGitOperationError(err), true);
+    throw err;
+  }
+}
+
 function closeCreatePrDialog() {
   createPrOpen.value = false;
   createPrError.value = null;
@@ -271,14 +282,22 @@ async function maybeOfferCreatePrAfterPush() {
 }
 
 async function onPushGit() {
-  await runGitAction(pushGitRepo);
-  await maybeOfferCreatePrAfterPush();
+  try {
+    await runGitActionWithFeedback(pushGitRepo);
+    await maybeOfferCreatePrAfterPush();
+  } catch {
+    // Error shown in source control panel.
+  }
 }
 
 async function onSyncGit() {
   const hadCommitsToPush = sourceControlStatus.value.ahead > 0;
-  await runGitAction(syncGitRepo);
-  if (hadCommitsToPush) await maybeOfferCreatePrAfterPush();
+  try {
+    await runGitActionWithFeedback(syncGitRepo);
+    if (hadCommitsToPush) await maybeOfferCreatePrAfterPush();
+  } catch {
+    // Error shown in source control panel.
+  }
 }
 
 const sourceControlPanelRef = ref<InstanceType<typeof SourceControlPanel> | null>(null);
@@ -879,8 +898,8 @@ onUnmounted(() => {
           @revert="(paths, untracked) => runGitAction(() => revertGitPaths(paths, untracked))"
           @revert-all="() => runGitAction(revertAllGitChanges)"
           @commit="(message) => runGitAction(() => commitGitChanges(message))"
-          @fetch="() => runGitAction(fetchGitRepo)"
-          @pull="() => runGitAction(pullGitRepo)"
+          @fetch="() => runGitActionWithFeedback(fetchGitRepo)"
+          @pull="() => runGitActionWithFeedback(pullGitRepo)"
           @push="onPushGit"
           @sync="onSyncGit"
           @checkout="(branch, remote) => runGitAction(() => checkoutGitBranch(branch, remote))"
