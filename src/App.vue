@@ -101,6 +101,7 @@ const {
   stage: stageGitPaths,
   unstage: unstageGitPaths,
   revert: revertGitPaths,
+  revertAll: revertAllGitChanges,
   revertHunk: revertGitHunk,
   stageHunk: stageGitHunk,
   unstageHunk: unstageGitHunk,
@@ -676,6 +677,7 @@ onUnmounted(() => {
           @stage="(paths) => runGitAction(() => stageGitPaths(paths))"
           @unstage="(paths) => runGitAction(() => unstageGitPaths(paths))"
           @revert="(paths, untracked) => runGitAction(() => revertGitPaths(paths, untracked))"
+          @revert-all="() => runGitAction(revertAllGitChanges)"
           @commit="(message) => runGitAction(() => commitGitChanges(message))"
           @fetch="() => runGitAction(fetchGitRepo)"
           @pull="() => runGitAction(pullGitRepo)"

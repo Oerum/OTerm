@@ -12,6 +12,7 @@ import {
   isCommitAiConfigured,
 } from "../types/commitAi";
 import CommitAiSettingsDialog from "./CommitAiSettingsDialog.vue";
+import ConfirmDialog from "./ConfirmDialog.vue";
 import type {
   GitBranchList,
   GitCommitEntry,
@@ -25,6 +26,14 @@ import GitFileEditor from "./GitFileEditor.vue";
 import GitFileLineStats from "./GitFileLineStats.vue";
 
 type PaneView = "diff" | "edit";
+
+type PendingConfirm = {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  dangerous?: boolean;
+  onConfirm: () => void;
+};
 
 const props = defineProps<{
   status: GitSourceControlStatus;
@@ -41,6 +50,7 @@ const emit = defineEmits<{
   stage: [paths: string[]];
   unstage: [paths: string[]];
   revert: [paths: string[], untracked: boolean];
+  "revert-all": [];
   commit: [message: string];
   fetch: [];
   pull: [];
@@ -78,6 +88,8 @@ const hunkFeedback = ref<string | null>(null);
 const hunkFeedbackError = ref(false);
 const diffExpanded = ref(false);
 const diffPaneRef = ref<HTMLElement | null>(null);
+const confirmOpen = ref(false);
+const pendingConfirm = ref<PendingConfirm | null>(null);
 let diffRequestId = 0;
 let editRequestId = 0;
 
@@ -249,6 +261,29 @@ const unstageAllPaths = computed(() => props.status.staged.map((e) => e.path));
 const canStageAll = computed(() => stageAllPaths.value.length > 0);
 
 const canUnstageAll = computed(() => unstageAllPaths.value.length > 0);
+
+const revertAllTrackedPaths = computed(() => [
+  ...props.status.changes.map((e) => e.path),
+  ...props.status.staged.map((e) => e.path),
+]);
+
+const revertAllUntrackedPaths = computed(() => props.status.untracked.map((e) => e.path));
+
+const canRevertAll = computed(
+  () => revertAllTrackedPaths.value.length > 0 || revertAllUntrackedPaths.value.length > 0,
+);
+
+function askConfirm(options: PendingConfirm) {
+  pendingConfirm.value = options;
+  confirmOpen.value = true;
+}
+
+function resolveConfirm(confirmed: boolean) {
+  const pending = pendingConfirm.value;
+  confirmOpen.value = false;
+  pendingConfirm.value = null;
+  if (confirmed) pending?.onConfirm();
+}
 
 function onStageAll() {
   if (stageAllPaths.value.length) emit("stage", stageAllPaths.value);
@@ -445,8 +480,25 @@ function confirmRevert(paths: string[], untracked: boolean) {
   const message = untracked
     ? `Delete ${paths.length} untracked ${noun}? This cannot be undone.`
     : `Discard ${paths.length} tracked ${noun}? This cannot be undone.`;
-  if (!window.confirm(message)) return;
-  emit("revert", paths, untracked);
+  askConfirm({
+    title: untracked ? "Delete untracked files?" : "Revert changes?",
+    message,
+    confirmLabel: untracked ? "Delete" : "Revert",
+    dangerous: true,
+    onConfirm: () => emit("revert", paths, untracked),
+  });
+}
+
+function onRevertAll() {
+  if (!canRevertAll.value) return;
+  askConfirm({
+    title: "Revert all changes?",
+    message:
+      "Are you sure you want to revert all changes? This will discard staged and unstaged changes, delete untracked files, and cannot be undone.",
+    confirmLabel: "Revert all",
+    dangerous: true,
+    onConfirm: () => emit("revert-all"),
+  });
 }
 
 function onCommit() {
@@ -830,6 +882,16 @@ watch(
               Unstage all
             </button>
           </div>
+          <button
+            type="button"
+            class="mt-1.5 w-full rounded-md border border-[var(--warp-border)] bg-[var(--warp-bg)]/60 px-2 py-1.5 text-xs font-medium text-[#ff7b72] transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+            style="font-family: var(--warp-font-ui)"
+            title="Revert all staged, unstaged, and untracked changes"
+            :disabled="busy || !canRevertAll"
+            @click="onRevertAll"
+          >
+            Revert all
+          </button>
         </div>
 
         <div class="warp-scroll min-h-0 flex-1 overflow-y-auto">
@@ -1150,6 +1212,16 @@ watch(
     <CommitAiSettingsDialog
       :open="commitAiSettingsOpen"
       @close="commitAiSettingsOpen = false"
+    />
+
+    <ConfirmDialog
+      :open="confirmOpen"
+      :title="pendingConfirm?.title ?? ''"
+      :message="pendingConfirm?.message ?? ''"
+      :confirm-label="pendingConfirm?.confirmLabel"
+      :dangerous="pendingConfirm?.dangerous"
+      @confirm="resolveConfirm(true)"
+      @cancel="resolveConfirm(false)"
     />
   </aside>
 </template>
