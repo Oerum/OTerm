@@ -148,3 +148,14 @@ body {
 .terminal-output .xterm {
   height: 100%;
 }
+
+/* Always-visible underline bars for detected file paths in terminal output */
+.terminal-output .terminal-path-underline {
+  box-sizing: border-box;
+  border-radius: 0;
+}
+
+.terminal-output .xterm-underline-1 {
+  text-decoration-color: rgba(0, 212, 170, 0.9);
+  text-underline-offset: 2px;
+}
