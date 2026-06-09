@@ -68,7 +68,7 @@ struct GhIssueRow {
 #[derive(Debug, Deserialize)]
 struct GhIssueView {
     title: String,
-    body: String,
+    body: Option<String>,
     state: String,
     url: String,
     author: GhLogin,
@@ -84,7 +84,7 @@ struct GhIssueView {
 #[derive(Debug, Deserialize)]
 struct GhIssueComment {
     author: GhLogin,
-    body: String,
+    body: Option<String>,
     #[serde(rename = "createdAt")]
     created_at: String,
 }
@@ -101,7 +101,7 @@ struct GhLabel {
 
 pub fn list_issues(repo_root: String, filters: IssueListFilters) -> Result<Vec<IssueSummary>, String> {
     let root = PathBuf::from(&repo_root);
-    ensure_github_ready(repo_root.clone())?;
+    ensure_github_ready(repo_root)?;
 
     let state = normalize_issue_state(&filters.state);
     let mut arg_strings = vec![
@@ -160,13 +160,13 @@ pub fn view_issue(repo_root: String, number: u32) -> Result<IssueDetail, String>
         assignees: login_names(row.assignees),
         created_at: row.created_at,
         updated_at: row.updated_at,
-        body: row.body,
+        body: row.body.unwrap_or_default(),
         comments: row
             .comments
             .into_iter()
             .map(|comment| IssueComment {
                 author: comment.author.login,
-                body: comment.body,
+                body: comment.body.unwrap_or_default(),
                 created_at: comment.created_at,
             })
             .collect(),
@@ -279,5 +279,23 @@ mod tests {
         assert_eq!(optional_filter(Some(" bug ".into())), Some("bug".into()));
         assert_eq!(optional_filter(Some("   ".into())), None);
         assert_eq!(optional_filter(None), None);
+    }
+
+    #[test]
+    fn deserializes_issue_view_with_null_body() {
+        let json = r#"{
+            "title": "Empty",
+            "body": null,
+            "state": "OPEN",
+            "url": "https://example.com/1",
+            "author": {"login": "alice"},
+            "labels": [],
+            "assignees": [],
+            "comments": [],
+            "createdAt": "2026-01-01",
+            "updatedAt": "2026-01-02"
+        }"#;
+        let row: GhIssueView = serde_json::from_str(json).unwrap();
+        assert_eq!(row.body, None);
     }
 }

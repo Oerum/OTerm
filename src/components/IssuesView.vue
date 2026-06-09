@@ -105,12 +105,19 @@ async function loadDetail(number: number) {
   detailLoading.value = true;
   error.value = null;
   try {
-    detail.value = await viewIssue(props.repoRoot, number);
+    const res = await viewIssue(props.repoRoot, number);
+    if (selectedNumber.value === number) {
+      detail.value = res;
+    }
   } catch (err) {
-    detail.value = null;
-    error.value = err instanceof Error ? err.message : String(err);
+    if (selectedNumber.value === number) {
+      detail.value = null;
+      error.value = err instanceof Error ? err.message : String(err);
+    }
   } finally {
-    detailLoading.value = false;
+    if (selectedNumber.value === number) {
+      detailLoading.value = false;
+    }
   }
 }
 
@@ -160,7 +167,11 @@ async function onCreateBranch(issue: IssueSummary) {
 }
 
 function onKeyDown(event: KeyboardEvent) {
-  if (!rootRef.value?.contains(document.activeElement) && document.activeElement !== document.body) {
+  const active = document.activeElement;
+  if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) {
+    return;
+  }
+  if (!rootRef.value?.contains(active) && active !== document.body) {
     return;
   }
   if (event.key === "ArrowDown") {
@@ -182,7 +193,12 @@ onUnmounted(() => {
   if (toastTimer) clearTimeout(toastTimer);
 });
 
-watch(() => props.repoRoot, () => void loadIssues());
+watch(() => props.repoRoot, () => {
+  issues.value = [];
+  detail.value = null;
+  selectedNumber.value = null;
+  void loadIssues();
+});
 watch(includeClosed, () => void loadIssues());
 watch([filterLabel, filterAuthor, filterAssignee], scheduleFilterReload);
 watch(selectedNumber, (number) => {
