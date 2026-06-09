@@ -53,3 +53,17 @@ export function detectTrailingShellPrompt(text: string): { cwd: string } | null 
   if (lines.length === 0) return null;
   return detectShellPrompt(lines[lines.length - 1]!);
 }
+
+const PROMPT_SCAN_MAX = 8192;
+
+/** Accumulate PTY chunks so prompts split across writes still match. */
+export function appendPromptScanBuffer(
+  buffer: string,
+  chunk: string,
+): { buffer: string; trailingPrompt: { cwd: string } | null } {
+  const next = (buffer + chunk).slice(-PROMPT_SCAN_MAX);
+  return {
+    buffer: next,
+    trailingPrompt: detectTrailingShellPrompt(next),
+  };
+}
