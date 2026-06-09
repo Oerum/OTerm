@@ -1,5 +1,7 @@
 //! Process-tree agent detection. Keep agent ids in sync with src/lib/terminalAgentMode.ts.
 
+use std::collections::HashMap;
+
 use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System};
 
 struct AgentDef {
@@ -123,23 +125,8 @@ pub fn match_agent_from_process(name: &str, cmd: &[String]) -> Option<&'static s
     None
 }
 
-fn children_of(system: &System, parent: Pid) -> Vec<Pid> {
-    system
-        .processes()
-        .iter()
-        .filter_map(|(pid, process)| {
-            if process.parent() == Some(parent) {
-                Some(*pid)
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
 /// Walk descendants of `root_pid` and return the deepest matching agent id, if any.
-pub fn detect_agent_in_tree(root_pid: u32) -> Option<String> {
-    let mut system = System::new();
+pub fn detect_agent_in_tree(system: &mut System, root_pid: u32) -> Option<String> {
     system.refresh_specifics(
         RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
     );
@@ -147,6 +134,13 @@ pub fn detect_agent_in_tree(root_pid: u32) -> Option<String> {
     let root = Pid::from_u32(root_pid);
     if system.process(root).is_none() {
         return None;
+    }
+
+    let mut children_map: HashMap<Pid, Vec<Pid>> = HashMap::new();
+    for (pid, process) in system.processes() {
+        if let Some(parent) = process.parent() {
+            children_map.entry(parent).or_default().push(*pid);
+        }
     }
 
     let mut best: Option<(usize, &'static str)> = None;
@@ -167,8 +161,10 @@ pub fn detect_agent_in_tree(root_pid: u32) -> Option<String> {
             }
         }
 
-        for child in children_of(&system, pid) {
-            queue.push((child, depth + 1));
+        if let Some(children) = children_map.get(&pid) {
+            for &child in children {
+                queue.push((child, depth + 1));
+            }
         }
     }
 

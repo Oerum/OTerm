@@ -210,9 +210,14 @@ fn spawn_agent_poller(
     cancel: Arc<AtomicBool>,
 ) {
     thread::spawn(move || {
+        let mut system = sysinfo::System::new();
+        let root = sysinfo::Pid::from_u32(root_pid);
         let mut last: Option<String> = None;
         while !cancel.load(Ordering::Relaxed) {
-            let current = detect_agent_in_tree(root_pid);
+            let current = detect_agent_in_tree(&mut system, root_pid);
+            if system.process(root).is_none() {
+                break;
+            }
             if current != last {
                 let payload = TerminalAgentChangedEvent {
                     session_id: session_id.clone(),

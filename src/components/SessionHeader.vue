@@ -26,14 +26,10 @@ const oscTitle = computed(() => props.pane?.oscTitle?.trim() ?? "");
     data-tauri-drag-region
     @mousedown="startDrag"
   >
-    <span v-if="manualTabTitle" class="truncate text-xs text-[var(--warp-text)]">
-      {{ tabTitle }}
-    </span>
-    <span v-else-if="oscTitle" class="truncate text-xs text-[var(--warp-text)]">
-      {{ oscTitle }}
-    </span>
-    <span v-else class="truncate text-xs text-[var(--warp-muted)]">
-      {{ shellLabel }}
+    <span class="truncate text-xs text-[var(--warp-muted)]">
+      <span class="text-[var(--warp-text)]">
+        {{ manualTabTitle ? tabTitle : (oscTitle || shellLabel) }}
+      </span>
       <span class="text-[var(--warp-faint)]"> / </span>
       <span class="text-[var(--warp-text)]">{{ pane?.cwd ?? "~" }}</span>
     </span>
