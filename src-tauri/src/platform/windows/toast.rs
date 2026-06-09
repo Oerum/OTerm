@@ -29,7 +29,7 @@ pub fn send(app_id: &str, title: &str, body: &str, icon_path: &Path) -> Result<(
     let image = if icon_path.is_file() {
         format!(
             r#"<image placement="appLogoOverride" src="{}" alt="OTerm" />"#,
-            toast_file_uri(icon_path)
+            xml_escape(&toast_file_uri(icon_path))
         )
     } else {
         String::new()
@@ -100,11 +100,7 @@ fn start_menu_shortcut_path() -> Result<PathBuf, String> {
 
 fn ensure_start_menu_shortcut(identity: &ToastIdentity) -> Result<(), String> {
     let shortcut = start_menu_shortcut_path()?;
-    let exe = identity
-        .exe_path
-        .canonicalize()
-        .unwrap_or_else(|_| identity.exe_path.clone());
-    write_start_menu_shortcut(&shortcut, identity, &exe)
+    write_start_menu_shortcut(&shortcut, identity, &identity.exe_path)
 }
 
 fn write_start_menu_shortcut(
@@ -114,7 +110,6 @@ fn write_start_menu_shortcut(
 ) -> Result<(), String> {
     use windows::core::{Interface, HSTRING};
     use windows::Win32::Storage::EnhancedStorage::PKEY_AppUserModel_ID;
-    use windows::Win32::System::Com::StructuredStorage::PropVariantClear;
     use windows::Win32::System::Com::{
         CoCreateInstance, IPersistFile, CLSCTX_INPROC_SERVER,
     };
@@ -148,12 +143,11 @@ fn write_start_menu_shortcut(
             .map_err(|e| e.to_string())?;
 
         let property_store: IPropertyStore = shell_link.cast().map_err(|e| e.to_string())?;
-        let (mut prop, _app_id_wide) = prop_variant_from_str(&identity.app_id);
+        let (prop, _app_id_wide) = prop_variant_from_str(&identity.app_id);
         property_store
             .SetValue(&PKEY_AppUserModel_ID, &prop)
             .map_err(|e| e.to_string())?;
         property_store.Commit().map_err(|e| e.to_string())?;
-        PropVariantClear(&mut prop).ok();
 
         let persist: IPersistFile = shell_link.cast().map_err(|e| e.to_string())?;
         persist

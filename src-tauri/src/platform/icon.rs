@@ -50,13 +50,14 @@ pub fn prepare_notification_assets(exe: &Path) -> Result<NotificationAssets, Str
 
 #[cfg(windows)]
 pub fn toast_file_uri(path: &Path) -> String {
-    let path = path
-        .canonicalize()
-        .unwrap_or_else(|_| path.to_path_buf())
-        .display()
-        .to_string()
-        .replace('\\', "/");
-    format!("file:///{}", xml_escape(&path))
+    let path_str = strip_extended_path_prefix(
+        path.canonicalize()
+            .unwrap_or_else(|_| path.to_path_buf())
+            .display()
+            .to_string(),
+    );
+    let path_str = path_str.replace('\\', "/");
+    format!("file:///{}", path_str)
 }
 
 fn resolve_from_names(exe: &Path, names: &[&str]) -> PathBuf {
@@ -82,10 +83,20 @@ fn resolve_from_names(exe: &Path, names: &[&str]) -> PathBuf {
 }
 
 pub fn icon_display_path(icon: &Path) -> String {
-    icon.canonicalize()
-        .unwrap_or_else(|_| icon.to_path_buf())
-        .display()
-        .to_string()
+    strip_extended_path_prefix(
+        icon.canonicalize()
+            .unwrap_or_else(|_| icon.to_path_buf())
+            .display()
+            .to_string(),
+    )
+}
+
+fn strip_extended_path_prefix(path: String) -> String {
+    #[cfg(windows)]
+    if let Some(stripped) = path.strip_prefix(r"\\?\") {
+        return stripped.to_string();
+    }
+    path
 }
 
 #[cfg(windows)]
