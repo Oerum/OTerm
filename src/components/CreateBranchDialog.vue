@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 import type { BranchRefInfo } from "../types/branchManager";
 
 const props = withDefaults(
@@ -10,10 +10,12 @@ const props = withDefaults(
     source: string;
     extraSource?: { label: string; value: string } | null;
     submitDisabled?: boolean;
+    error?: string | null;
   }>(),
   {
     extraSource: null,
     submitDisabled: false,
+    error: null,
   },
 );
 
@@ -37,7 +39,6 @@ const hasSourceOptions = computed(
 );
 
 function onKeyDown(event: KeyboardEvent) {
-  if (!props.open) return;
   if (event.key === "Escape") {
     event.preventDefault();
     emit("cancel");
@@ -47,14 +48,18 @@ function onKeyDown(event: KeyboardEvent) {
 watch(
   () => props.open,
   async (isOpen) => {
-    if (!isOpen) return;
-    await nextTick();
-    inputRef.value?.focus();
-    inputRef.value?.select();
+    if (isOpen) {
+      window.addEventListener("keydown", onKeyDown);
+      await nextTick();
+      inputRef.value?.focus();
+      inputRef.value?.select();
+    } else {
+      window.removeEventListener("keydown", onKeyDown);
+    }
   },
+  { immediate: true },
 );
 
-onMounted(() => window.addEventListener("keydown", onKeyDown));
 onUnmounted(() => window.removeEventListener("keydown", onKeyDown));
 </script>
 
@@ -79,6 +84,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeyDown));
       </div>
 
       <div class="grid gap-3 px-4 py-3">
+        <p v-if="error" class="text-xs text-[var(--warp-danger)]">{{ error }}</p>
         <label class="grid gap-1.5 text-xs text-[var(--warp-muted)]">
           Branch name
           <input

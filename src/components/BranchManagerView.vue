@@ -184,6 +184,7 @@ function resolveDefaultSource(preferred?: string): string {
 }
 
 function openCreateDialog(source?: string) {
+  error.value = null;
   createExtraSource.value = null;
   newBranchName.value = "";
   createSourceBranch.value = resolveDefaultSource(source);
@@ -191,6 +192,7 @@ function openCreateDialog(source?: string) {
 }
 
 function openCreateDialogFromCommit(hash: string, shortHash: string) {
+  error.value = null;
   createExtraSource.value = {
     label: `Commit ${shortHash}`,
     value: hash,
@@ -206,11 +208,14 @@ function closeCreateDialog() {
 }
 
 function submitCreateBranch() {
+  if (busy.value) return;
   const name = newBranchName.value.trim();
   const source = createSourceBranch.value.trim();
   if (!name || !source) return;
-  closeCreateDialog();
-  void runAction(() => createBranch(props.repoRoot, name, source));
+  void runAction(async () => {
+    await createBranch(props.repoRoot, name, source);
+    closeCreateDialog();
+  });
 }
 
 function createBranchFromSelection() {
@@ -533,6 +538,7 @@ watch(selectedHash, () => void loadDetails());
       :branches="branches"
       :extra-source="createExtraSource"
       :submit-disabled="busy"
+      :error="error"
       v-model:name="newBranchName"
       v-model:source="createSourceBranch"
       @confirm="submitCreateBranch"
