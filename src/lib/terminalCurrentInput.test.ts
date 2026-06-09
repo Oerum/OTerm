@@ -1,7 +1,9 @@
+import type { Terminal } from "@xterm/xterm";
 import { describe, expect, it } from "vitest";
 import {
   extractInputAfterPrompt,
   mergeTerminalDraftSources,
+  readTerminalCurrentInput,
 } from "./terminalCurrentInput";
 
 describe("extractInputAfterPrompt", () => {
@@ -34,6 +36,55 @@ describe("extractInputAfterPrompt", () => {
     expect(
       extractInputAfterPrompt("\x1b[32mPS C:\\dev>\x1b[0m echo test"),
     ).toBe("echo test");
+  });
+
+  it("does not truncate commands containing delimiters", () => {
+    expect(extractInputAfterPrompt("PS C:\\dev> echo $VAR")).toBe("echo $VAR");
+    expect(extractInputAfterPrompt('user@host:~$ git commit -m "fixes #12"')).toBe(
+      'git commit -m "fixes #12"',
+    );
+    expect(extractInputAfterPrompt('C:\\Users\\Filip> echo "hello > world"')).toBe(
+      'echo "hello > world"',
+    );
+  });
+});
+
+function makeMockTerminal(
+  lines: { text: string; wrapped?: boolean }[],
+  cursorY: number,
+  cursorX: number,
+): Terminal {
+  const bufferLines = lines.map((entry) => ({
+    length: entry.text.length,
+    isWrapped: entry.wrapped ?? false,
+    translateToString: (_trimRight: boolean, start: number, end: number) =>
+      entry.text.slice(start, end),
+  }));
+
+  return {
+    buffer: {
+      active: {
+        baseY: 0,
+        cursorY,
+        cursorX,
+        getLine: (y: number) => bufferLines[y],
+      },
+    },
+  } as Terminal;
+}
+
+describe("readTerminalCurrentInput", () => {
+  it("reads wrapped command lines from the buffer", () => {
+    const terminal = makeMockTerminal(
+      [
+        { text: "PS C:\\dev> very long comm", wrapped: false },
+        { text: "and continues", wrapped: true },
+      ],
+      1,
+      13,
+    );
+
+    expect(readTerminalCurrentInput(terminal)).toBe("very long command continues");
   });
 });
 
