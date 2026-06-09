@@ -9,6 +9,7 @@ import TerminalPane from "./components/TerminalPane.vue";
 import BranchManagerView from "./components/BranchManagerView.vue";
 import DockerManagerView from "./components/DockerManagerView.vue";
 import SshSftpManagerView from "./components/SshSftpManagerView.vue";
+import CreatePullRequestDialog from "./components/CreatePullRequestDialog.vue";
 import PullRequestsView from "./components/PullRequestsView.vue";
 import IssuesView from "./components/IssuesView.vue";
 import SettingsView from "./components/SettingsView.vue";
@@ -39,6 +40,12 @@ import {
 } from "./lib/terminalApi";
 import type { CliAgentId } from "./lib/terminalAgentMode";
 import { consumeAppShortcut, isTabCycleShortcut } from "./lib/appKeyboardShortcuts";
+import {
+  defaultCreatePrTitle,
+  initCreatePrBranches,
+  shouldOfferCreatePr,
+} from "./lib/createPrFlow";
+import { createPullRequest, detectPrProvider, listPullRequests } from "./lib/pullRequestApi";
 
 const appVersion = "0.1.0";
 
@@ -51,6 +58,15 @@ const terminalSidebarOpen = ref(true);
 const toolsOpen = ref(false);
 const sourceControlOpen = ref(false);
 const gitRefreshToken = ref(0);
+
+const createPrOpen = ref(false);
+const createPrTitle = ref("");
+const createPrBody = ref("");
+const createPrBase = ref("");
+const createPrHead = ref("");
+const createPrDraft = ref(false);
+const createPrBusy = ref(false);
+const createPrError = ref<string | null>(null);
 
 const {
   widthPx: sourceControlWidth,
@@ -159,6 +175,73 @@ function bumpGitBadges() {
 async function runGitAction(action: () => Promise<void>) {
   await action();
   bumpGitBadges();
+}
+
+function closeCreatePrDialog() {
+  createPrOpen.value = false;
+  createPrError.value = null;
+}
+
+async function submitCreatePr() {
+  const root = gitRepoRoot.value;
+  if (!root || !createPrTitle.value.trim() || !createPrBase.value || !createPrHead.value) return;
+  if (createPrBase.value === createPrHead.value) {
+    createPrError.value = "Base and compare branches must be different.";
+    return;
+  }
+
+  createPrBusy.value = true;
+  createPrError.value = null;
+  try {
+    await createPullRequest({
+      repoRoot: root,
+      title: createPrTitle.value.trim(),
+      body: createPrBody.value,
+      base: createPrBase.value,
+      head: createPrHead.value,
+      draft: createPrDraft.value,
+    });
+    closeCreatePrDialog();
+    openPullRequestsTab(root);
+    bumpGitBadges();
+  } catch (err) {
+    createPrError.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    createPrBusy.value = false;
+  }
+}
+
+async function maybeOfferCreatePrAfterPush() {
+  const root = gitRepoRoot.value;
+  const status = sourceControlStatus.value;
+  if (!root) return;
+
+  try {
+    const provider = await detectPrProvider(root);
+    const openPrs = provider.authOk ? await listPullRequests(root, false) : [];
+    if (!shouldOfferCreatePr(status, provider, openPrs)) return;
+
+    const { base, head } = initCreatePrBranches(gitBranches.value, status.upstream);
+    createPrHead.value = head;
+    createPrBase.value = base;
+    createPrTitle.value = defaultCreatePrTitle(gitHistory.value, head);
+    createPrBody.value = "";
+    createPrDraft.value = false;
+    createPrError.value = null;
+    createPrOpen.value = true;
+  } catch {
+    // Optional flow — ignore detection failures.
+  }
+}
+
+async function onPushGit() {
+  await runGitAction(pushGitRepo);
+  await maybeOfferCreatePrAfterPush();
+}
+
+async function onSyncGit() {
+  await runGitAction(syncGitRepo);
+  await maybeOfferCreatePrAfterPush();
 }
 
 const sourceControlPanelRef = ref<InstanceType<typeof SourceControlPanel> | null>(null);
@@ -705,8 +788,8 @@ onUnmounted(() => {
           @commit="(message) => runGitAction(() => commitGitChanges(message))"
           @fetch="() => runGitAction(fetchGitRepo)"
           @pull="() => runGitAction(pullGitRepo)"
-          @push="() => runGitAction(pushGitRepo)"
-          @sync="() => runGitAction(syncGitRepo)"
+          @push="onPushGit"
+          @sync="onSyncGit"
           @checkout="(branch, remote) => runGitAction(() => checkoutGitBranch(branch, remote))"
           @revert-hunk="(path, patch, staged) => runGitHunkAction(() => revertGitHunk(path, patch, staged))"
           @stage-hunk="(path, patch) => runGitHunkAction(() => stageGitHunk(path, patch))"
@@ -716,5 +799,23 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <CreatePullRequestDialog
+      :open="createPrOpen"
+      :branches="gitBranches"
+      :title="createPrTitle"
+      :body="createPrBody"
+      :base="createPrBase"
+      :head="createPrHead"
+      :draft="createPrDraft"
+      :busy="createPrBusy"
+      :error="createPrError"
+      @update:title="createPrTitle = $event"
+      @update:body="createPrBody = $event"
+      @update:base="createPrBase = $event"
+      @update:head="createPrHead = $event"
+      @update:draft="createPrDraft = $event"
+      @confirm="submitCreatePr"
+      @cancel="closeCreatePrDialog"
+    />
   </div>
 </template>
