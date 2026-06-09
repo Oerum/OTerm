@@ -104,6 +104,27 @@ export function useWorkspace(getDefaultShellId: () => string) {
     return tab;
   }
 
+  function openIssuesTab(repoRoot: string) {
+    const existing = tabs.value.find(
+      (tab) => tab.kind === "issues" && tab.repoRoot === repoRoot,
+    );
+    if (existing) {
+      activeTabId.value = existing.id;
+      activePaneId.value = null;
+      return existing;
+    }
+    const tab: WorkspaceTab = {
+      kind: "issues",
+      id: uid("issues-tab"),
+      title: "Issues",
+      repoRoot,
+    };
+    tabs.value.push(tab);
+    activeTabId.value = tab.id;
+    activePaneId.value = null;
+    return tab;
+  }
+
   function openDockerManagerTab() {
     const existing = tabs.value.find((tab) => tab.kind === "docker");
     if (existing) {
@@ -305,6 +326,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     createTab,
     openPullRequestsTab,
     openBranchManagerTab,
+    openIssuesTab,
     openDockerManagerTab,
     openSshSftpTab,
     openSettingsTab,

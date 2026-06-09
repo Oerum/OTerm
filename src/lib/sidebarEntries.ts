@@ -115,6 +115,7 @@ export function buildFeatureEntries(
       (tab) =>
         tab.kind === "pullRequests" ||
         tab.kind === "branchManager" ||
+        tab.kind === "issues" ||
         tab.kind === "docker" ||
         tab.kind === "sshSftp" ||
         tab.kind === "settings",

@@ -24,7 +24,7 @@ use git::commands::{
     git_revert_commit, git_revert_hunk, git_revert_tracked_paths, git_revert_untracked_paths,
     git_source_control_status, git_squash_commits, git_stage_hunk, git_stage_paths,
     git_staged_diff, git_status, git_sync, git_unstage_hunk, git_unstage_paths,
-    git_write_working_file, pr_checkout, pr_create,
+    git_write_working_file, issue_create_branch, issue_list, issue_view, pr_checkout, pr_create,
     pr_detect_provider, pr_list,
 };
 use lm::commands::{
@@ -119,6 +119,9 @@ pub fn run() {
             pr_list,
             pr_create,
             pr_checkout,
+            issue_list,
+            issue_view,
+            issue_create_branch,
             git_remote_browser_url,
             git_list_branch_refs,
             git_commit_graph,

@@ -10,6 +10,7 @@ import BranchManagerView from "./components/BranchManagerView.vue";
 import DockerManagerView from "./components/DockerManagerView.vue";
 import SshSftpManagerView from "./components/SshSftpManagerView.vue";
 import PullRequestsView from "./components/PullRequestsView.vue";
+import IssuesView from "./components/IssuesView.vue";
 import SettingsView from "./components/SettingsView.vue";
 import TitleBar from "./components/TitleBar.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
@@ -56,6 +57,7 @@ const {
   createTab,
   openPullRequestsTab,
   openBranchManagerTab,
+  openIssuesTab,
   openDockerManagerTab,
   openSshSftpTab,
   openSettingsTab,
@@ -196,6 +198,12 @@ function openBranchManager() {
   const root = gitRepoRoot.value;
   if (!root) return;
   openBranchManagerTab(root);
+}
+
+function openIssues() {
+  const root = gitRepoRoot.value;
+  if (!root) return;
+  openIssuesTab(root);
 }
 
 function openDockerManager() {
@@ -474,6 +482,7 @@ onUnmounted(() => {
       @open-ssh-sftp="openSshSftp"
       @open-docker-manager="openDockerManager"
       @open-pull-requests="openPullRequests"
+      @open-issues="openIssues"
       @open-branch-manager="openBranchManager"
       @open-settings="openSettings"
     />
@@ -560,6 +569,14 @@ onUnmounted(() => {
             />
             <BranchManagerView
               v-else-if="tab.kind === 'branchManager'"
+              v-show="tab.id === activeTabId"
+              class="flex min-h-0 flex-1"
+              :repo-root="tab.repoRoot"
+              @refresh-git="refreshGitViews"
+              @close="closeTab(tab.id)"
+            />
+            <IssuesView
+              v-else-if="tab.kind === 'issues'"
               v-show="tab.id === activeTabId"
               class="flex min-h-0 flex-1"
               :repo-root="tab.repoRoot"

@@ -241,7 +241,7 @@ pub fn remote_browser_url(
     }
 }
 
-fn gh_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
+pub(crate) fn gh_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
     let output = Command::new("gh")
         .args(args)
         .current_dir(cwd)
@@ -255,7 +255,7 @@ fn gh_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-fn gh_run(cwd: &Path, args: &[&str]) -> Result<(), String> {
+pub(crate) fn gh_run(cwd: &Path, args: &[&str]) -> Result<(), String> {
     let output = Command::new("gh")
         .args(args)
         .current_dir(cwd)
