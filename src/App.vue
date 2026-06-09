@@ -325,7 +325,14 @@ function onSessionCreated(paneId: string, sessionId: string) {
 }
 
 function onSessionEnded(paneId: string) {
-  clearPaneSession(paneId);
+  const tab = tabs.value.find(
+    (t) => isTerminalTab(t) && t.panes.some((p) => p.id === paneId),
+  );
+  if (tab) {
+    void closeTabs([tab.id]);
+  } else {
+    clearPaneSession(paneId);
+  }
 }
 
 function onKeyDown(event: KeyboardEvent) {

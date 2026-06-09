@@ -206,7 +206,10 @@ fn spawn_reader(
                 }
                 Err(err) if err.kind() == ErrorKind::Interrupted => {}
                 Err(_) => {
-                    thread::sleep(Duration::from_millis(50));
+                    // On Windows the PTY signals EOF via a broken-pipe error
+                    // rather than Ok(0). Treat any unrecognised error as the
+                    // child having exited so we emit terminal-exit correctly.
+                    break;
                 }
             }
         }
