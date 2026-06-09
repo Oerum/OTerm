@@ -2,6 +2,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   computed,
   nextTick,
@@ -30,7 +31,13 @@ import {
   normalizeSubmittedCommand,
 } from "../lib/terminalInputDraft";
 import { resolveTerminalDraftInput } from "../lib/terminalCurrentInput";
-import { appendPromptScanBuffer } from "../lib/terminalPrompt";
+import { appendPromptScanBuffer, looksLikeTuiTransition } from "../lib/terminalPrompt";
+import {
+  findTerminalLinkAtMouseEvent,
+  isHttpUrl,
+  pathMatchToLinkRange,
+  scanLineForTerminalLinks,
+} from "../lib/terminalPaths";
 import {
   getCtrlDEofPayload,
   getMultilineEnterPayload,
@@ -49,6 +56,8 @@ import {
   type TerminalCommandExchange,
 } from "../types/terminalAutocomplete";
 import "@xterm/xterm/css/xterm.css";
+import TerminalPathContextMenu from "./TerminalPathContextMenu.vue";
+import type { IDisposable } from "@xterm/xterm";
 
 const { settings: autocompleteSettings } = useTerminalAutocompleteSettings();
 
@@ -84,6 +93,13 @@ const paneCwd = ref("");
 const activeAgentId = ref<CliAgentId | null>(null);
 const agentExitConfirmPending = ref(false);
 const promptClearSuppressUntil = ref(0);
+const tuiModeActive = ref(false);
+const pathMenuOpen = ref(false);
+const pathMenuX = ref(0);
+const pathMenuY = ref(0);
+const pathMenuPath = ref<string | null>(null);
+const pathMenuIsUrl = ref(false);
+const pathCopiedVisible = ref(false);
 
 function setActiveAgent(agentId: CliAgentId | null, emitChange = true) {
   if (activeAgentId.value === agentId) return;
@@ -95,8 +111,13 @@ watch(
   () => props.activeAgentId,
   (agentId) => {
     setActiveAgent(agentId ?? null, false);
+    schedulePathDecorations();
   },
 );
+
+watch(activeAgentId, () => {
+  schedulePathDecorations();
+});
 
 let terminal: Terminal | null = null;
 let fitAddon: FitAddon | null = null;
@@ -110,6 +131,195 @@ let capturingResponse = false;
 let lastSubmittedCommand = "";
 let responseBuffer = "";
 let promptScanBuffer = "";
+let linkProviderDisposable: IDisposable | null = null;
+let pathDecorationDisposables: IDisposable[] = [];
+let pathRefreshDisposables: IDisposable[] = [];
+let pathDecorationTimer: number | undefined;
+let pathCopiedTimer: number | undefined;
+let terminalContextMenuHandler: ((event: MouseEvent) => void) | null = null;
+
+function pathsInteractiveEnabled(): boolean {
+  return !activeAgentId.value && !tuiModeActive.value;
+}
+
+function closePathMenu() {
+  pathMenuOpen.value = false;
+  pathMenuPath.value = null;
+  pathMenuIsUrl.value = false;
+}
+
+function showPathCopiedToast() {
+  pathCopiedVisible.value = true;
+  window.clearTimeout(pathCopiedTimer);
+  pathCopiedTimer = window.setTimeout(() => {
+    pathCopiedVisible.value = false;
+  }, 1600);
+}
+
+async function copyPathFromMenu() {
+  const path = pathMenuPath.value;
+  if (!path) return;
+  try {
+    await navigator.clipboard.writeText(path);
+    showPathCopiedToast();
+  } catch {
+    // Clipboard may be unavailable.
+  }
+  closePathMenu();
+}
+
+async function appendPathFromMenu() {
+  const path = pathMenuPath.value;
+  if (!path) return;
+  await appendToPrompt(path);
+  closePathMenu();
+}
+
+async function openUrlFromMenu() {
+  const url = pathMenuPath.value;
+  if (!url || !isHttpUrl(url)) return;
+  try {
+    await openUrl(url);
+  } catch {
+    // Opener may be unavailable.
+  }
+  closePathMenu();
+}
+
+async function appendToPrompt(text: string) {
+  if (!localSessionId.value || !text || !pathsInteractiveEnabled()) return;
+  const draft = getActiveDraft();
+  const prefix = draft.length > 0 && !draft.endsWith(" ") ? " " : "";
+  const payload = prefix + text;
+  await writeTerminal(localSessionId.value, payload);
+  draftInput.value = draft + payload;
+  clearSuggestion();
+  terminal?.focus();
+}
+
+function getTerminalCellHeight(): number {
+  if (!terminal) return 17;
+  const core = (terminal as unknown as {
+    _core?: { _renderService?: { dimensions?: { css?: { cell?: { height?: number } } } } };
+  })._core;
+  return core?._renderService?.dimensions?.css?.cell?.height ?? 17;
+}
+
+function clearPathDecorations() {
+  for (const disposable of pathDecorationDisposables) {
+    disposable.dispose();
+  }
+  pathDecorationDisposables = [];
+}
+
+function refreshPathDecorations() {
+  if (!terminal || !pathsInteractiveEnabled()) {
+    clearPathDecorations();
+    return;
+  }
+
+  clearPathDecorations();
+  const buffer = terminal.buffer.active;
+  const cursorLine = buffer.baseY + buffer.cursorY;
+  const viewportStart = Math.max(0, buffer.viewportY - 1);
+  const viewportEnd = Math.min(buffer.length - 1, buffer.viewportY + terminal.rows + 1);
+  const cellHeight = getTerminalCellHeight();
+
+  for (let lineIndex = viewportStart; lineIndex <= viewportEnd; lineIndex++) {
+    const line = buffer.getLine(lineIndex);
+    if (!line) continue;
+    const text = line.translateToString(false);
+    const paths = scanLineForTerminalLinks(text);
+    if (paths.length === 0) continue;
+
+    for (const path of paths) {
+      const marker = terminal.registerMarker(lineIndex - cursorLine);
+      if (!marker || marker.isDisposed) continue;
+
+      const decoration = terminal.registerDecoration({
+        marker,
+        x: path.start,
+        width: Math.max(path.end - path.start, 1),
+        height: 1,
+        layer: "top",
+        backgroundColor: "rgba(0,0,0,0.01)",
+      });
+      if (!decoration) {
+        marker.dispose();
+        continue;
+      }
+
+      const renderDisposable = decoration.onRender((element) => {
+        element.classList.add("terminal-path-underline");
+        element.style.pointerEvents = "none";
+        element.style.height = "2px";
+        element.style.marginTop = `${cellHeight - 2}px`;
+        element.style.background = "rgba(0, 212, 170, 0.75)";
+        element.style.border = "none";
+      });
+
+      pathDecorationDisposables.push({
+        dispose: () => {
+          renderDisposable.dispose();
+          decoration.dispose();
+          marker.dispose();
+        },
+      });
+    }
+  }
+}
+
+function schedulePathDecorations() {
+  window.clearTimeout(pathDecorationTimer);
+  pathDecorationTimer = window.setTimeout(() => {
+    refreshPathDecorations();
+  }, 120);
+}
+
+function registerPathLinkProvider() {
+  if (!terminal) return;
+  linkProviderDisposable?.dispose();
+  linkProviderDisposable = terminal.registerLinkProvider({
+    provideLinks(bufferLineNumber, callback) {
+      if (!pathsInteractiveEnabled()) {
+        callback(undefined);
+        return;
+      }
+      const line = terminal?.buffer.active.getLine(bufferLineNumber - 1);
+      if (!line) {
+        callback(undefined);
+        return;
+      }
+      const text = line.translateToString(false);
+      const paths = scanLineForTerminalLinks(text);
+      callback(
+        paths.map((path) => ({
+          text: path.text,
+          range: pathMatchToLinkRange(path, bufferLineNumber),
+          decorations: { underline: true, pointerCursor: true },
+          activate(event, linkText) {
+            if (event.ctrlKey || event.metaKey) {
+              event.preventDefault();
+              void appendToPrompt(linkText);
+            }
+          },
+        })),
+      );
+    },
+  });
+}
+
+function onTerminalContextMenu(event: MouseEvent) {
+  if (!terminal || !pathsInteractiveEnabled()) return;
+  const hit = findTerminalLinkAtMouseEvent(terminal, event);
+  if (!hit) return;
+  event.preventDefault();
+  pathMenuX.value = event.clientX;
+  pathMenuY.value = event.clientY;
+  pathMenuPath.value = hit.text;
+  pathMenuIsUrl.value = isHttpUrl(hit.text);
+  pathMenuOpen.value = true;
+}
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\r/g, "");
@@ -241,6 +451,11 @@ async function ensureSession() {
 }
 
 function trackCwd(data: string) {
+  if (looksLikeTuiTransition(data)) {
+    tuiModeActive.value = true;
+    clearPathDecorations();
+  }
+
   const scan = appendPromptScanBuffer(promptScanBuffer, data);
   promptScanBuffer = scan.buffer;
 
@@ -261,6 +476,7 @@ function trackCwd(data: string) {
 
   if (!next.trailingPrompt) return;
 
+  tuiModeActive.value = false;
   paneCwd.value = next.trailingPrompt.cwd;
   finalizeExchange();
   promptScanBuffer = "";
@@ -394,6 +610,16 @@ async function mountTerminal() {
   terminal.open(containerRef.value);
   fitAddon.fit();
   terminal.focus();
+  registerPathLinkProvider();
+  pathRefreshDisposables.push(
+    terminal.onWriteParsed(() => schedulePathDecorations()),
+    terminal.onScroll(() => schedulePathDecorations()),
+    terminal.onResize(() => schedulePathDecorations()),
+  );
+  if (terminal.element) {
+    terminalContextMenuHandler = onTerminalContextMenu;
+    terminal.element.addEventListener("contextmenu", terminalContextMenuHandler);
+  }
 
   terminal.onTitleChange((title) => {
     const normalized = title.trim() || null;
@@ -424,6 +650,7 @@ async function mountTerminal() {
     if (capturingResponse) responseBuffer += event.payload.data;
     terminal.write(event.payload.data);
     trackCwd(event.payload.data);
+    schedulePathDecorations();
   });
 
   unlistenExit = await listen<TerminalExitEvent>("terminal-exit", (event) => {
@@ -431,6 +658,8 @@ async function mountTerminal() {
     setActiveAgent(null);
     agentExitConfirmPending.value = false;
     promptClearSuppressUntil.value = 0;
+    tuiModeActive.value = false;
+    clearPathDecorations();
     terminal.writeln("\r\n[session ended]");
     localSessionId.value = null;
     emit("oscTitleChanged", props.paneId, null);
@@ -505,7 +734,20 @@ onBeforeUnmount(async () => {
   window.removeEventListener("keydown", onWindowKeyCapture, true);
   window.clearTimeout(resizeTimer);
   window.clearTimeout(suggestionTimer);
+  window.clearTimeout(pathDecorationTimer);
+  window.clearTimeout(pathCopiedTimer);
   suggestionRequestId += 1;
+  linkProviderDisposable?.dispose();
+  linkProviderDisposable = null;
+  for (const disposable of pathRefreshDisposables) {
+    disposable.dispose();
+  }
+  pathRefreshDisposables = [];
+  clearPathDecorations();
+  if (terminal?.element && terminalContextMenuHandler) {
+    terminal.element.removeEventListener("contextmenu", terminalContextMenuHandler);
+  }
+  terminalContextMenuHandler = null;
   resizeObserver?.disconnect();
   unlistenOutput?.();
   unlistenExit?.();
@@ -558,6 +800,23 @@ watch(suggestionStripVisible, () => {
       class="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-[var(--warp-faint)]"
     >
       Starting shell...
+    </div>
+    <TerminalPathContextMenu
+      :open="pathMenuOpen"
+      :x="pathMenuX"
+      :y="pathMenuY"
+      :path="pathMenuPath"
+      :is-url="pathMenuIsUrl"
+      @close="closePathMenu"
+      @copy="copyPathFromMenu"
+      @append="appendPathFromMenu"
+      @open="openUrlFromMenu"
+    />
+    <div
+      v-if="pathCopiedVisible"
+      class="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-lg border border-[var(--warp-border)] bg-[var(--warp-elevated)] px-3 py-1.5 text-xs text-[var(--warp-text)] shadow-lg"
+    >
+      Path copied
     </div>
   </div>
 </template>
