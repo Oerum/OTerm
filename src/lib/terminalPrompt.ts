@@ -1,7 +1,7 @@
 const PS_PROMPT =
   /PS\s+([A-Za-z]:\\[^\r\n>]+)>$/;
 
-const CMD_PROMPT = /^([A-Za-z]:\\(?:[^>\r\n]*))>$/;
+const CMD_PROMPT = /([A-Za-z]:\\[^>\r\n]*)>$/;
 
 /** Paths ending with `>` (pwsh/bash on some setups). */
 const UNIX_PROMPT_GT =

@@ -22,6 +22,9 @@ describe("detectShellPrompt", () => {
     expect(detectShellPrompt("C:\\Projects\\myapp> ")).toEqual({
       cwd: "C:\\Projects\\myapp",
     });
+    expect(detectShellPrompt("\x1b]133;AC:\\Projects\\myapp>")).toEqual({
+      cwd: "C:\\Projects\\myapp",
+    });
   });
 
   it("detects Unix-style path prompts", () => {
