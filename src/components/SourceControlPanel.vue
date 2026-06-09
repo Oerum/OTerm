@@ -262,15 +262,11 @@ const canStageAll = computed(() => stageAllPaths.value.length > 0);
 
 const canUnstageAll = computed(() => unstageAllPaths.value.length > 0);
 
-const revertAllTrackedPaths = computed(() => [
-  ...props.status.changes.map((e) => e.path),
-  ...props.status.staged.map((e) => e.path),
-]);
-
-const revertAllUntrackedPaths = computed(() => props.status.untracked.map((e) => e.path));
-
 const canRevertAll = computed(
-  () => revertAllTrackedPaths.value.length > 0 || revertAllUntrackedPaths.value.length > 0,
+  () =>
+    props.status.changes.length > 0 ||
+    props.status.staged.length > 0 ||
+    props.status.untracked.length > 0,
 );
 
 function askConfirm(options: PendingConfirm) {

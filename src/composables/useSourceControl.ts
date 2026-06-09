@@ -148,7 +148,9 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
 
   async function revertAll() {
     const root = status.value.repoRoot;
-    const tracked = [...status.value.changes, ...status.value.staged].map((e) => e.path);
+    const tracked = Array.from(
+      new Set([...status.value.changes, ...status.value.staged].map((e) => e.path)),
+    );
     const untracked = status.value.untracked.map((e) => e.path);
     if (!root || (tracked.length === 0 && untracked.length === 0)) return;
 
