@@ -77,11 +77,12 @@ pub fn resolve_shell(shell_id: &str) -> Option<ShellProfile> {
 }
 
 pub fn default_shell_id() -> String {
+    let shells = available_shells();
     let preferred = preferred_system_shell_id();
-    if resolve_shell(&preferred).is_some() {
+    if shells.iter().any(|shell| shell.id == preferred) {
         return preferred;
     }
-    available_shells()
+    shells
         .first()
         .map(|shell| shell.id.clone())
         .unwrap_or_else(|| "cmd".into())
@@ -123,6 +124,9 @@ fn shell_id_from_shell_path(path: &str) -> Option<String> {
     let lower = path.to_lowercase();
     if lower.contains("bash") {
         return Some("bash".into());
+    }
+    if lower.contains("pwsh") {
+        return Some("pwsh".into());
     }
     None
 }
