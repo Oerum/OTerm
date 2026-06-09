@@ -30,9 +30,6 @@ export function getPtyKeyOverride(event: KeyboardEvent): string | null {
   return getCtrlDEofPayload(event) ?? getMultilineEnterPayload(event);
 }
 
-const FOREIGN_INPUT_SELECTOR =
-  'input, textarea, select, [contenteditable="true"], [contenteditable=""], [role="textbox"]';
-
 /** Route PTY overrides when the pane is active, even if xterm lost focus after a TUI redraw. */
 export function shouldForwardPtyKeyOverride(
   event: KeyboardEvent,
@@ -40,23 +37,19 @@ export function shouldForwardPtyKeyOverride(
   terminalContainer: HTMLElement | null,
 ): boolean {
   if (!active || event.type !== "keydown") return false;
-  const target = event.target;
+  const target = event.target as HTMLElement | null;
+  if (!target) return false;
+
+  if (terminalContainer?.contains(target)) {
+    return true;
+  }
+
   if (
-    terminalContainer &&
-    target != null &&
-    typeof terminalContainer.contains === "function" &&
-    terminalContainer.contains(target as Node)
+    typeof document !== "undefined" &&
+    (target === document.body || target === document.documentElement)
   ) {
     return true;
   }
-  if (
-    target != null &&
-    typeof (target as HTMLElement).closest === "function"
-  ) {
-    const foreignInput = (target as HTMLElement).closest(FOREIGN_INPUT_SELECTOR);
-    if (foreignInput && (!terminalContainer || !terminalContainer.contains(foreignInput))) {
-      return false;
-    }
-  }
-  return true;
+
+  return false;
 }

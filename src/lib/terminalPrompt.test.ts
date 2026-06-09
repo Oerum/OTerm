@@ -39,6 +39,11 @@ describe("detectShellPrompt", () => {
     expect(detectShellPrompt("Press Ctrl+D again to exit")).toBeNull();
     expect(detectShellPrompt("⠋ Thinking...")).toBeNull();
   });
+
+  it("does not match prompt-like paths embedded in log output", () => {
+    expect(detectShellPrompt("See /var/www> for details")).toBeNull();
+    expect(detectShellPrompt("user@host:/home/user/projects$ still running")).toBeNull();
+  });
 });
 
 describe("detectTrailingShellPrompt", () => {

@@ -1,13 +1,13 @@
 const PS_PROMPT =
-  /PS\s+([A-Za-z]:\\[^\r\n>]+)>/;
+  /PS\s+([A-Za-z]:\\[^\r\n>]+)>$/;
 
 /** Paths ending with `>` (pwsh/bash on some setups). */
 const UNIX_PROMPT_GT =
-  /((?:\/[\w.-]+)+)>/;
+  /((?:\/[\w.-]+)+)>$/;
 
 /** user@host:/path$ or user@host:/path# */
 const UNIX_PROMPT_BASH =
-  /:((?:\/[\w.-]+)+)[$#](?:\s|$)/;
+  /:((?:\/[\w.-]+)+)[$#]$/;
 
 export function stripAnsiForPrompt(text: string): string {
   return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\r/g, "");
@@ -18,17 +18,18 @@ export function looksLikeTuiTransition(text: string): boolean {
 }
 
 export function detectShellPrompt(text: string): { cwd: string } | null {
-  const psMatch = text.match(PS_PROMPT);
+  const line = text.trim();
+  const psMatch = line.match(PS_PROMPT);
   if (psMatch?.[1]) {
     return { cwd: psMatch[1].trim() };
   }
 
-  const unixGtMatch = text.match(UNIX_PROMPT_GT);
+  const unixGtMatch = line.match(UNIX_PROMPT_GT);
   if (unixGtMatch?.[1]) {
     return { cwd: unixGtMatch[1].trim() };
   }
 
-  const bashMatch = text.match(UNIX_PROMPT_BASH);
+  const bashMatch = line.match(UNIX_PROMPT_BASH);
   if (bashMatch?.[1]) {
     return { cwd: bashMatch[1].trim() };
   }
