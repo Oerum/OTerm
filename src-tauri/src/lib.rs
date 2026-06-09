@@ -40,8 +40,8 @@ use ssh_sftp::commands::{
 use ssh_sftp::session::SftpManager;
 use launch::{launch_initial_cwd, LaunchState};
 use terminal::commands::{
-    terminal_drain_output, terminal_kill, terminal_list_shells, terminal_resize, terminal_spawn,
-    terminal_write,
+    terminal_default_shell_id, terminal_drain_output, terminal_kill, terminal_list_shells,
+    terminal_resize, terminal_spawn, terminal_write,
 };
 use terminal::manager::PtyManager;
 
@@ -75,6 +75,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             launch_initial_cwd,
             terminal_list_shells,
+            terminal_default_shell_id,
             terminal_spawn,
             terminal_write,
             terminal_resize,
