@@ -70,11 +70,12 @@ fn register_process_aumid(app_id: &str) -> Result<(), String> {
 }
 
 fn register_aumid_branding(identity: &ToastIdentity) -> Result<(), String> {
+    // Taskbar / shell branding requires an .ico; PNG IconUri shows as a blank document icon.
     let icon = identity
         .assets
-        .toast_icon
+        .app_icon
         .canonicalize()
-        .unwrap_or_else(|_| identity.assets.toast_icon.clone());
+        .unwrap_or_else(|_| identity.assets.app_icon.clone());
 
     let key = CURRENT_USER
         .create(format!(
@@ -132,12 +133,7 @@ fn write_start_menu_shortcut(
             .SetDescription(&HSTRING::from(&identity.display_name))
             .map_err(|e| e.to_string())?;
 
-        let icon = identity
-            .assets
-            .app_icon
-            .canonicalize()
-            .unwrap_or_else(|_| identity.assets.app_icon.clone());
-        let icon_location = format!("{},0", icon_display_path(&icon));
+        let icon_location = format!("{},0", icon_display_path(exe));
         shell_link
             .SetIconLocation(&HSTRING::from(icon_location), 0)
             .map_err(|e| e.to_string())?;

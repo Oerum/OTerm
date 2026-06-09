@@ -610,8 +610,7 @@ watch(
 
 <template>
   <aside
-    class="relative flex shrink-0 flex-col border-l border-[var(--oterm-border)] bg-[var(--oterm-sidebar)]"
-    :style="{ width: `${panelWidth}px` }"
+    class="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--oterm-sidebar)]"
   >
   <div class="flex min-h-0 flex-1 flex-col" :class="showDiffPane ? 'flex-row' : 'flex-col'">
     <div

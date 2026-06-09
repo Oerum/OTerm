@@ -681,7 +681,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="oterm-app relative flex h-full flex-col">
+  <div class="oterm-app relative flex h-full flex-col overflow-hidden">
     <TooltipLayer />
     <TitleBar
       :terminal-sidebar-open="terminalSidebarOpen"
@@ -701,7 +701,7 @@ onUnmounted(() => {
       @open-settings="openSettings"
     />
 
-    <div class="flex min-h-0 flex-1">
+    <div class="flex min-h-0 flex-1 overflow-hidden">
       <SidebarRail
         v-if="terminalSidebarOpen"
         :tabs="tabs"
@@ -845,7 +845,7 @@ onUnmounted(() => {
 
       <div
         v-if="sourceControlOpen"
-        class="flex shrink-0 flex-col border-l border-[var(--oterm-border)]"
+        class="flex shrink-0 flex-col overflow-hidden border-l border-[var(--oterm-border)]"
         :style="{ width: `${sourceControlWidth}px` }"
       >
         <div
@@ -875,9 +875,9 @@ onUnmounted(() => {
             </svg>
           </button>
         </div>
-        <div class="relative flex min-h-0 flex-1">
+        <div class="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div
-          class="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
+          class="absolute inset-y-0 left-0 z-20 w-2 cursor-col-resize"
           :class="sourceControlResizing ? 'bg-[var(--oterm-accent)]/30' : 'hover:bg-white/5'"
           title="Drag to resize"
           @pointerdown="onResizeHandlePointerDown"
