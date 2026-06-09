@@ -694,8 +694,8 @@ watch(selectedNumber, (number) => {
             <p v-if="checksLoading" class="text-xs text-[var(--warp-muted)]">Loading checks…</p>
             <ul v-else-if="checks.length" class="space-y-2">
               <li
-                v-for="check in checks"
-                :key="`${check.name}-${check.startedAt}-${check.workflow}`"
+                v-for="(check, index) in checks"
+                :key="`${check.name}-${check.startedAt}-${check.workflow}-${index}`"
                 class="flex items-center gap-3 rounded border border-[var(--warp-border)] px-3 py-2"
               >
                 <span

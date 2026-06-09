@@ -540,9 +540,9 @@ fn map_pr_commit(row: GhCommitRow) -> PrCommit {
         .first()
         .and_then(|a| a.login.clone().or_else(|| a.name.clone()))
         .unwrap_or_default();
-    let short_len = row.oid.len().min(7);
+    let short_oid = row.oid.chars().take(7).collect::<String>();
     PrCommit {
-        short_oid: row.oid[..short_len].to_string(),
+        short_oid,
         oid: row.oid,
         message_headline: row.message_headline,
         message_body: row.message_body.unwrap_or_default(),

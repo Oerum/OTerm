@@ -334,7 +334,10 @@ export function splitUnifiedDiffByFile(content: string): UnifiedDiffFileSlice[] 
 
     flush(i);
     start = i;
-    const match = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
+    let match = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
+    if (!match) {
+      match = /^diff --git "a\/(.+?)" "b\/(.+?)"$/.exec(line);
+    }
     path = match?.[2] ?? match?.[1] ?? line.slice("diff --git ".length);
   }
 

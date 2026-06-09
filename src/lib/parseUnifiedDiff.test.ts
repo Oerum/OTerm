@@ -158,4 +158,18 @@ describe("splitUnifiedDiffByFile", () => {
     expect(slices).toHaveLength(1);
     expect(slices[0].path).toBe("src/foo.ts");
   });
+
+  it("handles quoted paths with spaces", () => {
+    const quoted = `diff --git "a/docs/my file.txt" "b/docs/my file.txt"
+index 111..222 100644
+--- "a/docs/my file.txt"
++++ "b/docs/my file.txt"
+@@ -1 +1 @@
+-old
++new
+`;
+    const slices = splitUnifiedDiffByFile(quoted);
+    expect(slices).toHaveLength(1);
+    expect(slices[0].path).toBe("docs/my file.txt");
+  });
 });
