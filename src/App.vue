@@ -64,6 +64,7 @@ const sourceControlOpen = ref(false);
 const gitRefreshToken = ref(0);
 
 const createPrOpen = ref(false);
+const createPrBannerVisible = ref(false);
 const createPrTitle = ref("");
 const createPrBody = ref("");
 const createPrBase = ref("");
@@ -187,6 +188,27 @@ function closeCreatePrDialog() {
   createPrError.value = null;
 }
 
+function dismissCreatePrBanner() {
+  createPrBannerVisible.value = false;
+}
+
+function prepareCreatePrForm() {
+  const status = sourceControlStatus.value;
+  const { base, head } = initCreatePrBranches(gitBranches.value, status.upstream);
+  createPrHead.value = head;
+  createPrBase.value = base;
+  createPrTitle.value = defaultCreatePrTitle(gitHistory.value, head);
+  createPrBody.value = "";
+  createPrDraft.value = false;
+  createPrError.value = null;
+}
+
+function openCreatePrDialog() {
+  prepareCreatePrForm();
+  createPrBannerVisible.value = false;
+  createPrOpen.value = true;
+}
+
 async function submitCreatePr() {
   const root = gitRepoRoot.value;
   if (!root || !createPrTitle.value.trim() || !createPrBase.value || !createPrHead.value) return;
@@ -207,6 +229,7 @@ async function submitCreatePr() {
       draft: createPrDraft.value,
     });
     closeCreatePrDialog();
+    dismissCreatePrBanner();
     openPullRequestsTab(root);
     bumpGitBadges();
   } catch (err) {
@@ -226,27 +249,23 @@ async function maybeOfferCreatePrAfterPush() {
     const openPrs = provider.authOk ? await listPullRequests(root, false) : [];
     if (!shouldOfferCreatePr(status, provider, openPrs)) return;
 
-    const { base, head } = initCreatePrBranches(gitBranches.value, status.upstream);
-    createPrHead.value = head;
-    createPrBase.value = base;
-    createPrTitle.value = defaultCreatePrTitle(gitHistory.value, head);
-    createPrBody.value = "";
-    createPrDraft.value = false;
-    createPrError.value = null;
-    createPrOpen.value = true;
+    prepareCreatePrForm();
+    createPrBannerVisible.value = true;
   } catch {
     // Optional flow — ignore detection failures.
   }
 }
 
 async function onPushGit() {
+  const hadCommitsToPush = sourceControlStatus.value.ahead > 0;
   await runGitAction(pushGitRepo);
-  await maybeOfferCreatePrAfterPush();
+  if (hadCommitsToPush) await maybeOfferCreatePrAfterPush();
 }
 
 async function onSyncGit() {
+  const hadCommitsToPush = sourceControlStatus.value.ahead > 0;
   await runGitAction(syncGitRepo);
-  await maybeOfferCreatePrAfterPush();
+  if (hadCommitsToPush) await maybeOfferCreatePrAfterPush();
 }
 
 const sourceControlPanelRef = ref<InstanceType<typeof SourceControlPanel> | null>(null);
@@ -792,7 +811,38 @@ onUnmounted(() => {
         />
       </div>
 
-      <div v-if="sourceControlOpen" class="relative flex shrink-0">
+      <div
+        v-if="sourceControlOpen"
+        class="flex shrink-0 flex-col border-l border-[var(--oterm-border)]"
+        :style="{ width: `${sourceControlWidth}px` }"
+      >
+        <div
+          v-if="createPrBannerVisible"
+          class="flex shrink-0 items-start gap-2 border-b border-[var(--oterm-border)] bg-[var(--oterm-accent)]/10 px-3 py-2"
+        >
+          <p class="min-w-0 flex-1 text-xs leading-relaxed text-[var(--oterm-text)]">
+            Branch pushed. Create a pull request?
+          </p>
+          <button
+            type="button"
+            class="shrink-0 rounded px-2 py-0.5 text-xs font-medium text-[var(--oterm-accent)] transition hover:bg-white/5"
+            @click="openCreatePrDialog"
+          >
+            Create PR
+          </button>
+          <button
+            type="button"
+            class="shrink-0 rounded p-0.5 text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+            title="Dismiss"
+            aria-label="Dismiss"
+            @click="dismissCreatePrBanner"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor">
+              <path d="M3 3l8 8M11 3L3 11" stroke-width="1.4" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+        <div class="relative flex min-h-0 flex-1">
         <div
           class="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize"
           :class="sourceControlResizing ? 'bg-[var(--oterm-accent)]/30' : 'hover:bg-white/5'"
@@ -825,6 +875,7 @@ onUnmounted(() => {
           @unstage-hunk="(path, patch) => runGitHunkAction(() => unstageGitHunk(path, patch))"
           @diff-expanded-change="onDiffExpandedChange"
         />
+        </div>
       </div>
     </div>
 
