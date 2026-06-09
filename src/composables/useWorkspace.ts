@@ -35,19 +35,19 @@ export function useWorkspace(getDefaultShellId: () => string) {
     return tab.panes.find((pane) => pane.id === activePaneId.value) ?? tab.panes[0] ?? null;
   });
 
-  function createPane(shellId?: string): WorkspacePane {
+  function createPane(shellId?: string, cwd?: string): WorkspacePane {
     return {
       id: uid("pane"),
       sessionId: null,
       shellId: shellId ?? getDefaultShellId(),
-      cwd: "~",
+      cwd: cwd ?? "~",
       customTitle: null,
       activeAgentId: null,
     };
   }
 
-  function createTab(shellId?: string) {
-    const pane = createPane(shellId);
+  function createTab(shellId?: string, cwd?: string) {
+    const pane = createPane(shellId, cwd);
     const tab: WorkspaceTerminalTab = {
       kind: "terminal",
       id: uid("tab"),

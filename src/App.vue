@@ -22,6 +22,7 @@ import { isTerminalTab } from "./types/terminal";
 import { loadDefaultShellId, saveDefaultShellId } from "./lib/shellSettings";
 import type { DockerContainer } from "./types/docker";
 import type { SshEndpoint } from "./types/sshSftp";
+import { getLaunchInitialCwd } from "./lib/launchApi";
 import { killTerminal, listShells, writeTerminal } from "./lib/terminalApi";
 import type { CliAgentId } from "./lib/terminalAgentMode";
 
@@ -300,7 +301,8 @@ async function bootstrap() {
     defaultShellId.value = resolved;
     saveDefaultShellId(resolved);
   }
-  createTab(resolved);
+  const launchCwd = await getLaunchInitialCwd();
+  createTab(resolved, launchCwd ?? undefined);
 }
 
 async function closeTab(tabId: string) {
@@ -537,6 +539,7 @@ onUnmounted(() => {
                 :pane-id="pane.id"
                 :session-id="pane.sessionId"
                 :shell-id="pane.shellId"
+                :initial-cwd="pane.cwd"
                 :active="pane.id === activePaneId"
                 @session-created="onSessionCreated"
                 @session-ended="onSessionEnded"

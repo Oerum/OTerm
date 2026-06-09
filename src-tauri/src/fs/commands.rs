@@ -1,7 +1,10 @@
-use super::{context_menu, default_project_root, expand_path, list_directory, search_files};
+use super::{
+    context_menu, default_project_root, expand_path, find_devenv_launcher, find_env_import_hint,
+    find_rider_launcher, find_vscode_launcher, find_zed_launcher, import_env_file, list_directory,
+    list_solution_files, open_in_rider, open_in_system_file_explorer, open_in_visual_studio,
+    open_in_vscode, open_in_zed, search_files, system_file_explorer_label,
+};
 use serde::Serialize;
-use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tauri::State;
@@ -12,6 +15,25 @@ pub struct FsEntry {
     pub name: String,
     pub path: String,
     pub is_dir: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsEnvImportHint {
+    pub source_path: String,
+    pub target_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsToolsDirectoryHints {
+    pub visual_studio_available: bool,
+    pub rider_available: bool,
+    pub vscode_available: bool,
+    pub zed_available: bool,
+    pub file_explorer_label: String,
+    pub solution_files: Vec<String>,
+    pub env_import: Option<FsEnvImportHint>,
 }
 
 pub struct FsSearchState {
@@ -64,28 +86,65 @@ pub async fn fs_search_files(
     .map_err(|err| err.to_string())?
 }
 
-fn vscode_launcher() -> PathBuf {
-    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
-        let bundled = PathBuf::from(local_app_data)
-            .join("Programs")
-            .join("Microsoft VS Code")
-            .join("bin")
-            .join("code.cmd");
-        if bundled.is_file() {
-            return bundled;
-        }
+#[tauri::command]
+pub fn fs_tools_directory_hints(directory: String) -> Result<FsToolsDirectoryHints, String> {
+    let resolved = expand_path(&directory)?;
+    if !resolved.is_dir() {
+        return Err(format!("Not a directory: {}", resolved.display()));
     }
 
-    PathBuf::from(if cfg!(windows) { "code.cmd" } else { "code" })
+    let visual_studio_available = find_devenv_launcher().is_some();
+    let rider_available = find_rider_launcher().is_some();
+    let vscode_available = find_vscode_launcher().is_some();
+    let zed_available = find_zed_launcher().is_some();
+    let solution_files = list_solution_files(&resolved)?
+        .into_iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
+
+    let env_import = find_env_import_hint(&resolved).map(|(source, target)| FsEnvImportHint {
+        source_path: source.to_string_lossy().into_owned(),
+        target_path: target.to_string_lossy().into_owned(),
+    });
+
+    Ok(FsToolsDirectoryHints {
+        visual_studio_available,
+        rider_available,
+        vscode_available,
+        zed_available,
+        file_explorer_label: system_file_explorer_label().to_string(),
+        solution_files,
+        env_import,
+    })
 }
 
-fn open_in_vscode(path: &Path) -> Result<(), String> {
-    let launcher = vscode_launcher();
-    Command::new(&launcher)
-        .arg(path)
-        .spawn()
-        .map(|_| ())
-        .map_err(|err| format!("Could not launch VS Code ({launcher:?}): {err}"))
+#[tauri::command]
+pub async fn fs_open_in_visual_studio(solution_path: String) -> Result<(), String> {
+    let resolved = expand_path(&solution_path)?;
+
+    tauri::async_runtime::spawn_blocking(move || open_in_visual_studio(&resolved))
+        .await
+        .map_err(|err| err.to_string())?
+}
+
+#[tauri::command]
+pub async fn fs_open_in_rider(solution_path: String) -> Result<(), String> {
+    let resolved = expand_path(&solution_path)?;
+
+    tauri::async_runtime::spawn_blocking(move || open_in_rider(&resolved))
+        .await
+        .map_err(|err| err.to_string())?
+}
+
+#[tauri::command]
+pub fn fs_import_env_file(directory: String) -> Result<FsEnvImportHint, String> {
+    let resolved = expand_path(&directory)?;
+    let (source, target) = import_env_file(&resolved)?;
+
+    Ok(FsEnvImportHint {
+        source_path: source.to_string_lossy().into_owned(),
+        target_path: target.to_string_lossy().into_owned(),
+    })
 }
 
 #[tauri::command]
@@ -96,6 +155,30 @@ pub async fn fs_open_in_vscode(path: String) -> Result<(), String> {
     }
 
     tauri::async_runtime::spawn_blocking(move || open_in_vscode(&resolved))
+        .await
+        .map_err(|err| err.to_string())?
+}
+
+#[tauri::command]
+pub async fn fs_open_in_zed(path: String) -> Result<(), String> {
+    let resolved = expand_path(&path)?;
+    if !resolved.is_dir() {
+        return Err(format!("Not a directory: {}", resolved.display()));
+    }
+
+    tauri::async_runtime::spawn_blocking(move || open_in_zed(&resolved))
+        .await
+        .map_err(|err| err.to_string())?
+}
+
+#[tauri::command]
+pub async fn fs_open_in_file_explorer(path: String) -> Result<(), String> {
+    let resolved = expand_path(&path)?;
+    if !resolved.is_dir() {
+        return Err(format!("Not a directory: {}", resolved.display()));
+    }
+
+    tauri::async_runtime::spawn_blocking(move || open_in_system_file_explorer(&resolved))
         .await
         .map_err(|err| err.to_string())?
 }

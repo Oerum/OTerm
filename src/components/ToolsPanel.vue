@@ -2,10 +2,30 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { openPath } from "@tauri-apps/plugin-opener";
 import ExplorerContextMenu from "./ExplorerContextMenu.vue";
-import { listDirectory, openInVsCode, searchFiles, showShellContextMenu } from "../lib/fsApi";
-import type { FsEntry } from "../types/fs";
+import {
+  getToolsDirectoryHints,
+  importEnvFile,
+  listDirectory,
+  openInFileExplorer,
+  openInRider,
+  openInVisualStudio,
+  openInVsCode,
+  openInZed,
+  searchFiles,
+  showShellContextMenu,
+} from "../lib/fsApi";
+import type { FsEntry, FsToolsDirectoryHints } from "../types/fs";
+import riderIcon from "../assets/editors/JetBrains_Rider.svg";
+import visualStudioIcon from "../assets/editors/VS2026.svg";
+import vscodeIcon from "../assets/editors/vscode.svg";
+import zedIcon from "../assets/editors/zed.svg";
 
 const MIN_SEARCH_LENGTH = 2;
+const openWithItemClass =
+  "flex w-full min-w-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-xs text-(--warp-text) transition hover:bg-white/6";
+const openWithIconClass =
+  "flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md bg-(--warp-bg) ring-1 ring-(--warp-border)";
+const openWithIconImageClass = "h-5 w-5 object-contain";
 const SEARCH_DEBOUNCE_MS = 300;
 const shellMenuAvailable = navigator.userAgent.includes("Windows");
 
@@ -31,6 +51,39 @@ const openWithMenuOpen = ref(false);
 const openWithMenuRef = ref<HTMLElement | null>(null);
 const openWithButtonRef = ref<HTMLElement | null>(null);
 
+const directoryHints = ref<FsToolsDirectoryHints | null>(null);
+const envImportStatus = ref<string | null>(null);
+const envImportLoading = ref(false);
+
+function solutionMenuEntries(
+  hints: FsToolsDirectoryHints | null,
+  available: boolean,
+  prefix: string,
+) {
+  if (!hints || !available || hints.solutionFiles.length === 0) return [];
+
+  return hints.solutionFiles.map((path) => {
+    const normalized = path.replace(/\\/g, "/");
+    const name = normalized.split("/").pop() ?? path;
+    return { path, label: `${prefix} — ${name}` };
+  });
+}
+
+const visualStudioSolutionEntries = computed(() =>
+  solutionMenuEntries(directoryHints.value, directoryHints.value?.visualStudioAvailable ?? false, "Visual Studio"),
+);
+
+const riderSolutionEntries = computed(() =>
+  solutionMenuEntries(directoryHints.value, directoryHints.value?.riderAvailable ?? false, "Rider"),
+);
+
+const envImportHint = computed(() => directoryHints.value?.envImport ?? null);
+const vscodeAvailable = computed(() => directoryHints.value?.vscodeAvailable ?? false);
+const zedAvailable = computed(() => directoryHints.value?.zedAvailable ?? false);
+const fileExplorerLabel = computed(
+  () => directoryHints.value?.fileExplorerLabel ?? "File manager",
+);
+
 const breadcrumbs = computed(() => {
   const normalized = explorerPath.value.replace(/\\/g, "/");
   const parts = normalized.split("/").filter(Boolean);
@@ -49,13 +102,24 @@ const breadcrumbs = computed(() => {
 
 const showingSearch = computed(() => searchQuery.value.trim().length > 0);
 
+async function refreshDirectoryHints(directory: string) {
+  try {
+    directoryHints.value = await getToolsDirectoryHints(directory);
+  } catch {
+    directoryHints.value = null;
+  }
+}
+
 async function loadDirectory(path: string) {
   loading.value = true;
+  envImportStatus.value = null;
   try {
     explorerPath.value = path;
     entries.value = await listDirectory(path);
+    await refreshDirectoryHints(path);
   } catch {
     entries.value = [];
+    directoryHints.value = null;
   } finally {
     loading.value = false;
   }
@@ -187,7 +251,7 @@ function toggleOpenWithMenu() {
   openWithMenuOpen.value = !openWithMenuOpen.value;
 }
 
-async function openCurrentDirectoryWith(app: string) {
+async function openCurrentDirectoryWith(app: "code" | "zed" | "explorer") {
   openWithMenuOpen.value = false;
   const directory = currentDirectory.value;
   if (!directory) return;
@@ -197,9 +261,53 @@ async function openCurrentDirectoryWith(app: string) {
       await openInVsCode(directory);
       return;
     }
-    await openPath(directory, app);
+    if (app === "zed") {
+      await openInZed(directory);
+      return;
+    }
+    await openInFileExplorer(directory);
   } catch (error) {
     console.error("Open With failed:", error);
+  }
+}
+
+async function openSolutionWithVisualStudio(solutionPath: string) {
+  openWithMenuOpen.value = false;
+  try {
+    await openInVisualStudio(solutionPath);
+  } catch (error) {
+    console.error("Open with Visual Studio failed:", error);
+  }
+}
+
+async function openSolutionWithRider(solutionPath: string) {
+  openWithMenuOpen.value = false;
+  try {
+    await openInRider(solutionPath);
+  } catch (error) {
+    console.error("Open with Rider failed:", error);
+  }
+}
+
+async function importEnvFromAncestor() {
+  const directory = currentDirectory.value;
+  if (!directory || envImportLoading.value) return;
+
+  envImportLoading.value = true;
+  envImportStatus.value = null;
+  try {
+    await importEnvFile(directory);
+    envImportStatus.value = "Imported .env";
+    await refreshDirectoryHints(directory);
+  } catch (error) {
+    envImportStatus.value =
+      typeof error === "string"
+        ? error
+        : error instanceof Error
+          ? error.message
+          : "Could not import .env";
+  } finally {
+    envImportLoading.value = false;
   }
 }
 
@@ -239,42 +347,130 @@ onBeforeUnmount(() => {
   <aside
     class="relative z-10 flex w-72 shrink-0 flex-col bg-(--warp-sidebar)"
   >
-    <div class="relative flex items-center justify-between border-b border-(--warp-border) px-3 py-2">
+    <div class="relative flex items-center justify-between gap-2 border-b border-(--warp-border) px-3 py-2">
       <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--warp-faint)">
         Tools
       </span>
 
-      <div class="relative">
+      <div class="flex min-w-0 items-center gap-1">
         <button
-          ref="openWithButtonRef"
+          v-if="envImportHint"
           type="button"
-          class="no-drag rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-(--warp-muted) transition hover:bg-white/5 hover:text-(--warp-text)"
-          :class="openWithMenuOpen ? 'bg-white/5 text-(--warp-text)' : ''"
-          title="Open current folder with an external app"
-          aria-haspopup="menu"
-          :aria-expanded="openWithMenuOpen"
-          @click.stop="toggleOpenWithMenu"
+          class="no-drag truncate rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-(--warp-muted) transition hover:bg-white/5 hover:text-(--warp-text) disabled:opacity-50"
+          :disabled="envImportLoading"
+          :title="`Copy from ${envImportHint.sourcePath}`"
+          @click="importEnvFromAncestor"
         >
-          Open With
+          Import .env
         </button>
 
-        <div
-          v-if="openWithMenuOpen"
-          ref="openWithMenuRef"
-          class="no-drag absolute right-0 top-full z-50 mt-1 min-w-36 overflow-hidden rounded-lg border border-(--warp-border-strong) bg-(--warp-elevated) py-1 shadow-xl"
-          role="menu"
-        >
+        <div class="relative">
           <button
+            ref="openWithButtonRef"
             type="button"
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-(--warp-text) transition hover:bg-white/6"
-            role="menuitem"
-            @click="openCurrentDirectoryWith('code')"
+            class="no-drag rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-(--warp-muted) transition hover:bg-white/5 hover:text-(--warp-text)"
+            :class="openWithMenuOpen ? 'bg-white/5 text-(--warp-text)' : ''"
+            title="Open current folder with an external app"
+            aria-haspopup="menu"
+            :aria-expanded="openWithMenuOpen"
+            @click.stop="toggleOpenWithMenu"
           >
-            VS Code
+            Open With
           </button>
+
+          <div
+            v-if="openWithMenuOpen"
+            ref="openWithMenuRef"
+            class="no-drag absolute right-0 top-full z-50 mt-1.5 w-56 overflow-hidden rounded-lg border border-(--warp-border-strong) bg-(--warp-elevated) p-1 shadow-xl"
+            role="menu"
+          >
+            <button
+              type="button"
+              :class="openWithItemClass"
+              role="menuitem"
+              @click="openCurrentDirectoryWith('explorer')"
+            >
+              <span :class="openWithIconClass" aria-hidden="true">
+                <svg
+                  class="h-4 w-4 text-(--warp-muted)"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M2.5 5.5h4l1.2-1.5H13a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V6a.5.5 0 0 1 .5-.5Z"
+                  />
+                </svg>
+              </span>
+              <span class="min-w-0 truncate">{{ fileExplorerLabel }}</span>
+            </button>
+
+            <button
+              v-if="vscodeAvailable"
+              type="button"
+              :class="openWithItemClass"
+              role="menuitem"
+              @click="openCurrentDirectoryWith('code')"
+            >
+              <span :class="openWithIconClass">
+                <img :src="vscodeIcon" alt="" :class="openWithIconImageClass" />
+              </span>
+              <span class="min-w-0 truncate">VS Code</span>
+            </button>
+
+            <button
+              v-if="zedAvailable"
+              type="button"
+              :class="openWithItemClass"
+              role="menuitem"
+              @click="openCurrentDirectoryWith('zed')"
+            >
+              <span :class="openWithIconClass">
+                <img :src="zedIcon" alt="" :class="openWithIconImageClass" />
+              </span>
+              <span class="min-w-0 truncate">Zed</span>
+            </button>
+
+            <button
+              v-for="solution in riderSolutionEntries"
+              :key="`rider-${solution.path}`"
+              type="button"
+              :class="openWithItemClass"
+              role="menuitem"
+              @click="openSolutionWithRider(solution.path)"
+            >
+              <span :class="openWithIconClass">
+                <img :src="riderIcon" alt="" :class="openWithIconImageClass" />
+              </span>
+              <span class="min-w-0 truncate">{{ solution.label }}</span>
+            </button>
+
+            <button
+              v-for="solution in visualStudioSolutionEntries"
+              :key="`vs-${solution.path}`"
+              type="button"
+              :class="openWithItemClass"
+              role="menuitem"
+              @click="openSolutionWithVisualStudio(solution.path)"
+            >
+              <span :class="openWithIconClass">
+                <img :src="visualStudioIcon" alt="" :class="openWithIconImageClass" />
+              </span>
+              <span class="min-w-0 truncate">{{ solution.label }}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
+
+    <p
+      v-if="envImportStatus"
+      class="border-b border-(--warp-border) px-3 py-1.5 text-[10px] text-(--warp-muted)"
+    >
+      {{ envImportStatus }}
+    </p>
 
     <div class="border-b border-(--warp-border) p-3">
       <label class="block text-[10px] uppercase tracking-wide text-(--warp-faint)">

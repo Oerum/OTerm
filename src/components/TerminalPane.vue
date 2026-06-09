@@ -50,6 +50,7 @@ const props = defineProps<{
   paneId: string;
   sessionId: string | null;
   shellId: string;
+  initialCwd: string;
   active: boolean;
 }>();
 
@@ -202,10 +203,13 @@ async function clearInitialScreen(sessionId: string) {
 async function ensureSession() {
   if (localSessionId.value || !terminal || !fitAddon) return;
   fitAddon.fit();
+  const cwd =
+    props.initialCwd && props.initialCwd !== "~" ? props.initialCwd : undefined;
   const sessionId = await spawnTerminal(
     props.shellId,
     terminal.cols,
     terminal.rows,
+    cwd,
   );
   localSessionId.value = sessionId;
   emit("sessionCreated", props.paneId, sessionId);
