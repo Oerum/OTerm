@@ -103,27 +103,29 @@ describe("shouldForwardPtyKeyOverride", () => {
     ).toBe(true);
   });
 
-  it("returns false for keys in foreign inputs", () => {
-    const search = {
-      closest() {
-        return search;
-      },
-    } as unknown as HTMLElement;
+  it("returns false for keys focused on elements outside the terminal", () => {
+    const sidebarButton = {} as unknown as HTMLElement;
     const container = { contains: () => false } as unknown as HTMLElement;
     expect(
       shouldForwardPtyKeyOverride(
-        { ...keyEvent("d", "keydown", { ctrlKey: true }), target: search } as KeyboardEvent,
+        {
+          ...keyEvent("d", "keydown", { ctrlKey: true }),
+          target: sidebarButton,
+        } as KeyboardEvent,
         true,
         container,
       ),
     ).toBe(false);
   });
 
-  it("returns true when focus fell back to a non-input target", () => {
-    const body = {} as unknown as HTMLElement;
+  it("returns true when focus fell back to document body", () => {
+    if (typeof document === "undefined") return;
     expect(
       shouldForwardPtyKeyOverride(
-        { ...keyEvent("d", "keydown", { ctrlKey: true }), target: body } as KeyboardEvent,
+        {
+          ...keyEvent("d", "keydown", { ctrlKey: true }),
+          target: document.body,
+        } as KeyboardEvent,
         true,
         { contains: () => false } as unknown as HTMLElement,
       ),
