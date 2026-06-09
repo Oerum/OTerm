@@ -350,6 +350,17 @@ function onKeyDown(event: KeyboardEvent) {
     event.preventDefault();
     openSearch();
   }
+  if ((event.ctrlKey || event.metaKey) && event.key === "Tab") {
+    if (tabs.value.length <= 1) return;
+    event.preventDefault();
+    const currentIndex = tabs.value.findIndex((t) => t.id === activeTabId.value);
+    const startIndex = currentIndex === -1 ? 0 : currentIndex;
+    const nextIndex = event.shiftKey
+      ? (startIndex - 1 + tabs.value.length) % tabs.value.length
+      : (startIndex + 1) % tabs.value.length;
+    selectTab(tabs.value[nextIndex].id);
+    return;
+  }
   if (event.key === "Escape" && historyOpen.value) {
     closeSearch();
   }
