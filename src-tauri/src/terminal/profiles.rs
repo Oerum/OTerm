@@ -76,6 +76,61 @@ pub fn resolve_shell(shell_id: &str) -> Option<ShellProfile> {
         .find(|shell| shell.id == shell_id)
 }
 
+pub fn default_shell_id() -> String {
+    let shells = available_shells();
+    let preferred = preferred_system_shell_id();
+    if shells.iter().any(|shell| shell.id == preferred) {
+        return preferred;
+    }
+    shells
+        .first()
+        .map(|shell| shell.id.clone())
+        .unwrap_or_else(|| "cmd".into())
+}
+
+fn preferred_system_shell_id() -> String {
+    #[cfg(windows)]
+    {
+        std::env::var("COMSPEC")
+            .ok()
+            .and_then(|path| shell_id_from_comspec(&path))
+            .unwrap_or_else(|| "cmd".into())
+    }
+    #[cfg(not(windows))]
+    {
+        std::env::var("SHELL")
+            .ok()
+            .and_then(|path| shell_id_from_shell_path(&path))
+            .unwrap_or_else(|| "bash".into())
+    }
+}
+
+fn shell_id_from_comspec(path: &str) -> Option<String> {
+    let lower = path.to_lowercase();
+    if lower.ends_with("cmd.exe") {
+        return Some("cmd".into());
+    }
+    if lower.contains("pwsh") {
+        return Some("pwsh".into());
+    }
+    if lower.ends_with("powershell.exe") {
+        return Some("powershell".into());
+    }
+    None
+}
+
+#[cfg(not(windows))]
+fn shell_id_from_shell_path(path: &str) -> Option<String> {
+    let lower = path.to_lowercase();
+    if lower.contains("bash") {
+        return Some("bash".into());
+    }
+    if lower.contains("pwsh") {
+        return Some("pwsh".into());
+    }
+    None
+}
+
 fn find_executable(name: &str) -> Option<String> {
     let path_var = std::env::var_os("PATH")?;
     for dir in std::env::split_paths(&path_var) {
@@ -110,5 +165,27 @@ mod tests {
         let shells = available_shells();
         let first = shells.first().unwrap();
         assert!(resolve_shell(&first.id).is_some());
+    }
+
+    #[test]
+    fn cmd_comspec_maps_to_cmd() {
+        assert_eq!(
+            shell_id_from_comspec(r"C:\Windows\System32\cmd.exe").as_deref(),
+            Some("cmd")
+        );
+    }
+
+    #[test]
+    fn pwsh_comspec_maps_to_pwsh() {
+        assert_eq!(
+            shell_id_from_comspec(r"C:\Program Files\PowerShell\7\pwsh.exe").as_deref(),
+            Some("pwsh")
+        );
+    }
+
+    #[test]
+    fn default_shell_id_returns_resolvable_shell() {
+        let id = default_shell_id();
+        assert!(resolve_shell(&id).is_some());
     }
 }

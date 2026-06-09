@@ -1,6 +1,7 @@
 import { getSetting, setSetting } from "./settingsStore";
 
-const STORAGE_KEY = "oterm.defaultShellId";
+export const DEFAULT_SHELL_SETTING_KEY = "oterm.defaultShellId";
+const STORAGE_KEY = DEFAULT_SHELL_SETTING_KEY;
 
 export function loadDefaultShellId(fallback: string): string {
   const raw = getSetting(STORAGE_KEY);
