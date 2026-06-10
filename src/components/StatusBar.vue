@@ -124,7 +124,7 @@ const prTitle = computed(() => {
         <button
           v-if="activePr"
           type="button"
-          class="no-drag hidden shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[11px] text-[#58a6ff] transition hover:bg-white/5 lg:flex"
+          class="no-drag hidden shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[11px] text-[var(--oterm-accent)] transition hover:bg-white/5 lg:flex"
           :title="prTitle"
           :aria-label="`Open ${prLabel}`"
           @click="emit('openPullRequests')"

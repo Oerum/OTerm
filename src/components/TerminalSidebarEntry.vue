@@ -12,6 +12,7 @@ const props = defineProps<{
   renaming: boolean;
   dragging?: boolean;
   dropTarget?: boolean;
+  dropTargetAfter?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -128,6 +129,11 @@ function onDragHandlePointerDown(event: PointerEvent) {
     <div
       v-if="dropTarget"
       class="pointer-events-none absolute inset-x-0 -top-px z-10 h-0.5 rounded-full bg-[var(--oterm-accent)]"
+      aria-hidden="true"
+    />
+    <div
+      v-if="dropTargetAfter"
+      class="pointer-events-none absolute inset-x-0 -bottom-px z-10 h-0.5 rounded-full bg-[var(--oterm-accent)]"
       aria-hidden="true"
     />
 

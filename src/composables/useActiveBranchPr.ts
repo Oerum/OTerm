@@ -7,7 +7,7 @@ const CACHE_TTL_MS = 30_000;
 
 const prCache = new Map<
   string,
-  { fetchedAt: number; prs: PullRequestSummary[] }
+  { fetchedAt: number; refreshToken: number; prs: PullRequestSummary[] }
 >();
 
 export function useActiveBranchPr(
@@ -30,26 +30,29 @@ export function useActiveBranchPr(
     }
 
     const currentRequest = ++requestId;
+    const token = refreshToken.value;
     loading.value = true;
 
     try {
-      const provider = await detectPrProvider(root);
-      if (!isGithubPrCapable(provider)) {
-        if (currentRequest === requestId) activePr.value = null;
-        return;
-      }
-
       const cacheKey = root;
       const cached = prCache.get(cacheKey);
       let prs: PullRequestSummary[];
 
-      if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+      if (
+        cached &&
+        Date.now() - cached.fetchedAt < CACHE_TTL_MS &&
+        cached.refreshToken === token
+      ) {
         prs = cached.prs;
       } else {
-        prs = provider.authOk
-          ? await listPullRequests(root, false)
-          : [];
-        prCache.set(cacheKey, { fetchedAt: Date.now(), prs });
+        const provider = await detectPrProvider(root);
+        if (!isGithubPrCapable(provider)) {
+          if (currentRequest === requestId) activePr.value = null;
+          return;
+        }
+
+        prs = provider.authOk ? await listPullRequests(root, false) : [];
+        prCache.set(cacheKey, { fetchedAt: Date.now(), refreshToken: token, prs });
       }
 
       if (currentRequest !== requestId) return;

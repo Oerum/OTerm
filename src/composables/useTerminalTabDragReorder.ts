@@ -79,7 +79,7 @@ export function useTerminalTabDragReorder(
       if (
         targetIndex !== draggedTerminalIndex &&
         targetIndex >= 0 &&
-        targetIndex < entriesRef.value.filter((e) => e.isFirstPaneOfTab).length
+        targetIndex < terminalTabCount()
       ) {
         onReorder(tabId, targetIndex);
       }
@@ -91,11 +91,26 @@ export function useTerminalTabDragReorder(
     handle.addEventListener("pointercancel", onEnd);
   }
 
+  function terminalTabCount() {
+    return entriesRef.value.filter((e) => e.isFirstPaneOfTab).length;
+  }
+
   function isDropTarget(entry: TerminalSidebarEntry) {
     return (
       dropBeforeIndex.value != null &&
       entry.isFirstPaneOfTab &&
       entry.terminalTabIndex === dropBeforeIndex.value
+    );
+  }
+
+  function isDropTargetAfter(entry: TerminalSidebarEntry) {
+    const beforeIndex = dropBeforeIndex.value;
+    const tabCount = terminalTabCount();
+    return (
+      beforeIndex != null &&
+      beforeIndex === tabCount &&
+      entry.isFirstPaneOfTab &&
+      entry.terminalTabIndex === tabCount - 1
     );
   }
 
@@ -108,6 +123,7 @@ export function useTerminalTabDragReorder(
     dropBeforeIndex,
     onDragPointerDown,
     isDropTarget,
+    isDropTargetAfter,
     isDraggingTab,
   };
 }

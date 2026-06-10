@@ -109,9 +109,9 @@ const terminalEntries = computed(() => {
 });
 
 const {
-  draggingTabId,
   onDragPointerDown,
   isDropTarget,
+  isDropTargetAfter,
   isDraggingTab,
 } = useTerminalTabDragReorder(terminalEntries, (tabId, toTerminalIndex) => {
   emit("reorderTab", tabId, toTerminalIndex);
@@ -451,6 +451,7 @@ onBeforeUnmount(() => {
         :renaming="renamingEntryId === entry.entryId"
         :dragging="isDraggingTab(entry)"
         :drop-target="isDropTarget(entry)"
+        :drop-target-after="isDropTargetAfter(entry)"
         @select="(tabId, paneId) => emit('select', tabId, paneId)"
         @menu-toggle="setMenuOpen"
         @action="(actionId) => onEntryAction(entry.entryId, actionId)"
