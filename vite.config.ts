@@ -35,10 +35,16 @@ export default defineConfig(async () => ({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          vue: ["vue"],
-          xterm: ["@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-webgl"],
-          tauri: ["@tauri-apps/api", "@tauri-apps/plugin-opener"],
+        manualChunks(id) {
+          if (id.includes("node_modules/vue")) {
+            return "vue";
+          }
+          if (id.includes("node_modules/@xterm")) {
+            return "xterm";
+          }
+          if (id.includes("node_modules/@tauri-apps")) {
+            return "tauri";
+          }
         },
       },
     },

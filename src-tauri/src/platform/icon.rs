@@ -7,8 +7,7 @@ const TOAST_ICON_NAME: &str = "toast.png";
 const APP_ICON_NAME: &str = "app.ico";
 
 #[cfg(windows)]
-const NOTIFICATION_ICON_NAMES: &[&str] =
-    &["128x128@2x.png", "icon.png", "128x128.png", "icon.ico"];
+const NOTIFICATION_ICON_NAMES: &[&str] = &["128x128@2x.png", "icon.png", "128x128.png", "icon.ico"];
 
 #[cfg(windows)]
 const BRANDING_ICON_NAMES: &[&str] = &["icon.ico"];

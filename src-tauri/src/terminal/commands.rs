@@ -44,10 +44,7 @@ pub fn terminal_resize(
 }
 
 #[tauri::command]
-pub fn terminal_kill(
-    manager: State<'_, PtyManager>,
-    session_id: String,
-) -> Result<(), String> {
+pub fn terminal_kill(manager: State<'_, PtyManager>, session_id: String) -> Result<(), String> {
     manager.kill(&session_id)
 }
 

@@ -149,6 +149,7 @@ npm run tauri build
 | `cargo check` | Fast Rust compile check (subset of `clippy`/`test`) |
 | `npm run tauri dev` | Manual smoke test (dev server + Tauri) |
 | `npx fallow dead-code --fail-on-issues` | TS/JS unused-code audit (devDependency; no `fallow.toml` yet) |
+| `npx @dependency-check-updates/cli -u` | Complete project dependency update (treat as breaking changes; only run if there are no git changes and the user explicitly requests a complete dependency update) |
 
 ### Success criteria
 

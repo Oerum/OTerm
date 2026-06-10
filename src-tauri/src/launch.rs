@@ -29,21 +29,18 @@ where
         .map(|arg| arg.as_ref().to_string())
         .collect();
 
-    let raw = args
-        .iter()
-        .enumerate()
-        .find_map(|(index, arg)| {
-            if arg == "--cwd" || arg == "--working-directory" {
-                return args.get(index + 1).cloned();
-            }
-            if let Some(value) = arg.strip_prefix("--cwd=") {
-                return Some(value.to_string());
-            }
-            if let Some(value) = arg.strip_prefix("--working-directory=") {
-                return Some(value.to_string());
-            }
-            None
-        });
+    let raw = args.iter().enumerate().find_map(|(index, arg)| {
+        if arg == "--cwd" || arg == "--working-directory" {
+            return args.get(index + 1).cloned();
+        }
+        if let Some(value) = arg.strip_prefix("--cwd=") {
+            return Some(value.to_string());
+        }
+        if let Some(value) = arg.strip_prefix("--working-directory=") {
+            return Some(value.to_string());
+        }
+        None
+    });
 
     raw.and_then(|value| resolve_launch_cwd(&value))
 }
@@ -93,8 +90,8 @@ mod tests {
     fn parse_launch_cwd_from_equals_form() {
         let temp = std::env::temp_dir();
         let arg = format!("--cwd={}", temp.to_string_lossy());
-        let cwd = parse_launch_cwd_from_args(vec!["oterm.exe".to_string(), arg])
-            .expect("expected cwd");
+        let cwd =
+            parse_launch_cwd_from_args(vec!["oterm.exe".to_string(), arg]).expect("expected cwd");
         assert_eq!(cwd, temp.to_string_lossy());
     }
 

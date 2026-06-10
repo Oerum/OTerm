@@ -1,3 +1,4 @@
+mod dictation;
 mod docker;
 mod fs;
 mod git;
@@ -13,29 +14,34 @@ mod terminal;
 
 mod platform;
 
+use dictation::commands::{
+    dictation_cancel_recording, dictation_download_model, dictation_get_status,
+    dictation_start_recording, dictation_stop_and_transcribe,
+};
+use dictation::DictationManager;
 use docker::commands::{
     docker_container_action, docker_container_logs, docker_prune_unused, docker_remove_image,
     docker_remove_network, docker_remove_volume, docker_summary,
 };
 use fs::commands::{
-    fs_create_dir, fs_import_env_file, fs_list_directory, fs_open_in_file_explorer, fs_open_in_rider,
-    fs_open_in_visual_studio, fs_open_in_vscode, fs_open_in_zed, fs_read_file, fs_remove_path,
-    fs_search_files, fs_show_shell_context_menu, fs_tools_directory_hints, fs_user_home,
-    fs_write_file, fs_write_temp_attachment, FsSearchState,
+    fs_create_dir, fs_import_env_file, fs_list_directory, fs_open_in_file_explorer,
+    fs_open_in_rider, fs_open_in_visual_studio, fs_open_in_vscode, fs_open_in_zed, fs_read_file,
+    fs_remove_path, fs_search_files, fs_show_shell_context_menu, fs_tools_directory_hints,
+    fs_user_home, fs_write_file, fs_write_temp_attachment, FsSearchState,
 };
 use git::commands::{
     git_checkout_branch, git_checkout_detached, git_cherry_pick, git_commit, git_commit_details,
     git_commit_graph, git_compare_commits, git_create_branch, git_create_tag, git_delete_branch,
-    git_fetch, git_merge_branch,
-    git_file_diff, git_incoming_outgoing, git_list_branch_refs, git_list_branches,
-    git_list_worktrees, git_log,
-    git_pull, git_push, git_read_working_file, git_remote_browser_url, git_reset_commit,
-    git_revert_commit, git_revert_hunk, git_revert_tracked_paths, git_revert_untracked_paths,
-    git_source_control_status, git_squash_commits, git_stage_hunk, git_stage_paths,
-    git_staged_diff, git_status, git_sync, git_unstage_hunk, git_unstage_paths,
-    git_write_working_file, issue_create_branch, issue_list, issue_view, pr_checkout, pr_comment,
-    pr_commits, pr_checks, pr_create, pr_detect_provider, pr_diff, pr_files, pr_list, pr_view,
+    git_fetch, git_file_diff, git_incoming_outgoing, git_list_branch_refs, git_list_branches,
+    git_list_worktrees, git_log, git_merge_branch, git_pull, git_push, git_read_working_file,
+    git_remote_browser_url, git_reset_commit, git_revert_commit, git_revert_hunk,
+    git_revert_tracked_paths, git_revert_untracked_paths, git_source_control_status,
+    git_squash_commits, git_stage_hunk, git_stage_paths, git_staged_diff, git_status, git_sync,
+    git_unstage_hunk, git_unstage_paths, git_write_working_file, issue_create_branch, issue_list,
+    issue_view, pr_checkout, pr_checks, pr_comment, pr_commits, pr_create, pr_detect_provider,
+    pr_diff, pr_files, pr_list, pr_view,
 };
+use launch::{launch_initial_cwd, LaunchState};
 use lm::commands::{
     lm_chat_completion, lm_detect_github_copilot_token, lm_list_models, lm_test_connection,
 };
@@ -55,7 +61,6 @@ use ssh_terminal::commands::{
     ssh_terminal_kill, ssh_terminal_resize, ssh_terminal_spawn, ssh_terminal_write,
 };
 use ssh_terminal::SshTerminalManager;
-use launch::{launch_initial_cwd, LaunchState};
 use terminal::commands::{
     terminal_default_shell_id, terminal_drain_output, terminal_kill, terminal_list_shells,
     terminal_resize, terminal_spawn, terminal_write,
@@ -76,7 +81,7 @@ fn send_desktop_notification(
     #[cfg(windows)]
     {
         let app_id = app.config().identifier.clone();
-        return platform::windows::toast::send(&app_id, &title, &body, &icon);
+        platform::windows::toast::send(&app_id, &title, &body, &icon)
     }
     #[cfg(not(windows))]
     {
@@ -95,7 +100,10 @@ fn prevent_default() -> tauri::plugin::TauriPlugin<tauri::Wry> {
 
     tauri_plugin_prevent_default::Builder::new()
         .with_flags(Flags::CONTEXT_MENU | Flags::DEV_TOOLS)
-        .shortcut(KeyboardShortcut::with_modifiers("D", &[ModifierKey::CtrlKey]))
+        .shortcut(KeyboardShortcut::with_modifiers(
+            "D",
+            &[ModifierKey::CtrlKey],
+        ))
         .build()
 }
 
@@ -112,6 +120,7 @@ pub fn run() {
         .manage(SftpManager::new())
         .manage(SshTerminalManager::new())
         .manage(Arc::new(FsSearchState::new()))
+        .manage(Arc::new(DictationManager::new()))
         .setup(|app| {
             #[cfg(windows)]
             {
@@ -123,14 +132,14 @@ pub fn run() {
                     .product_name
                     .clone()
                     .unwrap_or_else(|| "OTerm".to_string());
-                if let Err(error) = platform::windows::toast::init(
-                    &platform::windows::toast::ToastIdentity {
+                if let Err(error) =
+                    platform::windows::toast::init(&platform::windows::toast::ToastIdentity {
                         app_id: config.identifier.clone(),
                         display_name,
                         assets,
                         exe_path: exe,
-                    },
-                ) {
+                    })
+                {
                     eprintln!("oterm: toast branding init failed: {error}");
                 }
             }
@@ -251,6 +260,11 @@ pub fn run() {
             settings_get_all,
             settings_import,
             settings_dir_path,
+            dictation_get_status,
+            dictation_download_model,
+            dictation_start_recording,
+            dictation_cancel_recording,
+            dictation_stop_and_transcribe,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

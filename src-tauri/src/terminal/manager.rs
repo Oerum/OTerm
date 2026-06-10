@@ -64,7 +64,8 @@ impl PtyManager {
         rows: u16,
         cwd: Option<String>,
     ) -> Result<String, String> {
-        let profile = resolve_shell(&shell_id).ok_or_else(|| format!("Unknown shell: {shell_id}"))?;
+        let profile =
+            resolve_shell(&shell_id).ok_or_else(|| format!("Unknown shell: {shell_id}"))?;
         let session_id = Uuid::new_v4().to_string();
         let pty_system = native_pty_system();
         let pair = pty_system
@@ -97,7 +98,10 @@ impl PtyManager {
             .process_id()
             .ok_or_else(|| "Failed to get shell process id".to_string())?;
         let writer = pair.master.take_writer().map_err(|err| err.to_string())?;
-        let reader = pair.master.try_clone_reader().map_err(|err| err.to_string())?;
+        let reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(|err| err.to_string())?;
         let master: Box<dyn MasterPty + Send> = pair.master;
 
         let pending_output = Arc::new(Mutex::new(String::new()));
@@ -121,12 +125,7 @@ impl PtyManager {
             .map_err(|_| "Session lock poisoned".to_string())?
             .insert(session_id.clone(), session);
 
-        spawn_reader(
-            app.clone(),
-            session_id.clone(),
-            reader,
-            pending_output,
-        );
+        spawn_reader(app.clone(), session_id.clone(), reader, pending_output);
         spawn_child_exit_watcher(
             app.clone(),
             session_id.clone(),
@@ -207,12 +206,8 @@ impl PtyManager {
             .map_err(|_| "Session lock poisoned".to_string())?
             .remove(session_id)
             .ok_or_else(|| format!("Unknown session: {session_id}"))?;
-        session
-            .agent_poll_cancel
-            .store(true, Ordering::Relaxed);
-        session
-            .exit_watch_cancel
-            .store(true, Ordering::Relaxed);
+        session.agent_poll_cancel.store(true, Ordering::Relaxed);
+        session.exit_watch_cancel.store(true, Ordering::Relaxed);
         session.exit_emitted.store(true, Ordering::Relaxed);
         if let Ok(mut child) = session.child.lock() {
             let _ = child.kill();
@@ -265,7 +260,10 @@ fn spawn_child_exit_watcher(
     thread::spawn(move || {
         let mut exit_code: Option<i32> = None;
         while !cancel.load(Ordering::Relaxed) {
-            let status = child.lock().ok().and_then(|mut c| c.try_wait().ok().flatten());
+            let status = child
+                .lock()
+                .ok()
+                .and_then(|mut c| c.try_wait().ok().flatten());
             if let Some(status) = status {
                 exit_code = Some(status.exit_code() as i32);
                 break;
@@ -278,12 +276,7 @@ fn spawn_child_exit_watcher(
     });
 }
 
-fn spawn_agent_poller(
-    app: AppHandle,
-    session_id: String,
-    root_pid: u32,
-    cancel: Arc<AtomicBool>,
-) {
+fn spawn_agent_poller(app: AppHandle, session_id: String, root_pid: u32, cancel: Arc<AtomicBool>) {
     thread::spawn(move || {
         let mut system = sysinfo::System::new();
         let root = sysinfo::Pid::from_u32(root_pid);

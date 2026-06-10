@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isTabCycleShortcut } from "./appKeyboardShortcuts";
+import { isDictationShortcut, isTabCycleShortcut } from "./appKeyboardShortcuts";
 
 function keyEvent(
   key: string,
@@ -39,5 +39,22 @@ describe("isTabCycleShortcut", () => {
 
   it("does not match Shift+Tab without ctrl/meta", () => {
     expect(isTabCycleShortcut(keyEvent("Tab", { shiftKey: true }))).toBe(false);
+  });
+});
+
+describe("isDictationShortcut", () => {
+  it("matches Ctrl+F", () => {
+    expect(isDictationShortcut(keyEvent("f", { ctrlKey: true }))).toBe(true);
+    expect(isDictationShortcut(keyEvent("F", { ctrlKey: true }))).toBe(true);
+  });
+
+  it("does not match Ctrl+Shift+F", () => {
+    expect(
+      isDictationShortcut(keyEvent("f", { ctrlKey: true, shiftKey: true })),
+    ).toBe(false);
+  });
+
+  it("does not match plain F", () => {
+    expect(isDictationShortcut(keyEvent("f"))).toBe(false);
   });
 });

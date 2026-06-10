@@ -55,14 +55,13 @@ pub fn send(app_id: &str, title: &str, body: &str, icon_path: &Path) -> Result<(
     );
 
     let doc = XmlDocument::new().map_err(|e| e.to_string())?;
-    doc.LoadXml(&HSTRING::from(xml)).map_err(|e| e.to_string())?;
+    doc.LoadXml(&HSTRING::from(xml))
+        .map_err(|e| e.to_string())?;
     let notification =
         ToastNotification::CreateToastNotification(&doc).map_err(|e| e.to_string())?;
     let notifier = ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(app_id))
         .map_err(|e| e.to_string())?;
-    notifier
-        .Show(&notification)
-        .map_err(|e| e.to_string())?;
+    notifier.Show(&notification).map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -97,7 +96,7 @@ fn register_aumid_branding(identity: &ToastIdentity) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     key.set_string("IconBackgroundColor", "0")
         .map_err(|e| e.to_string())?;
-    key.set_string("IconUri", &toast_file_uri(&icon))
+    key.set_string("IconUri", toast_file_uri(&icon))
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -127,9 +126,7 @@ fn write_start_menu_shortcut(
 ) -> Result<(), String> {
     use windows::core::{Interface, HSTRING};
     use windows::Win32::Storage::EnhancedStorage::PKEY_AppUserModel_ID;
-    use windows::Win32::System::Com::{
-        CoCreateInstance, IPersistFile, CLSCTX_INPROC_SERVER,
-    };
+    use windows::Win32::System::Com::{CoCreateInstance, IPersistFile, CLSCTX_INPROC_SERVER};
     use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
     use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
 
@@ -172,7 +169,9 @@ fn write_start_menu_shortcut(
     Ok(())
 }
 
-fn prop_variant_from_str(value: &str) -> Result<windows::Win32::System::Com::StructuredStorage::PROPVARIANT, String> {
+fn prop_variant_from_str(
+    value: &str,
+) -> Result<windows::Win32::System::Com::StructuredStorage::PROPVARIANT, String> {
     use windows::core::PWSTR;
     use windows::Win32::System::Com::CoTaskMemAlloc;
     use windows::Win32::System::Com::StructuredStorage::{

@@ -225,10 +225,14 @@ struct GhCheckRow {
 pub fn ensure_github_ready(repo_root: String) -> Result<(), String> {
     let info = detect_provider(repo_root)?;
     if info.provider.as_deref() != Some("github") {
-        return Err(info.message.unwrap_or_else(|| "Unsupported provider".into()));
+        return Err(info
+            .message
+            .unwrap_or_else(|| "Unsupported provider".into()));
     }
     if !info.can_use_cli || !info.auth_ok {
-        return Err(info.message.unwrap_or_else(|| "GitHub CLI not ready".into()));
+        return Err(info
+            .message
+            .unwrap_or_else(|| "GitHub CLI not ready".into()));
     }
     Ok(())
 }
@@ -244,7 +248,10 @@ pub fn detect_provider(repo_root: String) -> Result<PrProviderInfo, String> {
 
     let (can_use_cli, auth_ok, message) = match provider.as_deref() {
         Some("github") => {
-            let gh_ok = hidden_command(&gh_program()).arg("--version").output().is_ok();
+            let gh_ok = hidden_command(&gh_program())
+                .arg("--version")
+                .output()
+                .is_ok();
             if !gh_ok {
                 (
                     false,
@@ -274,11 +281,7 @@ pub fn detect_provider(repo_root: String) -> Result<PrProviderInfo, String> {
             false,
             Some(format!("Provider '{other}' is not supported yet")),
         ),
-        None => (
-            false,
-            false,
-            Some("No origin remote configured".into()),
-        ),
+        None => (false, false, Some("No origin remote configured".into())),
     };
 
     Ok(PrProviderInfo {
@@ -344,7 +347,14 @@ pub fn create_pull_request(
         return Err("PR title is required".into());
     }
 
-    let mut args = vec!["pr", "create", "--title", trimmed_title, "--body", body.as_str()];
+    let mut args = vec![
+        "pr",
+        "create",
+        "--title",
+        trimmed_title,
+        "--body",
+        body.as_str(),
+    ];
     if draft {
         args.push("--draft");
     }
@@ -474,11 +484,7 @@ pub fn pull_request_diff(repo_root: String, number: u32) -> Result<String, Strin
     gh_output(&root, &["pr", "diff", &number.to_string(), "--patch"])
 }
 
-pub fn comment_on_pull_request(
-    repo_root: String,
-    number: u32,
-    body: String,
-) -> Result<(), String> {
+pub fn comment_on_pull_request(repo_root: String, number: u32, body: String) -> Result<(), String> {
     let root = PathBuf::from(&repo_root);
     ensure_github_ready(repo_root)?;
     let trimmed = body.trim();
@@ -487,13 +493,7 @@ pub fn comment_on_pull_request(
     }
     gh_run(
         &root,
-        &[
-            "pr",
-            "comment",
-            &number.to_string(),
-            "--body",
-            trimmed,
-        ],
+        &["pr", "comment", &number.to_string(), "--body", trimmed],
     )
 }
 
@@ -596,13 +596,7 @@ pub(crate) fn gh_output(cwd: &Path, args: &[&str]) -> Result<String, String> {
 /// `gh pr checks` exits 1 with a stderr message when a branch has no checks.
 fn gh_pr_checks_json(cwd: &Path, number: &str, fields: &str) -> Result<String, String> {
     let output = hidden_command(&gh_program())
-        .args([
-            "pr",
-            "checks",
-            number,
-            "--json",
-            fields,
-        ])
+        .args(["pr", "checks", number, "--json", fields])
         .current_dir(cwd)
         .output()
         .map_err(|err| format!("Failed to run gh: {err}"))?;

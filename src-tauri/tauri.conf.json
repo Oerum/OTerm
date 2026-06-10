@@ -29,6 +29,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "macOS": {
+      "infoPlist": "./Info.plist"
+    },
     "windows": {
       "nsis": {
         "installerHooks": "./windows/hooks.nsh"

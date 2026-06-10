@@ -1,6 +1,6 @@
 use super::{
-    chat_completion, list_models, load_github_copilot_oauth_token, normalize_endpoint,
-    AiProvider, ChatCompletionRequest, CompletionMode,
+    chat_completion, list_models, load_github_copilot_oauth_token, normalize_endpoint, AiProvider,
+    ChatCompletionRequest, CompletionMode,
 };
 use serde::{Deserialize, Serialize};
 

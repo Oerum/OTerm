@@ -1,8 +1,7 @@
 use russh::client;
 use russh::keys::{
     known_hosts::{check_known_hosts, learn_known_hosts},
-    load_secret_key,
-    Error as KeysError, HashAlg, PrivateKeyWithHashAlg, PublicKey,
+    load_secret_key, Error as KeysError, HashAlg, PrivateKeyWithHashAlg, PublicKey,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -67,11 +66,8 @@ impl client::Handler for ClientHandler {
                         learn_known_hosts(&ctx.host, ctx.port, &server_public_key)?;
                         Ok(true)
                     } else {
-                        *ctx.verdict.lock().await = Some(host_key_error(
-                            "HOST_KEY_UNKNOWN",
-                            &server_public_key,
-                            None,
-                        ));
+                        *ctx.verdict.lock().await =
+                            Some(host_key_error("HOST_KEY_UNKNOWN", &server_public_key, None));
                         Ok(false)
                     }
                 }
@@ -140,10 +136,7 @@ async fn connect_and_auth_inner(request: &ConnectRequest) -> Result<SshHandle, S
             let key = load_secret_key(&key_file, request.key_passphrase.as_deref())
                 .map_err(|err| format!("Could not load key: {err}"))?;
             handle
-                .authenticate_publickey(
-                    username,
-                    PrivateKeyWithHashAlg::new(Arc::new(key), None),
-                )
+                .authenticate_publickey(username, PrivateKeyWithHashAlg::new(Arc::new(key), None))
                 .await
                 .map_err(|err| format!("Key authentication failed: {err}"))?
         }

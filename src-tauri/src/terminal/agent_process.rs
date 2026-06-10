@@ -113,11 +113,7 @@ pub fn match_agent_from_process(name: &str, cmd: &[String]) -> Option<&'static s
         .join(" ");
 
     for agent in AGENTS {
-        if agent
-            .package_hints
-            .iter()
-            .any(|hint| joined.contains(hint))
-        {
+        if agent.package_hints.iter().any(|hint| joined.contains(hint)) {
             return Some(agent.id);
         }
     }
@@ -127,14 +123,11 @@ pub fn match_agent_from_process(name: &str, cmd: &[String]) -> Option<&'static s
 
 /// Walk descendants of `root_pid` and return the deepest matching agent id, if any.
 pub fn detect_agent_in_tree(system: &mut System, root_pid: u32) -> Option<String> {
-    system.refresh_specifics(
-        RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
-    );
+    system
+        .refresh_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()));
 
     let root = Pid::from_u32(root_pid);
-    if system.process(root).is_none() {
-        return None;
-    }
+    system.process(root)?;
 
     let mut children_map: HashMap<Pid, Vec<Pid>> = HashMap::new();
     for (pid, process) in system.processes() {
@@ -155,7 +148,10 @@ pub fn detect_agent_in_tree(system: &mut System, root_pid: u32) -> Option<String
                 .map(|part| part.to_string_lossy().into_owned())
                 .collect();
             if let Some(agent_id) = match_agent_from_process(&name, &cmd) {
-                if best.map(|(best_depth, _)| depth > best_depth).unwrap_or(true) {
+                if best
+                    .map(|(best_depth, _)| depth > best_depth)
+                    .unwrap_or(true)
+                {
                     best = Some((depth, agent_id));
                 }
             }
@@ -200,7 +196,10 @@ mod tests {
         assert_eq!(
             match_agent_from_process(
                 "node",
-                &["node".into(), "/path/to/@anthropic-ai/claude-code/cli.js".into()],
+                &[
+                    "node".into(),
+                    "/path/to/@anthropic-ai/claude-code/cli.js".into()
+                ],
             ),
             Some("claude")
         );

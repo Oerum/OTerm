@@ -73,22 +73,20 @@ impl CompletionMode {
     }
 }
 
-const COMMIT_TYPES: &[&str] = &["feat", "fix", "refactor", "test", "docs", "chore", "ci", "perf"];
+const COMMIT_TYPES: &[&str] = &[
+    "feat", "fix", "refactor", "test", "docs", "chore", "ci", "perf",
+];
 
 fn extract_tool_call_text(message: &ChatMessage) -> Option<String> {
-    message
-        .tool_calls
-        .as_ref()?
-        .iter()
-        .find_map(|call| {
-            call.function
-                .as_ref()?
-                .arguments
-                .as_deref()
-                .map(str::trim)
-                .filter(|args| !args.is_empty())
-                .map(str::to_string)
-        })
+    message.tool_calls.as_ref()?.iter().find_map(|call| {
+        call.function
+            .as_ref()?
+            .arguments
+            .as_deref()
+            .map(str::trim)
+            .filter(|args| !args.is_empty())
+            .map(str::to_string)
+    })
 }
 
 fn extract_completion_text(
@@ -153,8 +151,7 @@ fn extract_conventional_commit_line(text: &str) -> Option<String> {
 
 fn looks_like_commit_subject(line: &str) -> bool {
     COMMIT_TYPES.iter().any(|commit_type| {
-        line.starts_with(&format!("{commit_type}:"))
-            || line.starts_with(&format!("{commit_type}("))
+        line.starts_with(&format!("{commit_type}:")) || line.starts_with(&format!("{commit_type}("))
     })
 }
 
@@ -334,7 +331,8 @@ pub(crate) async fn chat_completion(req: ChatCompletionRequest<'_>) -> Result<St
         body["tool_choice"] = serde_json::json!("none");
     }
 
-    let request = apply_provider_headers(client.post(&url), provider, api_key.as_deref()).json(&body);
+    let request =
+        apply_provider_headers(client.post(&url), provider, api_key.as_deref()).json(&body);
     let response = request
         .send()
         .await
@@ -351,18 +349,9 @@ pub(crate) async fn chat_completion(req: ChatCompletionRequest<'_>) -> Result<St
         .await
         .map_err(|err| format!("Invalid chat completion response: {err}"))?;
 
-    let content = payload
-        .choices
-        .into_iter()
-        .next()
-        .and_then(|choice| {
-            extract_completion_text(
-                choice.message,
-                use_reasoning,
-                allow_tool_calls,
-                mode,
-            )
-        });
+    let content = payload.choices.into_iter().next().and_then(|choice| {
+        extract_completion_text(choice.message, use_reasoning, allow_tool_calls, mode)
+    });
 
     match content {
         Some(text) if !text.is_empty() => Ok(text),

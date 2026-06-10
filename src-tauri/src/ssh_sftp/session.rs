@@ -51,7 +51,10 @@ impl SftpManager {
             .ok_or_else(|| format!("Unknown session: {session_id}"))
     }
 
-    pub async fn connect(&self, request: crate::ssh_client::ConnectRequest) -> Result<ConnectResult, String> {
+    pub async fn connect(
+        &self,
+        request: crate::ssh_client::ConnectRequest,
+    ) -> Result<ConnectResult, String> {
         let handle = connect_and_auth(&request).await?;
 
         let channel = handle

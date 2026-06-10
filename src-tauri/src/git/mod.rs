@@ -173,7 +173,13 @@ fn apply_hunk_patch(
 
     let mut cmd = hidden_command_with_stdin(&git_program());
     cmd.current_dir(repo_root);
-    cmd.args(["apply", "-p1", "--recount", "--unidiff-zero", "--whitespace=nowarn"]);
+    cmd.args([
+        "apply",
+        "-p1",
+        "--recount",
+        "--unidiff-zero",
+        "--whitespace=nowarn",
+    ]);
     cmd.args(extra_args);
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
@@ -304,9 +310,10 @@ fn pull_with_mode(repo_root: String, mode: PullMode) -> Result<(), String> {
                 PullMode::FastForwardOnly => {
                     git_run(&root, &["pull", "--ff-only", "origin", &branch])
                 }
-                PullMode::Rebase => {
-                    git_run(&root, &["pull", "--rebase", "--autostash", "origin", &branch])
-                }
+                PullMode::Rebase => git_run(
+                    &root,
+                    &["pull", "--rebase", "--autostash", "origin", &branch],
+                ),
             }
         }
     }
@@ -393,7 +400,10 @@ pub fn resolve_file_diff(
     read_file_diff(&root, &path, staged, untracked)
 }
 
-pub fn resolve_read_working_file(repo_root: String, path: String) -> Result<GitWorkingFile, String> {
+pub fn resolve_read_working_file(
+    repo_root: String,
+    path: String,
+) -> Result<GitWorkingFile, String> {
     let root = PathBuf::from(&repo_root);
     if !root.is_dir() {
         return Err("Repository root does not exist".into());
@@ -529,7 +539,9 @@ fn parse_tracking_header(header: &str) -> (Option<String>, u32, u32) {
     (upstream, ahead, behind)
 }
 
-fn parse_porcelain_status(repo_root: &Path) -> (Vec<GitFileEntry>, Vec<GitFileEntry>, Vec<GitFileEntry>) {
+fn parse_porcelain_status(
+    repo_root: &Path,
+) -> (Vec<GitFileEntry>, Vec<GitFileEntry>, Vec<GitFileEntry>) {
     let Ok(output) = git_output(repo_root, &["status", "--porcelain", "-z", "-uall"]) else {
         return (vec![], vec![], vec![]);
     };
@@ -712,11 +724,8 @@ pub(crate) fn read_file_diff(
             });
         }
         let null_device = if cfg!(windows) { "NUL" } else { "/dev/null" };
-        git_diff_output(
-            repo_root,
-            &["diff", "--no-index", "-U3", null_device, path],
-        )
-        .unwrap_or_default()
+        git_diff_output(repo_root, &["diff", "--no-index", "-U3", null_device, path])
+            .unwrap_or_default()
     } else if staged {
         git_diff_output(repo_root, &["diff", "--cached", "-U3", "--", path]).unwrap_or_default()
     } else {
@@ -762,10 +771,7 @@ fn parse_numstat_counts(line: &str) -> Option<(u32, u32)> {
 }
 
 fn normalize_numstat_path(path: &str) -> String {
-    path.rsplit(" => ")
-        .next()
-        .unwrap_or(path)
-        .to_string()
+    path.rsplit(" => ").next().unwrap_or(path).to_string()
 }
 
 fn numstat_map(repo_root: &Path, args: &[&str]) -> HashMap<String, (u32, u32)> {
@@ -776,11 +782,21 @@ fn numstat_map(repo_root: &Path, args: &[&str]) -> HashMap<String, (u32, u32)> {
     let mut map = HashMap::new();
     for line in output.lines() {
         let mut parts = line.split('\t');
-        let Some(add_raw) = parts.next() else { continue };
-        let Some(del_raw) = parts.next() else { continue };
-        let Some(path_raw) = parts.next() else { continue };
-        let Ok(additions) = add_raw.parse::<u32>() else { continue };
-        let Ok(deletions) = del_raw.parse::<u32>() else { continue };
+        let Some(add_raw) = parts.next() else {
+            continue;
+        };
+        let Some(del_raw) = parts.next() else {
+            continue;
+        };
+        let Some(path_raw) = parts.next() else {
+            continue;
+        };
+        let Ok(additions) = add_raw.parse::<u32>() else {
+            continue;
+        };
+        let Ok(deletions) = del_raw.parse::<u32>() else {
+            continue;
+        };
         let path = normalize_numstat_path(path_raw);
         map.insert(path, (additions, deletions));
     }

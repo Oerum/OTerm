@@ -57,15 +57,7 @@ impl SshTerminalManager {
             .map_err(|err| format!("Could not open SSH session: {err}"))?;
 
         channel
-            .request_pty(
-                false,
-                "xterm-256color",
-                cols as u32,
-                rows as u32,
-                0,
-                0,
-                &[],
-            )
+            .request_pty(false, "xterm-256color", cols as u32, rows as u32, 0, 0, &[])
             .await
             .map_err(|err| format!("PTY request failed: {err}"))?;
 
@@ -185,7 +177,12 @@ fn emit_output(app: &AppHandle, session_id: &str, data: String) {
     let _ = app.emit("terminal-output", payload);
 }
 
-fn emit_exit(app: &AppHandle, session_id: &str, exit_code: Option<i32>, session: &SshTerminalSession) {
+fn emit_exit(
+    app: &AppHandle,
+    session_id: &str,
+    exit_code: Option<i32>,
+    session: &SshTerminalSession,
+) {
     if session.exit_emitted.swap(true, Ordering::Relaxed) {
         return;
     }

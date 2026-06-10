@@ -44,7 +44,9 @@ mod tests {
     static TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn lock_test() -> MutexGuard<'static, ()> {
-        TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     #[test]
@@ -65,7 +67,10 @@ mod tests {
         write_all(&values).unwrap();
 
         let loaded = read_all().unwrap();
-        assert_eq!(loaded.get("oterm.defaultShellId"), Some(&"pwsh".to_string()));
+        assert_eq!(
+            loaded.get("oterm.defaultShellId"),
+            Some(&"pwsh".to_string())
+        );
 
         if let Some(content) = backup {
             fs::write(path, content).unwrap();

@@ -5,7 +5,10 @@ use std::time::{Duration, Instant};
 fn open_pty_shell(
     program: &str,
     args: &[&str],
-) -> Option<(Box<dyn MasterPty + Send>, Box<dyn portable_pty::Child + Send + Sync>)> {
+) -> Option<(
+    Box<dyn MasterPty + Send>,
+    Box<dyn portable_pty::Child + Send + Sync>,
+)> {
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -18,7 +21,7 @@ fn open_pty_shell(
 
     let mut cmd = CommandBuilder::new(program);
     for arg in args {
-        cmd.arg(arg.to_string());
+        cmd.arg(*arg);
     }
 
     let child = pair.slave.spawn_command(cmd).ok()?;
@@ -27,11 +30,17 @@ fn open_pty_shell(
     Some((master, child))
 }
 
-fn open_pwsh_pty() -> Option<(Box<dyn MasterPty + Send>, Box<dyn portable_pty::Child + Send + Sync>)> {
+fn open_pwsh_pty() -> Option<(
+    Box<dyn MasterPty + Send>,
+    Box<dyn portable_pty::Child + Send + Sync>,
+)> {
     open_pty_shell("pwsh", &["-NoLogo"])
 }
 
-fn open_cmd_pty() -> Option<(Box<dyn MasterPty + Send>, Box<dyn portable_pty::Child + Send + Sync>)> {
+fn open_cmd_pty() -> Option<(
+    Box<dyn MasterPty + Send>,
+    Box<dyn portable_pty::Child + Send + Sync>,
+)> {
     open_pty_shell("cmd", &["/Q", "/K"])
 }
 

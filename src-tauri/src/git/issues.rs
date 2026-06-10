@@ -99,7 +99,10 @@ struct GhLabel {
     name: String,
 }
 
-pub fn list_issues(repo_root: String, filters: IssueListFilters) -> Result<Vec<IssueSummary>, String> {
+pub fn list_issues(
+    repo_root: String,
+    filters: IssueListFilters,
+) -> Result<Vec<IssueSummary>, String> {
     let root = PathBuf::from(&repo_root);
     ensure_github_ready(repo_root)?;
 

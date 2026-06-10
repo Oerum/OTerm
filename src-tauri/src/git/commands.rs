@@ -1,5 +1,5 @@
 use super::branches::{
-    cherry_pick_commit, checkout_detached, compare_commits, create_branch, create_tag,
+    checkout_detached, cherry_pick_commit, compare_commits, create_branch, create_tag,
     delete_branch, list_branch_refs, list_incoming_outgoing, list_worktrees, merge_branch,
     read_commit_details, read_commit_graph, reset_commit, revert_commit, squash_commits,
     BranchRefInfo, CommitDetails, CommitGraphPage, CompareResult, GitWorktreeInfo,
@@ -10,17 +10,16 @@ use super::issues::{
 use super::pr::{
     checkout_pull_request, comment_on_pull_request, create_pull_request, detect_provider,
     list_pr_checks, list_pr_commits, list_pr_files, list_pull_requests, pull_request_diff,
-    remote_browser_url, PrChangedFile, PrCheck, PrCommit, PrProviderInfo, PullRequestDetail,
-    PullRequestSummary, view_pull_request,
+    remote_browser_url, view_pull_request, PrChangedFile, PrCheck, PrCommit, PrProviderInfo,
+    PullRequestDetail, PullRequestSummary,
 };
 use super::{
     checkout_branch, commit_changes, fetch_changes, list_branches, pull_changes, push_changes,
     read_log, resolve_file_diff, resolve_git_status, resolve_read_working_file,
-    resolve_source_control, resolve_staged_diff, resolve_write_working_file, revert_tracked_paths,
-    revert_hunk, revert_untracked_paths, stage_hunk, stage_paths, sync_changes, unstage_hunk,
-    unstage_paths, GitBranchList,
-    GitCommitEntry, GitFileDiff, GitSourceControlStatus, GitStagedDiffContext, GitStatus,
-    GitWorkingFile,
+    resolve_source_control, resolve_staged_diff, resolve_write_working_file, revert_hunk,
+    revert_tracked_paths, revert_untracked_paths, stage_hunk, stage_paths, sync_changes,
+    unstage_hunk, unstage_paths, GitBranchList, GitCommitEntry, GitFileDiff,
+    GitSourceControlStatus, GitStagedDiffContext, GitStatus, GitWorkingFile,
 };
 
 async fn blocking_git<T, F>(f: F) -> Result<T, String>
@@ -39,7 +38,9 @@ pub async fn git_status(path: Option<String>) -> Result<GitStatus, String> {
 }
 
 #[tauri::command]
-pub async fn git_source_control_status(path: Option<String>) -> Result<GitSourceControlStatus, String> {
+pub async fn git_source_control_status(
+    path: Option<String>,
+) -> Result<GitSourceControlStatus, String> {
     blocking_git(move || resolve_source_control(path)).await
 }
 
@@ -59,7 +60,10 @@ pub async fn git_revert_tracked_paths(repo_root: String, paths: Vec<String>) -> 
 }
 
 #[tauri::command]
-pub async fn git_revert_untracked_paths(repo_root: String, paths: Vec<String>) -> Result<(), String> {
+pub async fn git_revert_untracked_paths(
+    repo_root: String,
+    paths: Vec<String>,
+) -> Result<(), String> {
     blocking_git(move || revert_untracked_paths(repo_root, paths)).await
 }
 
@@ -157,7 +161,10 @@ pub async fn git_staged_diff(repo_root: String) -> Result<GitStagedDiffContext, 
 }
 
 #[tauri::command]
-pub async fn git_read_working_file(repo_root: String, path: String) -> Result<GitWorkingFile, String> {
+pub async fn git_read_working_file(
+    repo_root: String,
+    path: String,
+) -> Result<GitWorkingFile, String> {
     blocking_git(move || resolve_read_working_file(repo_root, path)).await
 }
 
@@ -327,11 +334,7 @@ pub async fn git_revert_commit(repo_root: String, hash: String) -> Result<(), St
 }
 
 #[tauri::command]
-pub async fn git_reset_commit(
-    repo_root: String,
-    hash: String,
-    mode: String,
-) -> Result<(), String> {
+pub async fn git_reset_commit(repo_root: String, hash: String, mode: String) -> Result<(), String> {
     blocking_git(move || reset_commit(repo_root, hash, mode)).await
 }
 

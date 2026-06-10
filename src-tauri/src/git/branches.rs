@@ -94,9 +94,9 @@ pub fn list_worktrees(repo_root: String) -> Result<Vec<GitWorktreeInfo>, String>
     let mut branch: Option<String> = None;
 
     let flush = |path: &mut Option<String>,
-                     head: &mut Option<String>,
-                     branch: &mut Option<String>,
-                     worktrees: &mut Vec<GitWorktreeInfo>| {
+                 head: &mut Option<String>,
+                 branch: &mut Option<String>,
+                 worktrees: &mut Vec<GitWorktreeInfo>| {
         let Some(wt_path) = path.take() else {
             head.take();
             branch.take();
@@ -172,10 +172,7 @@ pub fn list_branch_refs(repo_root: String) -> Result<Vec<BranchRefInfo>, String>
             continue;
         }
         let short_hash = parts.next().unwrap_or("").to_string();
-        let upstream = parts
-            .next()
-            .filter(|v| !v.is_empty())
-            .map(str::to_string);
+        let upstream = parts.next().filter(|v| !v.is_empty()).map(str::to_string);
         let track = parts.next().unwrap_or("");
         let (ahead, behind) = parse_track(track);
         let is_remote = refname.starts_with("refs/remotes/");
@@ -291,8 +288,7 @@ pub fn read_commit_details(repo_root: String, hash: String) -> Result<CommitDeta
         .filter(|p| !p.is_empty())
         .collect();
 
-    let diff = git_diff_output(&root, &["show", "--stat", "--patch", trimmed])
-        .unwrap_or_default();
+    let diff = git_diff_output(&root, &["show", "--stat", "--patch", trimmed]).unwrap_or_default();
 
     Ok(CommitDetails {
         hash,
@@ -343,10 +339,7 @@ pub fn list_incoming_outgoing(
         _ => return Err("Direction must be incoming or outgoing".into()),
     };
 
-    let output = git_output(
-        &root,
-        &["log", range, "--pretty=format:%H|%h|%s|%an|%ai"],
-    )?;
+    let output = git_output(&root, &["log", range, "--pretty=format:%H|%h|%s|%an|%ai"])?;
 
     Ok(output
         .lines()
@@ -500,7 +493,7 @@ pub fn merge_branch(repo_root: String, source: String, target: String) -> Result
     }
 }
 
-fn is_working_tree_dirty(root: &PathBuf) -> Result<bool, String> {
+fn is_working_tree_dirty(root: &std::path::Path) -> Result<bool, String> {
     let output = git_output(root, &["status", "--porcelain"])?;
     Ok(!output.trim().is_empty())
 }
@@ -579,11 +572,7 @@ mod tests {
             date: "d".into(),
             decorations: String::new(),
         };
-        let deduped = dedupe_graph_commits(vec![
-            sample("aaa"),
-            sample("aaa"),
-            sample("bbb"),
-        ]);
+        let deduped = dedupe_graph_commits(vec![sample("aaa"), sample("aaa"), sample("bbb")]);
         assert_eq!(deduped.len(), 2);
         assert_eq!(deduped[0].hash, "aaa");
         assert_eq!(deduped[1].hash, "bbb");

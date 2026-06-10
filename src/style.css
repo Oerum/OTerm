@@ -68,6 +68,8 @@ body {
 
 .oterm-app {
   background: var(--oterm-bg);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .xterm,
@@ -142,7 +144,19 @@ body {
 }
 
 .terminal-pane--active {
-  box-shadow: inset 2px 0 0 0 var(--oterm-line);
+  position: relative;
+}
+
+.terminal-pane--active::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--oterm-line);
+  pointer-events: none;
+  z-index: 10;
 }
 
 .terminal-output .xterm {

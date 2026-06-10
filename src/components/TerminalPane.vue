@@ -39,6 +39,7 @@ import {
   pathMatchToLinkRange,
   scanLineForTerminalLinks,
 } from "../lib/terminalPaths";
+import { isDictationShortcut } from "../lib/appKeyboardShortcuts";
 import {
   getCtrlDEofPayload,
   getMultilineEnterPayload,
@@ -159,7 +160,7 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
-const paneRootRef = ref<HTMLElement | null>(null);
+
 const localSessionId = ref<string | null>(props.sessionId);
 const backendSessionId = ref<string | null>(props.sessionId);
 const sessionEndedLocally = ref(false);
@@ -860,6 +861,13 @@ function onWindowKeyCapture(event: KeyboardEvent) {
     return;
   }
 
+  if (props.active && agentComposerOpen.value && isDictationShortcut(event)) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    agentComposerRef.value?.toggleDictation();
+    return;
+  }
+
   if (!shouldForwardPtyKeyOverride(event, props.active, containerRef.value)) return;
 
   const multilinePayload = getMultilineEnterPayload(event);
@@ -1225,7 +1233,6 @@ watch(suggestionStripVisible, () => {
 
 <template>
   <div
-    ref="paneRootRef"
     class="terminal-pane relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--oterm-bg)]"
     :class="active ? 'terminal-pane--active' : ''"
     @mousedown="emit('focusPane')"
@@ -1239,6 +1246,7 @@ watch(suggestionStripVisible, () => {
       :session-id="localSessionId"
       @submitted="onAgentComposerSubmitted"
       @close="closeAgentComposer"
+      @layout-change="handleResize"
     />
     <div
       v-if="suggestionStripVisible"

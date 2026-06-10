@@ -113,7 +113,11 @@ pub fn list_directory(path: &Path) -> Result<Vec<commands::FsEntry>, String> {
             name: item.file_name().to_string_lossy().into_owned(),
             path: entry_path.to_string_lossy().into_owned(),
             is_dir: file_type.is_dir(),
-            size: if file_type.is_dir() { 0 } else { metadata.len() },
+            size: if file_type.is_dir() {
+                0
+            } else {
+                metadata.len()
+            },
             modified: metadata.modified().ok().and_then(format_modified),
         });
     }
@@ -309,31 +313,23 @@ pub fn list_solution_files(dir: &Path) -> Result<Vec<PathBuf>, String> {
     }
 
     solutions.sort_by(|left, right| {
-        let left_ext = left
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or("");
-        let right_ext = right
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or("");
+        let left_ext = left.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+        let right_ext = right.extension().and_then(|ext| ext.to_str()).unwrap_or("");
         let left_is_sln = left_ext.eq_ignore_ascii_case("sln");
         let right_is_sln = right_ext.eq_ignore_ascii_case("sln");
-        right_is_sln
-            .cmp(&left_is_sln)
-            .then_with(|| {
-                left.file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or("")
-                    .to_lowercase()
-                    .cmp(
-                        &right
-                            .file_name()
-                            .and_then(|name| name.to_str())
-                            .unwrap_or("")
-                            .to_lowercase(),
-                    )
-            })
+        right_is_sln.cmp(&left_is_sln).then_with(|| {
+            left.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("")
+                .to_lowercase()
+                .cmp(
+                    &right
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or("")
+                        .to_lowercase(),
+                )
+        })
     });
 
     Ok(solutions)
@@ -501,10 +497,7 @@ fn which_on_path(names: &[&str]) -> Option<PathBuf> {
 }
 
 fn first_existing_file(candidates: &[PathBuf]) -> Option<PathBuf> {
-    candidates
-        .iter()
-        .find(|path| path.is_file())
-        .cloned()
+    candidates.iter().find(|path| path.is_file()).cloned()
 }
 
 fn find_jetbrains_toolbox_rider_bin() -> Option<PathBuf> {
@@ -532,9 +525,12 @@ fn find_jetbrains_toolbox_rider_bin() -> Option<PathBuf> {
 
 fn jetbrains_toolbox_apps_dir() -> Option<PathBuf> {
     if cfg!(windows) {
-        std::env::var("LOCALAPPDATA")
-            .ok()
-            .map(|dir| PathBuf::from(dir).join("JetBrains").join("Toolbox").join("apps"))
+        std::env::var("LOCALAPPDATA").ok().map(|dir| {
+            PathBuf::from(dir)
+                .join("JetBrains")
+                .join("Toolbox")
+                .join("apps")
+        })
     } else if cfg!(target_os = "macos") {
         user_home().map(|home| {
             home.join("Library")
@@ -596,7 +592,7 @@ pub fn find_rider_launcher() -> Option<PathBuf> {
             }
         }
 
-        return first_existing_file(&candidates).or_else(|| which_on_path(rider_bin_names()));
+        first_existing_file(&candidates).or_else(|| which_on_path(rider_bin_names()))
     }
 
     #[cfg(target_os = "macos")]
@@ -617,7 +613,7 @@ pub fn find_rider_launcher() -> Option<PathBuf> {
         if let Some(toolbox) = find_jetbrains_toolbox_rider_bin() {
             candidates.push(toolbox);
         }
-        return first_existing_file(&candidates).or_else(|| which_on_path(rider_bin_names()));
+        first_existing_file(&candidates).or_else(|| which_on_path(rider_bin_names()))
     }
 
     #[cfg(not(any(windows, target_os = "macos")))]
@@ -629,12 +625,13 @@ pub fn find_rider_launcher() -> Option<PathBuf> {
         if let Some(toolbox) = find_jetbrains_toolbox_rider_bin() {
             candidates.push(toolbox);
         }
-        return first_existing_file(&candidates).or_else(|| which_on_path(rider_bin_names()));
+        first_existing_file(&candidates).or_else(|| which_on_path(rider_bin_names()))
     }
 }
 
 pub fn open_in_rider(solution_path: &Path) -> Result<(), String> {
-    let launcher = find_rider_launcher().ok_or_else(|| "JetBrains Rider was not found".to_string())?;
+    let launcher =
+        find_rider_launcher().ok_or_else(|| "JetBrains Rider was not found".to_string())?;
     open_solution_with_launcher(&launcher, "JetBrains Rider", solution_path)
 }
 
@@ -643,24 +640,26 @@ pub fn find_vscode_launcher() -> Option<PathBuf> {
     {
         let mut candidates = Vec::new();
         if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
-            let root = PathBuf::from(local_app_data).join("Programs").join("Microsoft VS Code").join("bin");
+            let root = PathBuf::from(local_app_data)
+                .join("Programs")
+                .join("Microsoft VS Code")
+                .join("bin");
             candidates.push(root.join("code.cmd"));
             candidates.push(root.join("code.exe"));
         }
-        return first_existing_file(&candidates).or_else(|| which_on_path(&["code.cmd", "code.exe"]));
+        first_existing_file(&candidates)
+            .or_else(|| which_on_path(&["code.cmd", "code.exe"]))
     }
 
     #[cfg(target_os = "macos")]
     {
         let candidates = [
-            PathBuf::from(
-                "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
-            ),
+            PathBuf::from("/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"),
             PathBuf::from(
                 "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code",
             ),
         ];
-        return first_existing_file(&candidates).or_else(|| which_on_path(&["code"]));
+        first_existing_file(&candidates).or_else(|| which_on_path(&["code"]))
     }
 
     #[cfg(not(any(windows, target_os = "macos")))]
@@ -670,7 +669,7 @@ pub fn find_vscode_launcher() -> Option<PathBuf> {
             PathBuf::from("/usr/local/bin/code"),
             PathBuf::from("/snap/bin/code"),
         ];
-        return first_existing_file(&candidates).or_else(|| which_on_path(&["code"]));
+        first_existing_file(&candidates).or_else(|| which_on_path(&["code"]))
     }
 }
 
@@ -679,8 +678,7 @@ pub fn open_in_vscode(path: &Path) -> Result<(), String> {
         return Err(format!("Not a directory: {}", path.display()));
     }
 
-    let launcher = find_vscode_launcher()
-        .ok_or_else(|| "VS Code was not found".to_string())?;
+    let launcher = find_vscode_launcher().ok_or_else(|| "VS Code was not found".to_string())?;
 
     Command::new(&launcher)
         .arg(path)
@@ -701,13 +699,13 @@ pub fn find_zed_launcher() -> Option<PathBuf> {
                 return Some(bundled);
             }
         }
-        return which_on_path(&["zed.exe", "zed"]);
+        which_on_path(&["zed.exe", "zed"])
     }
 
     #[cfg(target_os = "macos")]
     {
         let candidates = [PathBuf::from("/Applications/Zed.app/Contents/MacOS/zed")];
-        return first_existing_file(&candidates).or_else(|| which_on_path(&["zed"]));
+        first_existing_file(&candidates).or_else(|| which_on_path(&["zed"]))
     }
 
     #[cfg(not(any(windows, target_os = "macos")))]
@@ -721,8 +719,7 @@ pub fn open_in_zed(path: &Path) -> Result<(), String> {
         return Err(format!("Not a directory: {}", path.display()));
     }
 
-    let launcher = find_zed_launcher()
-        .ok_or_else(|| "Zed was not found".to_string())?;
+    let launcher = find_zed_launcher().ok_or_else(|| "Zed was not found".to_string())?;
 
     Command::new(&launcher)
         .arg(path)
@@ -882,8 +879,8 @@ mod tests {
         fs::write(&file, b"png").expect("write file");
         std::thread::sleep(Duration::from_millis(20));
 
-        let deleted = cleanup_old_composer_attachments_in(&temp, Duration::from_secs(0))
-            .expect("cleanup");
+        let deleted =
+            cleanup_old_composer_attachments_in(&temp, Duration::from_secs(0)).expect("cleanup");
         assert_eq!(deleted, 1);
         assert!(!file.exists());
 
@@ -892,7 +889,8 @@ mod tests {
 
     #[test]
     fn cleanup_old_composer_attachments_noops_when_dir_missing() {
-        let temp = std::env::temp_dir().join(format!("oterm_attach_missing_{}", std::process::id()));
+        let temp =
+            std::env::temp_dir().join(format!("oterm_attach_missing_{}", std::process::id()));
         let deleted =
             cleanup_old_composer_attachments_in(&temp, Duration::from_secs(7 * 24 * 60 * 60))
                 .expect("cleanup");
