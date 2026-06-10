@@ -18,7 +18,8 @@
         "height": 800,
         "decorations": false,
         "backgroundColor": "#0a0a0a",
-        "devtools": false
+        "devtools": false,
+        "dragDropEnabled": false
       }
     ],
     "security": {

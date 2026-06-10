@@ -217,6 +217,10 @@ impl PtyManager {
         if let Ok(mut child) = session.child.lock() {
             let _ = child.kill();
         }
+        // Drop PTY handles promptly so ConPTY/OpenConsole teardown is not delayed.
+        drop(session.master);
+        drop(session.writer);
+        drop(session.child);
         Ok(())
     }
 }

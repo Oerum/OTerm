@@ -39,7 +39,11 @@ function parsePane(value: unknown): PersistedWorkspacePane | null {
       : typeof pane.customTitle === "string"
         ? pane.customTitle
         : null;
-  return { shellId: pane.shellId, cwd: pane.cwd, customTitle };
+  const sshEndpointId =
+    pane.sshEndpointId === null || typeof pane.sshEndpointId === "string"
+      ? pane.sshEndpointId
+      : null;
+  return { shellId: pane.shellId, cwd: pane.cwd, customTitle, sshEndpointId };
 }
 
 function parseTab(value: unknown): PersistedTerminalTab | null {

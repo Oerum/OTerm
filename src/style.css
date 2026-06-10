@@ -178,3 +178,14 @@ body {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+.oterm-input-number {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.oterm-input-number::-webkit-outer-spin-button,
+.oterm-input-number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

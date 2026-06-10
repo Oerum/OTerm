@@ -39,6 +39,8 @@ export interface WorkspacePane {
   activeAgentId: CliAgentId | null;
   oscTitle: string | null;
   hasUnseenNotification: boolean;
+  /** When set, the pane uses the native russh SSH terminal instead of a local shell. */
+  sshEndpointId: string | null;
 }
 
 export interface WorkspaceTerminalTab {
@@ -179,6 +181,7 @@ export interface PersistedWorkspacePane {
   shellId: string;
   cwd: string;
   customTitle: string | null;
+  sshEndpointId?: string | null;
 }
 
 export interface PersistedTerminalTab {

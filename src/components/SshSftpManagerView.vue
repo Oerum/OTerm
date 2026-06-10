@@ -1,5 +1,31 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { openPath } from "@tauri-apps/plugin-opener";
+import { pushAppToast, setAppToastActivity } from "../lib/appToast";
+import { listDirectory, userHome } from "../lib/fsApi";
+import {
+  createDir,
+  joinPath,
+  parentPath,
+  readFile,
+  removePath,
+  transferLocalToRemote,
+  transferRemoteToLocal,
+  writeFile,
+} from "../lib/fsTransferApi";
+import {
+  deleteHostPassword,
+  loadHostPassword,
+  saveHostPassword,
+  saveIdentityPassphrase,
+} from "../lib/sshCredentialStore";
+import {
+  networkHopIntegratedConnectError,
+  resolveConnectSecrets,
+  type ConnectSecrets,
+} from "../lib/sshConnectSecrets";
+import { exportSshLibrary, importSshLibrary } from "../lib/sshLibraryExport";
 import {
   parseSshConnectError,
   sshSftpConnect,
@@ -11,27 +37,38 @@ import {
   sshSftpUpload,
 } from "../lib/sshSftpApi";
 import {
-  endpointsInCategory,
+  defaultSshEndpoint,
+  endpointAuthMethod,
+  endpointDisplayLabel,
+  endpointKeyPath,
+  type SshEndpoint,
+  type SshGroup,
+  type SshSftpEntry,
+} from "../types/sshSftp";
+import type { SshIdentity } from "../types/sshIdentity";
+import {
+  discoverSshIdentities,
+  mergeDiscoveredIdentities,
+} from "../lib/sshIdentityDiscovery";
+import {
+  cloneSshEndpoint,
   loadSshSftpLibrary,
   newId,
   saveSshSftpLibrary,
-  sortCategories,
 } from "../lib/sshSftpStore";
-import type { SshCategory, SshEndpoint, SshSftpEntry } from "../types/sshSftp";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import PromptDialog from "./PromptDialog.vue";
+import SftpDualPane from "./ssh/SftpDualPane.vue";
+import type { FilePaneEntry } from "./ssh/SftpFilePane.vue";
+import SshHostDetailBar from "./ssh/SshHostDetailBar.vue";
+import SshHostEditor from "./ssh/SshHostEditor.vue";
+import SshHostSidebar from "./ssh/SshHostSidebar.vue";
+import SshSecretPrompt from "./ssh/SshSecretPrompt.vue";
 
 const emit = defineEmits<{
   close: [];
   openSshTerminal: [endpoint: SshEndpoint];
 }>();
-
-type SecretPrompt = {
-  title: string;
-  label: string;
-  value: string;
-  onSubmit: (value: string) => void;
-};
 
 type PendingConfirm = {
   title: string;
@@ -39,6 +76,7 @@ type PendingConfirm = {
   confirmLabel?: string;
   dangerous?: boolean;
   onConfirm: () => void;
+  onCancel?: () => void;
 };
 
 type PendingPrompt = {
@@ -52,71 +90,128 @@ type PendingPrompt = {
 type ActiveSession = {
   sessionId: string;
   endpointId: string;
-  path: string;
-  entries: SshSftpEntry[];
+  remotePath: string;
+  remoteEntries: SshSftpEntry[];
 };
 
+type SecretKind = "password" | "passphrase";
+
 const library = ref(loadSshSftpLibrary());
-const selectedCategoryId = ref<string | "all" | "uncategorized">("all");
+const selectedGroupId = ref<string | "all" | "uncategorized">("all");
+const selectedTagFilters = ref<string[]>([]);
 const selectedEndpointId = ref<string | null>(null);
 const search = ref("");
 const busy = ref(false);
 const error = ref<string | null>(null);
 const panel = ref<"browse" | "edit">("browse");
 const activeSession = ref<ActiveSession | null>(null);
-const secretPrompt = ref<SecretPrompt | null>(null);
+const localPath = ref(".");
+const localEntries = ref<FilePaneEntry[]>([]);
+const selectedLocalEntry = ref<FilePaneEntry | null>(null);
+const selectedRemoteEntry = ref<FilePaneEntry | null>(null);
+const focusedPane = ref<"local" | "remote">("remote");
+
+const activeWatches = new Map<string, {
+  intervalId: ReturnType<typeof setInterval>;
+  lastModifiedTime: number;
+  lastSize: number;
+}>();
+
+function clearAllWatches() {
+  for (const watch of activeWatches.values()) {
+    clearInterval(watch.intervalId);
+  }
+  activeWatches.clear();
+}
+
 const confirmOpen = ref(false);
 const pendingConfirm = ref<PendingConfirm | null>(null);
 const promptOpen = ref(false);
 const pendingPrompt = ref<PendingPrompt | null>(null);
 const promptValue = ref("");
-const uploadInputRef = ref<HTMLInputElement | null>(null);
 
-const draft = ref<SshEndpoint>({
-  id: "",
-  categoryId: null,
-  name: "",
-  host: "",
-  port: 22,
-  username: "",
-  authMethod: "password",
-  keyPath: null,
-  defaultPath: ".",
-  notes: "",
-});
+const secretOpen = ref(false);
+const secretKind = ref<SecretKind>("password");
+const secretValue = ref("");
+const secretSave = ref(false);
+const secretTitle = ref("");
+const secretLabel = ref("");
+const secretSaveLabel = ref("Save in OS credential store");
+const uploadConfirmForPath = ref<string | null>(null);
+let secretResolve: ((value: string) => void) | null = null;
+let secretReject: ((reason?: unknown) => void) | null = null;
+const secretEndpoint = ref<SshEndpoint | null>(null);
 
-const categories = computed(() => sortCategories(library.value.categories));
-const filteredEndpoints = computed(() => {
-  const q = search.value.trim().toLowerCase();
-  let rows = library.value.endpoints;
-  if (selectedCategoryId.value === "uncategorized") {
-    rows = rows.filter((e) => !e.categoryId);
-  } else if (selectedCategoryId.value !== "all") {
-    rows = rows.filter((e) => e.categoryId === selectedCategoryId.value);
-  }
-  if (!q) return rows.sort((a, b) => a.name.localeCompare(b.name));
-  return rows
-    .filter(
-      (e) =>
-        e.name.toLowerCase().includes(q) ||
-        e.host.toLowerCase().includes(q) ||
-        e.username.toLowerCase().includes(q),
-    )
-    .sort((a, b) => a.name.localeCompare(b.name));
-});
+const draft = ref<SshEndpoint>(defaultSshEndpoint({ id: newId("ssh") }));
+const draftPassword = ref("");
+const draftHasStoredPassword = ref(false);
+const savingDraft = ref(false);
 
 const selectedEndpoint = computed(
   () => library.value.endpoints.find((e) => e.id === selectedEndpointId.value) ?? null,
 );
 
-const pathSegments = computed(() => {
-  const path = activeSession.value?.path ?? ".";
-  if (path === "." || path === "/") return [path];
-  return path.split("/").filter(Boolean);
-});
+const isEditingNew = computed(
+  () => panel.value === "edit" && !library.value.endpoints.some((e) => e.id === draft.value.id),
+);
+
+const sftpConnected = computed(() => activeSession.value !== null);
 
 function persist() {
   saveSshSftpLibrary(library.value);
+}
+
+function toFileEntries(entries: Awaited<ReturnType<typeof listDirectory>>): FilePaneEntry[] {
+  return entries.map((entry) => ({
+    name: entry.name,
+    path: entry.path,
+    isDir: entry.isDir,
+    size: entry.size ?? 0,
+    modified: entry.modified ?? null,
+  }));
+}
+
+function toRemoteEntries(entries: SshSftpEntry[]): FilePaneEntry[] {
+  return entries.map((entry) => ({
+    name: entry.name,
+    path: entry.path,
+    isDir: entry.isDir,
+    size: entry.size,
+    modified: entry.modified ?? null,
+  }));
+}
+
+async function loadLocalDir(path: string) {
+  const result = await runBusy(async () => {
+    const entries = await listDirectory(path === "." ? undefined : path);
+    localPath.value = path;
+    localEntries.value = toFileEntries(entries);
+    return true;
+  });
+  if (result === undefined) {
+    pushAppToast(error.value ?? "Failed to open local folder", "error");
+  }
+}
+
+async function ensureLocalHome(endpoint: SshEndpoint | null) {
+  if (endpoint?.localStartPath.trim()) {
+    await loadLocalDir(endpoint.localStartPath.trim());
+    return;
+  }
+  const home = await userHome();
+  await loadLocalDir(home);
+}
+
+async function loadRemoteDir(path: string) {
+  const session = activeSession.value;
+  if (!session) return;
+  const entries = await runBusy(() => sshSftpListDir(session.sessionId, path));
+  if (!entries) return;
+  activeSession.value = {
+    ...session,
+    remotePath: path,
+    remoteEntries: entries,
+  };
 }
 
 function selectEndpoint(endpoint: SshEndpoint) {
@@ -124,46 +219,170 @@ function selectEndpoint(endpoint: SshEndpoint) {
   panel.value = "browse";
 }
 
+function resetDraftPasswordState() {
+  draftPassword.value = "";
+  draftHasStoredPassword.value = false;
+}
+
+async function refreshDraftPasswordState(endpoint: SshEndpoint) {
+  resetDraftPasswordState();
+  if (endpoint.auth.method !== "password" || !endpoint.auth.savePassword) return;
+  const stored = await loadHostPassword(endpoint.id).catch(() => null);
+  draftHasStoredPassword.value = Boolean(stored);
+}
+
 function startNewEndpoint() {
-  draft.value = {
+  draft.value = defaultSshEndpoint({
     id: newId("ssh"),
-    categoryId: selectedCategoryId.value === "all" || selectedCategoryId.value === "uncategorized"
-      ? null
-      : selectedCategoryId.value,
-    name: "",
-    host: "",
-    port: 22,
-    username: "",
-    authMethod: "password",
-    keyPath: null,
-    defaultPath: ".",
-    notes: "",
-  };
+    groupId:
+      selectedGroupId.value === "all" || selectedGroupId.value === "uncategorized"
+        ? null
+        : selectedGroupId.value,
+  });
+  resetDraftPasswordState();
   selectedEndpointId.value = draft.value.id;
   panel.value = "edit";
+  error.value = null;
 }
 
-function startEditEndpoint(endpoint: SshEndpoint) {
-  draft.value = { ...endpoint };
+async function startEditEndpoint(endpoint: SshEndpoint) {
+  draft.value = cloneSshEndpoint(endpoint);
+  resetDraftPasswordState();
   selectedEndpointId.value = endpoint.id;
   panel.value = "edit";
+  error.value = null;
+  await refreshDraftPasswordState(endpoint);
 }
 
-function saveEndpointDraft() {
-  const next = { ...draft.value };
-  if (!next.name.trim() || !next.host.trim() || !next.username.trim()) {
-    error.value = "Name, host, and username are required.";
+function editSelectedEndpoint() {
+  const endpoint = selectedEndpoint.value;
+  if (!endpoint) {
+    pushAppToast("Select a host to edit", "warning");
     return;
   }
-  const idx = library.value.endpoints.findIndex((e) => e.id === next.id);
-  if (idx >= 0) {
-    library.value.endpoints[idx] = next;
-  } else {
-    library.value.endpoints.push(next);
+  void startEditEndpoint(endpoint);
+}
+
+async function saveEndpointDraft() {
+  if (savingDraft.value) return;
+
+  savingDraft.value = true;
+  setAppToastActivity("Saving host…");
+
+  try {
+    const next = cloneSshEndpoint(draft.value);
+    if (!next.label.trim() || !next.host.trim() || !next.username.trim()) {
+      const message = "Label, host, and username are required.";
+      error.value = message;
+      pushAppToast(message, "error");
+      return;
+    }
+    if (next.auth.method === "password" && next.auth.savePassword) {
+      const password = draftPassword.value;
+      if (!password && !draftHasStoredPassword.value) {
+        const message = "Enter a password or disable “Save password in OS credential store”.";
+        error.value = message;
+        pushAppToast(message, "error");
+        return;
+      }
+    }
+
+    const passwordToStore = draftPassword.value;
+
+    if (next.auth.method === "password") {
+      if (next.auth.savePassword) {
+        if (passwordToStore) {
+          await saveHostPassword(next.id, passwordToStore);
+        } else if (!draftHasStoredPassword.value) {
+          const message = "Enter a password to store in the OS credential store.";
+          error.value = message;
+          pushAppToast(message, "error");
+          return;
+        }
+      } else {
+        await deleteHostPassword(next.id).catch(() => undefined);
+      }
+    } else {
+      await deleteHostPassword(next.id).catch(() => undefined);
+    }
+
+    const idx = library.value.endpoints.findIndex((e) => e.id === next.id);
+    const isNew = idx < 0;
+    if (idx >= 0) {
+      library.value.endpoints[idx] = next;
+    } else {
+      library.value.endpoints.push(next);
+    }
+
+    persist();
+    selectedEndpointId.value = next.id;
+    panel.value = "browse";
+    error.value = null;
+    draftPassword.value = "";
+    draftHasStoredPassword.value =
+      next.auth.method === "password" && Boolean(next.auth.savePassword);
+    pushAppToast(isNew ? "Host saved" : "Host updated", "success");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    error.value = message;
+    pushAppToast(`Could not save host: ${message}`, "error");
+  } finally {
+    savingDraft.value = false;
+    setAppToastActivity(null);
   }
-  persist();
-  selectedEndpointId.value = next.id;
+}
+
+async function duplicateEndpoint(endpoint: SshEndpoint) {
+  setAppToastActivity("Duplicating host…");
+  try {
+    const copy = cloneSshEndpoint(endpoint);
+    copy.id = newId("ssh");
+    copy.label = `${endpointDisplayLabel(endpoint)} copy`;
+    library.value.endpoints.push(copy);
+    persist();
+    draft.value = cloneSshEndpoint(copy);
+    resetDraftPasswordState();
+    selectedEndpointId.value = copy.id;
+    panel.value = "edit";
+    error.value = null;
+    pushAppToast("Host duplicated — review and save", "success");
+
+    if (endpoint.auth.savePassword) {
+      const password = await loadHostPassword(endpoint.id).catch(() => null);
+      if (password) {
+        await saveHostPassword(copy.id, password);
+        copy.auth = { ...copy.auth, savePassword: true };
+        const idx = library.value.endpoints.findIndex((e) => e.id === copy.id);
+        if (idx >= 0) library.value.endpoints[idx] = copy;
+        persist();
+        draft.value = cloneSshEndpoint(copy);
+        draftHasStoredPassword.value = true;
+      }
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    error.value = message;
+    pushAppToast(`Could not duplicate host: ${message}`, "error");
+  } finally {
+    setAppToastActivity(null);
+  }
+}
+
+function duplicateSelectedEndpoint() {
+  const endpoint = selectedEndpoint.value;
+  if (!endpoint) {
+    pushAppToast("Select a host to duplicate", "warning");
+    return;
+  }
+  void duplicateEndpoint(endpoint);
+}
+
+function cancelEdit() {
+  if (isEditingNew.value) {
+    selectedEndpointId.value = null;
+  }
   panel.value = "browse";
+  resetDraftPasswordState();
   error.value = null;
 }
 
@@ -182,26 +401,8 @@ function resolvePrompt(confirmed: boolean) {
   if (confirmed && pending && value) pending.onSubmit(value);
 }
 
-function addCategory() {
-  openPrompt({
-    title: "New category",
-    label: "Category name",
-    placeholder: "e.g. Production, Staging",
-    confirmLabel: "Create",
-    onSubmit: (name) => {
-      const category: SshCategory = {
-        id: newId("cat"),
-        name,
-        order: library.value.categories.length,
-      };
-      library.value.categories.push(category);
-      persist();
-      selectedCategoryId.value = category.id;
-    },
-  });
-}
-
 function askConfirm(options: PendingConfirm) {
+  if (confirmOpen.value) return;
   pendingConfirm.value = options;
   confirmOpen.value = true;
 }
@@ -210,13 +411,39 @@ function resolveConfirm(confirmed: boolean) {
   const pending = pendingConfirm.value;
   confirmOpen.value = false;
   pendingConfirm.value = null;
-  if (confirmed) pending?.onConfirm();
+  if (confirmed) {
+    pending?.onConfirm();
+  } else {
+    pending?.onCancel?.();
+  }
+}
+
+function addGroup() {
+  openPrompt({
+    title: "New group",
+    label: "Group name",
+    placeholder: "e.g. Production",
+    confirmLabel: "Create",
+    onSubmit: (name) => {
+      const group: SshGroup = {
+        id: newId("group"),
+        name,
+        parentId: selectedGroupId.value !== "all" && selectedGroupId.value !== "uncategorized"
+          ? selectedGroupId.value
+          : null,
+        order: library.value.groups.length,
+      };
+      library.value.groups.push(group);
+      persist();
+      selectedGroupId.value = group.id;
+    },
+  });
 }
 
 function deleteEndpoint(endpoint: SshEndpoint) {
   askConfirm({
-    title: "Delete endpoint?",
-    message: `Remove "${endpoint.name}" from your library?`,
+    title: "Delete host?",
+    message: `Remove "${endpointDisplayLabel(endpoint)}" from your library?`,
     confirmLabel: "Delete",
     dangerous: true,
     onConfirm: () => {
@@ -227,33 +454,70 @@ function deleteEndpoint(endpoint: SshEndpoint) {
       if (selectedEndpointId.value === endpoint.id) {
         selectedEndpointId.value = null;
       }
+      void deleteHostPassword(endpoint.id).catch(() => undefined);
       persist();
     },
   });
 }
 
-let secretReject: ((reason?: unknown) => void) | null = null;
-
-function askSecret(title: string, label: string): Promise<string> {
+function askSecret(
+  kind: SecretKind,
+  endpoint: SshEndpoint,
+  title: string,
+  label: string,
+  defaultSave: boolean,
+): Promise<string> {
   return new Promise((resolve, reject) => {
+    secretKind.value = kind;
+    secretEndpoint.value = endpoint;
+    secretTitle.value = title;
+    secretLabel.value = label;
+    secretValue.value = "";
+    secretSave.value = defaultSave;
+    secretSaveLabel.value =
+      kind === "password"
+        ? "Save password in OS credential store"
+        : "Save passphrase in OS credential store";
+    secretOpen.value = true;
+    secretResolve = resolve;
     secretReject = reject;
-    secretPrompt.value = {
-      title,
-      label,
-      value: "",
-      onSubmit: (value) => {
-        secretPrompt.value = null;
-        secretReject = null;
-        resolve(value);
-      },
-    };
   });
 }
 
-function cancelSecretPrompt() {
-  secretPrompt.value = null;
-  secretReject?.(new Error("Cancelled"));
+function submitSecret() {
+  const value = secretValue.value;
+  const endpoint = secretEndpoint.value;
+  secretOpen.value = false;
+  secretResolve?.(value);
+  secretResolve = null;
   secretReject = null;
+  if (endpoint && secretSave.value) {
+    if (secretKind.value === "password") {
+      void saveHostPassword(endpoint.id, value).catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        pushAppToast(`Could not save password: ${message}`, "error");
+      });
+      const idx = library.value.endpoints.findIndex((item) => item.id === endpoint.id);
+      if (idx >= 0) {
+        library.value.endpoints[idx] = {
+          ...library.value.endpoints[idx],
+          auth: { ...library.value.endpoints[idx].auth, savePassword: true },
+        };
+        persist();
+      }
+    } else if (secretKind.value === "passphrase" && endpoint.auth.identityId) {
+      void saveIdentityPassphrase(endpoint.auth.identityId, value);
+    }
+  }
+  secretEndpoint.value = null;
+}
+
+function cancelSecret() {
+  secretOpen.value = false;
+  secretReject?.(new Error("Cancelled"));
+  secretResolve = null;
+  secretReject = null;
+  secretEndpoint.value = null;
 }
 
 async function runBusy<T>(action: () => Promise<T>): Promise<T | undefined> {
@@ -269,54 +533,44 @@ async function runBusy<T>(action: () => Promise<T>): Promise<T | undefined> {
   }
 }
 
-type ConnectSecrets = {
-  password?: string;
-  keyPassphrase?: string;
-};
-
-async function connectSftp(
-  endpoint: SshEndpoint,
-  acceptHostKey = false,
-  secrets?: ConnectSecrets,
-) {
-  let password = secrets?.password;
-  let keyPassphrase = secrets?.keyPassphrase;
-
-  if (!acceptHostKey) {
-    if (endpoint.authMethod === "password" && password === undefined) {
-      try {
-        password = await askSecret(
-          "SSH password",
-          `Password for ${endpoint.username}@${endpoint.host}`,
-        );
-      } catch {
-        return;
-      }
-    } else if (endpoint.authMethod === "publicKey" && endpoint.keyPath && keyPassphrase === undefined) {
-      try {
-        keyPassphrase = await askSecret(
-          "Key passphrase",
-          "Passphrase (leave empty if none)",
-        );
-      } catch {
-        return;
-      }
-    }
+async function connectSftp(endpoint: SshEndpoint, acceptHostKey = false, secrets?: ConnectSecrets) {
+  const hopError = networkHopIntegratedConnectError(endpoint, "sftp");
+  if (hopError) {
+    error.value = hopError;
+    return;
   }
 
-  const connectSecrets: ConnectSecrets = { password, keyPassphrase };
+  const resolved = await resolveConnectSecrets(
+    endpoint,
+    library.value,
+    {
+      askSecret: ({ kind, endpoint: ep, title, label, defaultSave }) =>
+        askSecret(kind, ep, title, label, defaultSave),
+      toast: (message, kind) => pushAppToast(message, kind),
+      agentUnsupported: () => {
+        error.value = "SFTP does not support SSH agent auth. Use a key file or password for SFTP.";
+      },
+    },
+    secrets,
+    { context: "sftp" },
+  );
+  if (!resolved) return;
+
   busy.value = true;
   error.value = null;
   let result: Awaited<ReturnType<typeof sshSftpConnect>> | undefined;
+  const auth = endpointAuthMethod(endpoint);
+  const keyPath = endpointKeyPath(endpoint, library.value.identities);
+
   try {
     result = await sshSftpConnect({
       host: endpoint.host,
       port: endpoint.port,
       username: endpoint.username,
-      authMethod: endpoint.authMethod,
-      password: password ?? null,
-      keyPath: endpoint.keyPath,
-      keyPassphrase: keyPassphrase || null,
+      authMethod: auth,
+      password: resolved.password ?? null,
+      keyPath,
+      keyPassphrase: resolved.keyPassphrase || null,
       acceptHostKey,
     });
   } catch (err) {
@@ -326,7 +580,7 @@ async function connectSftp(
         title: "Trust this host?",
         message: `The server ${endpoint.host}:${endpoint.port} is not in your known_hosts file.\n\n${hostKeyError.algorithm}\n${hostKeyError.fingerprint}\n\nOnly continue if you trust this server.`,
         confirmLabel: "Trust and connect",
-        onConfirm: () => void connectSftp(endpoint, true, connectSecrets),
+        onConfirm: () => void connectSftp(endpoint, true, resolved),
       });
       return;
     }
@@ -342,167 +596,484 @@ async function connectSftp(
     busy.value = false;
   }
 
-  const path = endpoint.defaultPath.trim() || ".";
-  const entries = await sshSftpListDir(result.sessionId, path).catch(() => []);
+  if (!result) return;
+
+  const remotePath = endpoint.defaultPath.trim() || result.homePath || ".";
+  const entries = await sshSftpListDir(result.sessionId, remotePath).catch(() => []);
   activeSession.value = {
     sessionId: result.sessionId,
     endpointId: endpoint.id,
-    path: result.homePath || path,
-    entries,
+    remotePath,
+    remoteEntries: entries,
   };
   selectedEndpointId.value = endpoint.id;
   panel.value = "browse";
+  await ensureLocalHome(endpoint);
+  pushAppToast("SFTP connected", "success");
 }
 
 async function disconnectSftp() {
   const session = activeSession.value;
   if (!session) return;
+  clearAllWatches();
   await runBusy(() => sshSftpDisconnect(session.sessionId));
   activeSession.value = null;
 }
 
-async function loadRemoteDir(path: string) {
-  const session = activeSession.value;
-  if (!session) return;
-  const entries = await runBusy(() => sshSftpListDir(session.sessionId, path));
-  if (!entries) return;
-  activeSession.value = { ...session, path, entries };
+function onConnectSftp() {
+  const endpoint = selectedEndpoint.value;
+  if (!endpoint) return;
+  void connectSftp(endpoint);
 }
 
-function openRemoteEntry(entry: SshSftpEntry) {
-  if (!entry.isDir) return;
-  void loadRemoteDir(entry.path);
+function onLocalUp() {
+  void loadLocalDir(parentPath(localPath.value));
 }
 
-function goRemoteUp() {
+function onRemoteUp() {
   const session = activeSession.value;
   if (!session) return;
-  const path = session.path;
-  if (path === "." || path === "/") return;
-  const parent = path.includes("/") ? path.replace(/\/[^/]+$/, "") || "/" : ".";
+  const parent = parentPath(session.remotePath);
+  if (parent === session.remotePath) return;
   void loadRemoteDir(parent);
 }
 
-function goRemoteSegment(index: number) {
+function onLocalNavigate(path: string) {
+  void loadLocalDir(path);
+}
+
+function onRemoteNavigate(path: string) {
+  void loadRemoteDir(path);
+}
+
+function onLocalOpen(entry: FilePaneEntry) {
+  if (entry.isDir) {
+    void loadLocalDir(entry.path);
+  } else {
+    void openPath(entry.path);
+  }
+}
+
+async function onRemoteOpen(entry: FilePaneEntry) {
+  if (entry.isDir) {
+    void loadRemoteDir(entry.path);
+    return;
+  }
   const session = activeSession.value;
   if (!session) return;
-  const segments = pathSegments.value;
-  if (index < 0 || index >= segments.length) return;
-  const next =
-    segments[0] === "."
-      ? segments.slice(0, index + 1).join("/") || "."
-      : `/${segments.slice(0, index + 1).join("/")}`;
-  void loadRemoteDir(next);
+
+  const home = await userHome();
+  const localTempDir = joinPath(home, ".oterm/sftp_temp/" + session.sessionId);
+  const localTempPath = joinPath(localTempDir, entry.name);
+
+  await runBusy(async () => {
+    await createDir(localTempDir);
+
+    await transferRemoteToLocal(
+      (path) => sshSftpDownload(session.sessionId, path),
+      entry.path,
+      localTempDir,
+      entry.name,
+    );
+
+    const entries = await listDirectory(localTempDir);
+    const tempEntry = entries.find((e) => e.name === entry.name);
+    let lastModifiedTime = tempEntry?.modified ?? "0";
+    let lastSize = tempEntry?.size ?? 0;
+
+    await openPath(localTempPath);
+
+    if (activeWatches.has(localTempPath)) {
+      clearInterval(activeWatches.get(localTempPath)!.intervalId);
+    }
+
+    let consecutiveMissing = 0;
+    const intervalId = setInterval(async () => {
+      if (!activeSession.value || activeSession.value.sessionId !== session.sessionId) {
+        clearInterval(intervalId);
+        activeWatches.delete(localTempPath);
+        return;
+      }
+
+      try {
+        const currentEntries = await listDirectory(localTempDir);
+        const currentEntry = currentEntries.find((e) => e.name === entry.name);
+        if (!currentEntry) {
+          consecutiveMissing += 1;
+          // Only clear if the file has been missing for 10 seconds (7 ticks)
+          if (consecutiveMissing > 7) {
+            clearInterval(intervalId);
+            activeWatches.delete(localTempPath);
+          }
+          return;
+        }
+        consecutiveMissing = 0;
+
+        const currentModified = currentEntry.modified ?? "0";
+        const currentSize = currentEntry.size ?? 0;
+
+        if (currentModified !== lastModifiedTime || currentSize !== lastSize) {
+          lastModifiedTime = currentModified;
+          lastSize = currentSize;
+
+          if (uploadConfirmForPath.value === localTempPath || confirmOpen.value) return;
+          uploadConfirmForPath.value = localTempPath;
+
+          askConfirm({
+            title: "File Changed",
+            message: `"${entry.name}" was modified locally. Would you like to upload it back to the remote server?`,
+            confirmLabel: "Upload",
+            onConfirm: async () => {
+              uploadConfirmForPath.value = null;
+              await runBusy(async () => {
+                await transferLocalToRemote(
+                  localTempPath,
+                  (remotePath, data) => sshSftpUpload(session.sessionId, remotePath, data),
+                  parentPath(entry.path),
+                  entry.name,
+                );
+                await loadRemoteDir(session.remotePath);
+                pushAppToast(`Uploaded changes for ${entry.name}`, "success");
+              });
+            },
+            onCancel: () => {
+              uploadConfirmForPath.value = null;
+              pushAppToast("Changes discarded (not uploaded)", "info");
+            },
+          });
+        }
+      } catch {
+        // Ignore errors checking temp file
+      }
+    }, 1500);
+
+    activeWatches.set(localTempPath, {
+      intervalId,
+      lastModifiedTime: typeof lastModifiedTime === "number" ? lastModifiedTime : parseInt(lastModifiedTime, 10) || 0,
+      lastSize,
+    });
+  });
+}
+
+function onRemoteDownload(entry: FilePaneEntry) {
+  if (entry.isDir) {
+    void loadRemoteDir(entry.path);
+    return;
+  }
+  void transferRemote(entry);
+}
+
+async function uploadLocalDirRecursively(
+  sessionId: string,
+  localPath: string,
+  remoteParentDir: string,
+  folderName: string,
+) {
+  const remoteDirPath = joinPath(remoteParentDir === "." ? "" : remoteParentDir, folderName);
+  await sshSftpCreateDir(sessionId, remoteDirPath);
+  const localEntries = await listDirectory(localPath);
+  for (const entry of localEntries) {
+    if (entry.isDir) {
+      await uploadLocalDirRecursively(sessionId, entry.path, remoteDirPath, entry.name);
+    } else {
+      await transferLocalToRemote(
+        entry.path,
+        (remotePath, data) => sshSftpUpload(sessionId, remotePath, data),
+        remoteDirPath,
+        entry.name,
+      );
+    }
+  }
+}
+
+async function downloadRemoteDirRecursively(
+  sessionId: string,
+  remotePath: string,
+  localParentDir: string,
+  folderName: string,
+) {
+  const localDirPath = joinPath(localParentDir, folderName);
+  await createDir(localDirPath);
+  const remoteEntries = await sshSftpListDir(sessionId, remotePath);
+  for (const entry of remoteEntries) {
+    if (entry.isDir) {
+      await downloadRemoteDirRecursively(sessionId, entry.path, localDirPath, entry.name);
+    } else {
+      await transferRemoteToLocal(
+        (path) => sshSftpDownload(sessionId, path),
+        entry.path,
+        localDirPath,
+        entry.name,
+      );
+    }
+  }
+}
+
+async function isLocalPathDir(path: string): Promise<boolean> {
+  try {
+    await listDirectory(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function transferRemote(entry: FilePaneEntry) {
+  const session = activeSession.value;
+  if (!session) return;
+  await runBusy(async () => {
+    if (entry.isDir) {
+      await downloadRemoteDirRecursively(
+        session.sessionId,
+        entry.path,
+        localPath.value,
+        entry.name,
+      );
+    } else {
+      await transferRemoteToLocal(
+        (path) => sshSftpDownload(session.sessionId, path),
+        entry.path,
+        localPath.value,
+        entry.name,
+      );
+    }
+    await loadLocalDir(localPath.value);
+    pushAppToast(`Downloaded ${entry.name}`, "success");
+  });
+}
+
+async function transferLocalPaths(paths: string[]) {
+  const session = activeSession.value;
+  if (!session || !paths.length) return;
+  let uploaded = 0;
+  for (const localFile of paths) {
+    const name = localFile.split(/[/\\]/).pop() ?? "upload.bin";
+    const isDir = await isLocalPathDir(localFile);
+    const ok = await runBusy(async () => {
+      if (isDir) {
+        await uploadLocalDirRecursively(
+          session.sessionId,
+          localFile,
+          session.remotePath,
+          name,
+        );
+      } else {
+        await transferLocalToRemote(
+          localFile,
+          (remotePath, data) => sshSftpUpload(session.sessionId, remotePath, data),
+          session.remotePath,
+          name,
+        );
+      }
+    });
+    if (ok !== undefined) {
+      uploaded += 1;
+    }
+  }
+  if (!uploaded) {
+    pushAppToast("Failed to upload items", "error");
+    return;
+  }
+  await loadRemoteDir(session.remotePath);
+  pushAppToast(`Uploaded ${uploaded} item(s)`, "success");
+}
+
+async function onDropRemoteOnLocal(entry: FilePaneEntry) {
+  if (entry.side && entry.side !== "remote") return;
+  await transferRemote(entry);
+}
+
+async function onDropLocalEntryOnRemote(entry: FilePaneEntry) {
+  if (entry.side && entry.side !== "local") return;
+  const session = activeSession.value;
+  if (!session) return;
+  await runBusy(async () => {
+    if (entry.isDir) {
+      await uploadLocalDirRecursively(
+        session.sessionId,
+        entry.path,
+        session.remotePath,
+        entry.name,
+      );
+    } else {
+      await transferLocalToRemote(
+        entry.path,
+        (remotePath, data) => sshSftpUpload(session.sessionId, remotePath, data),
+        session.remotePath,
+        entry.name,
+      );
+    }
+    await loadRemoteDir(session.remotePath);
+    pushAppToast(`Uploaded ${entry.name}`, "success");
+  });
+}
+
+function createLocalFolder() {
+  openPrompt({
+    title: "New local folder",
+    label: "Folder name",
+    confirmLabel: "Create",
+    onSubmit: (name) => {
+      void runBusy(async () => {
+        await createDir(joinPath(localPath.value, name));
+        await loadLocalDir(localPath.value);
+      });
+    },
+  });
 }
 
 function createRemoteFolder() {
   const session = activeSession.value;
   if (!session) return;
   openPrompt({
-    title: "New folder",
+    title: "New remote folder",
     label: "Folder name",
-    placeholder: "e.g. uploads",
     confirmLabel: "Create",
     onSubmit: (name) => {
-      void (async () => {
-        const base = session.path === "." ? "" : session.path.replace(/\/$/, "");
-        const path = base ? `${base}/${name}` : name;
-        const ok = await runBusy(() => sshSftpCreateDir(session.sessionId, path));
-        if (ok !== undefined) await loadRemoteDir(session.path);
-      })();
-    },
-  });
-}
-
-function joinRemotePath(base: string, name: string) {
-  if (base === "." || base === "") return name;
-  return `${base.replace(/\/$/, "")}/${name}`;
-}
-
-function pickUploadFiles() {
-  uploadInputRef.value?.click();
-}
-
-async function onUploadFilesSelected(event: Event) {
-  const session = activeSession.value;
-  const input = event.target as HTMLInputElement;
-  const files = input.files;
-  if (!session || !files?.length) return;
-  input.value = "";
-
-  for (const file of Array.from(files)) {
-    const remotePath = joinRemotePath(session.path, file.name);
-    const data = new Uint8Array(await file.arrayBuffer());
-    const ok = await runBusy(() => sshSftpUpload(session.sessionId, remotePath, data));
-    if (ok === undefined) return;
-  }
-  await loadRemoteDir(session.path);
-}
-
-async function downloadRemoteEntry(entry: SshSftpEntry) {
-  const session = activeSession.value;
-  if (!session || entry.isDir) return;
-  const data = await runBusy(() => sshSftpDownload(session.sessionId, entry.path));
-  if (!data) return;
-
-  const blob = new Blob([data]);
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = entry.name;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
-function deleteRemoteEntry(entry: SshSftpEntry) {
-  const session = activeSession.value;
-  if (!session) return;
-  askConfirm({
-    title: entry.isDir ? "Delete folder?" : "Delete file?",
-    message: `Remove "${entry.name}" from the remote host?`,
-    confirmLabel: "Delete",
-    dangerous: true,
-    onConfirm: () => {
       void runBusy(async () => {
-        await sshSftpRemovePath(session.sessionId, entry.path, entry.isDir);
-        await loadRemoteDir(session.path);
+        const path = joinPath(session.remotePath === "." ? "" : session.remotePath, name);
+        await sshSftpCreateDir(session.sessionId, path);
+        await loadRemoteDir(session.remotePath);
       });
     },
   });
 }
 
-function openTerminal(endpoint: SshEndpoint) {
-  emit("openSshTerminal", endpoint);
+function deleteLocalEntry(entry: FilePaneEntry) {
+  askConfirm({
+    title: entry.isDir ? "Delete local folder?" : "Delete local file?",
+    message: `Remove "${entry.name}" from your computer?`,
+    confirmLabel: "Delete",
+    dangerous: true,
+    onConfirm: () => {
+      void runBusy(async () => {
+        await removePath(entry.path, entry.isDir);
+        await loadLocalDir(localPath.value);
+      });
+    },
+  });
 }
 
-function formatSize(size: number) {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+function deleteRemoteEntry(entry: FilePaneEntry) {
+  const session = activeSession.value;
+  if (!session) return;
+  askConfirm({
+    title: entry.isDir ? "Delete remote folder?" : "Delete remote file?",
+    message: `Remove "${entry.name}" from the server?`,
+    confirmLabel: "Delete",
+    dangerous: true,
+    onConfirm: () => {
+      void runBusy(async () => {
+        await sshSftpRemovePath(session.sessionId, entry.path, entry.isDir);
+        await loadRemoteDir(session.remotePath);
+      });
+    },
+  });
 }
 
-function endpointSubtitle(endpoint: SshEndpoint) {
-  return `${endpoint.username}@${endpoint.host}:${endpoint.port}`;
+async function pickRemoteUpload() {
+  const selected = await open({ multiple: true });
+  if (!selected) return;
+  const paths = Array.isArray(selected) ? selected : [selected];
+  await transferLocalPaths(paths);
 }
 
-function rowClass(endpoint: SshEndpoint) {
-  return selectedEndpointId.value === endpoint.id
-    ? "border-[var(--oterm-accent)]/50 bg-[var(--oterm-accent)]/5"
-    : "border-[var(--oterm-border)] bg-[var(--oterm-panel)]";
+function addIdentity(identity: SshIdentity) {
+  library.value.identities.push(identity);
+  persist();
 }
 
-watch(selectedEndpoint, (endpoint) => {
+function removeIdentity(identityId: string) {
+  library.value.identities = library.value.identities.filter((item) => item.id !== identityId);
+  for (const endpoint of library.value.endpoints) {
+    if (endpoint.auth.identityId === identityId) {
+      endpoint.auth = { ...endpoint.auth, identityId: null };
+    }
+  }
+  if (draft.value.auth.identityId === identityId) {
+    draft.value = {
+      ...draft.value,
+      auth: { ...draft.value.auth, identityId: null },
+    };
+  }
+  persist();
+}
+
+async function exportLibrary() {
+  const path = await save({
+    filters: [{ name: "JSON", extensions: ["json"] }],
+    defaultPath: "oterm-ssh-hosts.json",
+  });
+  if (!path) return;
+  const payload = JSON.stringify(exportSshLibrary(library.value), null, 2);
+  await writeFile(path, new TextEncoder().encode(payload));
+  pushAppToast("Hosts exported (no secrets)", "success");
+}
+
+async function importLibraryFile() {
+  const path = await open({
+    multiple: false,
+    filters: [{ name: "JSON", extensions: ["json"] }],
+  });
+  if (!path || Array.isArray(path)) return;
+  const data = await readFile(path);
+  const text = new TextDecoder().decode(data);
+  library.value = importSshLibrary(text);
+  persist();
+  pushAppToast("Hosts imported", "success");
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (!activeSession.value) return;
+  if (event.key === "F5") {
+    event.preventDefault();
+    void loadLocalDir(localPath.value);
+    void loadRemoteDir(activeSession.value.remotePath);
+    return;
+  }
+  if (event.key === "Delete") {
+    const target = focusedPane.value === "local" ? selectedLocalEntry.value : selectedRemoteEntry.value;
+    if (!target) return;
+    event.preventDefault();
+    if (focusedPane.value === "local") {
+      deleteLocalEntry(target);
+    } else {
+      deleteRemoteEntry(target);
+    }
+  }
+}
+
+function selectLocalEntry(entry: FilePaneEntry) {
+  selectedLocalEntry.value = entry;
+  focusedPane.value = "local";
+}
+
+function selectRemoteEntry(entry: FilePaneEntry) {
+  selectedRemoteEntry.value = entry;
+  focusedPane.value = "remote";
+}
+
+watch(selectedEndpoint, async (endpoint) => {
   if (!endpoint || panel.value === "edit") return;
   if (activeSession.value?.endpointId !== endpoint.id) {
     panel.value = "browse";
   }
 });
 
-onMounted(() => {
+onMounted(async () => {
   library.value = loadSshSftpLibrary();
+  const discovered = await discoverSshIdentities();
+  const merged = mergeDiscoveredIdentities(library.value.identities, discovered);
+  if (merged.length !== library.value.identities.length) {
+    library.value.identities = merged;
+    persist();
+  }
+  window.addEventListener("keydown", onKeydown);
+  await ensureLocalHome(null);
 });
 
 onUnmounted(() => {
+  window.removeEventListener("keydown", onKeydown);
   void disconnectSftp();
 });
 </script>
@@ -513,433 +1084,158 @@ onUnmounted(() => {
       class="flex shrink-0 items-center gap-2 border-b border-[var(--oterm-border)] px-4 py-2"
     >
       <h2 class="text-sm font-medium">SSH / SFTP</h2>
-      <span class="truncate text-xs text-[var(--oterm-muted)]">Saved hosts and native SFTP</span>
+      <span class="truncate text-xs text-[var(--oterm-muted)]">Saved hosts and dual-pane SFTP</span>
       <div class="flex-1" />
       <button
         type="button"
-        class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
+        class="rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
         @click="emit('close')"
       >
-        Close tab
+        Close
       </button>
     </header>
 
-    <p v-if="error" class="px-4 py-2 text-sm text-[var(--oterm-danger)]">{{ error }}</p>
+    <p v-if="error" class="shrink-0 border-b border-[var(--oterm-danger)]/30 bg-[var(--oterm-danger)]/10 px-4 py-2 text-xs text-[var(--oterm-danger)]">
+      {{ error }}
+    </p>
 
-    <div class="grid min-h-0 flex-1 lg:grid-cols-[280px_minmax(0,1fr)]">
-      <aside class="flex min-h-0 flex-col border-r border-[var(--oterm-border)]">
-        <div class="space-y-2 border-b border-[var(--oterm-border)] p-3">
-          <input
-            v-model="search"
-            type="search"
-            placeholder="Search hosts..."
-            class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm outline-none focus:border-[var(--oterm-accent)]/50"
+    <div class="flex min-h-0 flex-1">
+      <SshHostSidebar
+        class="w-72 shrink-0"
+        :library="library"
+        :selected-group-id="selectedGroupId"
+        :selected-tag-filters="selectedTagFilters"
+        :selected-endpoint-id="selectedEndpointId"
+        :search="search"
+        @update:search="search = $event"
+        @update:selected-group-id="selectedGroupId = $event"
+        @update:selected-tag-filters="selectedTagFilters = $event"
+        @select-endpoint="selectEndpoint"
+        @add-group="addGroup"
+        @add-host="startNewEndpoint"
+        @export-library="exportLibrary"
+        @import-library="importLibraryFile"
+      />
+
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+        <template v-if="panel === 'edit'">
+          <p
+            v-if="activeSession"
+            class="shrink-0 border-b border-[var(--oterm-border)] bg-[var(--oterm-panel)]/60 px-4 py-2 text-xs text-[var(--oterm-muted)]"
+          >
+            SFTP stays connected in the background while you edit this host.
+          </p>
+          <SshHostEditor
+            v-model:draft="draft"
+            v-model:password="draftPassword"
+            class="min-h-0 flex-1"
+            :library="library"
+            :is-new="isEditingNew"
+            :has-stored-password="draftHasStoredPassword"
+            @add-identity="addIdentity"
+            @remove-identity="removeIdentity"
           />
-          <div class="flex gap-1">
-            <button
-              type="button"
-              class="flex-1 rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
-              @click="addCategory"
-            >
-              Category
-            </button>
-            <button
-              type="button"
-              class="flex-1 rounded border border-[var(--oterm-accent)]/40 px-2 py-1 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10"
-              @click="startNewEndpoint"
-            >
-              Host
-            </button>
-          </div>
-        </div>
-
-        <div class="oterm-scroll min-h-0 flex-1 overflow-auto p-2">
-          <button
-            type="button"
-            class="mb-1 w-full rounded px-2 py-1 text-left text-xs"
-            :class="
-              selectedCategoryId === 'all'
-                ? 'bg-[var(--oterm-accent)]/10 text-[var(--oterm-accent)]'
-                : 'text-[var(--oterm-muted)] hover:bg-white/5'
-            "
-            @click="selectedCategoryId = 'all'"
+          <div
+            class="no-drag shrink-0 border-t border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-4 py-3"
           >
-            All hosts ({{ library.endpoints.length }})
-          </button>
-          <button
-            type="button"
-            class="mb-2 w-full rounded px-2 py-1 text-left text-xs"
-            :class="
-              selectedCategoryId === 'uncategorized'
-                ? 'bg-[var(--oterm-accent)]/10 text-[var(--oterm-accent)]'
-                : 'text-[var(--oterm-muted)] hover:bg-white/5'
-            "
-            @click="selectedCategoryId = 'uncategorized'"
-          >
-            Uncategorized ({{ endpointsInCategory(library.endpoints, null).length }})
-          </button>
-
-          <div v-for="category in categories" :key="category.id" class="mb-2">
-            <button
-              type="button"
-              class="mb-1 w-full rounded px-2 py-1 text-left text-xs font-medium"
-              :class="
-                selectedCategoryId === category.id
-                  ? 'bg-[var(--oterm-accent)]/10 text-[var(--oterm-accent)]'
-                  : 'text-[var(--oterm-muted)] hover:bg-white/5'
-              "
-              @click="selectedCategoryId = category.id"
-            >
-              {{ category.name }}
-              ({{ endpointsInCategory(library.endpoints, category.id).length }})
-            </button>
-          </div>
-
-          <div class="mt-3 space-y-1">
-            <button
-              v-for="endpoint in filteredEndpoints"
-              :key="endpoint.id"
-              type="button"
-              class="w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-white/[0.02]"
-              :class="rowClass(endpoint)"
-              @click="selectEndpoint(endpoint)"
-            >
-              <div class="truncate font-medium">{{ endpoint.name }}</div>
-              <div class="mt-0.5 truncate text-[10px] text-[var(--oterm-muted)]">
-                {{ endpointSubtitle(endpoint) }}
-              </div>
-            </button>
-            <p v-if="filteredEndpoints.length === 0" class="px-2 py-4 text-xs text-[var(--oterm-muted)]">
-              No hosts in this view.
-            </p>
-          </div>
-        </div>
-      </aside>
-
-      <section class="flex min-h-0 flex-1 flex-col">
-        <div
-          v-if="panel === 'edit'"
-          class="oterm-scroll min-h-0 flex-1 overflow-auto p-4"
-        >
-          <h3 class="text-sm font-medium">{{ draft.id ? "Edit host" : "New host" }}</h3>
-          <div class="mt-4 grid max-w-xl gap-3">
-            <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
-              Name
-              <input
-                v-model="draft.name"
-                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
-              />
-            </label>
-            <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
-              Host
-              <input
-                v-model="draft.host"
-                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
-              />
-            </label>
-            <div class="grid grid-cols-2 gap-3">
-              <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
-                Port
-                <input
-                  v-model.number="draft.port"
-                  type="number"
-                  min="1"
-                  max="65535"
-                  class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
-                />
-              </label>
-              <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
-                Username
-                <input
-                  v-model="draft.username"
-                  class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
-                />
-              </label>
-            </div>
-            <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
-              Category
-              <select
-                v-model="draft.categoryId"
-                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
-              >
-                <option :value="null">Uncategorized</option>
-                <option v-for="category in categories" :key="category.id" :value="category.id">
-                  {{ category.name }}
-                </option>
-              </select>
-            </label>
-            <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
-              Authentication
-              <select
-                v-model="draft.authMethod"
-                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
-              >
-                <option value="password">Password</option>
-                <option value="publicKey">Public key</option>
-              </select>
-            </label>
-            <label
-              v-if="draft.authMethod === 'publicKey'"
-              class="grid gap-1 text-xs text-[var(--oterm-muted)]"
-            >
-              Private key path
-              <input
-                v-model="draft.keyPath"
-                placeholder="~/.ssh/id_rsa"
-                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
-              />
-            </label>
-            <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
-              Default SFTP path
-              <input
-                v-model="draft.defaultPath"
-                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
-              />
-            </label>
-            <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">
-              Notes
-              <textarea
-                v-model="draft.notes"
-                rows="3"
-                class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm text-[var(--oterm-text)]"
-              />
-            </label>
-            <div class="flex gap-2 pt-2">
+            <p v-if="error" class="mb-2 text-xs text-[var(--oterm-danger)]">{{ error }}</p>
+            <div class="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                class="rounded-md border border-[var(--oterm-accent)]/40 px-3 py-1.5 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10"
-                @click="saveEndpointDraft"
+                class="rounded-md border border-[var(--oterm-accent)]/40 px-3 py-1.5 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="savingDraft"
+                @click="void saveEndpointDraft()"
               >
-                Save host
+                {{ savingDraft ? "Saving…" : "Save host" }}
               </button>
               <button
                 type="button"
-                class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs hover:bg-white/5"
-                @click="panel = 'browse'"
+                class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="savingDraft"
+                @click="cancelEdit"
               >
                 Cancel
               </button>
             </div>
           </div>
-        </div>
-
+        </template>
         <template v-else-if="selectedEndpoint">
-          <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--oterm-border)] px-4 py-3">
-            <div class="min-w-0">
-              <div class="truncate text-sm font-medium">{{ selectedEndpoint.name }}</div>
-              <div class="truncate text-xs text-[var(--oterm-muted)]">
-                {{ endpointSubtitle(selectedEndpoint) }}
-              </div>
-            </div>
-            <div class="flex-1" />
-            <button
-              type="button"
-              class="rounded border border-[var(--oterm-accent)]/40 px-2 py-1 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10 disabled:opacity-50"
-              :disabled="busy"
-              @click="openTerminal(selectedEndpoint)"
-            >
-              SSH terminal
-            </button>
-            <button
-              v-if="!activeSession || activeSession.endpointId !== selectedEndpoint.id"
-              type="button"
-              class="rounded border border-[var(--oterm-accent)]/40 px-2 py-1 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10 disabled:opacity-50"
-              :disabled="busy"
-              @click="connectSftp(selectedEndpoint)"
-            >
-              Connect SFTP
-            </button>
-            <button
-              v-else
-              type="button"
-              class="rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5 disabled:opacity-50"
-              :disabled="busy"
-              @click="disconnectSftp"
-            >
-              Disconnect
-            </button>
-            <button
-              type="button"
-              class="rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
-              @click="startEditEndpoint(selectedEndpoint)"
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              class="rounded border border-[var(--oterm-danger)]/40 px-2 py-1 text-xs text-[var(--oterm-danger)] hover:bg-[var(--oterm-danger)]/10"
-              @click="deleteEndpoint(selectedEndpoint)"
-            >
-              Delete
-            </button>
-          </div>
+          <SshHostDetailBar
+            :endpoint="selectedEndpoint"
+            :sftp-connected="sftpConnected"
+            :busy="busy"
+            @connect-sftp="onConnectSftp"
+            @disconnect-sftp="disconnectSftp"
+            @open-terminal="emit('openSshTerminal', selectedEndpoint)"
+            @edit="editSelectedEndpoint"
+            @duplicate="duplicateSelectedEndpoint"
+            @remove="deleteEndpoint(selectedEndpoint)"
+          />
 
-          <div
+          <SftpDualPane
             v-if="activeSession && activeSession.endpointId === selectedEndpoint.id"
-            class="flex min-h-0 flex-1 flex-col"
-          >
-            <div class="flex flex-wrap items-center gap-1 border-b border-[var(--oterm-border)] px-4 py-2 text-xs">
-              <button
-                type="button"
-                class="rounded px-1.5 py-0.5 hover:bg-white/5 disabled:opacity-40"
-                :disabled="activeSession.path === '.' || activeSession.path === '/'"
-                @click="goRemoteUp"
-              >
-                Up
-              </button>
-              <template v-for="(segment, index) in pathSegments" :key="`${segment}-${index}`">
-                <span class="text-[var(--oterm-faint)]">/</span>
-                <button
-                  type="button"
-                  class="rounded px-1.5 py-0.5 hover:bg-white/5"
-                  @click="goRemoteSegment(index)"
-                >
-                  {{ segment }}
-                </button>
-              </template>
-              <div class="flex-1" />
-              <button
-                type="button"
-                class="rounded border border-[var(--oterm-border)] px-2 py-0.5 hover:bg-white/5 disabled:opacity-50"
-                :disabled="busy"
-                @click="pickUploadFiles"
-              >
-                Upload
-              </button>
-              <button
-                type="button"
-                class="rounded border border-[var(--oterm-border)] px-2 py-0.5 hover:bg-white/5 disabled:opacity-50"
-                :disabled="busy"
-                @click="createRemoteFolder"
-              >
-                New folder
-              </button>
-              <button
-                type="button"
-                class="rounded border border-[var(--oterm-border)] px-2 py-0.5 hover:bg-white/5 disabled:opacity-50"
-                :disabled="busy"
-                @click="loadRemoteDir(activeSession.path)"
-              >
-                Refresh
-              </button>
-              <input
-                ref="uploadInputRef"
-                type="file"
-                multiple
-                class="hidden"
-                @change="onUploadFilesSelected"
-              />
-            </div>
-
-            <div class="oterm-scroll min-h-0 flex-1 overflow-auto p-4">
-              <div
-                v-for="entry in activeSession.entries"
-                :key="entry.path"
-                class="mb-1 grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-3 py-2 text-sm hover:bg-white/[0.02]"
-                @click="openRemoteEntry(entry)"
-              >
-                <div class="min-w-0">
-                  <div class="truncate font-medium">
-                    {{ entry.isDir ? "📁" : "📄" }} {{ entry.name }}
-                  </div>
-                  <div class="truncate text-[10px] text-[var(--oterm-muted)]">{{ entry.path }}</div>
-                </div>
-                <div class="text-xs text-[var(--oterm-muted)]">
-                  {{ entry.isDir ? "folder" : formatSize(entry.size) }}
-                </div>
-                <div class="flex items-center gap-1" @click.stop>
-                  <button
-                    v-if="!entry.isDir"
-                    type="button"
-                    class="rounded border border-[var(--oterm-accent)]/40 px-2 py-0.5 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10"
-                    @click="downloadRemoteEntry(entry)"
-                  >
-                    Download
-                  </button>
-                  <button
-                    type="button"
-                    class="rounded border border-[var(--oterm-danger)]/40 px-2 py-0.5 text-xs text-[var(--oterm-danger)] hover:bg-[var(--oterm-danger)]/10"
-                    @click="deleteRemoteEntry(entry)"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-              <p
-                v-if="activeSession.entries.length === 0"
-                class="py-8 text-center text-sm text-[var(--oterm-muted)]"
-              >
-                This folder is empty.
-              </p>
-            </div>
-          </div>
+            :local-path="localPath"
+            :remote-path="activeSession.remotePath"
+            :local-entries="localEntries"
+            :remote-entries="toRemoteEntries(activeSession.remoteEntries)"
+            :busy="busy"
+            :selected-local-path="selectedLocalEntry?.path ?? null"
+            :selected-remote-path="selectedRemoteEntry?.path ?? null"
+            @local-navigate="onLocalNavigate"
+            @remote-navigate="onRemoteNavigate"
+            @local-up="onLocalUp"
+            @remote-up="onRemoteUp"
+            @local-refresh="loadLocalDir(localPath)"
+            @remote-refresh="loadRemoteDir(activeSession.remotePath)"
+            @local-create-folder="createLocalFolder"
+            @remote-create-folder="createRemoteFolder"
+            @remote-upload-pick="pickRemoteUpload"
+            @local-delete="deleteLocalEntry"
+            @remote-delete="deleteRemoteEntry"
+            @local-open="onLocalOpen"
+            @remote-open="onRemoteOpen"
+            @remote-download="onRemoteDownload"
+            @drop-local-paths-on-remote="transferLocalPaths"
+            @drop-remote-entry-on-local="onDropRemoteOnLocal"
+            @drop-local-entry-on-remote="onDropLocalEntryOnRemote"
+            @select-local="selectLocalEntry"
+            @select-remote="selectRemoteEntry"
+          />
 
           <div
             v-else
-            class="flex flex-1 items-center justify-center px-6 text-center text-sm text-[var(--oterm-muted)]"
+            class="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-[var(--oterm-muted)]"
           >
-            <div>
-              <p class="font-medium text-[var(--oterm-text)]">{{ selectedEndpoint.name }}</p>
-              <p class="mt-1">{{ selectedEndpoint.notes || "Connect SFTP to browse remote files." }}</p>
-            </div>
+            <p>Connect SFTP to browse local and remote files side by side.</p>
+            <button
+              type="button"
+              class="rounded border border-[var(--oterm-accent)]/40 px-3 py-1.5 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10"
+              :disabled="busy"
+              @click="onConnectSftp"
+            >
+              Connect SFTP
+            </button>
           </div>
         </template>
-
         <div
           v-else
-          class="flex flex-1 items-center justify-center px-6 text-center text-sm text-[var(--oterm-muted)]"
+          class="flex flex-1 items-center justify-center p-8 text-sm text-[var(--oterm-muted)]"
         >
-          Select a host or create a new one.
+          Select or create a host to get started.
         </div>
-      </section>
+      </div>
     </div>
 
-    <div
-      v-if="secretPrompt"
-      class="absolute inset-0 z-40 flex items-center justify-center bg-black/55 p-4 backdrop-blur-[2px]"
-      @click.self="cancelSecretPrompt"
-    >
-      <form
-        class="w-full max-w-sm rounded-xl border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] p-4 shadow-2xl"
-        @submit.prevent="secretPrompt?.onSubmit(secretPrompt.value)"
-      >
-        <h3 class="text-sm font-medium">{{ secretPrompt.title }}</h3>
-        <label class="mt-3 grid gap-1 text-xs text-[var(--oterm-muted)]">
-          {{ secretPrompt.label }}
-          <input
-            v-model="secretPrompt.value"
-            type="password"
-            autofocus
-            class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm"
-          />
-        </label>
-        <div class="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs hover:bg-white/5"
-            @click="cancelSecretPrompt"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            class="rounded-md border border-[var(--oterm-accent)]/40 px-3 py-1.5 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10"
-          >
-            Continue
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <PromptDialog
-      :open="promptOpen"
-      :title="pendingPrompt?.title ?? ''"
-      :label="pendingPrompt?.label ?? ''"
-      :placeholder="pendingPrompt?.placeholder"
-      :confirm-label="pendingPrompt?.confirmLabel"
-      v-model="promptValue"
-      @confirm="resolvePrompt(true)"
-      @cancel="resolvePrompt(false)"
+    <SshSecretPrompt
+      v-if="secretOpen"
+      v-model="secretValue"
+      v-model:save-password="secretSave"
+      :title="secretTitle"
+      :label="secretLabel"
+      :show-save-password="true"
+      :save-checkbox-label="secretSaveLabel"
+      @submit="submitSecret"
+      @cancel="cancelSecret"
     />
 
     <ConfirmDialog
@@ -950,6 +1246,18 @@ onUnmounted(() => {
       :dangerous="pendingConfirm?.dangerous"
       @confirm="resolveConfirm(true)"
       @cancel="resolveConfirm(false)"
+    />
+
+    <PromptDialog
+      :open="promptOpen"
+      :title="pendingPrompt?.title ?? ''"
+      :label="pendingPrompt?.label ?? ''"
+      :placeholder="pendingPrompt?.placeholder"
+      :confirm-label="pendingPrompt?.confirmLabel"
+      :model-value="promptValue"
+      @update:model-value="promptValue = $event"
+      @confirm="resolvePrompt(true)"
+      @cancel="resolvePrompt(false)"
     />
   </div>
 </template>

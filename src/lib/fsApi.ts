@@ -40,3 +40,24 @@ export function openInRider(solutionPath: string): Promise<void> {
 export function importEnvFile(directory: string): Promise<FsEnvImportHint> {
   return invoke<FsEnvImportHint>("fs_import_env_file", { directory });
 }
+
+export function userHome(): Promise<string> {
+  return invoke<string>("fs_user_home");
+}
+
+export async function readFile(path: string): Promise<Uint8Array> {
+  const data = await invoke<number[]>("fs_read_file", { path });
+  return Uint8Array.from(data);
+}
+
+export function writeFile(path: string, data: Uint8Array): Promise<void> {
+  return invoke<void>("fs_write_file", { path, data: Array.from(data) });
+}
+
+export function createDir(path: string): Promise<void> {
+  return invoke<void>("fs_create_dir", { path });
+}
+
+export function removePath(path: string, isDir: boolean): Promise<void> {
+  return invoke<void>("fs_remove_path", { path, isDir });
+}

@@ -2,6 +2,8 @@ export interface FsEntry {
   name: string;
   path: string;
   isDir: boolean;
+  size?: number;
+  modified?: string | null;
 }
 
 export interface FsEnvImportHint {

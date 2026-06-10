@@ -17,7 +17,9 @@ function branch(name: string, overrides: Partial<BranchRefInfo> = {}): BranchRef
 }
 
 function leafNames(items: ReturnType<typeof groupBranches>[number]["items"]): string[] {
-  return items.map((item) => ("kind" in item && item.kind === "folder" ? item.label : item.name));
+  return items.map((item) =>
+    "kind" in item && item.kind === "folder" ? item.label : (item as BranchRefInfo).name,
+  );
 }
 
 describe("branchSortKey", () => {

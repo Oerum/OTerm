@@ -5,7 +5,10 @@ mod launch;
 mod lm;
 mod process;
 mod settings;
+mod ssh_client;
+mod ssh_credentials;
 mod ssh_sftp;
+mod ssh_terminal;
 mod terminal;
 
 mod platform;
@@ -15,10 +18,10 @@ use docker::commands::{
     docker_remove_network, docker_remove_volume, docker_summary,
 };
 use fs::commands::{
-    fs_import_env_file, fs_list_directory, fs_open_in_file_explorer, fs_open_in_rider,
-    fs_open_in_visual_studio, fs_open_in_vscode, fs_open_in_zed, fs_search_files,
-    fs_show_shell_context_menu, fs_tools_directory_hints, fs_write_temp_attachment,
-    FsSearchState,
+    fs_create_dir, fs_import_env_file, fs_list_directory, fs_open_in_file_explorer, fs_open_in_rider,
+    fs_open_in_visual_studio, fs_open_in_vscode, fs_open_in_zed, fs_read_file, fs_remove_path,
+    fs_search_files, fs_show_shell_context_menu, fs_tools_directory_hints, fs_user_home,
+    fs_write_file, fs_write_temp_attachment, FsSearchState,
 };
 use git::commands::{
     git_checkout_branch, git_checkout_detached, git_cherry_pick, git_commit, git_commit_details,
@@ -39,11 +42,19 @@ use lm::commands::{
 use settings::commands::{
     settings_dir_path, settings_get, settings_get_all, settings_import, settings_set,
 };
+use ssh_credentials::commands::{
+    ssh_cred_delete, ssh_cred_get, ssh_cred_identity_passphrase_key, ssh_cred_password_key,
+    ssh_cred_set,
+};
 use ssh_sftp::commands::{
     ssh_sftp_connect, ssh_sftp_create_dir, ssh_sftp_disconnect, ssh_sftp_download,
     ssh_sftp_list_dir, ssh_sftp_remove_path, ssh_sftp_upload,
 };
 use ssh_sftp::session::SftpManager;
+use ssh_terminal::commands::{
+    ssh_terminal_kill, ssh_terminal_resize, ssh_terminal_spawn, ssh_terminal_write,
+};
+use ssh_terminal::SshTerminalManager;
 use launch::{launch_initial_cwd, LaunchState};
 use terminal::commands::{
     terminal_default_shell_id, terminal_drain_output, terminal_kill, terminal_list_shells,
@@ -99,6 +110,7 @@ pub fn run() {
         .manage(launch_state)
         .manage(PtyManager::new())
         .manage(SftpManager::new())
+        .manage(SshTerminalManager::new())
         .manage(Arc::new(FsSearchState::new()))
         .setup(|app| {
             #[cfg(windows)]
@@ -142,6 +154,11 @@ pub fn run() {
             terminal_kill,
             terminal_drain_output,
             fs_list_directory,
+            fs_user_home,
+            fs_read_file,
+            fs_write_file,
+            fs_create_dir,
+            fs_remove_path,
             fs_tools_directory_hints,
             fs_open_in_visual_studio,
             fs_open_in_rider,
@@ -220,6 +237,15 @@ pub fn run() {
             ssh_sftp_remove_path,
             ssh_sftp_download,
             ssh_sftp_upload,
+            ssh_terminal_spawn,
+            ssh_terminal_write,
+            ssh_terminal_resize,
+            ssh_terminal_kill,
+            ssh_cred_set,
+            ssh_cred_get,
+            ssh_cred_delete,
+            ssh_cred_password_key,
+            ssh_cred_identity_passphrase_key,
             settings_get,
             settings_set,
             settings_get_all,

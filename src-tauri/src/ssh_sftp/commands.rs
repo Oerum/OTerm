@@ -1,4 +1,5 @@
-use super::session::{ConnectRequest, SftpManager};
+use crate::ssh_client::ConnectRequest;
+use super::session::SftpManager;
 use tauri::State;
 
 #[tauri::command]

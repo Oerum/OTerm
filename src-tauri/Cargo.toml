@@ -24,13 +24,13 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 portable-pty = "0.9"
 uuid = { version = "1", features = ["v4", "serde"] }
 tauri-plugin-prevent-default = "5.0.0"
-russh = "0.46"
-russh-keys = "0.46"
+russh = "0.52"
 russh-sftp = "2.3"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 anyhow = "1"
 async-trait = "0.1"
 sysinfo = "0.33"
+keyring = { version = "3", features = ["windows-native", "apple-native", "sync-secret-service"] }
 
 [target.'cfg(windows)'.dependencies]
 win-context-menu = "0.1"

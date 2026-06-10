@@ -85,6 +85,13 @@ fn is_hidden(path: &Path) -> bool {
         .is_some_and(|name| name.starts_with('.'))
 }
 
+fn format_modified(time: SystemTime) -> Option<String> {
+    use std::time::UNIX_EPOCH;
+    time.duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_secs().to_string())
+}
+
 pub fn list_directory(path: &Path) -> Result<Vec<commands::FsEntry>, String> {
     if !path.is_dir() {
         return Err(format!("Not a directory: {}", path.display()));
@@ -100,11 +107,14 @@ pub fn list_directory(path: &Path) -> Result<Vec<commands::FsEntry>, String> {
         if is_hidden(&entry_path) {
             continue;
         }
+        let metadata = item.metadata().map_err(|err| err.to_string())?;
 
         entries.push(commands::FsEntry {
             name: item.file_name().to_string_lossy().into_owned(),
             path: entry_path.to_string_lossy().into_owned(),
             is_dir: file_type.is_dir(),
+            size: if file_type.is_dir() { 0 } else { metadata.len() },
+            modified: metadata.modified().ok().and_then(format_modified),
         });
     }
 
@@ -116,6 +126,32 @@ pub fn list_directory(path: &Path) -> Result<Vec<commands::FsEntry>, String> {
     });
 
     Ok(entries)
+}
+
+pub fn read_file_bytes(path: &Path) -> Result<Vec<u8>, String> {
+    if path.is_dir() {
+        return Err(format!("Not a file: {}", path.display()));
+    }
+    std::fs::read(path).map_err(|err| format!("Could not read file: {err}"))
+}
+
+pub fn write_file_bytes(path: &Path, data: &[u8]) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|err| format!("Could not create parent: {err}"))?;
+    }
+    std::fs::write(path, data).map_err(|err| format!("Could not write file: {err}"))
+}
+
+pub fn create_directory(path: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(path).map_err(|err| format!("Could not create directory: {err}"))
+}
+
+pub fn remove_path(path: &Path, is_dir: bool) -> Result<(), String> {
+    if is_dir {
+        std::fs::remove_dir(path).map_err(|err| format!("Could not remove directory: {err}"))
+    } else {
+        std::fs::remove_file(path).map_err(|err| format!("Could not remove file: {err}"))
+    }
 }
 
 const SEARCH_RESULT_LIMIT: usize = 100;
@@ -211,6 +247,8 @@ fn search_recursive(
                 name: name.clone(),
                 path: path.to_string_lossy().into_owned(),
                 is_dir: file_type.is_dir(),
+                size: 0,
+                modified: None,
             });
         }
 

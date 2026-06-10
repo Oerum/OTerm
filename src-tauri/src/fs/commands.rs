@@ -1,9 +1,10 @@
 use super::{
-    composer_attachments_dir, context_menu, default_project_root, expand_path,
+    composer_attachments_dir, context_menu, create_directory, default_project_root, expand_path,
     find_devenv_launcher, find_env_import_hint, find_rider_launcher, find_vscode_launcher,
     find_zed_launcher, import_env_file, list_directory, list_solution_files, open_in_rider,
-    open_in_system_file_explorer, open_in_visual_studio, open_in_vscode, open_in_zed, search_files,
-    system_file_explorer_label,
+    open_in_system_file_explorer, open_in_visual_studio, open_in_vscode, open_in_zed,
+    read_file_bytes, remove_path, search_files, system_file_explorer_label, user_home,
+    write_file_bytes,
 };
 use serde::Serialize;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -16,6 +17,8 @@ pub struct FsEntry {
     pub name: String,
     pub path: String,
     pub is_dir: bool,
+    pub size: u64,
+    pub modified: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -60,10 +63,41 @@ impl FsSearchState {
 #[tauri::command]
 pub fn fs_list_directory(path: Option<String>) -> Result<Vec<FsEntry>, String> {
     let resolved = match path {
-        Some(value) => expand_path(&value)?,
-        None => default_project_root()?,
+        Some(value) if !value.trim().is_empty() => expand_path(&value)?,
+        _ => default_project_root()?,
     };
     list_directory(&resolved)
+}
+
+#[tauri::command]
+pub fn fs_user_home() -> Result<String, String> {
+    user_home()
+        .map(|path| path.to_string_lossy().into_owned())
+        .ok_or_else(|| "Home directory not found".to_string())
+}
+
+#[tauri::command]
+pub fn fs_read_file(path: String) -> Result<Vec<u8>, String> {
+    let resolved = expand_path(&path)?;
+    read_file_bytes(&resolved)
+}
+
+#[tauri::command]
+pub fn fs_write_file(path: String, data: Vec<u8>) -> Result<(), String> {
+    let resolved = expand_path(&path)?;
+    write_file_bytes(&resolved, &data)
+}
+
+#[tauri::command]
+pub fn fs_create_dir(path: String) -> Result<(), String> {
+    let resolved = expand_path(&path)?;
+    create_directory(&resolved)
+}
+
+#[tauri::command]
+pub fn fs_remove_path(path: String, is_dir: bool) -> Result<(), String> {
+    let resolved = expand_path(&path)?;
+    remove_path(&resolved, is_dir)
 }
 
 #[tauri::command]

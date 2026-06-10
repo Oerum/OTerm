@@ -55,6 +55,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
       activeAgentId: null,
       oscTitle: null,
       hasUnseenNotification: false,
+      sshEndpointId: null,
     };
   }
 
@@ -278,6 +279,18 @@ export function useWorkspace(getDefaultShellId: () => string) {
         pane.activeAgentId = null;
         pane.oscTitle = null;
         pane.hasUnseenNotification = false;
+        pane.sshEndpointId = null;
+        return;
+      }
+    }
+  }
+
+  function setPaneSshEndpoint(paneId: string, endpointId: string | null) {
+    for (const tab of tabs.value) {
+      if (!isTerminalTab(tab)) continue;
+      const pane = tab.panes.find((item) => item.id === paneId);
+      if (pane) {
+        pane.sshEndpointId = endpointId;
         return;
       }
     }
@@ -426,6 +439,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
           shellId: pane.shellId,
           cwd: pane.cwd,
           customTitle: pane.customTitle,
+          sshEndpointId: pane.sshEndpointId,
         })),
       })),
     };
@@ -445,6 +459,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
         activeAgentId: null,
         oscTitle: null,
         hasUnseenNotification: false,
+        sshEndpointId: savedPane.sshEndpointId ?? null,
       }));
       return {
         kind: "terminal" as const,
@@ -497,6 +512,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     selectPane,
     setPaneSession,
     clearPaneSession,
+    setPaneSshEndpoint,
     setPaneCwd,
     setPaneAgent,
     setPaneOscTitle,

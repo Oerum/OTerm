@@ -1,33 +1,14 @@
-use async_trait::async_trait;
-use russh::client;
-use russh::keys::{key, load_secret_key};
-use russh_keys::{
-    check_known_hosts,
-    known_hosts::learn_known_hosts,
-    Error as KeysError,
-};
+use crate::ssh_client::{connect_and_auth, SshHandle};
 use russh_sftp::client::SftpSession;
 use russh_sftp::protocol::OpenFlags;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ConnectRequest {
-    pub host: String,
-    pub port: u16,
-    pub username: String,
-    pub auth_method: String,
-    pub password: Option<String>,
-    pub key_path: Option<String>,
-    pub key_passphrase: Option<String>,
-    pub accept_host_key: Option<bool>,
-}
+const MAX_SFTP_TRANSFER_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,67 +27,8 @@ pub struct SftpEntry {
     pub modified: Option<String>,
 }
 
-struct ConnectContext {
-    host: String,
-    port: u16,
-    accept_host_key: bool,
-    verdict: Mutex<Option<String>>,
-}
-
-impl ConnectContext {
-    fn new(host: String, port: u16, accept_host_key: bool) -> Arc<Self> {
-        Arc::new(Self {
-            host,
-            port,
-            accept_host_key,
-            verdict: Mutex::new(None),
-        })
-    }
-
-    async fn take_verdict(&self) -> Option<String> {
-        self.verdict.lock().await.take()
-    }
-}
-
-struct ClientHandler {
-    ctx: Arc<ConnectContext>,
-}
-
-#[async_trait]
-impl client::Handler for ClientHandler {
-    type Error = anyhow::Error;
-
-    async fn check_server_key(
-        &mut self,
-        server_public_key: &key::PublicKey,
-    ) -> Result<bool, Self::Error> {
-        match check_known_hosts(&self.ctx.host, self.ctx.port, server_public_key) {
-            Ok(true) => Ok(true),
-            Ok(false) => {
-                if self.ctx.accept_host_key {
-                    learn_known_hosts(&self.ctx.host, self.ctx.port, server_public_key)?;
-                    Ok(true)
-                } else {
-                    *self.ctx.verdict.lock().await =
-                        Some(host_key_error("HOST_KEY_UNKNOWN", server_public_key, None));
-                    Ok(false)
-                }
-            }
-            Err(KeysError::KeyChanged { line }) => {
-                *self.ctx.verdict.lock().await = Some(host_key_error(
-                    "HOST_KEY_CHANGED",
-                    server_public_key,
-                    Some(format!("Host key changed (known_hosts line {line})")),
-                ));
-                Ok(false)
-            }
-            Err(err) => Err(anyhow::anyhow!("Host key check failed: {err}")),
-        }
-    }
-}
-
 struct SftpConnection {
-    _handle: client::Handle<ClientHandler>,
+    _handle: SshHandle,
     sftp: SftpSession,
 }
 
@@ -129,58 +51,8 @@ impl SftpManager {
             .ok_or_else(|| format!("Unknown session: {session_id}"))
     }
 
-    pub async fn connect(&self, request: ConnectRequest) -> Result<ConnectResult, String> {
-        let host = request.host.trim().to_string();
-        let username = request.username.trim();
-        if host.is_empty() {
-            return Err("Host is required".into());
-        }
-        if username.is_empty() {
-            return Err("Username is required".into());
-        }
-
-        let ctx = ConnectContext::new(host.clone(), request.port, request.accept_host_key.unwrap_or(false));
-        let config = Arc::new(client::Config::default());
-        let mut handle = match client::connect(
-            config,
-            (host.as_str(), request.port),
-            ClientHandler { ctx: ctx.clone() },
-        ).await {
-            Ok(handle) => handle,
-            Err(err) => {
-                let message = format_connect_error(err, &ctx).await;
-                return Err(message);
-            }
-        };
-
-        let authed = match request.auth_method.as_str() {
-            "publicKey" => {
-                let key_path = request
-                    .key_path
-                    .as_deref()
-                    .map(str::trim)
-                    .filter(|v| !v.is_empty())
-                    .ok_or_else(|| "Key path is required for public key auth".to_string())?;
-                let key_file = expand_key_path(key_path);
-                let key = load_secret_key(&key_file, request.key_passphrase.as_deref())
-                    .map_err(|err| format!("Could not load key: {err}"))?;
-                handle
-                    .authenticate_publickey(username, Arc::new(key))
-                    .await
-                    .map_err(|err| format!("Key authentication failed: {err}"))?
-            }
-            _ => handle
-                .authenticate_password(
-                    username,
-                    request.password.as_deref().unwrap_or(""),
-                )
-                .await
-                .map_err(|err| format!("Password authentication failed: {err}"))?,
-        };
-
-        if !authed {
-            return Err("Authentication failed".into());
-        }
+    pub async fn connect(&self, request: crate::ssh_client::ConnectRequest) -> Result<ConnectResult, String> {
+        let handle = connect_and_auth(&request).await?;
 
         let channel = handle
             .channel_open_session()
@@ -274,10 +146,7 @@ impl SftpManager {
         let conn = conn_arc.lock().await;
         let remote_path = normalize_remote_path(path);
         if is_dir {
-            conn.sftp
-                .remove_dir(remote_path)
-                .await
-                .map_err(|err| format!("Could not remove directory: {err}"))
+            remove_dir_recursive(&conn.sftp, &remote_path).await
         } else {
             conn.sftp
                 .remove_file(remote_path)
@@ -289,13 +158,21 @@ impl SftpManager {
     pub async fn download(&self, session_id: &str, path: &str) -> Result<Vec<u8>, String> {
         let conn_arc = self.session(session_id).await?;
         let conn = conn_arc.lock().await;
+        let remote_path = normalize_remote_path(path);
+        let meta = conn
+            .sftp
+            .metadata(&remote_path)
+            .await
+            .map_err(|err| format!("Could not read remote file metadata: {err}"))?;
+        ensure_transfer_size(meta.len())?;
         conn.sftp
-            .read(normalize_remote_path(path))
+            .read(&remote_path)
             .await
             .map_err(|err| format!("Could not download file: {err}"))
     }
 
     pub async fn upload(&self, session_id: &str, path: &str, data: Vec<u8>) -> Result<(), String> {
+        ensure_transfer_size(data.len() as u64)?;
         let conn_arc = self.session(session_id).await?;
         let conn = conn_arc.lock().await;
         let remote_path = normalize_remote_path(path);
@@ -316,23 +193,6 @@ impl SftpManager {
     }
 }
 
-async fn format_connect_error(err: impl std::fmt::Display, ctx: &ConnectContext) -> String {
-    if let Some(verdict) = ctx.take_verdict().await {
-        return verdict;
-    }
-    format!("Connection failed: {err}")
-}
-
-fn host_key_error(code: &str, key: &key::PublicKey, message: Option<String>) -> String {
-    serde_json::json!({
-        "code": code,
-        "fingerprint": format!("SHA256:{}", key.fingerprint()),
-        "algorithm": key.name(),
-        "message": message,
-    })
-    .to_string()
-}
-
 fn normalize_remote_path(path: &str) -> String {
     let trimmed = path.trim();
     if trimmed.is_empty() || trimmed == "." {
@@ -341,16 +201,36 @@ fn normalize_remote_path(path: &str) -> String {
     trimmed.replace('\\', "/")
 }
 
-fn expand_key_path(path: &str) -> PathBuf {
-    let trimmed = path.trim();
-    if trimmed.starts_with("~/") || trimmed == "~" {
-        if let Some(home) = crate::fs::user_home() {
-            if trimmed == "~" {
-                return home;
-            }
-            let rest = trimmed.trim_start_matches("~/").trim_start_matches("~\\");
-            return home.join(rest);
+fn ensure_transfer_size(len: u64) -> Result<(), String> {
+    if len > MAX_SFTP_TRANSFER_BYTES {
+        return Err(format!(
+            "File exceeds the {MAX_SFTP_TRANSFER_BYTES} byte SFTP transfer limit ({len} bytes)"
+        ));
+    }
+    Ok(())
+}
+
+async fn remove_dir_recursive(sftp: &SftpSession, path: &str) -> Result<(), String> {
+    let rows = sftp
+        .read_dir(path)
+        .await
+        .map_err(|err| format!("Could not list directory for removal: {err}"))?;
+    for row in rows {
+        let name = row.file_name();
+        if name == "." || name == ".." {
+            continue;
+        }
+        let child = row.path();
+        let is_dir = row.metadata().is_dir() || row.file_type().is_dir();
+        if is_dir {
+            Box::pin(remove_dir_recursive(sftp, &child)).await?;
+        } else {
+            sftp.remove_file(&child)
+                .await
+                .map_err(|err| format!("Could not remove file: {err}"))?;
         }
     }
-    PathBuf::from(trimmed)
+    sftp.remove_dir(path)
+        .await
+        .map_err(|err| format!("Could not remove directory: {err}"))
 }

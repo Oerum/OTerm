@@ -34,8 +34,12 @@ function sortBranches(a: BranchRefInfo, b: BranchRefInfo): number {
   return compareBranchNames(a.name, b.name);
 }
 
+function isBranchFolder(item: BranchRefInfo | BranchFolderGroup): item is BranchFolderGroup {
+  return "kind" in item && item.kind === "folder";
+}
+
 function itemSortName(item: BranchRefInfo | BranchFolderGroup): string {
-  return "kind" in item && item.kind === "folder" ? item.label : item.name;
+  return isBranchFolder(item) ? item.label : item.name;
 }
 
 function sortBranchItems(

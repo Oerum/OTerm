@@ -23,6 +23,7 @@ function terminalTab(overrides: Partial<WorkspaceTerminalTab> = {}): WorkspaceTe
         activeAgentId: null,
         oscTitle: null,
         hasUnseenNotification: false,
+        sshEndpointId: null,
       },
     ],
     ...overrides,
@@ -133,6 +134,7 @@ describe("buildTerminalEntries", () => {
           activeAgentId: null,
           oscTitle: null,
           hasUnseenNotification: false,
+          sshEndpointId: null,
         },
       ],
     });

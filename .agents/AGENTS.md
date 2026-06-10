@@ -5,6 +5,9 @@
 - **Desktop**: Tauri 2 (Rust backend in `src-tauri/`)
 - **Tests**: Vitest — `npm test`
 
+## Supported Platforms
+- **Windows**, **macOS**, and **Linux** must be fully supported. Ensure all code—including file path handling, shell execution, and Tauri commands—is cross-platform and does not make platform-specific assumptions.
+
 ## File-scoped commands
 | Task | Command |
 |------|---------|
@@ -32,3 +35,128 @@ AI commits should include:
 ```
 Co-Authored-By: <Agent Name> <noreply@anthropic.com>
 ```
+
+## Full project verification (must all pass)
+
+Run these before claiming the repo builds clean. Every command must exit **0** with **no errors and no warnings** (Rust uses `-D warnings`).
+
+### Prerequisites
+
+| Requirement | Notes |
+|-------------|--------|
+| Node.js | `>= 22` (`package.json` `engines`) |
+| npm deps | From repo root: `npm ci` |
+| Rust toolchain | Stable; `rustfmt` + `clippy` components installed |
+| Shell (integration tests) | `pwsh` on PATH for `src-tauri/tests/pty_integration.rs` |
+
+### Commands (run in order)
+
+**Repo root — frontend**
+
+```bash
+npm ci
+npx vue-tsc --noEmit
+npm test
+npm run build
+```
+
+`npm run build` runs `vue-tsc --noEmit` then `vite build` (production bundle to `dist/`).
+
+**`src-tauri/` — Rust**
+
+```bash
+cd src-tauri
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test --lib
+cargo test
+cd ..
+```
+
+- `cargo fmt --check` — formatting drift fails the gate; run `cargo fmt --all` to fix.
+- `cargo clippy … -D warnings` — Clippy warnings are treated as errors.
+- `cargo test --lib` — unit tests in `src-tauri/src/` (fast).
+- `cargo test` — includes `tests/pty_integration.rs` (spawns real shells; slower on Windows).
+
+**Repo root — full desktop app**
+
+```bash
+npm run tauri build
+```
+
+Runs `beforeBuildCommand` (`npm run build`) then compiles and bundles the Tauri app (`src-tauri/tauri.conf.json`).
+
+### One-shot scripts
+
+**PowerShell (repo root)**
+
+```powershell
+npm ci
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+npx vue-tsc --noEmit
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+npm test
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+npm run build
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+Push-Location src-tauri
+cargo fmt --all -- --check
+if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
+cargo clippy --all-targets -- -D warnings
+if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
+cargo test --lib
+if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
+cargo test
+if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
+Pop-Location
+npm run tauri build
+exit $LASTEXITCODE
+```
+
+**Bash (repo root)**
+
+```bash
+npm ci && \
+npx vue-tsc --noEmit && \
+npm test && \
+npm run build && \
+( cd src-tauri && \
+  cargo fmt --all -- --check && \
+  cargo clippy --all-targets -- -D warnings && \
+  cargo test --lib && \
+  cargo test ) && \
+npm run tauri build
+```
+
+### Quick reference
+
+| Step | Command | Validates |
+|------|---------|-----------|
+| 1 | `npm ci` | Lockfile install |
+| 2 | `npx vue-tsc --noEmit` | Vue/TS types |
+| 3 | `npm test` | Vitest (`vitest run`) |
+| 4 | `npm run build` | Typecheck + Vite production build |
+| 5 | `cargo fmt --all -- --check` | Rust formatting |
+| 6 | `cargo clippy --all-targets -- -D warnings` | Rust lints (warnings denied) |
+| 7 | `cargo test --lib` | Rust unit tests |
+| 8 | `cargo test` | Rust unit + integration tests |
+| 9 | `npm run tauri build` | End-to-end desktop build |
+
+### Optional (not part of default gate)
+
+| Command | Purpose |
+|---------|---------|
+| `cargo check` | Fast Rust compile check (subset of `clippy`/`test`) |
+| `npm run tauri dev` | Manual smoke test (dev server + Tauri) |
+| `npx fallow dead-code --fail-on-issues` | TS/JS unused-code audit (devDependency; no `fallow.toml` yet) |
+
+### Success criteria
+
+- All nine gate commands exit **0**.
+- No TypeScript errors from `vue-tsc`.
+- No Vitest failures.
+- No Vite/Rollup build errors.
+- No `rustfmt` diff output.
+- No Clippy warnings (`-D warnings`).
+- All Rust tests green, including PTY integration tests when `pwsh` is available.
+- `npm run tauri build` completes and produces the bundled app under `src-tauri/target/release/bundle/`.

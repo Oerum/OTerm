@@ -12,6 +12,7 @@ import {
   watch,
 } from "vue";
 import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE } from "../lib/terminalFont";
+import { resolveSshTerminalTheme } from "../lib/sshTerminalThemes";
 import {
   detectCliAgent,
   isAgentExitCommand,
@@ -44,6 +45,17 @@ import {
   resolveCtrlDTerminalPayload,
   shouldForwardPtyKeyOverride,
 } from "../lib/terminalMultilineEnter";
+import { parseSshConnectError } from "../lib/sshSftpApi";
+import {
+  clearPendingSshTerminalLaunch,
+  peekPendingSshTerminalLaunch,
+} from "../lib/sshTerminalLaunch";
+import {
+  sshTerminalKill,
+  sshTerminalResize,
+  sshTerminalSpawn,
+  sshTerminalWrite,
+} from "../lib/sshTerminalApi";
 import {
   killTerminal,
   resizeTerminal,
@@ -82,11 +94,60 @@ const props = defineProps<{
   active: boolean;
   tabActive: boolean;
   activeAgentId?: CliAgentId | null;
+  themeId?: string | null;
+  sshEndpointId?: string | null;
 }>();
+
+const isSshSession = computed(() => Boolean(props.sshEndpointId));
+
+async function writeSession(sessionId: string, data: string) {
+  if (isSshSession.value) return sshTerminalWrite(sessionId, data);
+  return writeTerminal(sessionId, data);
+}
+
+async function resizeSession(sessionId: string, cols: number, rows: number) {
+  if (isSshSession.value) return sshTerminalResize(sessionId, cols, rows);
+  return resizeTerminal(sessionId, cols, rows);
+}
+
+async function killBackendSession(sessionId: string) {
+  if (isSshSession.value) return sshTerminalKill(sessionId);
+  return killTerminal(sessionId);
+}
+
+function resolveSessionIdToKill(): string | null {
+  return backendSessionId.value ?? localSessionId.value ?? props.sessionId;
+}
+
+const SESSION_KILL_TIMEOUT_MS = 3000;
+
+async function killBackendSessionIfPresent(sessionId: string | null) {
+  if (!sessionId) return;
+  await Promise.race([
+    (async () => {
+      try {
+        await killBackendSession(sessionId);
+      } catch {
+        // Session may already be gone.
+      }
+      if (backendSessionId.value === sessionId) {
+        backendSessionId.value = null;
+      }
+    })(),
+    new Promise<void>((resolve) => window.setTimeout(resolve, SESSION_KILL_TIMEOUT_MS)),
+  ]);
+}
+
+function bindSessionId(sessionId: string) {
+  localSessionId.value = sessionId;
+  backendSessionId.value = sessionId;
+  sessionEndedLocally.value = false;
+}
 
 const emit = defineEmits<{
   sessionCreated: [paneId: string, sessionId: string];
   sessionEnded: [paneId: string];
+  sessionReleased: [paneId: string];
   cwdChanged: [paneId: string, cwd: string];
   promptReady: [paneId: string];
   commandSubmitted: [command: string];
@@ -100,6 +161,9 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLElement | null>(null);
 const paneRootRef = ref<HTMLElement | null>(null);
 const localSessionId = ref<string | null>(props.sessionId);
+const backendSessionId = ref<string | null>(props.sessionId);
+const sessionEndedLocally = ref(false);
+const launchError = ref<string | null>(null);
 const pendingInput = ref("");
 const draftInput = ref("");
 const exchanges = ref<TerminalCommandExchange[]>([]);
@@ -236,6 +300,7 @@ let resizeTimer: number | undefined;
 let suggestionTimer: number | undefined;
 let suggestionRequestId = 0;
 let capturingResponse = false;
+let sshStartupSnippetPending: string | null = null;
 let lastSubmittedCommand = "";
 let responseBuffer = "";
 let promptScanBuffer = "";
@@ -247,6 +312,11 @@ let pathRefreshDisposables: IDisposable[] = [];
 let pathDecorationTimer: number | undefined;
 let pathCopiedTimer: number | undefined;
 let terminalContextMenuHandler: ((event: MouseEvent) => void) | null = null;
+let sessionBootstrap: Promise<void> | null = null;
+let disposed = false;
+let bootstrapGeneration = 0;
+let sshExitFallbackTimer: number | undefined;
+const pendingBootstrapInput: string[] = [];
 
 function pathsInteractiveEnabled(): boolean {
   return !activeAgentId.value && !tuiModeActive.value;
@@ -301,7 +371,7 @@ async function appendToPrompt(text: string) {
   const draft = getActiveDraft();
   const prefix = draft.length > 0 && !draft.endsWith(" ") ? " " : "";
   const payload = prefix + text;
-  await writeTerminal(localSessionId.value, payload);
+  await writeSession(localSessionId.value, payload);
   draftInput.value = draft + payload;
   clearSuggestion();
   terminal?.focus();
@@ -466,6 +536,7 @@ function getActiveDraft(): string {
 function canSuggest(): boolean {
   const cfg = autocompleteSettings.value;
   return (
+    !isSshSession.value &&
     props.active &&
     cfg.enabled &&
     isTerminalAutocompleteConfigured(cfg) &&
@@ -521,43 +592,132 @@ async function acceptSuggestion() {
   const draft = getActiveDraft();
   const toWrite = line.startsWith(draft) ? line.slice(draft.length) : line;
   if (!toWrite) return;
-  await writeTerminal(localSessionId.value, toWrite);
+  await writeSession(localSessionId.value, toWrite);
   draftInput.value = line.startsWith(draft) ? line : draft + toWrite;
   clearSuggestion();
 }
 
 async function clearInitialScreen(sessionId: string) {
-  if (!terminal) return;
+  if (!terminal || isSshSession.value) return;
   terminal.clear();
   terminal.reset();
 
   if (props.shellId === "cmd") {
-    await writeTerminal(sessionId, "cls\r");
+    await writeSession(sessionId, "cls\r");
     return;
   }
 
   if (props.shellId === "pwsh" || props.shellId === "powershell") {
-    await writeTerminal(sessionId, "Clear-Host\r");
+    await writeSession(sessionId, "Clear-Host\r");
     return;
   }
 
-  await writeTerminal(sessionId, "\x1b[2J\x1b[3J\x1b[H");
+  await writeSession(sessionId, "\x1b[2J\x1b[3J\x1b[H");
 }
 
-async function ensureSession() {
-  if (localSessionId.value || !terminal || !fitAddon) return;
-  fitAddon.fit();
-  const cwd =
-    props.initialCwd && props.initialCwd !== "~" ? props.initialCwd : undefined;
-  const sessionId = await spawnTerminal(
-    props.shellId,
-    terminal.cols,
-    terminal.rows,
-    cwd,
-  );
-  localSessionId.value = sessionId;
-  emit("sessionCreated", props.paneId, sessionId);
-  await clearInitialScreen(sessionId);
+async function ensureSshSession() {
+  const generation = bootstrapGeneration;
+  const pending = peekPendingSshTerminalLaunch(props.paneId);
+  if (!pending || !terminal) {
+    throw new Error(
+      props.sshEndpointId
+        ? "SSH session ended. Reopen this host from the SSH/SFTP manager."
+        : "SSH terminal launch configuration is missing.",
+    );
+  }
+
+  let request = { ...pending.request };
+  sshStartupSnippetPending = pending.startupSnippet;
+  while (true) {
+    if (disposed || generation !== bootstrapGeneration) return;
+    try {
+      const sessionId = await sshTerminalSpawn(
+        request,
+        terminal.cols,
+        terminal.rows,
+        null,
+      );
+      if (disposed || generation !== bootstrapGeneration) {
+        await killBackendSession(sessionId);
+        return;
+      }
+      bindSessionId(sessionId);
+      launchError.value = null;
+      emit("sessionCreated", props.paneId, sessionId);
+      return;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const hostKeyError = parseSshConnectError(message);
+      if (hostKeyError?.code === "HOST_KEY_UNKNOWN") {
+        const trusted = await pending.trustHostKey(hostKeyError);
+        if (!trusted) throw err;
+        request = { ...request, acceptHostKey: true };
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+async function flushPendingBootstrapInput() {
+  if (!localSessionId.value || pendingBootstrapInput.length === 0) return;
+  const queued = pendingBootstrapInput.splice(0);
+  for (const chunk of queued) {
+    await writeSession(localSessionId.value, chunk);
+  }
+}
+
+async function bootstrapSession() {
+  if (
+    disposed ||
+    sessionEndedLocally.value ||
+    !props.tabActive ||
+    localSessionId.value ||
+    launchError.value ||
+    !terminal ||
+    !fitAddon
+  ) {
+    return;
+  }
+  if (sessionBootstrap) return sessionBootstrap;
+
+  sessionBootstrap = (async () => {
+    const generation = bootstrapGeneration;
+    try {
+      if (disposed || generation !== bootstrapGeneration) return;
+      fitAddon!.fit();
+      if (isSshSession.value) {
+        await ensureSshSession();
+      } else {
+        const cwd =
+          props.initialCwd && props.initialCwd !== "~" ? props.initialCwd : undefined;
+        const sessionId = await spawnTerminal(
+          props.shellId,
+          terminal!.cols,
+          terminal!.rows,
+          cwd,
+        );
+        if (disposed || generation !== bootstrapGeneration) {
+          await killBackendSession(sessionId);
+          return;
+        }
+        bindSessionId(sessionId);
+        launchError.value = null;
+        emit("sessionCreated", props.paneId, sessionId);
+        await clearInitialScreen(sessionId);
+      }
+      await flushPendingBootstrapInput();
+    } catch (err) {
+      pendingBootstrapInput.length = 0;
+      const message = err instanceof Error ? err.message : String(err);
+      launchError.value = message;
+      terminal?.writeln(`\r\n[launch failed] ${message}`);
+    } finally {
+      sessionBootstrap = null;
+    }
+  })();
+
+  return sessionBootstrap;
 }
 
 function trackCwd(data: string) {
@@ -642,9 +802,18 @@ function maybeRecordCommand(data: string, preferredLine = "") {
     promptClearSuppressUntil.value = agentLaunchPromptClearSuppressUntil();
   }
   if (isAgentExitCommand(command)) {
+    const wasAgent = Boolean(activeAgentId.value);
     setActiveAgent(null);
     agentExitConfirmPending.value = false;
     promptClearSuppressUntil.value = 0;
+    if (isSshSession.value && !wasAgent && !tuiModeActive.value) {
+      window.clearTimeout(sshExitFallbackTimer);
+      sshExitFallbackTimer = window.setTimeout(() => {
+        if (localSessionId.value) {
+          void shutdownSession(true);
+        }
+      }, 500);
+    }
   }
 
   lastSubmittedCommand = command;
@@ -656,6 +825,8 @@ function maybeRecordCommand(data: string, preferredLine = "") {
 }
 
 async function forwardTerminalInput(data: string) {
+  if (disposed) return;
+
   const isEnter = /[\r\n]/.test(data);
   const commandLine = isEnter ? getActiveDraft() : "";
 
@@ -666,11 +837,18 @@ async function forwardTerminalInput(data: string) {
   }
   maybeRecordCommand(data, commandLine);
   scheduleSuggestion();
-  if (!localSessionId.value) {
-    await ensureSession();
-  }
+
   if (localSessionId.value) {
-    await writeTerminal(localSessionId.value, data);
+    await writeSession(localSessionId.value, data);
+    return;
+  }
+  if (launchError.value) return;
+
+  pendingBootstrapInput.push(data);
+  if (!props.tabActive) return;
+  await bootstrapSession();
+  if (localSessionId.value) {
+    await flushPendingBootstrapInput();
   }
 }
 
@@ -706,7 +884,7 @@ async function handleResize() {
   window.clearTimeout(resizeTimer);
   resizeTimer = window.setTimeout(async () => {
     if (!terminal || !localSessionId.value) return;
-    await resizeTerminal(localSessionId.value, terminal.cols, terminal.rows);
+    await resizeSession(localSessionId.value, terminal.cols, terminal.rows);
   }, 100);
 }
 
@@ -723,29 +901,7 @@ async function mountTerminal() {
     letterSpacing: 0,
     scrollback: 5000,
     rescaleOverlappingGlyphs: true,
-    theme: {
-      background: "#0a0a0a",
-      foreground: "#ececec",
-      cursor: "#00d4aa",
-      cursorAccent: "#0a0a0a",
-      selectionBackground: "rgba(0, 212, 170, 0.22)",
-      black: "#0a0a0a",
-      red: "#ff5f57",
-      green: "#00d4aa",
-      yellow: "#febc2e",
-      blue: "#79a8ff",
-      magenta: "#c792ea",
-      cyan: "#56d4dd",
-      white: "#ececec",
-      brightBlack: "#5c5c5c",
-      brightRed: "#ff7b72",
-      brightGreen: "#00d4aa",
-      brightYellow: "#ffd866",
-      brightBlue: "#82aaff",
-      brightMagenta: "#d4a5ff",
-      brightCyan: "#56d4dd",
-      brightWhite: "#ffffff",
-    },
+    theme: resolveSshTerminalTheme(props.themeId),
   });
 
   fitAddon = new FitAddon();
@@ -774,7 +930,7 @@ async function mountTerminal() {
   });
 
   terminal.attachCustomKeyEventHandler((event) => {
-    if (!suggestion.value) return true;
+    if (!suggestion.value || isSshSession.value) return true;
     if (event.key === "Tab" && !event.shiftKey) {
       event.preventDefault();
       void acceptSuggestion();
@@ -794,6 +950,11 @@ async function mountTerminal() {
 
   unlistenOutput = await listen<TerminalOutputEvent>("terminal-output", (event) => {
     if (event.payload.sessionId !== localSessionId.value || !terminal) return;
+    if (sshStartupSnippetPending) {
+      const snippet = sshStartupSnippetPending;
+      sshStartupSnippetPending = null;
+      void writeSession(event.payload.sessionId, `${snippet}\r`);
+    }
     if (capturingResponse) responseBuffer += event.payload.data;
     terminal.write(event.payload.data);
     handleOutputNotification(event.payload.data);
@@ -802,7 +963,15 @@ async function mountTerminal() {
   });
 
   unlistenExit = await listen<TerminalExitEvent>("terminal-exit", (event) => {
-    if (event.payload.sessionId !== localSessionId.value || !terminal) return;
+    if (disposed) return;
+    const activeSessionId = backendSessionId.value ?? localSessionId.value;
+    if (event.payload.sessionId !== activeSessionId || !terminal) return;
+
+    disposed = true;
+    sessionEndedLocally.value = true;
+    bootstrapGeneration += 1;
+    pendingBootstrapInput.length = 0;
+    window.clearTimeout(sshExitFallbackTimer);
     const endedAgentId = activeAgentId.value;
     if (endedAgentId) {
       notifyAgentEnded(props.paneId, endedAgentId, "session_ended", {
@@ -814,8 +983,9 @@ async function mountTerminal() {
     promptClearSuppressUntil.value = 0;
     tuiModeActive.value = false;
     clearPathDecorations();
-    terminal.writeln("\r\n[session ended]");
     localSessionId.value = null;
+    backendSessionId.value = null;
+    void killBackendSessionIfPresent(event.payload.sessionId);
     emit("oscTitleChanged", props.paneId, null);
     emit("sessionEnded", props.paneId);
   });
@@ -825,20 +995,72 @@ async function mountTerminal() {
   });
   resizeObserver.observe(containerRef.value);
 
-  await ensureSession();
+  if (props.tabActive) {
+    await bootstrapSession();
+  }
 }
 
-async function disposeSession() {
-  if (!localSessionId.value) return;
-  const sessionId = localSessionId.value;
+const SHUTDOWN_BOOTSTRAP_TIMEOUT_MS = 2500;
+
+async function waitForBootstrapAbort() {
+  if (!sessionBootstrap) return;
+  const bootstrap = sessionBootstrap;
+  sessionBootstrap = null;
+  await Promise.race([
+    bootstrap.catch(() => {}),
+    new Promise<void>((resolve) => {
+      window.setTimeout(resolve, SHUTDOWN_BOOTSTRAP_TIMEOUT_MS);
+    }),
+  ]);
+}
+
+async function suspendLocalSessionForTabHide() {
+  const sessionId = resolveSessionIdToKill();
   localSessionId.value = null;
-  try {
-    await killTerminal(sessionId);
-  } catch {
-    // Session may already be gone.
+  backendSessionId.value = null;
+  pendingBootstrapInput.length = 0;
+  await killBackendSessionIfPresent(sessionId);
+  if (sessionId) {
+    emit("sessionReleased", props.paneId);
   }
+}
+
+type ShutdownOptions = {
+  markEndedLocally?: boolean;
+};
+
+async function shutdownSession(
+  emitSessionEnded: boolean,
+  options: ShutdownOptions = {},
+) {
+  disposed = true;
+  if (options.markEndedLocally ?? emitSessionEnded) {
+    sessionEndedLocally.value = true;
+  }
+  bootstrapGeneration += 1;
+  window.clearTimeout(sshExitFallbackTimer);
+  if (isSshSession.value) {
+    clearPendingSshTerminalLaunch(props.paneId);
+    sshStartupSnippetPending = null;
+  }
+  pendingBootstrapInput.length = 0;
+  await waitForBootstrapAbort();
+  const sessionId = resolveSessionIdToKill();
+  localSessionId.value = null;
+  backendSessionId.value = null;
+  await killBackendSessionIfPresent(sessionId);
   emit("oscTitleChanged", props.paneId, null);
-  emit("sessionEnded", props.paneId);
+  if (emitSessionEnded) {
+    emit("sessionEnded", props.paneId);
+  }
+}
+
+function getBackendSessionId(): string | null {
+  return resolveSessionIdToKill();
+}
+
+function killSession() {
+  return shutdownSession(false, { markEndedLocally: true });
 }
 
 async function scheduleTerminalFocus() {
@@ -862,10 +1084,13 @@ defineExpose({
   openAgentComposer,
   closeAgentComposer,
   isAgentComposerOpen: () => agentComposerOpen.value,
+  killSession,
+  getBackendSessionId,
 });
 
 onMounted(async () => {
   localSessionId.value = props.sessionId;
+  backendSessionId.value = props.sessionId;
   await nextTick();
   window.addEventListener("keydown", onWindowKeyCapture, true);
   await mountTerminal();
@@ -893,11 +1118,42 @@ watch(
 );
 
 watch(
+  () => props.tabActive,
+  (tabActive, wasActive) => {
+    if (
+      wasActive &&
+      !tabActive &&
+      !isSshSession.value &&
+      localSessionId.value &&
+      !disposed
+    ) {
+      void suspendLocalSessionForTabHide();
+    }
+    if (
+      tabActive &&
+      terminal &&
+      !disposed &&
+      !sessionEndedLocally.value &&
+      !localSessionId.value &&
+      !launchError.value
+    ) {
+      launchError.value = null;
+      void bootstrapSession();
+    }
+  },
+);
+
+watch(
   () => props.shellId,
   async (shellId, previous) => {
-    if (shellId === previous || !terminal) return;
-    await disposeSession();
-    await ensureSession();
+    if (shellId === previous || !terminal || isSshSession.value) return;
+    launchError.value = null;
+    pendingBootstrapInput.length = 0;
+    sessionEndedLocally.value = false;
+    await shutdownSession(false, { markEndedLocally: false });
+    disposed = false;
+    bootstrapGeneration += 1;
+    await bootstrapSession();
   },
 );
 
@@ -909,8 +1165,10 @@ onBeforeUnmount(async () => {
   window.clearTimeout(pathDecorationTimer);
   window.clearTimeout(pathCopiedTimer);
   window.clearTimeout(agentCleanExitTimer);
+  window.clearTimeout(sshExitFallbackTimer);
   clearAgentLifecycleDedupe(props.paneId);
   suggestionRequestId += 1;
+  pendingBootstrapInput.length = 0;
   linkProviderDisposable?.dispose();
   linkProviderDisposable = null;
   for (const disposable of pathRefreshDisposables) {
@@ -925,7 +1183,7 @@ onBeforeUnmount(async () => {
   resizeObserver?.disconnect();
   unlistenOutput?.();
   unlistenExit?.();
-  await disposeSession();
+  await shutdownSession(false, { markEndedLocally: false });
   terminal?.dispose();
   terminal = null;
 });
@@ -997,10 +1255,11 @@ watch(suggestionStripVisible, () => {
       </div>
     </div>
     <div
-      v-if="!isReady"
-      class="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-[var(--oterm-faint)]"
+      v-if="!isReady && !sessionEndedLocally"
+      class="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm"
+      :class="launchError ? 'text-[var(--oterm-danger)]' : 'text-[var(--oterm-faint)]'"
     >
-      Starting shell...
+      {{ launchError ?? "Starting shell..." }}
     </div>
     <TerminalPathContextMenu
       :open="pathMenuOpen"

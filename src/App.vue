@@ -14,6 +14,8 @@ import SidebarRail from "./components/SidebarRail.vue";
 import SourceControlPanel from "./components/SourceControlPanel.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TerminalPane from "./components/TerminalPane.vue";
+import ConfirmDialog from "./components/ConfirmDialog.vue";
+import SshSecretPrompt from "./components/ssh/SshSecretPrompt.vue";
 import BranchManagerView from "./components/BranchManagerView.vue";
 import DockerManagerView from "./components/DockerManagerView.vue";
 import SshSftpManagerView from "./components/SshSftpManagerView.vue";
@@ -31,7 +33,12 @@ import { useSourceControl } from "./composables/useSourceControl";
 import { useTerminalHistory } from "./composables/useTerminalHistory";
 import { useWorkspace } from "./composables/useWorkspace";
 import { useWorkspacePersistence } from "./composables/useWorkspacePersistence";
-import type { ClosedTerminalSession, SaveProfileDraft, WorkspaceTerminalTab } from "./types/terminal";
+import type {
+  ClosedTerminalSession,
+  SaveProfileDraft,
+  WorkspacePane,
+  WorkspaceTerminalTab,
+} from "./types/terminal";
 import { isTerminalTab } from "./types/terminal";
 import {
   DEFAULT_SHELL_SETTING_KEY,
@@ -42,6 +49,22 @@ import { getSetting } from "./lib/settingsStore";
 import { loadPersistedTerminalWorkspace } from "./lib/workspaceStore";
 import type { DockerContainer } from "./types/docker";
 import type { SshEndpoint } from "./types/sshSftp";
+import { loadSshSftpLibrary, saveSshSftpLibrary } from "./lib/sshSftpStore";
+import {
+  buildSshConnectRequest,
+  resolveConnectSecrets,
+  networkHopIntegratedConnectError,
+  usesNativeSshTerminal,
+  type SshSecretKind,
+} from "./lib/sshConnectSecrets";
+import {
+  clearPendingSshTerminalLaunch,
+  setPendingSshTerminalLaunch,
+} from "./lib/sshTerminalLaunch";
+import { sshTerminalKill, sshTerminalWrite } from "./lib/sshTerminalApi";
+import { buildTerminalLaunchCommand, terminalTabTitle } from "./lib/sshOpenSshArgs";
+import { saveHostPassword, saveIdentityPassphrase } from "./lib/sshCredentialStore";
+import type { SshConnectError } from "./types/sshSftp";
 import { getLaunchInitialCwd } from "./lib/launchApi";
 import {
   getDefaultShellId,
@@ -78,9 +101,70 @@ const systemDefaultShellId = ref("cmd");
 const defaultShellId = ref("");
 const closedSessions = ref<ClosedTerminalSession[]>([]);
 const pendingTerminalCommands = new Map<string, string>();
+
+const sshSecretOpen = ref(false);
+const sshSecretTitle = ref("");
+const sshSecretLabel = ref("");
+const sshSecretValue = ref("");
+const sshSecretSave = ref(false);
+const sshSecretShowSave = ref(false);
+const sshSecretSaveLabel = ref("Save in OS credential store");
+const sshSecretKind = ref<SshSecretKind>("password");
+const sshSecretEndpointId = ref<string | null>(null);
+let sshSecretResolve: ((value: string) => void) | null = null;
+let sshSecretReject: ((reason?: unknown) => void) | null = null;
+
+const sshConfirmOpen = ref(false);
+const sshConfirmTitle = ref("");
+const sshConfirmMessage = ref("");
+const sshConfirmLabel = ref("Confirm");
+let sshConfirmResolve: ((value: boolean) => void) | null = null;
+const terminalPaneThemes = ref<Record<string, string | null>>({});
 const canReopenClosed = computed(() => closedSessions.value.length > 0);
 const activeAgentComposerOpen = ref(false);
 const terminalPaneRefs = new Map<string, InstanceType<typeof TerminalPane>>();
+const closingTabIds = new Set<string>();
+
+const SESSION_KILL_TIMEOUT_MS = 2500;
+
+async function withTimeout(promise: Promise<void>, ms: number): Promise<void> {
+  await Promise.race([
+    promise,
+    new Promise<void>((resolve) => window.setTimeout(resolve, ms)),
+  ]);
+}
+
+async function killPaneSession(pane: WorkspacePane) {
+  clearPendingSshTerminalLaunch(pane.id);
+  const paneRef = terminalPaneRefs.get(pane.id);
+  if (paneRef?.killSession) {
+    await withTimeout(paneRef.killSession(), SESSION_KILL_TIMEOUT_MS);
+  }
+  const sessionId =
+    pane.sessionId ?? paneRef?.getBackendSessionId?.() ?? null;
+  if (!sessionId) return;
+  await withTimeout(
+    (async () => {
+      try {
+        if (pane.sshEndpointId) {
+          await sshTerminalKill(sessionId);
+        } else {
+          await killTerminal(sessionId);
+        }
+      } catch {
+        // Session may already have been killed by the pane or backend exit handler.
+      }
+    })(),
+    SESSION_KILL_TIMEOUT_MS,
+  );
+}
+
+async function killAllTerminalSessionsForClose() {
+  const panes = tabs.value.flatMap((tab) =>
+    isTerminalTab(tab) ? tab.panes : [],
+  );
+  await Promise.all(panes.map((pane) => killPaneSession(pane)));
+}
 
 function bindTerminalPaneRef(paneId: string) {
   return (instance: Element | ComponentPublicInstance | null) => {
@@ -159,6 +243,7 @@ const {
   selectPane,
   setPaneSession,
   clearPaneSession,
+  setPaneSshEndpoint,
   setPaneCwd,
   setPaneAgent,
   setPaneOscTitle,
@@ -171,7 +256,9 @@ const {
   hydrateTerminalWorkspace,
 } = useWorkspace(() => defaultShellId.value);
 
-useWorkspacePersistence(tabs, activeTabId, activePaneId, serializeTerminalWorkspace);
+useWorkspacePersistence(tabs, activeTabId, activePaneId, serializeTerminalWorkspace, {
+  beforeDestroy: killAllTerminalSessionsForClose,
+});
 
 watch(activePaneId, () => {
   syncActiveAgentComposerOpen();
@@ -479,23 +566,152 @@ function openSettings() {
   openSettingsTab();
 }
 
-function buildSshCommand(endpoint: SshEndpoint) {
-  const target = `${endpoint.username}@${endpoint.host}`;
-  if (endpoint.authMethod === "publicKey" && endpoint.keyPath?.trim()) {
-    const keyPath = endpoint.keyPath.trim().replace(/"/g, '\\"');
-    return `ssh -p ${endpoint.port} -i "${keyPath}" ${target}`;
+function findWorkspacePane(paneId: string): WorkspacePane | null {
+  for (const tab of tabs.value) {
+    if (!isTerminalTab(tab)) continue;
+    const pane = tab.panes.find((item) => item.id === paneId);
+    if (pane) return pane;
   }
-  return `ssh -p ${endpoint.port} ${target}`;
+  return null;
 }
 
-function openSshTerminal(endpoint: SshEndpoint) {
-  const tab = createTab(resolveDefaultShellId());
+function askSshSecret(options: {
+  kind: SshSecretKind;
+  endpoint: SshEndpoint;
+  title: string;
+  label: string;
+  defaultSave: boolean;
+}): Promise<string> {
+  return new Promise((resolve, reject) => {
+    sshSecretKind.value = options.kind;
+    sshSecretEndpointId.value = options.endpoint.id;
+    sshSecretTitle.value = options.title;
+    sshSecretLabel.value = options.label;
+    sshSecretValue.value = "";
+    sshSecretSave.value = options.defaultSave;
+    sshSecretShowSave.value = true;
+    sshSecretSaveLabel.value =
+      options.kind === "password"
+        ? "Save password in OS credential store"
+        : "Save passphrase in OS credential store";
+    sshSecretResolve = resolve;
+    sshSecretReject = reject;
+    sshSecretOpen.value = true;
+  });
+}
+
+function submitSshSecret() {
+  const value = sshSecretValue.value;
+  const endpointId = sshSecretEndpointId.value;
+  sshSecretOpen.value = false;
+  sshSecretResolve?.(value);
+  sshSecretResolve = null;
+  sshSecretReject = null;
+  if (endpointId && sshSecretSave.value) {
+    if (sshSecretKind.value === "password") {
+      void saveHostPassword(endpointId, value).catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        pushAppToast(`Could not save password: ${message}`, "error");
+      });
+      const library = loadSshSftpLibrary();
+      const idx = library.endpoints.findIndex((item) => item.id === endpointId);
+      if (idx >= 0) {
+        library.endpoints[idx] = {
+          ...library.endpoints[idx],
+          auth: { ...library.endpoints[idx].auth, savePassword: true },
+        };
+        saveSshSftpLibrary(library);
+      }
+    } else if (sshSecretKind.value === "passphrase") {
+      const library = loadSshSftpLibrary();
+      const endpoint = library.endpoints.find((item) => item.id === endpointId);
+      if (endpoint?.auth.identityId) {
+        void saveIdentityPassphrase(endpoint.auth.identityId, value);
+      }
+    }
+  }
+  sshSecretEndpointId.value = null;
+}
+
+function cancelSshSecret() {
+  sshSecretOpen.value = false;
+  sshSecretReject?.(new Error("Cancelled"));
+  sshSecretResolve = null;
+  sshSecretReject = null;
+  sshSecretEndpointId.value = null;
+}
+
+function askSshHostKeyTrust(endpoint: SshEndpoint, error: SshConnectError): Promise<boolean> {
+  return new Promise((resolve) => {
+    sshConfirmTitle.value = "Trust this host?";
+    sshConfirmMessage.value = `The server ${endpoint.host}:${endpoint.port} is not in your known_hosts file.\n\n${error.algorithm}\n${error.fingerprint}\n\nOnly continue if you trust this server.`;
+    sshConfirmLabel.value = "Trust and connect";
+    sshConfirmResolve = resolve;
+    sshConfirmOpen.value = true;
+  });
+}
+
+function resolveSshConfirm(confirmed: boolean) {
+  sshConfirmOpen.value = false;
+  sshConfirmResolve?.(confirmed);
+  sshConfirmResolve = null;
+}
+
+async function openSshTerminal(endpoint: SshEndpoint) {
+  const library = loadSshSftpLibrary();
+  const shellId = resolveDefaultShellId();
+
+  if (!usesNativeSshTerminal(endpoint)) {
+    const tab = createTab(shellId);
+    if (!tab || !isTerminalTab(tab)) return;
+    const pane = tab.panes[0];
+    if (!pane) return;
+
+    setTabTitle(tab.id, terminalTabTitle(endpoint));
+    terminalPaneThemes.value = {
+      ...terminalPaneThemes.value,
+      [pane.id]: endpoint.themeId,
+    };
+    pendingTerminalCommands.set(
+      pane.id,
+      `${buildTerminalLaunchCommand(endpoint, library, shellId)}\r`,
+    );
+    selectTab(tab.id);
+    selectPane(pane.id);
+    return;
+  }
+
+  const hopError = networkHopIntegratedConnectError(endpoint, "terminal");
+  if (hopError) {
+    pushAppToast(hopError, "error");
+    return;
+  }
+
+  const secrets = await resolveConnectSecrets(endpoint, library, {
+    askSecret: askSshSecret,
+    toast: (message, kind) => pushAppToast(message, kind),
+    agentUnsupported: () => {
+      pushAppToast("Integrated SSH terminal does not support SSH agent auth. Use a key file or password.", "error");
+    },
+  }, undefined, { context: "terminal" });
+  if (!secrets) return;
+
+  const tab = createTab(shellId);
   if (!tab || !isTerminalTab(tab)) return;
   const pane = tab.panes[0];
   if (!pane) return;
 
-  setTabTitle(tab.id, `ssh: ${endpoint.name || endpoint.host}`);
-  pendingTerminalCommands.set(pane.id, `${buildSshCommand(endpoint)}\r`);
+  setTabTitle(tab.id, terminalTabTitle(endpoint));
+  terminalPaneThemes.value = {
+    ...terminalPaneThemes.value,
+    [pane.id]: endpoint.themeId,
+  };
+  setPaneSshEndpoint(pane.id, endpoint.id);
+  setPendingSshTerminalLaunch(pane.id, {
+    request: buildSshConnectRequest(endpoint, library, secrets, false),
+    startupSnippet: endpoint.startupSnippet.trim() || null,
+    trustHostKey: (error) => askSshHostKeyTrust(endpoint, error),
+  });
 
   selectTab(tab.id);
   selectPane(pane.id);
@@ -598,21 +814,31 @@ async function closeTab(tabId: string) {
 }
 
 async function closeTabs(tabIds: string[]) {
-  for (const tabId of tabIds) {
-    const tab = tabs.value.find((item) => item.id === tabId);
-    if (!tab) continue;
-    if (isTerminalTab(tab)) {
-      rememberClosedTab(tab);
-      for (const pane of tab.panes) {
-        if (pane.sessionId) {
-          await killTerminal(pane.sessionId);
+  const idsToClose = tabIds.filter((tabId) => {
+    if (closingTabIds.has(tabId)) return false;
+    closingTabIds.add(tabId);
+    return true;
+  });
+
+  for (const tabId of idsToClose) {
+    try {
+      const tab = tabs.value.find((item) => item.id === tabId);
+      if (!tab) continue;
+      const terminalPanes = isTerminalTab(tab) ? [...tab.panes] : [];
+      if (isTerminalTab(tab)) {
+        rememberClosedTab(tab);
+        for (const pane of terminalPanes) {
+          clearPendingSshTerminalLaunch(pane.id);
+        }
+        if (terminalPanes.length > 0) {
+          await Promise.all(terminalPanes.map((pane) => killPaneSession(pane)));
         }
       }
+      removeTab(tabId);
+      await nextTick();
+    } finally {
+      closingTabIds.delete(tabId);
     }
-    removeTab(tabId);
-  }
-  if (tabs.value.length === 0) {
-    createTab(resolveDefaultShellId());
   }
 }
 
@@ -635,21 +861,29 @@ function selectTerminal(tabId: string, paneId: string) {
 function onSessionCreated(paneId: string, sessionId: string) {
   if (!sessionId) return;
   setPaneSession(paneId, sessionId);
+  const pane = findWorkspacePane(paneId);
+  if (pane?.sshEndpointId) {
+    clearPendingSshTerminalLaunch(paneId);
+    return;
+  }
   const command = pendingTerminalCommands.get(paneId);
   if (!command) return;
   pendingTerminalCommands.delete(paneId);
   void writeTerminal(sessionId, command);
 }
 
+function onSessionReleased(paneId: string) {
+  clearPaneSession(paneId);
+}
+
 function onSessionEnded(paneId: string) {
-  const tab = tabs.value.find(
-    (t) => isTerminalTab(t) && t.panes.some((p) => p.id === paneId),
-  );
-  if (tab) {
-    void closeTabs([tab.id]);
-  } else {
+  const tab = tabs.value.find((t) => isTerminalTab(t) && t.panes.some((p) => p.id === paneId));
+  if (!tab || !isTerminalTab(tab)) {
     clearPaneSession(paneId);
+    return;
   }
+  if (closingTabIds.has(tab.id)) return;
+  void closeTab(tab.id);
 }
 
 function onKeyDown(event: KeyboardEvent) {
@@ -693,7 +927,12 @@ async function insertHistoryEntry(entry: string) {
   closeSearch();
   const pane = activePane.value;
   if (!pane?.sessionId) return;
-  await writeTerminal(pane.sessionId, `${entry}${shellLineEnding()}`);
+  const payload = `${entry}${shellLineEnding()}`;
+  if (pane.sshEndpointId) {
+    await sshTerminalWrite(pane.sessionId, payload);
+  } else {
+    await writeTerminal(pane.sessionId, payload);
+  }
   onCommandSubmitted(entry);
 }
 
@@ -751,7 +990,12 @@ async function openPathInTerminal(path: string) {
     pane.shellId === "cmd"
       ? `cd /d "${path}"`
       : `Set-Location -LiteralPath '${path.replace(/'/g, "''")}'`;
-  await writeTerminal(pane.sessionId, `${command}${shellLineEnding()}`);
+  const payload = `${command}${shellLineEnding()}`;
+  if (pane.sshEndpointId) {
+    await sshTerminalWrite(pane.sessionId, payload);
+  } else {
+    await writeTerminal(pane.sessionId, payload);
+  }
 }
 
 async function onSwitchBranch(
@@ -926,8 +1170,11 @@ onUnmounted(() => {
                 :active="pane.id === activePaneId"
                 :tab-active="tab.id === activeTabId"
                 :active-agent-id="pane.activeAgentId"
+                :theme-id="terminalPaneThemes[pane.id] ?? null"
+                :ssh-endpoint-id="pane.sshEndpointId"
                 @session-created="onSessionCreated"
                 @session-ended="onSessionEnded"
+                @session-released="onSessionReleased"
                 @cwd-changed="setPaneCwd"
                 @prompt-ready="onPromptReady"
                 @command-submitted="onCommandSubmitted"
@@ -1076,6 +1323,27 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <SshSecretPrompt
+      v-if="sshSecretOpen"
+      :title="sshSecretTitle"
+      :label="sshSecretLabel"
+      :model-value="sshSecretValue"
+      :save-password="sshSecretSave"
+      :show-save-password="sshSecretShowSave"
+      :save-checkbox-label="sshSecretSaveLabel"
+      @update:model-value="sshSecretValue = $event"
+      @update:save-password="sshSecretSave = $event"
+      @submit="submitSshSecret"
+      @cancel="cancelSshSecret"
+    />
+    <ConfirmDialog
+      :open="sshConfirmOpen"
+      :title="sshConfirmTitle"
+      :message="sshConfirmMessage"
+      :confirm-label="sshConfirmLabel"
+      @confirm="resolveSshConfirm(true)"
+      @cancel="resolveSshConfirm(false)"
+    />
     <CreatePullRequestDialog
       :open="createPrOpen"
       :branches="gitBranches"

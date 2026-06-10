@@ -21,7 +21,7 @@ describe("parsePersistedTerminalWorkspace", () => {
           title: "Build",
           color: "green",
           split: "none",
-          panes: [{ shellId: "powershell", cwd: "C:\\repo", customTitle: null }],
+          panes: [{ shellId: "powershell", cwd: "C:\\repo", customTitle: null, sshEndpointId: null }],
         },
       ],
     });
@@ -34,7 +34,7 @@ describe("parsePersistedTerminalWorkspace", () => {
           title: "Build",
           color: "green",
           split: "none",
-          panes: [{ shellId: "powershell", cwd: "C:\\repo", customTitle: null }],
+          panes: [{ shellId: "powershell", cwd: "C:\\repo", customTitle: null, sshEndpointId: null }],
         },
       ],
     });
@@ -114,7 +114,7 @@ describe("terminal workspace serialize/hydrate", () => {
           title: "Build",
           color: "green",
           split: "none",
-          panes: [{ shellId: "cmd", cwd: "C:\\repo", customTitle: null }],
+          panes: [{ shellId: "cmd", cwd: "C:\\repo", customTitle: null, sshEndpointId: null }],
         },
       ],
     });
