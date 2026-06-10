@@ -30,6 +30,11 @@ export function getPtyKeyOverride(event: KeyboardEvent): string | null {
   return getCtrlDEofPayload(event) ?? getMultilineEnterPayload(event);
 }
 
+function isAgentComposerTarget(target: HTMLElement | null): boolean {
+  if (!target || typeof target.closest !== "function") return false;
+  return Boolean(target.closest(".agent-composer"));
+}
+
 /** Route PTY overrides when the pane is active, even if xterm lost focus after a TUI redraw. */
 export function shouldForwardPtyKeyOverride(
   event: KeyboardEvent,
@@ -39,6 +44,7 @@ export function shouldForwardPtyKeyOverride(
   if (!active || event.type !== "keydown") return false;
   const target = event.target as HTMLElement | null;
   if (!target) return false;
+  if (isAgentComposerTarget(target)) return false;
 
   if (terminalContainer?.contains(target)) {
     return true;

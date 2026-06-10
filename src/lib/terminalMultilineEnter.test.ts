@@ -131,6 +131,30 @@ describe("shouldForwardPtyKeyOverride", () => {
       ),
     ).toBe(true);
   });
+
+  it("returns false for keys focused inside the agent composer", () => {
+    const composerTextarea = {
+      closest(selector: string) {
+        return selector === ".agent-composer" ? {} : null;
+      },
+    } as unknown as HTMLElement;
+    const container = {
+      contains() {
+        return true;
+      },
+    } as unknown as HTMLElement;
+
+    expect(
+      shouldForwardPtyKeyOverride(
+        {
+          ...enterEvent("keydown", { shiftKey: true }),
+          target: composerTextarea,
+        } as KeyboardEvent,
+        true,
+        container,
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("getMultilineEnterPayload", () => {

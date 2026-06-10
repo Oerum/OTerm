@@ -19,7 +19,7 @@ describe("buildTerminalNotificationContent", () => {
       "Windows PowerShell",
     );
     expect(content.title).toBe(APP_NOTIFICATION_TITLE);
-    expect(content.body).toBe("Claude Code finished · oterm");
+    expect(content.body).toBe("Claude Code is ready · oterm");
   });
 
   it("uses terminal-ready copy without shell label when cwd is home", () => {

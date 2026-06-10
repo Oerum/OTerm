@@ -35,6 +35,7 @@ struct TerminalOutputEvent {
 #[serde(rename_all = "camelCase")]
 struct TerminalExitEvent {
     session_id: String,
+    exit_code: Option<i32>,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -125,7 +126,6 @@ impl PtyManager {
             session_id.clone(),
             reader,
             pending_output,
-            Arc::clone(&exit_emitted),
         );
         spawn_child_exit_watcher(
             app.clone(),
@@ -235,12 +235,18 @@ fn emit_output(app: &AppHandle, session_id: &str, data: String) {
     let _ = app.emit("terminal-output", payload);
 }
 
-fn emit_terminal_exit(app: &AppHandle, session_id: &str, exit_emitted: &Arc<AtomicBool>) {
+fn emit_terminal_exit(
+    app: &AppHandle,
+    session_id: &str,
+    exit_code: Option<i32>,
+    exit_emitted: &Arc<AtomicBool>,
+) {
     if exit_emitted.swap(true, Ordering::Relaxed) {
         return;
     }
     let payload = TerminalExitEvent {
         session_id: session_id.to_string(),
+        exit_code,
     };
     let _ = app.emit("terminal-exit", payload);
 }
@@ -253,18 +259,17 @@ fn spawn_child_exit_watcher(
     exit_emitted: Arc<AtomicBool>,
 ) {
     thread::spawn(move || {
+        let mut exit_code: Option<i32> = None;
         while !cancel.load(Ordering::Relaxed) {
-            let exited = child
-                .lock()
-                .map(|mut c| c.try_wait().ok().flatten().is_some())
-                .unwrap_or(false);
-            if exited {
+            let status = child.lock().ok().and_then(|mut c| c.try_wait().ok().flatten());
+            if let Some(status) = status {
+                exit_code = Some(status.exit_code() as i32);
                 break;
             }
             thread::sleep(Duration::from_millis(100));
         }
         if !cancel.load(Ordering::Relaxed) {
-            emit_terminal_exit(&app, &session_id, &exit_emitted);
+            emit_terminal_exit(&app, &session_id, exit_code, &exit_emitted);
         }
     });
 }
@@ -302,7 +307,6 @@ fn spawn_reader(
     session_id: String,
     mut reader: Box<dyn Read + Send>,
     pending_output: Arc<Mutex<String>>,
-    exit_emitted: Arc<AtomicBool>,
 ) {
     thread::spawn(move || {
         let mut buffer = [0u8; 8192];
@@ -322,12 +326,11 @@ fn spawn_reader(
                 Err(err) if err.kind() == ErrorKind::Interrupted => {}
                 Err(_) => {
                     // On Windows the PTY signals EOF via a broken-pipe error
-                    // rather than Ok(0). Treat any unrecognised error as the
-                    // child having exited so we emit terminal-exit correctly.
+                    // rather than Ok(0). Exit is emitted by spawn_child_exit_watcher
+                    // so we can include the real exit code.
                     break;
                 }
             }
         }
-        emit_terminal_exit(&app, &session_id, &exit_emitted);
     });
 }

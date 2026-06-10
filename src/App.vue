@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+  type ComponentPublicInstance,
+} from "vue";
 import HistorySearch from "./components/HistorySearch.vue";
 import SessionHeader from "./components/SessionHeader.vue";
 import SidebarRail from "./components/SidebarRail.vue";
@@ -52,6 +60,7 @@ import {
   isGithubPrCapable,
 } from "./lib/createPrFlow";
 import { createPullRequest, detectPrProvider, listPullRequests } from "./lib/pullRequestApi";
+import { shouldSuppressReadyNotification } from "./lib/agentLifecycle";
 import {
   buildTerminalNotificationContent,
   sendTerminalSystemNotification,
@@ -70,6 +79,40 @@ const defaultShellId = ref("");
 const closedSessions = ref<ClosedTerminalSession[]>([]);
 const pendingTerminalCommands = new Map<string, string>();
 const canReopenClosed = computed(() => closedSessions.value.length > 0);
+const activeAgentComposerOpen = ref(false);
+const terminalPaneRefs = new Map<string, InstanceType<typeof TerminalPane>>();
+
+function bindTerminalPaneRef(paneId: string) {
+  return (instance: Element | ComponentPublicInstance | null) => {
+    if (instance && "toggleAgentComposer" in instance) {
+      terminalPaneRefs.set(paneId, instance as InstanceType<typeof TerminalPane>);
+      return;
+    }
+    terminalPaneRefs.delete(paneId);
+  };
+}
+
+function syncActiveAgentComposerOpen() {
+  const paneId = activePaneId.value;
+  if (!paneId) {
+    activeAgentComposerOpen.value = false;
+    return;
+  }
+  activeAgentComposerOpen.value =
+    terminalPaneRefs.get(paneId)?.isAgentComposerOpen() ?? false;
+}
+
+function onComposerOpenChanged(paneId: string, open: boolean) {
+  if (paneId !== activePaneId.value) return;
+  activeAgentComposerOpen.value = open;
+}
+
+function toggleActiveAgentComposer() {
+  const paneId = activePaneId.value;
+  if (!paneId) return;
+  terminalPaneRefs.get(paneId)?.toggleAgentComposer();
+}
+
 const terminalSidebarOpen = ref(true);
 const toolsOpen = ref(false);
 const sourceControlOpen = ref(false);
@@ -129,6 +172,10 @@ const {
 } = useWorkspace(() => defaultShellId.value);
 
 useWorkspacePersistence(tabs, activeTabId, activePaneId, serializeTerminalWorkspace);
+
+watch(activePaneId, () => {
+  syncActiveAgentComposerOpen();
+});
 
 const history = useTerminalHistory();
 const {
@@ -678,6 +725,7 @@ function onNotificationReceived(paneId: string) {
   setPaneUnseenNotification(paneId, true);
 
   if (alreadyUnseen || !pane) return;
+  if (shouldSuppressReadyNotification(paneId)) return;
 
   const shellLabel = shellLabelFor(shells.value, pane.shellId);
   void sendTerminalSystemNotification(
@@ -870,6 +918,7 @@ onUnmounted(() => {
               <TerminalPane
                 v-for="pane in tab.panes"
                 :key="pane.id"
+                :ref="bindTerminalPaneRef(pane.id)"
                 :pane-id="pane.id"
                 :session-id="pane.sessionId"
                 :shell-id="pane.shellId"
@@ -885,6 +934,7 @@ onUnmounted(() => {
                 @agent-mode-changed="onAgentModeChanged"
                 @osc-title-changed="onOscTitleChanged"
                 @notification-received="onNotificationReceived"
+                @composer-open-changed="onComposerOpenChanged"
                 @focus-pane="selectPane(pane.id)"
               />
             </section>
@@ -946,9 +996,11 @@ onUnmounted(() => {
           :source-control-open="sourceControlOpen"
           :active-pr="activePr"
           :pr-loading="activePrLoading"
+          :agent-composer-open="activeAgentComposerOpen"
           @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
           @toggle-tools="toolsOpen = !toolsOpen"
           @toggle-source-control="toggleSourceControl"
+          @toggle-agent-composer="toggleActiveAgentComposer"
           @open-pull-requests="openPullRequests"
         />
       </div>

@@ -14,6 +14,7 @@ export interface TerminalOutputEvent {
 
 export interface TerminalExitEvent {
   sessionId: string;
+  exitCode: number | null;
 }
 
 export interface TerminalAgentChangedEvent {

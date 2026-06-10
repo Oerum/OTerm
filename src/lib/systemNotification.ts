@@ -13,7 +13,7 @@ function notificationHeadline(
   pane: Pick<WorkspacePane, "activeAgentId">,
 ): string {
   if (pane.activeAgentId) {
-    return `${getCliAgentDefinition(pane.activeAgentId).displayName} finished`;
+    return `${getCliAgentDefinition(pane.activeAgentId).displayName} is ready`;
   }
   return "Terminal ready";
 }

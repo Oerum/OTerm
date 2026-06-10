@@ -17,7 +17,8 @@ use docker::commands::{
 use fs::commands::{
     fs_import_env_file, fs_list_directory, fs_open_in_file_explorer, fs_open_in_rider,
     fs_open_in_visual_studio, fs_open_in_vscode, fs_open_in_zed, fs_search_files,
-    fs_show_shell_context_menu, fs_tools_directory_hints, FsSearchState,
+    fs_show_shell_context_menu, fs_tools_directory_hints, fs_write_temp_attachment,
+    FsSearchState,
 };
 use git::commands::{
     git_checkout_branch, git_checkout_detached, git_cherry_pick, git_commit, git_commit_details,
@@ -93,6 +94,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(prevent_default())
         .manage(launch_state)
         .manage(PtyManager::new())
@@ -120,6 +122,13 @@ pub fn run() {
                     eprintln!("oterm: toast branding init failed: {error}");
                 }
             }
+            tauri::async_runtime::spawn_blocking(|| {
+                if let Err(error) =
+                    fs::cleanup_old_composer_attachments(fs::COMPOSER_ATTACHMENTS_MAX_AGE_DAYS)
+                {
+                    eprintln!("oterm: composer attachment cleanup failed: {error}");
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -142,6 +151,7 @@ pub fn run() {
             fs_open_in_file_explorer,
             fs_search_files,
             fs_show_shell_context_menu,
+            fs_write_temp_attachment,
             git_status,
             git_source_control_status,
             git_stage_paths,

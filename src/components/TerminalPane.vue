@@ -57,12 +57,18 @@ import {
   shouldMarkUnseenFromOutput,
   shouldMarkUnseenFromPrompt,
 } from "../lib/terminalNotification";
+import {
+  clearAgentLifecycleDedupe,
+  notifyAgentEnded,
+  shouldTreatAgentPollClearAsCrash,
+} from "../lib/agentLifecycle";
 import type { TerminalExitEvent, TerminalOutputEvent } from "../types/terminal";
 import {
   isTerminalAutocompleteConfigured,
   type TerminalCommandExchange,
 } from "../types/terminalAutocomplete";
 import "@xterm/xterm/css/xterm.css";
+import AgentComposer from "./AgentComposer.vue";
 import TerminalPathContextMenu from "./TerminalPathContextMenu.vue";
 import type { IDisposable } from "@xterm/xterm";
 
@@ -88,6 +94,7 @@ const emit = defineEmits<{
   oscTitleChanged: [paneId: string, title: string | null];
   notificationReceived: [paneId: string];
   focusPane: [];
+  composerOpenChanged: [paneId: string, open: boolean];
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
@@ -99,17 +106,29 @@ const exchanges = ref<TerminalCommandExchange[]>([]);
 const suggestion = ref<string | null>(null);
 const suggestionLoading = ref(false);
 const paneCwd = ref("");
-const activeAgentId = ref<CliAgentId | null>(null);
+const activeAgentId = ref<CliAgentId | null>(props.activeAgentId ?? null);
 const agentExitConfirmPending = ref(false);
 const promptClearSuppressUntil = ref(0);
 const awaitingOutputSinceFocus = ref(false);
-const tuiModeActive = ref(false);
+const tuiModeActive = ref(Boolean(props.activeAgentId));
 const pathMenuOpen = ref(false);
 const pathMenuX = ref(0);
 const pathMenuY = ref(0);
 const pathMenuPath = ref<string | null>(null);
 const pathMenuIsUrl = ref(false);
 const pathCopiedVisible = ref(false);
+const agentComposerRef = ref<InstanceType<typeof AgentComposer> | null>(null);
+const agentComposerOpen = ref(false);
+const agentCleanExitPending = ref(false);
+let agentCleanExitTimer: number | undefined;
+
+function markAgentCleanExitPending() {
+  agentCleanExitPending.value = true;
+  window.clearTimeout(agentCleanExitTimer);
+  agentCleanExitTimer = window.setTimeout(() => {
+    agentCleanExitPending.value = false;
+  }, 3000);
+}
 
 function notificationContext() {
   return {
@@ -129,13 +148,77 @@ function emitNotificationIfNeeded(check: (ctx: ReturnType<typeof notificationCon
 function setActiveAgent(agentId: CliAgentId | null, emitChange = true) {
   if (activeAgentId.value === agentId) return;
   activeAgentId.value = agentId;
+  tuiModeActive.value = Boolean(agentId);
+  if (!agentId) {
+    agentComposerOpen.value = false;
+  }
   if (emitChange) emit("agentModeChanged", props.paneId, agentId);
 }
 
+function isComposerToggleShortcut(event: KeyboardEvent): boolean {
+  return (
+    event.type === "keydown" &&
+    event.key === "Enter" &&
+    event.ctrlKey &&
+    event.shiftKey &&
+    !event.altKey &&
+    !event.metaKey
+  );
+}
+
+function openAgentComposer() {
+  if (!isReady.value || !localSessionId.value) return;
+  agentComposerOpen.value = true;
+}
+
+function closeAgentComposer() {
+  agentComposerOpen.value = false;
+}
+
+function toggleAgentComposer() {
+  if (agentComposerOpen.value) {
+    closeAgentComposer();
+  } else {
+    openAgentComposer();
+  }
+}
+
+function onAgentComposerSubmitted() {
+  closeAgentComposer();
+  terminal?.focus();
+}
+
+watch(agentComposerOpen, (open) => {
+  if (props.active) {
+    emit("composerOpenChanged", props.paneId, open);
+  }
+});
+
+watch(
+  () => props.active,
+  (active) => {
+    if (active) {
+      emit("composerOpenChanged", props.paneId, agentComposerOpen.value);
+    }
+  },
+);
+
 watch(
   () => props.activeAgentId,
-  (agentId) => {
-    setActiveAgent(agentId ?? null, false);
+  (agentId, previous) => {
+    const previousAgentId = previous ?? null;
+    const nextAgentId = agentId ?? null;
+    if (
+      shouldTreatAgentPollClearAsCrash({
+        previousAgentId,
+        nextAgentId,
+        sessionAlive: Boolean(localSessionId.value),
+        cleanExitPending: agentCleanExitPending.value,
+      })
+    ) {
+      notifyAgentEnded(props.paneId, previousAgentId, "crash");
+    }
+    setActiveAgent(nextAgentId, false);
     schedulePathDecorations();
   },
 );
@@ -497,13 +580,18 @@ function trackCwd(data: string) {
   );
 
   if (next.activeAgentId !== activeAgentId.value) {
+    if (activeAgentId.value && !next.activeAgentId) {
+      markAgentCleanExitPending();
+    }
     setActiveAgent(next.activeAgentId);
   }
   agentExitConfirmPending.value = next.agentExitConfirmPending;
 
   if (!next.trailingPrompt) return;
 
-  tuiModeActive.value = false;
+  if (!activeAgentId.value) {
+    tuiModeActive.value = false;
+  }
   paneCwd.value = next.trailingPrompt.cwd;
   finalizeExchange();
   promptScanBuffer = "";
@@ -587,7 +675,14 @@ async function forwardTerminalInput(data: string) {
 }
 
 function onWindowKeyCapture(event: KeyboardEvent) {
-  if (!shouldForwardPtyKeyOverride(event, props.active, paneRootRef.value)) return;
+  if (props.active && isComposerToggleShortcut(event)) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    toggleAgentComposer();
+    return;
+  }
+
+  if (!shouldForwardPtyKeyOverride(event, props.active, containerRef.value)) return;
 
   const multilinePayload = getMultilineEnterPayload(event);
   const ctrlDPayload = getCtrlDEofPayload(event)
@@ -708,6 +803,12 @@ async function mountTerminal() {
 
   unlistenExit = await listen<TerminalExitEvent>("terminal-exit", (event) => {
     if (event.payload.sessionId !== localSessionId.value || !terminal) return;
+    const endedAgentId = activeAgentId.value;
+    if (endedAgentId) {
+      notifyAgentEnded(props.paneId, endedAgentId, "session_ended", {
+        exitCode: event.payload.exitCode,
+      });
+    }
     setActiveAgent(null);
     agentExitConfirmPending.value = false;
     promptClearSuppressUntil.value = 0;
@@ -741,10 +842,14 @@ async function disposeSession() {
 }
 
 async function scheduleTerminalFocus() {
-  if (!props.active || !props.tabActive || !terminal) return;
+  if (!props.active || !props.tabActive) return;
   await nextTick();
-  if (!props.active || !props.tabActive || !terminal) return;
-  terminal.focus();
+  if (!props.active || !props.tabActive) return;
+  if (agentComposerVisible.value) {
+    await agentComposerRef.value?.focusComposer();
+    return;
+  }
+  terminal?.focus();
 }
 
 function focusTerminal() {
@@ -753,6 +858,10 @@ function focusTerminal() {
 
 defineExpose({
   focusTerminal,
+  toggleAgentComposer,
+  openAgentComposer,
+  closeAgentComposer,
+  isAgentComposerOpen: () => agentComposerOpen.value,
 });
 
 onMounted(async () => {
@@ -799,6 +908,8 @@ onBeforeUnmount(async () => {
   window.clearTimeout(outputNotifyTimer);
   window.clearTimeout(pathDecorationTimer);
   window.clearTimeout(pathCopiedTimer);
+  window.clearTimeout(agentCleanExitTimer);
+  clearAgentLifecycleDedupe(props.paneId);
   suggestionRequestId += 1;
   linkProviderDisposable?.dispose();
   linkProviderDisposable = null;
@@ -820,6 +931,24 @@ onBeforeUnmount(async () => {
 });
 
 const isReady = computed(() => Boolean(localSessionId.value));
+
+const agentComposerVisible = computed(() =>
+  Boolean(isReady.value && localSessionId.value && agentComposerOpen.value),
+);
+
+watch(agentComposerVisible, (visible) => {
+  if (terminal) {
+    terminal.options.disableStdin = visible;
+  }
+  void nextTick(() => {
+    if (visible) {
+      void agentComposerRef.value?.focusComposer();
+    } else if (props.active && props.tabActive) {
+      terminal?.focus();
+    }
+    void handleResize();
+  });
+});
 
 const suggestionVisible = computed(
   () => canSuggest() && Boolean(suggestion.value) && getActiveDraft().trim().length >= 2,
@@ -844,6 +973,15 @@ watch(suggestionStripVisible, () => {
     @mousedown="emit('focusPane')"
   >
     <div ref="containerRef" class="terminal-output min-h-0 w-full flex-1 px-4 py-3" />
+    <AgentComposer
+      v-if="agentComposerVisible && localSessionId"
+      ref="agentComposerRef"
+      :pane-id="paneId"
+      :agent-id="activeAgentId"
+      :session-id="localSessionId"
+      @submitted="onAgentComposerSubmitted"
+      @close="closeAgentComposer"
+    />
     <div
       v-if="suggestionStripVisible"
       class="flex shrink-0 justify-center px-4 pb-3 pt-1"

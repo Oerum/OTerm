@@ -3,6 +3,52 @@ pub mod context_menu;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::{Duration, SystemTime};
+
+pub const COMPOSER_ATTACHMENTS_MAX_AGE_DAYS: u64 = 7;
+
+pub fn composer_attachments_dir() -> PathBuf {
+    std::env::temp_dir()
+        .join("oterm")
+        .join("composer-attachments")
+}
+
+pub fn cleanup_old_composer_attachments(max_age_days: u64) -> Result<(), String> {
+    let max_age = Duration::from_secs(max_age_days.saturating_mul(24 * 60 * 60));
+    cleanup_old_composer_attachments_in(&composer_attachments_dir(), max_age)?;
+    Ok(())
+}
+
+fn cleanup_old_composer_attachments_in(dir: &Path, max_age: Duration) -> Result<u32, String> {
+    if !dir.is_dir() {
+        return Ok(0);
+    }
+
+    let now = SystemTime::now();
+    let mut deleted = 0u32;
+    for entry in std::fs::read_dir(dir).map_err(|err| err.to_string())? {
+        let entry = entry.map_err(|err| err.to_string())?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let modified = match entry.metadata().and_then(|meta| meta.modified()) {
+            Ok(time) => time,
+            Err(_) => continue,
+        };
+        let Ok(age) = now.duration_since(modified) else {
+            continue;
+        };
+        if age <= max_age {
+            continue;
+        }
+        if std::fs::remove_file(&path).is_ok() {
+            deleted += 1;
+        }
+    }
+
+    Ok(deleted)
+}
 
 pub fn expand_path(path: &str) -> Result<PathBuf, String> {
     let trimmed = path.trim();
@@ -772,5 +818,46 @@ mod tests {
         assert!(find_env_import_hint(&child).is_none());
 
         fs::remove_dir_all(&temp).expect("cleanup");
+    }
+
+    #[test]
+    fn cleanup_old_composer_attachments_keeps_recent_files() {
+        let temp = std::env::temp_dir().join(format!("oterm_attach_recent_{}", std::process::id()));
+        fs::create_dir_all(&temp).expect("temp dir");
+        let file = temp.join("recent.png");
+        fs::write(&file, b"png").expect("write file");
+
+        let deleted =
+            cleanup_old_composer_attachments_in(&temp, Duration::from_secs(7 * 24 * 60 * 60))
+                .expect("cleanup");
+        assert_eq!(deleted, 0);
+        assert!(file.is_file());
+
+        fs::remove_dir_all(&temp).expect("cleanup");
+    }
+
+    #[test]
+    fn cleanup_old_composer_attachments_removes_stale_files() {
+        let temp = std::env::temp_dir().join(format!("oterm_attach_stale_{}", std::process::id()));
+        fs::create_dir_all(&temp).expect("temp dir");
+        let file = temp.join("stale.png");
+        fs::write(&file, b"png").expect("write file");
+        std::thread::sleep(Duration::from_millis(20));
+
+        let deleted = cleanup_old_composer_attachments_in(&temp, Duration::from_secs(0))
+            .expect("cleanup");
+        assert_eq!(deleted, 1);
+        assert!(!file.exists());
+
+        fs::remove_dir_all(&temp).expect("cleanup");
+    }
+
+    #[test]
+    fn cleanup_old_composer_attachments_noops_when_dir_missing() {
+        let temp = std::env::temp_dir().join(format!("oterm_attach_missing_{}", std::process::id()));
+        let deleted =
+            cleanup_old_composer_attachments_in(&temp, Duration::from_secs(7 * 24 * 60 * 60))
+                .expect("cleanup");
+        assert_eq!(deleted, 0);
     }
 }

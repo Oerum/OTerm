@@ -15,6 +15,7 @@ const props = defineProps<{
   sourceControlOpen: boolean;
   activePr?: PullRequestSummary | null;
   prLoading?: boolean;
+  agentComposerOpen?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -22,6 +23,7 @@ const emit = defineEmits<{
   toggleTools: [];
   toggleSourceControl: [];
   openPullRequests: [];
+  toggleAgentComposer: [];
 }>();
 
 function formatPath(cwd: string | undefined) {
@@ -60,8 +62,28 @@ const prTitle = computed(() => {
         :agent-id="pane.activeAgentId"
       />
 
+      <button
+        v-if="pane"
+        type="button"
+        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+        :class="agentComposerOpen ? 'text-[var(--oterm-accent)]' : ''"
+        title="Open composer (Ctrl+Shift+Enter)"
+        aria-label="Open composer"
+        @click="emit('toggleAgentComposer')"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+          <path
+            d="M2.5 3.5h11a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1H5.2L2.5 13V4.5a1 1 0 0 1 1-1Z"
+            stroke-width="1.2"
+            stroke-linejoin="round"
+          />
+          <path d="M5 6.5h6M5 9h4" stroke-width="1.2" stroke-linecap="round" />
+        </svg>
+        <span class="hidden md:inline">Message</span>
+      </button>
+
       <span
-        v-if="pane?.activeAgentId"
+        v-if="pane"
         class="hidden h-3 w-px shrink-0 bg-[var(--oterm-border-strong)] sm:block"
       />
 
