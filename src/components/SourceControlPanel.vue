@@ -2,7 +2,6 @@
 import { computed, nextTick, ref, watch } from "vue";
 import {
   SOURCE_CONTROL_DIFF_PANE_MIN_WIDTH,
-  SOURCE_CONTROL_FILE_LIST_WIDTH,
 } from "../composables/useResizablePanel";
 import { getCommitDetails } from "../lib/branchManagerApi";
 import { getGitFileDiff, getGitStagedDiff, readGitWorkingFile, writeGitWorkingFile } from "../lib/gitApi";
@@ -16,7 +15,6 @@ import {
 import CommitAiSettingsDialog from "./CommitAiSettingsDialog.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import type {
-  GitBranchList,
   GitCommitEntry,
   GitFileEntry,
   GitOperation,
@@ -40,13 +38,14 @@ type PendingConfirm = {
 
 const props = defineProps<{
   status: GitSourceControlStatus;
-  branches: GitBranchList;
   history: GitCommitEntry[];
   loading: boolean;
   busy: boolean;
   operation: GitOperation | null;
   operationLabel: string | null;
   panelWidth: number;
+  fileListWidth: number;
+  onFileListResizePointerDown: (event: PointerEvent) => void;
   graphRefreshToken: number;
 }>();
 
@@ -60,7 +59,6 @@ const emit = defineEmits<{
   pull: [];
   push: [];
   sync: [];
-  checkout: [branch: string, remote: boolean];
   refresh: [];
   "revert-hunk": [path: string, patch: string, staged: boolean];
   "stage-hunk": [path: string, patch: string];
@@ -104,7 +102,9 @@ let editRequestId = 0;
 
 const editDirty = computed(() => editContent.value !== editSavedContent.value);
 
-const showDiffPane = computed(() => props.panelWidth >= SOURCE_CONTROL_DIFF_PANE_MIN_WIDTH);
+const showDiffPane = computed(
+  () => props.panelWidth >= props.fileListWidth + SOURCE_CONTROL_DIFF_PANE_MIN_WIDTH,
+);
 
 const canNavigateHunks = computed(
   () => paneView.value === "diff" && hunkCount.value > 0 && !diffLoading.value,
@@ -308,16 +308,6 @@ function onUnstageAll() {
   if (unstageAllPaths.value.length) emit("unstage", unstageAllPaths.value);
 }
 
-const branchSelectValue = computed(() => {
-  const current = props.status.branch ?? props.branches.current;
-  if (!current) return "";
-  return `local:${current}`;
-});
-
-const hasBranches = computed(
-  () => props.branches.local.length > 0 || props.branches.remote.length > 0,
-);
-
 type SyncOp = "fetch" | "pull" | "push" | "sync";
 
 function syncBtnClass(op: SyncOp) {
@@ -349,24 +339,6 @@ function syncBtnClass(op: SyncOp) {
 }
 
 const refreshSpinning = computed(() => props.operation === "refresh");
-
-function onBranchChange(event: Event) {
-  const value = (event.target as HTMLSelectElement).value;
-  if (!value) return;
-  const colon = value.indexOf(":");
-  if (colon < 0) return;
-  const kind = value.slice(0, colon);
-  const name = value.slice(colon + 1);
-  if (!name) return;
-  if (kind === "local") {
-    if (name === props.status.branch) return;
-    emit("checkout", name, false);
-    return;
-  }
-  if (kind === "remote") {
-    emit("checkout", name, true);
-  }
-}
 
 const allChangedFiles = computed(() => [
   ...props.status.staged.map((e) => ({ ...e, staged: true, untracked: false })),
@@ -681,7 +653,7 @@ watch(
   <div class="flex min-h-0 flex-1 flex-col" :class="showDiffPane ? 'flex-row' : 'flex-col'">
     <div
       class="flex min-h-0 shrink-0 flex-col"
-      :style="{ width: showDiffPane ? `${SOURCE_CONTROL_FILE_LIST_WIDTH}px` : undefined }"
+      :style="{ width: showDiffPane ? `${fileListWidth}px` : undefined }"
       :class="showDiffPane ? 'border-r border-[var(--oterm-border)]' : 'min-w-0 flex-1'"
     >
       <div class="flex items-center justify-between border-b border-[var(--oterm-border)] px-3 py-2.5">
@@ -771,40 +743,6 @@ watch(
         </div>
 
         <div class="border-b border-[var(--oterm-border)] p-3">
-          <label
-            class="mb-1 block text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]"
-            style="font-family: var(--oterm-font-ui)"
-          >
-            Branch
-          </label>
-          <select
-            :value="branchSelectValue"
-            class="mb-3 w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] focus:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
-            style="font-family: var(--oterm-font-mono)"
-            :disabled="busy || !hasBranches"
-            @change="onBranchChange"
-          >
-            <option v-if="!hasBranches" value="" disabled>No branches</option>
-            <optgroup v-if="branches.local.length" label="Local">
-              <option
-                v-for="branch in branches.local"
-                :key="`local:${branch}`"
-                :value="`local:${branch}`"
-              >
-                {{ branch }}
-              </option>
-            </optgroup>
-            <optgroup v-if="branches.remote.length" label="Remote">
-              <option
-                v-for="branch in branches.remote"
-                :key="`remote:${branch}`"
-                :value="`remote:${branch}`"
-              >
-                {{ branch }}
-              </option>
-            </optgroup>
-          </select>
-
           <div class="mb-3 grid grid-cols-4 gap-1.5">
             <button
               type="button"
@@ -904,7 +842,7 @@ watch(
           <textarea
             v-model="commitMessage"
             rows="3"
-            class="w-full resize-none rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] placeholder:text-[var(--oterm-faint)] focus:ring-1"
+            class="oterm-scroll w-full resize-none rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] px-2.5 py-2 text-sm text-[var(--oterm-text)] outline-none ring-[var(--oterm-accent)] placeholder:text-[var(--oterm-faint)] focus:ring-1"
             style="font-family: var(--oterm-font-ui)"
             placeholder="Commit message"
             :disabled="busy || generatingCommit"
@@ -1145,6 +1083,13 @@ watch(
         </div>
       </template>
     </div>
+
+    <div
+      v-if="showDiffPane"
+      class="relative z-10 w-2 shrink-0 cursor-col-resize hover:bg-white/5"
+      title="Drag to resize file list"
+      @pointerdown="onFileListResizePointerDown"
+    />
 
     <div
       v-if="showDiffPane && status.isRepo"

@@ -8,7 +8,7 @@ import type {
 import { isTerminalTab } from "../types/terminal";
 import { getCliAgentDefinition } from "./terminalAgentMode";
 
-const ENTRY_COLORS = [
+export const ENTRY_COLORS = [
   { id: "none" as const, hex: "#5c5c5c", label: "None" },
   { id: "green" as const, hex: "#3dd68c", label: "Green" },
   { id: "blue" as const, hex: "#58a6ff", label: "Blue" },

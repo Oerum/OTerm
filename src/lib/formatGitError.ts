@@ -10,6 +10,12 @@ export function formatGitOperationError(err: unknown): string {
   if (lower.includes("not possible to fast-forward") || lower.includes("ff-only")) {
     return "Fast-forward pull failed: your branch has diverged from the remote. Use Sync (rebase) or resolve manually.";
   }
+  if (
+    lower.includes("would be overwritten by checkout") ||
+    lower.includes("would be overwritten by switch")
+  ) {
+    return "Switch blocked: commit, stash, or discard local changes first.";
+  }
 
   const line = raw.split("\n").find((l) => l.trim())?.trim() ?? raw;
   return line.length > 240 ? `${line.slice(0, 240)}…` : line;

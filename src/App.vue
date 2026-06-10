@@ -15,6 +15,7 @@ import IssuesView from "./components/IssuesView.vue";
 import SettingsView from "./components/SettingsView.vue";
 import TitleBar from "./components/TitleBar.vue";
 import TooltipLayer from "./components/TooltipLayer.vue";
+import AppToastLayer from "./components/AppToastLayer.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
 import { useActiveBranchPr } from "./composables/useActiveBranchPr";
 import { useResizablePanel } from "./composables/useResizablePanel";
@@ -57,6 +58,10 @@ import {
 } from "./lib/systemNotification";
 import { shellLabelFor } from "./lib/sidebarEntries";
 import { formatGitOperationError } from "./lib/formatGitError";
+import { pushAppToast } from "./lib/appToast";
+import { listGitWorktrees } from "./lib/gitApi";
+import { resolveActiveWorktree, resolveGitMutationRoot, switchGitBranch } from "./lib/switchGitBranch";
+import type { GitWorktreeInfo } from "./types/git";
 
 const appVersion = "0.1.0";
 
@@ -82,9 +87,11 @@ const createPrError = ref<string | null>(null);
 
 const {
   widthPx: sourceControlWidth,
+  fileListWidthPx: sourceControlFileListWidth,
   resizing: sourceControlResizing,
   ensureDiffPaneWidth,
   onResizeHandlePointerDown,
+  onFileListResizePointerDown,
 } = useResizablePanel(() => {
   void refitTerminals();
 });
@@ -157,7 +164,6 @@ const {
   pull: pullGitRepo,
   push: pushGitRepo,
   sync: syncGitRepo,
-  checkout: checkoutGitBranch,
 } = useSourceControl(activeCwd);
 
 const gitBadgeStatus = computed(() => ({
@@ -181,6 +187,31 @@ const activePaneGit = computed(() => ({
 }));
 
 let promptGitRefreshTimer: number | undefined;
+const sourceControlPanelRef = ref<InstanceType<typeof SourceControlPanel> | null>(null);
+const gitBranchSwitchBusy = ref(false);
+const gitWorktrees = ref<GitWorktreeInfo[]>([]);
+
+watch(
+  [() => sourceControlStatus.value.repoRoot, activeCwd],
+  async ([root]) => {
+    if (!root) {
+      gitWorktrees.value = [];
+      return;
+    }
+    try {
+      gitWorktrees.value = await listGitWorktrees(root);
+    } catch {
+      gitWorktrees.value = [];
+    }
+  },
+  { immediate: true },
+);
+
+const gitWorktreeHint = computed(() => {
+  const wt = resolveActiveWorktree(activeCwd.value, gitWorktrees.value);
+  if (!wt || wt.isMain) return null;
+  return { path: wt.path, branch: wt.branch };
+});
 
 async function refreshGitViews() {
   await refreshSourceControl();
@@ -196,11 +227,22 @@ async function runGitAction(action: () => Promise<void>) {
   bumpGitBadges();
 }
 
+function notifyGitError(err: unknown) {
+  const message = formatGitOperationError(err);
+  pushAppToast(message, "error");
+  sourceControlPanelRef.value?.showPanelFeedback(message, true);
+}
+
+function notifyGitInfo(message: string) {
+  pushAppToast(message, "info");
+  sourceControlPanelRef.value?.showPanelFeedback(message, false);
+}
+
 async function runGitActionWithFeedback(action: () => Promise<void>) {
   try {
     await runGitAction(action);
   } catch (err) {
-    sourceControlPanelRef.value?.showPanelFeedback(formatGitOperationError(err), true);
+    notifyGitError(err);
     throw err;
   }
 }
@@ -309,14 +351,14 @@ async function onSyncGit() {
   }
 }
 
-const sourceControlPanelRef = ref<InstanceType<typeof SourceControlPanel> | null>(null);
-
 async function runGitHunkAction(action: () => Promise<void>) {
   try {
     await runGitAction(action);
+    notifyGitInfo("Change applied");
     sourceControlPanelRef.value?.showHunkFeedback("Change applied");
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = formatGitOperationError(err);
+    pushAppToast(message, "error");
     sourceControlPanelRef.value?.showHunkFeedback(message, true);
   } finally {
     sourceControlPanelRef.value?.clearHunkOperation();
@@ -367,7 +409,9 @@ function openPullRequests() {
 function openBranchManager() {
   const root = gitRepoRoot.value;
   if (!root) return;
-  openBranchManagerTab(root);
+  openBranchManagerTab(
+    resolveGitMutationRoot(root, activeCwd.value, gitWorktrees.value),
+  );
 }
 
 function openIssues() {
@@ -662,6 +706,36 @@ async function openPathInTerminal(path: string) {
   await writeTerminal(pane.sessionId, `${command}${shellLineEnding()}`);
 }
 
+async function onSwitchBranch(
+  branch: string,
+  isRemote: boolean,
+  repoRootOverride?: string,
+) {
+  if (gitBranchSwitchBusy.value) return;
+  const repoRoot = repoRootOverride ?? sourceControlStatus.value.repoRoot;
+  if (!repoRoot) return;
+
+  gitBranchSwitchBusy.value = true;
+  try {
+    await runGitAction(async () => {
+      await switchGitBranch({
+        repoRoot,
+        branch,
+        isRemote,
+        currentBranch: sourceControlStatus.value.branch,
+        activeCwd: activePane.value?.cwd,
+        cdToPath: openPathInTerminal,
+      });
+    });
+    await refreshGitViews();
+  } catch (err) {
+    notifyGitError(err);
+    throw err;
+  } finally {
+    gitBranchSwitchBusy.value = false;
+  }
+}
+
 function cdFromExplorer(path: string, isDir: boolean) {
   if (isDir) {
     void openPathInTerminal(path);
@@ -709,16 +783,21 @@ onUnmounted(() => {
 <template>
   <div class="oterm-app relative flex h-full flex-col overflow-hidden">
     <TooltipLayer />
+    <AppToastLayer />
     <TitleBar
       :terminal-sidebar-open="terminalSidebarOpen"
       :tools-open="toolsOpen"
       :source-control-open="sourceControlOpen"
       :git-status="gitBadgeStatus"
+      :git-branches="gitBranches"
+      :git-busy="sourceControlBusy || gitBranchSwitchBusy"
+      :git-worktree-hint="gitWorktreeHint"
       :can-open-git-features="canOpenGitFeatures"
       :app-version="appVersion"
       @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
       @toggle-tools="toolsOpen = !toolsOpen"
       @toggle-source-control="toggleSourceControl"
+      @switch-branch="onSwitchBranch"
       @open-ssh-sftp="openSshSftp"
       @open-docker-manager="openDockerManager"
       @open-pull-requests="openPullRequests"
@@ -822,6 +901,7 @@ onUnmounted(() => {
               v-show="tab.id === activeTabId"
               class="flex min-h-0 flex-1"
               :repo-root="tab.repoRoot"
+              :switch-branch="onSwitchBranch"
               @refresh-git="refreshGitViews"
               @close="closeTab(tab.id)"
             />
@@ -915,13 +995,14 @@ onUnmounted(() => {
         <SourceControlPanel
           ref="sourceControlPanelRef"
           :status="sourceControlStatus"
-          :branches="gitBranches"
           :history="gitHistory"
           :loading="sourceControlLoading"
           :busy="sourceControlBusy"
           :operation="sourceControlOperation"
           :operation-label="sourceControlOperationLabel"
           :panel-width="sourceControlWidth"
+          :file-list-width="sourceControlFileListWidth"
+          :on-file-list-resize-pointer-down="onFileListResizePointerDown"
           :graph-refresh-token="gitGraphRefreshToken"
           @refresh="() => runGitAction(refreshSourceControl)"
           @expand-panel="ensureDiffPaneWidth"
@@ -934,7 +1015,6 @@ onUnmounted(() => {
           @pull="() => runGitActionWithFeedback(pullGitRepo)"
           @push="onPushGit"
           @sync="onSyncGit"
-          @checkout="(branch, remote) => runGitAction(() => checkoutGitBranch(branch, remote))"
           @revert-hunk="(path, patch, staged) => runGitHunkAction(() => revertGitHunk(path, patch, staged))"
           @stage-hunk="(path, patch) => runGitHunkAction(() => stageGitHunk(path, patch))"
           @unstage-hunk="(path, patch) => runGitHunkAction(() => unstageGitHunk(path, patch))"

@@ -1,6 +1,6 @@
 import { computed, ref, watch, type Ref } from "vue";
 import {
-  checkoutGitBranch,
+  switchGitBranchApi,
   commitGitChanges,
   fetchGitRepo,
   getGitLog,
@@ -214,10 +214,10 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     await runAction("sync", () => syncGitRepo(root), true);
   }
 
-  async function checkout(branch: string, isRemote: boolean) {
+  async function switchBranch(branch: string, isRemote: boolean) {
     const root = status.value.repoRoot;
     if (!root) return;
-    await runAction("checkout", () => checkoutGitBranch(root, branch, isRemote), true);
+    await runAction("switch", () => switchGitBranchApi(root, branch, isRemote), true);
   }
 
   watch(cwd, () => scheduleRefresh(true), { immediate: true });
@@ -244,6 +244,6 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     pull,
     push,
     sync,
-    checkout,
+    switchBranch,
   };
 }

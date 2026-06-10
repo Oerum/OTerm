@@ -3,7 +3,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { computed, onMounted, ref, watch } from "vue";
 import CreatePullRequestDialog from "./CreatePullRequestDialog.vue";
 import {
-  checkoutPullRequest,
+  switchPullRequestBranch,
   commentOnPullRequest,
   createPullRequest,
   detectPrProvider,
@@ -299,11 +299,11 @@ function selectTab(tab: PullRequestTab) {
   if (number) void ensureTabLoaded(tab, number);
 }
 
-async function onCheckout(pr: PullRequestSummary) {
+async function onSwitchPullRequestBranch(pr: PullRequestSummary) {
   busy.value = true;
   error.value = null;
   try {
-    await checkoutPullRequest(props.repoRoot, pr.number);
+    await switchPullRequestBranch(props.repoRoot, pr.number);
     emit("refreshGit");
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
@@ -529,9 +529,9 @@ watch(selectedNumber, (number) => {
               type="button"
               class="rounded border border-[var(--oterm-border)] px-3 py-1 text-xs hover:bg-white/5"
               :disabled="busy"
-              @click="onCheckout(selected)"
+              @click="onSwitchPullRequestBranch(selected)"
             >
-              Checkout branch
+              Switch to branch
             </button>
           </div>
         </div>

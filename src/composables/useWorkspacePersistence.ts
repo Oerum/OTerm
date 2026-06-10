@@ -17,6 +17,7 @@ export function useWorkspacePersistence(
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
   let unlistenClose: (() => void) | undefined;
   let flushPromise: Promise<void> | undefined;
+  let isClosing = false;
 
   async function flush() {
     if (flushPromise) return flushPromise;
@@ -56,13 +57,15 @@ export function useWorkspacePersistence(
 
     void getCurrentWindow()
       .onCloseRequested(async (event) => {
+        if (isClosing) return;
         event.preventDefault();
+        isClosing = true;
         try {
           await flush();
         } catch {
           // proceed with close even if persistence fails
         }
-        await getCurrentWindow().close();
+        await getCurrentWindow().destroy();
       })
       .then((unlisten) => {
         unlistenClose = unlisten;

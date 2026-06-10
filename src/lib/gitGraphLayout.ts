@@ -12,10 +12,10 @@ const GRAPH_LANE_COLORS = [
   "#d29922",
 ];
 
-const GRAPH_ROW_HEIGHT = 36;
-const GRAPH_LANE_WIDTH = 14;
-const GRAPH_NODE_R = 4;
-const GRAPH_HEAD_R = 5;
+export const GRAPH_ROW_HEIGHT = 36;
+export const GRAPH_LANE_WIDTH = 14;
+export const GRAPH_NODE_R = 4;
+export const GRAPH_HEAD_R = 5;
 
 /** Snap to half-pixels so strokes anti-alias cleanly. */
 function snap(n: number): number {
@@ -235,7 +235,7 @@ export function parseDecorations(raw: string): string[] {
     .filter(Boolean);
 }
 
-function isHeadCommit(decorations: string): boolean {
+export function isHeadCommit(decorations: string): boolean {
   return decorations.includes("HEAD");
 }
 

@@ -1,8 +1,8 @@
 use super::branches::{
     cherry_pick_commit, checkout_detached, compare_commits, create_branch, create_tag,
-    list_branch_refs, list_incoming_outgoing, read_commit_details, read_commit_graph,
-    reset_commit, revert_commit, squash_commits, BranchRefInfo, CommitDetails, CommitGraphPage,
-    CompareResult,
+    delete_branch, list_branch_refs, list_incoming_outgoing, list_worktrees, merge_branch,
+    read_commit_details, read_commit_graph, reset_commit, revert_commit, squash_commits,
+    BranchRefInfo, CommitDetails, CommitGraphPage, CompareResult, GitWorktreeInfo,
 };
 use super::issues::{
     create_branch_from_issue, list_issues, view_issue, IssueDetail, IssueListFilters, IssueSummary,
@@ -119,6 +119,11 @@ pub async fn git_sync(repo_root: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn git_list_branches(repo_root: String) -> Result<GitBranchList, String> {
     blocking_git(move || list_branches(repo_root)).await
+}
+
+#[tauri::command]
+pub async fn git_list_worktrees(repo_root: String) -> Result<Vec<GitWorktreeInfo>, String> {
+    blocking_git(move || list_worktrees(repo_root)).await
 }
 
 #[tauri::command]
@@ -342,4 +347,23 @@ pub async fn git_squash_commits(
     message: String,
 ) -> Result<(), String> {
     blocking_git(move || squash_commits(repo_root, count, message)).await
+}
+
+#[tauri::command]
+pub async fn git_delete_branch(
+    repo_root: String,
+    name: String,
+    is_remote: bool,
+    force: bool,
+) -> Result<(), String> {
+    blocking_git(move || delete_branch(repo_root, name, is_remote, force)).await
+}
+
+#[tauri::command]
+pub async fn git_merge_branch(
+    repo_root: String,
+    source: String,
+    target: String,
+) -> Result<(), String> {
+    blocking_git(move || merge_branch(repo_root, source, target)).await
 }

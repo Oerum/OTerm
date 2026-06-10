@@ -47,7 +47,7 @@ export function listIncomingOutgoing(
   return invoke<GitCommitEntry[]>("git_incoming_outgoing", { repoRoot, direction });
 }
 
-export function checkoutDetached(repoRoot: string, hash: string): Promise<void> {
+export function switchDetached(repoRoot: string, hash: string): Promise<void> {
   return invoke("git_checkout_detached", { repoRoot, hash });
 }
 
@@ -95,4 +95,21 @@ export function squashCommits(
   message: string,
 ): Promise<void> {
   return invoke("git_squash_commits", { repoRoot, count, message });
+}
+
+export function deleteBranch(
+  repoRoot: string,
+  name: string,
+  isRemote: boolean,
+  force = false,
+): Promise<void> {
+  return invoke("git_delete_branch", { repoRoot, name, isRemote, force });
+}
+
+export function mergeBranch(
+  repoRoot: string,
+  source: string,
+  target: string,
+): Promise<void> {
+  return invoke("git_merge_branch", { repoRoot, source, target });
 }

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useWindowDrag } from "../composables/useWindowDrag";
-import type { GitStatus } from "../types/git";
+import type { GitBranchList, GitStatus } from "../types/git";
 import dockerIcon from "../assets/docker/docker-mark-ocean-blue.svg";
+import BranchSwitcherButton from "./BranchSwitcherButton.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
 import GitMenu from "./GitMenu.vue";
 import SshMenu from "./SshMenu.vue";
@@ -13,6 +14,9 @@ defineProps<{
   toolsOpen: boolean;
   sourceControlOpen: boolean;
   gitStatus: GitStatus;
+  gitBranches: GitBranchList;
+  gitBusy?: boolean;
+  gitWorktreeHint?: { path: string; branch: string | null } | null;
   canOpenGitFeatures: boolean;
   appVersion: string;
 }>();
@@ -21,6 +25,7 @@ const emit = defineEmits<{
   toggleTerminalSidebar: [];
   toggleTools: [];
   toggleSourceControl: [];
+  switchBranch: [branch: string, isRemote: boolean];
   openSshSftp: [];
   openDockerManager: [];
   openPullRequests: [];
@@ -104,7 +109,7 @@ function onDragMouseDown(event: MouseEvent) {
       @mousedown="onDragMouseDown"
     />
 
-    <div class="no-drag flex items-center gap-1 pr-1">
+    <div class="no-drag flex items-center gap-1">
       <SshMenu @open-ssh-sftp="emit('openSshSftp')" />
       <button
         type="button"
@@ -126,6 +131,14 @@ function onDragMouseDown(event: MouseEvent) {
         :active="sourceControlOpen"
         compact
         @click="emit('toggleSourceControl')"
+      />
+      <BranchSwitcherButton
+        :git-status="gitStatus"
+        :branches="gitBranches"
+        :busy="gitBusy"
+        :worktree-hint="gitWorktreeHint"
+        compact
+        @switch="(branch, remote) => emit('switchBranch', branch, remote)"
       />
       <UserMenu :app-version="appVersion" class="mx-0.5" @open-settings="emit('openSettings')" />
       <button
@@ -150,9 +163,9 @@ function onDragMouseDown(event: MouseEvent) {
       </button>
       <button
         type="button"
-        class="flex h-9 w-11 items-center justify-center text-[var(--oterm-muted)] transition hover:bg-[var(--oterm-danger)] hover:text-white"
+        class="flex h-9 w-11 items-center justify-center rounded-tr-lg text-[var(--oterm-muted)] transition hover:bg-[var(--oterm-danger)] hover:text-white"
         aria-label="Close"
-        @click="appWindow.close()"
+        @click="void appWindow.close()"
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor">
           <path d="M1 1l8 8M9 1L1 9" stroke-width="1.2" stroke-linecap="round" />

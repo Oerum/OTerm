@@ -62,7 +62,7 @@ export function createPullRequest(input: CreatePullRequestInput): Promise<PullRe
   });
 }
 
-export function checkoutPullRequest(repoRoot: string, number: number): Promise<void> {
+export function switchPullRequestBranch(repoRoot: string, number: number): Promise<void> {
   return invoke("pr_checkout", { repoRoot, number });
 }
 

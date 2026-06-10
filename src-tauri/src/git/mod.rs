@@ -323,9 +323,11 @@ pub fn list_branches(repo_root: String) -> Result<GitBranchList, String> {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
 
-    let local = list_ref_names(&root, "refs/heads/")?;
+    let mut local = list_ref_names(&root, "refs/heads/")?;
     let mut remote = list_ref_names(&root, "refs/remotes/")?;
     remote.retain(|name| !name.ends_with("/HEAD"));
+    local.sort_by(|a, b| branches::compare_branch_names(a, b));
+    remote.sort_by(|a, b| branches::compare_branch_names(a, b));
 
     Ok(GitBranchList {
         current,

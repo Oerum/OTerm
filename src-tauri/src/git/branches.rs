@@ -1,6 +1,20 @@
+use std::cmp::Ordering;
 use std::path::PathBuf;
 
 use super::{git_diff_output, git_output, git_run, GitCommitEntry};
+
+pub(crate) fn branch_sort_key(name: &str) -> String {
+    name.to_lowercase()
+        .chars()
+        .filter(|c| !matches!(c, '-' | '_' | '.' | ' ' | '\t'))
+        .collect()
+}
+
+pub(crate) fn compare_branch_names(a: &str, b: &str) -> Ordering {
+    branch_sort_key(a)
+        .cmp(&branch_sort_key(b))
+        .then_with(|| a.to_lowercase().cmp(&b.to_lowercase()))
+}
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -12,6 +26,7 @@ pub struct BranchRefInfo {
     pub upstream: Option<String>,
     pub ahead: u32,
     pub behind: u32,
+    pub remote_name: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -56,6 +71,77 @@ pub struct CompareResult {
     pub content: String,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWorktreeInfo {
+    pub path: String,
+    pub branch: Option<String>,
+    pub head: String,
+    pub is_main: bool,
+}
+
+pub fn list_worktrees(repo_root: String) -> Result<Vec<GitWorktreeInfo>, String> {
+    let root = PathBuf::from(&repo_root);
+    if !root.is_dir() {
+        return Err("Repository root does not exist".into());
+    }
+
+    let output = git_output(&root, &["worktree", "list", "--porcelain"])?;
+
+    let mut worktrees = Vec::new();
+    let mut path: Option<String> = None;
+    let mut head: Option<String> = None;
+    let mut branch: Option<String> = None;
+
+    let flush = |path: &mut Option<String>,
+                     head: &mut Option<String>,
+                     branch: &mut Option<String>,
+                     worktrees: &mut Vec<GitWorktreeInfo>| {
+        let Some(wt_path) = path.take() else {
+            head.take();
+            branch.take();
+            return;
+        };
+        let Some(wt_head) = head.take() else {
+            branch.take();
+            return;
+        };
+        let wt_branch = branch.take();
+        let is_main = PathBuf::from(&wt_path).join(".git").is_dir();
+        worktrees.push(GitWorktreeInfo {
+            path: wt_path,
+            branch: wt_branch,
+            head: wt_head,
+            is_main,
+        });
+    };
+
+    for line in output.lines() {
+        if let Some(rest) = line.strip_prefix("worktree ") {
+            flush(&mut path, &mut head, &mut branch, &mut worktrees);
+            path = Some(rest.to_string());
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("HEAD ") {
+            head = Some(rest.to_string());
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("branch ") {
+            branch = rest
+                .strip_prefix("refs/heads/")
+                .map(|name| name.to_string());
+            continue;
+        }
+        if line == "detached" {
+            branch = None;
+        }
+    }
+
+    flush(&mut path, &mut head, &mut branch, &mut worktrees);
+
+    Ok(worktrees)
+}
+
 pub fn list_branch_refs(repo_root: String) -> Result<Vec<BranchRefInfo>, String> {
     let root = PathBuf::from(&repo_root);
     let current = git_output(&root, &["branch", "--show-current"])
@@ -67,7 +153,7 @@ pub fn list_branch_refs(repo_root: String) -> Result<Vec<BranchRefInfo>, String>
         &root,
         &[
             "for-each-ref",
-            "--format=%(refname:short)|%(objectname:short)|%(upstream:short)|%(upstream:track)",
+            "--format=%(refname)|%(refname:short)|%(objectname:short)|%(upstream:short)|%(upstream:track)",
             "refs/heads/",
             "refs/remotes/",
         ],
@@ -76,11 +162,15 @@ pub fn list_branch_refs(repo_root: String) -> Result<Vec<BranchRefInfo>, String>
     let mut refs = Vec::new();
     for line in output.lines() {
         let line = line.trim();
-        if line.is_empty() || line.ends_with("/HEAD") {
+        if line.is_empty() {
             continue;
         }
         let mut parts = line.split('|');
+        let refname = parts.next().unwrap_or("");
         let name = parts.next().unwrap_or("").to_string();
+        if name.is_empty() || name.ends_with("/HEAD") {
+            continue;
+        }
         let short_hash = parts.next().unwrap_or("").to_string();
         let upstream = parts
             .next()
@@ -88,7 +178,10 @@ pub fn list_branch_refs(repo_root: String) -> Result<Vec<BranchRefInfo>, String>
             .map(str::to_string);
         let track = parts.next().unwrap_or("");
         let (ahead, behind) = parse_track(track);
-        let is_remote = name.contains('/');
+        let is_remote = refname.starts_with("refs/remotes/");
+        let remote_name = is_remote
+            .then(|| name.split_once('/').map(|(remote, _)| remote.to_string()))
+            .flatten();
         let is_current = !is_remote && current.as_deref() == Some(name.as_str());
 
         refs.push(BranchRefInfo {
@@ -99,10 +192,11 @@ pub fn list_branch_refs(repo_root: String) -> Result<Vec<BranchRefInfo>, String>
             upstream,
             ahead,
             behind,
+            remote_name,
         });
     }
 
-    refs.sort_by(|a, b| a.name.cmp(&b.name));
+    refs.sort_by(|a, b| compare_branch_names(&a.name, &b.name));
     Ok(refs)
 }
 
@@ -332,6 +426,83 @@ pub fn reset_commit(repo_root: String, hash: String, mode: String) -> Result<(),
 pub fn cherry_pick_commit(repo_root: String, hash: String) -> Result<(), String> {
     let root = PathBuf::from(repo_root);
     git_run(&root, &["cherry-pick", hash.trim()])
+}
+
+pub fn delete_branch(
+    repo_root: String,
+    name: String,
+    is_remote: bool,
+    force: bool,
+) -> Result<(), String> {
+    let root = PathBuf::from(&repo_root);
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("Branch name is required".into());
+    }
+
+    if is_remote {
+        let Some((remote, branch)) = trimmed.split_once('/') else {
+            return Err("Invalid remote branch name".into());
+        };
+        if branch.is_empty() || branch == "HEAD" {
+            return Err("Cannot delete remote HEAD".into());
+        }
+        return git_run(&root, &["push", remote, "--delete", branch]);
+    }
+
+    let current = git_output(&root, &["branch", "--show-current"])
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty());
+    if current.as_deref() == Some(trimmed) {
+        return Err("Cannot delete the current branch".into());
+    }
+
+    let flag = if force { "-D" } else { "-d" };
+    git_run(&root, &["branch", flag, trimmed])
+}
+
+pub fn merge_branch(repo_root: String, source: String, target: String) -> Result<(), String> {
+    let root = PathBuf::from(&repo_root);
+    let source = source.trim().to_string();
+    let target = target.trim().to_string();
+    if source.is_empty() || target.is_empty() {
+        return Err("Source and target branches are required".into());
+    }
+    if source == target {
+        return Err("Source and target branches must be different".into());
+    }
+
+    if is_working_tree_dirty(&root)? {
+        return Err("Working tree has uncommitted changes. Commit or stash before merging.".into());
+    }
+
+    let previous = git_output(&root, &["branch", "--show-current"])
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty());
+
+    if git_run(&root, &["switch", &target]).is_err() {
+        return Err(format!("Target branch '{target}' not found"));
+    }
+
+    match git_run(&root, &["merge", &source]) {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            let _ = git_run(&root, &["merge", "--abort"]);
+            if let Some(prev) = previous.as_deref() {
+                if prev != target {
+                    let _ = git_run(&root, &["switch", prev]);
+                }
+            }
+            Err(format!("Merge failed: {err}"))
+        }
+    }
+}
+
+fn is_working_tree_dirty(root: &PathBuf) -> Result<bool, String> {
+    let output = git_output(root, &["status", "--porcelain"])?;
+    Ok(!output.trim().is_empty())
 }
 
 pub fn squash_commits(repo_root: String, count: u32, message: String) -> Result<(), String> {

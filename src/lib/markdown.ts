@@ -1,4 +1,4 @@
-import DOMPurify from "isomorphic-dompurify";
+import DOMPurify, { type UponSanitizeElementHook } from "isomorphic-dompurify";
 import { marked } from "marked";
 
 marked.use({
@@ -17,11 +17,15 @@ export function renderMarkdown(source: string): string {
   const trimmed = source.replace(/\r\n/g, "\n").trim();
   if (!trimmed) return "";
   const raw = marked.parse(trimmed, { async: false }) as string;
-  const hook = (node: Element) => {
-    if (node.tagName?.toLowerCase() !== "input") {
+  const hook: UponSanitizeElementHook = (currentNode) => {
+    const tagName =
+      "tagName" in currentNode && typeof currentNode.tagName === "string"
+        ? currentNode.tagName.toLowerCase()
+        : "";
+    if (tagName !== "input") {
       return;
     }
-    const input = node as HTMLInputElement;
+    const input = currentNode as HTMLInputElement;
     if (input.getAttribute("type") !== "checkbox") {
       input.setAttribute("type", "checkbox");
     }

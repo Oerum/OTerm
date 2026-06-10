@@ -13,4 +13,22 @@ describe("formatGitOperationError", () => {
     const msg = formatGitOperationError(new Error("fatal: Not possible to fast-forward, aborting."));
     expect(msg).toContain("diverged");
   });
+
+  it("maps switch blocked by local changes", () => {
+    const msg = formatGitOperationError(
+      new Error(
+        "error: Your local changes to the following files would be overwritten by checkout:\n\tsrc/foo.ts",
+      ),
+    );
+    expect(msg).toContain("Switch blocked");
+  });
+
+  it("maps switch blocked when git reports switch wording", () => {
+    const msg = formatGitOperationError(
+      new Error(
+        "error: Your local changes to the following files would be overwritten by switch:\n\tsrc/foo.ts",
+      ),
+    );
+    expect(msg).toContain("Switch blocked");
+  });
 });

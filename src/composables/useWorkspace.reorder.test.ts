@@ -28,7 +28,8 @@ describe("reorderTerminalTab", () => {
     ws.reorderTerminalTab(t3.id, 0);
 
     expect(terminalTabIds(ws)).toEqual([t3.id, t1.id, t2.id]);
-    expect(ws.tabs.value.at(-1)?.kind).toBe("settings");
+    const tabs = ws.tabs.value;
+    expect(tabs[tabs.length - 1]?.kind).toBe("settings");
   });
 
   it("moveTab swaps adjacent terminal tabs only", () => {
@@ -63,6 +64,7 @@ describe("reorderTerminalTab", () => {
     ws.reorderTerminalTab(settings.id, 0);
 
     expect(terminalTabIds(ws)).toHaveLength(1);
-    expect(ws.tabs.value.at(-1)?.id).toBe(settings.id);
+    const tabs = ws.tabs.value;
+    expect(tabs[tabs.length - 1]?.id).toBe(settings.id);
   });
 });

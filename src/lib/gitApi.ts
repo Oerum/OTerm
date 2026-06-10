@@ -7,6 +7,7 @@ import type {
   GitStagedDiffContext,
   GitStatus,
   GitWorkingFile,
+  GitWorktreeInfo,
 } from "../types/git";
 
 export function getGitStatus(path?: string): Promise<GitStatus> {
@@ -57,7 +58,11 @@ export function listGitBranches(repoRoot: string): Promise<GitBranchList> {
   return invoke<GitBranchList>("git_list_branches", { repoRoot });
 }
 
-export function checkoutGitBranch(
+export function listGitWorktrees(repoRoot: string): Promise<GitWorktreeInfo[]> {
+  return invoke<GitWorktreeInfo[]>("git_list_worktrees", { repoRoot });
+}
+
+export function switchGitBranchApi(
   repoRoot: string,
   branch: string,
   isRemote: boolean,

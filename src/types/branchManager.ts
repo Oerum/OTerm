@@ -6,6 +6,7 @@ export interface BranchRefInfo {
   upstream: string | null;
   ahead: number;
   behind: number;
+  remoteName: string | null;
 }
 
 export interface GraphCommit {

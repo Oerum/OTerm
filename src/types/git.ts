@@ -39,6 +39,13 @@ export interface GitBranchList {
   remote: string[];
 }
 
+export interface GitWorktreeInfo {
+  path: string;
+  branch: string | null;
+  head: string;
+  isMain: boolean;
+}
+
 export interface GitStagedDiffContext {
   stat: string;
   diff: string;
@@ -50,7 +57,7 @@ export type GitOperation =
   | "pull"
   | "push"
   | "sync"
-  | "checkout"
+  | "switch"
   | "commit"
   | "stage"
   | "unstage"
@@ -91,7 +98,7 @@ export const GIT_OPERATION_LABELS: Record<GitOperation, string> = {
   pull: "Pulling changes…",
   push: "Pushing commits…",
   sync: "Syncing with remote…",
-  checkout: "Switching branch…",
+  switch: "Switching branch…",
   commit: "Creating commit…",
   stage: "Staging changes…",
   unstage: "Unstaging changes…",

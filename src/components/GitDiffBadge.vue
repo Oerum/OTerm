@@ -82,7 +82,7 @@ const badgeTitle = () => {
       <circle cx="11.5" cy="11.5" r="1.5" stroke-width="1.2" />
       <path d="M6 4.5h3.5a2 2 0 0 1 2 2V9" stroke-width="1.2" stroke-linecap="round" />
     </svg>
-    <span v-if="gitStatus.branch && !compact" class="max-w-[8rem] truncate">{{ gitStatus.branch }}</span>
+
     <template v-if="hasSyncStats() || hasDiffStats()">
       <span v-if="gitStatus.ahead > 0" class="text-[#58a6ff]">↑{{ gitStatus.ahead }}</span>
       <span v-if="gitStatus.behind > 0" class="text-[#e3b341]">↓{{ gitStatus.behind }}</span>
