@@ -20,6 +20,7 @@ import { useResizablePanel } from "./composables/useResizablePanel";
 import { useSourceControl } from "./composables/useSourceControl";
 import { useTerminalHistory } from "./composables/useTerminalHistory";
 import { useWorkspace } from "./composables/useWorkspace";
+import { useWorkspacePersistence } from "./composables/useWorkspacePersistence";
 import type { ClosedTerminalSession, SaveProfileDraft, WorkspaceTerminalTab } from "./types/terminal";
 import { isTerminalTab } from "./types/terminal";
 import {
@@ -28,6 +29,7 @@ import {
   saveDefaultShellId,
 } from "./lib/shellSettings";
 import { getSetting } from "./lib/settingsStore";
+import { loadPersistedTerminalWorkspace } from "./lib/workspaceStore";
 import type { DockerContainer } from "./types/docker";
 import type { SshEndpoint } from "./types/sshSftp";
 import { getLaunchInitialCwd } from "./lib/launchApi";
@@ -113,7 +115,11 @@ const {
   setTabTitle,
   setTabColor,
   moveTab,
+  serializeTerminalWorkspace,
+  hydrateTerminalWorkspace,
 } = useWorkspace(() => defaultShellId.value);
+
+useWorkspacePersistence(tabs, activeTabId, activePaneId, serializeTerminalWorkspace);
 
 const history = useTerminalHistory();
 const {
@@ -473,6 +479,17 @@ async function bootstrap() {
     defaultShellId.value = resolved;
     saveDefaultShellId(resolved);
   }
+  const persisted = loadPersistedTerminalWorkspace();
+  if (persisted) {
+    const resolveShellId = (shellId: string) =>
+      shells.value.some((shell) => shell.id === shellId) ? shellId : resolved;
+    const restored = hydrateTerminalWorkspace(persisted, resolveShellId);
+    tabs.value = restored.tabs;
+    activeTabId.value = restored.activeTabId;
+    activePaneId.value = restored.activePaneId;
+    return;
+  }
+
   const launchCwd = await getLaunchInitialCwd();
   createTab(resolved, launchCwd ?? undefined);
 }

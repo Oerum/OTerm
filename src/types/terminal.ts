@@ -171,3 +171,23 @@ export interface ClosedTerminalSession {
   title: string;
   color: TerminalEntryColor;
 }
+
+export interface PersistedWorkspacePane {
+  shellId: string;
+  cwd: string;
+  customTitle: string | null;
+}
+
+export interface PersistedTerminalTab {
+  title: string;
+  color: TerminalEntryColor;
+  split: "none" | "horizontal";
+  panes: PersistedWorkspacePane[];
+}
+
+export interface PersistedTerminalWorkspaceV1 {
+  version: 1;
+  tabs: PersistedTerminalTab[];
+  activeTabIndex: number;
+  activePaneIndex: number;
+}

@@ -3,6 +3,7 @@ import { cwdForNewTerminal } from "../lib/newTerminalCwd";
 import type { CliAgentId } from "../lib/terminalAgentMode";
 import { normalizeOscTitle } from "../lib/terminalOscTitle";
 import type {
+  PersistedTerminalWorkspaceV1,
   ShellProfile,
   TerminalEntryColor,
   WorkspacePane,
@@ -21,6 +22,13 @@ export function useWorkspace(getDefaultShellId: () => string) {
   const tabs = ref<WorkspaceTab[]>([]);
   const activeTabId = ref<string | null>(null);
   const activePaneId = ref<string | null>(null);
+  let lastActiveTerminalTabId: string | null = null;
+  let lastActiveTerminalPaneId: string | null = null;
+
+  function rememberActiveTerminal(tabId: string, paneId: string | null) {
+    lastActiveTerminalTabId = tabId;
+    lastActiveTerminalPaneId = paneId;
+  }
 
   const activeTab = computed(() =>
     tabs.value.find((tab) => tab.id === activeTabId.value) ?? null,
@@ -66,6 +74,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     tabs.value.push(tab);
     activeTabId.value = tab.id;
     activePaneId.value = pane.id;
+    rememberActiveTerminal(tab.id, pane.id);
     return tab;
   }
 
@@ -193,8 +202,12 @@ export function useWorkspace(getDefaultShellId: () => string) {
     if (activeTabId.value === tabId) {
       const next = tabs.value[index] ?? tabs.value[index - 1] ?? null;
       activeTabId.value = next?.id ?? null;
-      activePaneId.value =
+      const nextPane =
         next && isTerminalTab(next) ? (next.panes[0]?.id ?? null) : null;
+      activePaneId.value = nextPane;
+      if (next && isTerminalTab(next)) {
+        rememberActiveTerminal(next.id, nextPane);
+      }
     }
   }
 
@@ -207,16 +220,31 @@ export function useWorkspace(getDefaultShellId: () => string) {
     );
   }
 
-  function selectTab(tabId: string) {
+  function selectTab(tabId: string, paneId?: string) {
     activeTabId.value = tabId;
     const tab = tabs.value.find((item) => item.id === tabId);
-    activePaneId.value =
-      tab && isTerminalTab(tab) ? (tab.panes[0]?.id ?? null) : null;
+    if (!tab || !isTerminalTab(tab)) {
+      activePaneId.value = null;
+      return;
+    }
+    const pane =
+      paneId && tab.panes.some((item) => item.id === paneId)
+        ? paneId
+        : (tab.panes[0]?.id ?? null);
+    activePaneId.value = pane;
+    rememberActiveTerminal(tabId, pane);
   }
 
   function selectPane(paneId: string) {
     activePaneId.value = paneId;
     setPaneUnseenNotification(paneId, false);
+    for (const tab of tabs.value) {
+      if (!isTerminalTab(tab)) continue;
+      if (tab.panes.some((pane) => pane.id === paneId)) {
+        rememberActiveTerminal(tab.id, paneId);
+        break;
+      }
+    }
   }
 
   function setPaneUnseenNotification(paneId: string, value: boolean) {
@@ -349,6 +377,89 @@ export function useWorkspace(getDefaultShellId: () => string) {
     return tabs.value.slice(index + 1).map((tab) => tab.id);
   }
 
+  function serializeTerminalWorkspace(): PersistedTerminalWorkspaceV1 | null {
+    const terminalTabs = tabs.value.filter(isTerminalTab);
+    if (terminalTabs.length === 0) return null;
+
+    const focusTabId =
+      activeTab.value && isTerminalTab(activeTab.value)
+        ? activeTabId.value
+        : lastActiveTerminalTabId;
+    let activeTabIndex = terminalTabs.findIndex((tab) => tab.id === focusTabId);
+    if (activeTabIndex < 0) activeTabIndex = 0;
+
+    const activeTerminal = terminalTabs[activeTabIndex];
+    const focusPaneId =
+      activeTab.value && isTerminalTab(activeTab.value)
+        ? activePaneId.value
+        : lastActiveTerminalPaneId;
+    let activePaneIndex = activeTerminal.panes.findIndex(
+      (pane) => pane.id === focusPaneId,
+    );
+    if (activePaneIndex < 0) activePaneIndex = 0;
+
+    return {
+      version: 1,
+      activeTabIndex,
+      activePaneIndex,
+      tabs: terminalTabs.map((tab) => ({
+        title: tab.title,
+        color: tab.color,
+        split: tab.split,
+        panes: tab.panes.map((pane) => ({
+          shellId: pane.shellId,
+          cwd: pane.cwd,
+          customTitle: pane.customTitle,
+        })),
+      })),
+    };
+  }
+
+  function hydrateTerminalWorkspace(
+    snapshot: PersistedTerminalWorkspaceV1,
+    resolveShellId: (shellId: string) => string,
+  ): { tabs: WorkspaceTab[]; activeTabId: string; activePaneId: string | null } {
+    const restoredTabs: WorkspaceTerminalTab[] = snapshot.tabs.map((saved) => {
+      const panes = saved.panes.map((savedPane) => ({
+        id: uid("pane"),
+        sessionId: null,
+        shellId: resolveShellId(savedPane.shellId),
+        cwd: savedPane.cwd,
+        customTitle: savedPane.customTitle,
+        activeAgentId: null,
+        oscTitle: null,
+        hasUnseenNotification: false,
+      }));
+      return {
+        kind: "terminal" as const,
+        id: uid("tab"),
+        title: saved.title,
+        color: saved.color,
+        split: saved.split,
+        panes,
+      };
+    });
+
+    const activeTabIndex = Math.max(
+      0,
+      Math.min(snapshot.activeTabIndex, restoredTabs.length - 1),
+    );
+    const activeTab = restoredTabs[activeTabIndex];
+    const activePaneIndex = Math.max(
+      0,
+      Math.min(snapshot.activePaneIndex, activeTab.panes.length - 1),
+    );
+
+    const activePaneId = activeTab.panes[activePaneIndex]?.id ?? null;
+    rememberActiveTerminal(activeTab.id, activePaneId);
+
+    return {
+      tabs: restoredTabs,
+      activeTabId: activeTab.id,
+      activePaneId,
+    };
+  }
+
   return {
     shells,
     tabs,
@@ -381,5 +492,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     closeOtherTabs,
     closeTabsBelow,
     tabIdsBelow,
+    serializeTerminalWorkspace,
+    hydrateTerminalWorkspace,
   };
 }
