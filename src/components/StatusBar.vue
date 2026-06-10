@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { GitStatus } from "../types/git";
+import type { PullRequestSummary } from "../types/pullRequest";
 import type { ShellProfile, WorkspacePane } from "../types/terminal";
 import AgentFooterBadge from "./AgentFooterBadge.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
@@ -12,12 +13,15 @@ const props = defineProps<{
   terminalSidebarOpen: boolean;
   toolsOpen: boolean;
   sourceControlOpen: boolean;
+  activePr?: PullRequestSummary | null;
+  prLoading?: boolean;
 }>();
 
 const emit = defineEmits<{
   toggleTerminalSidebar: [];
   toggleTools: [];
   toggleSourceControl: [];
+  openPullRequests: [];
 }>();
 
 function formatPath(cwd: string | undefined) {
@@ -30,6 +34,20 @@ const displayPath = computed(() => formatPath(props.pane?.cwd));
 const shellLabel = computed(
   () => props.shells.find((shell) => shell.id === props.pane?.shellId)?.label ?? "Shell",
 );
+
+const prLabel = computed(() => {
+  const pr = props.activePr;
+  if (!pr) return "";
+  const draft = pr.isDraft ? " draft" : "";
+  return `PR #${pr.number}${draft}`;
+});
+
+const prTitle = computed(() => {
+  const pr = props.activePr;
+  if (!pr) return "";
+  const draft = pr.isDraft ? " (draft)" : "";
+  return `${pr.title}${draft} · ${pr.headRef} → ${pr.baseRef}`;
+});
 </script>
 
 <template>
@@ -103,6 +121,37 @@ const shellLabel = computed(
           :active="sourceControlOpen"
           @click="emit('toggleSourceControl')"
         />
+        <button
+          v-if="activePr"
+          type="button"
+          class="no-drag hidden shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[11px] text-[#58a6ff] transition hover:bg-white/5 lg:flex"
+          :title="prTitle"
+          :aria-label="`Open ${prLabel}`"
+          @click="emit('openPullRequests')"
+        >
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            class="shrink-0"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 3.5h6.5a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 4 3.5Z"
+              stroke-width="1.2"
+            />
+            <path d="M7 6.5h5M7 9h3.5" stroke-width="1.2" stroke-linecap="round" />
+          </svg>
+          <span>{{ prLabel }}</span>
+        </button>
+        <span
+          v-else-if="prLoading"
+          class="hidden text-[10px] text-[var(--oterm-faint)] lg:inline"
+        >
+          …
+        </span>
       </template>
     </div>
 

@@ -339,14 +339,30 @@ export function useWorkspace(getDefaultShellId: () => string) {
     if (tab && isTerminalTab(tab)) tab.color = color;
   }
 
+  function reorderTerminalTab(tabId: string, toTerminalIndex: number) {
+    const terminalTabs = tabs.value.filter(isTerminalTab);
+    const fromIndex = terminalTabs.findIndex((tab) => tab.id === tabId);
+    if (fromIndex === -1) return;
+    if (toTerminalIndex < 0 || toTerminalIndex >= terminalTabs.length) return;
+    if (fromIndex === toTerminalIndex) return;
+
+    const reordered = [...terminalTabs];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toTerminalIndex, 0, moved);
+
+    let cursor = 0;
+    tabs.value = tabs.value.map((tab) =>
+      isTerminalTab(tab) ? reordered[cursor++]! : tab,
+    );
+  }
+
   function moveTab(tabId: string, direction: "up" | "down") {
-    const index = tabs.value.findIndex((tab) => tab.id === tabId);
+    const terminalTabs = tabs.value.filter(isTerminalTab);
+    const index = terminalTabs.findIndex((tab) => tab.id === tabId);
     if (index === -1) return;
     const target = direction === "up" ? index - 1 : index + 1;
-    if (target < 0 || target >= tabs.value.length) return;
-    const next = [...tabs.value];
-    [next[index], next[target]] = [next[target], next[index]];
-    tabs.value = next;
+    if (target < 0 || target >= terminalTabs.length) return;
+    reorderTerminalTab(tabId, target);
   }
 
   function closeOtherTabs(keepTabId: string) {
@@ -489,6 +505,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     setTabTitle,
     setTabColor,
     moveTab,
+    reorderTerminalTab,
     closeOtherTabs,
     closeTabsBelow,
     tabIdsBelow,

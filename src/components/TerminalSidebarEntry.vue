@@ -10,6 +10,8 @@ const props = defineProps<{
   entry: TerminalSidebarEntry;
   menuOpen: boolean;
   renaming: boolean;
+  dragging?: boolean;
+  dropTarget?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +21,7 @@ const emit = defineEmits<{
   colorChange: [color: import("../types/terminal").TerminalEntryColor];
   renameCommit: [tabId: string, title: string];
   renameCancel: [];
+  dragStart: [tabId: string, terminalTabIndex: number, event: PointerEvent];
 }>();
 
 const renameInputRef = ref<HTMLInputElement | null>(null);
@@ -38,6 +41,10 @@ const gitStatus = computed(() => ({
 
 const showUnseenNotification = computed(
   () => props.entry.hasUnseenNotification && !props.entry.isActive,
+);
+
+const showBranchFooter = computed(
+  () => props.entry.gitIsRepo && !!props.entry.gitBranch,
 );
 
 const accentStyle = computed(() => {
@@ -110,27 +117,61 @@ function onRenameKeyDown(event: KeyboardEvent) {
     cancelRename();
   }
 }
+
+function onDragHandlePointerDown(event: PointerEvent) {
+  emit("dragStart", props.entry.tabId, props.entry.terminalTabIndex, event);
+}
 </script>
 
 <template>
-  <div
-    class="no-drag group relative mb-0.5 flex w-full items-center gap-1.5 rounded-md border px-1.5 py-1 transition-colors duration-[120ms]"
-    :class="[
-      entry.isActive
-        ? 'border-[var(--oterm-accent)]/25 bg-[var(--oterm-accent-dim)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] ring-1 ring-inset ring-[var(--oterm-accent)]/15'
-        : 'border-[var(--oterm-border)] bg-[var(--term-entry-bg)] hover:border-[var(--oterm-border-strong)] hover:bg-white/[0.04]',
-      entry.splitIndex != null && entry.splitIndex > 1 ? 'ml-4 border-l border-white/[0.08] pl-1.5' : '',
-      renaming ? 'ring-1 ring-[var(--oterm-border-strong)]' : '',
-    ]"
-    :style="accentStyle"
-    :aria-current="entry.isActive ? 'true' : undefined"
-    @keydown="onMenuKeyDown"
-  >
+  <div class="relative mb-0.5">
     <div
-      class="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-      :class="renaming ? '' : 'cursor-pointer'"
-      @click="onRowClick"
+      v-if="dropTarget"
+      class="pointer-events-none absolute inset-x-0 -top-px z-10 h-0.5 rounded-full bg-[var(--oterm-accent)]"
+      aria-hidden="true"
+    />
+
+    <div
+      class="no-drag group relative flex w-full items-center gap-1 rounded-md border px-1.5 transition-colors duration-[120ms]"
+      :class="[
+        showBranchFooter ? 'py-1.5' : 'py-1',
+        entry.isActive
+          ? 'border-[var(--oterm-accent)]/25 bg-[var(--oterm-accent-dim)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] ring-1 ring-inset ring-[var(--oterm-accent)]/15'
+          : 'border-[var(--oterm-border)] bg-[var(--term-entry-bg)] hover:border-[var(--oterm-border-strong)] hover:bg-white/[0.04]',
+        entry.splitIndex != null && entry.splitIndex > 1 ? 'ml-4 border-l border-white/[0.08] pl-1.5' : '',
+        renaming ? 'ring-1 ring-[var(--oterm-border-strong)]' : '',
+        dragging ? 'opacity-50' : '',
+      ]"
+      :style="accentStyle"
+      :data-terminal-tab-index="entry.terminalTabIndex"
+      :data-terminal-tab-id="entry.tabId"
+      :aria-current="entry.isActive ? 'true' : undefined"
+      @keydown="onMenuKeyDown"
     >
+      <button
+        v-if="entry.isFirstPaneOfTab && !renaming"
+        type="button"
+        class="flex h-5 w-3.5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-[var(--oterm-faint)] opacity-0 transition hover:bg-white/5 hover:text-[var(--oterm-muted)] active:cursor-grabbing group-hover:opacity-100"
+        title="Drag to reorder"
+        aria-label="Drag to reorder tab"
+        @pointerdown="onDragHandlePointerDown"
+        @click.stop
+      >
+        <svg width="8" height="10" viewBox="0 0 8 10" fill="currentColor" aria-hidden="true">
+          <circle cx="2" cy="2" r="0.9" />
+          <circle cx="6" cy="2" r="0.9" />
+          <circle cx="2" cy="5" r="0.9" />
+          <circle cx="6" cy="5" r="0.9" />
+          <circle cx="2" cy="8" r="0.9" />
+          <circle cx="6" cy="8" r="0.9" />
+        </svg>
+      </button>
+
+      <div
+        class="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+        :class="renaming ? '' : 'cursor-pointer'"
+        @click="onRowClick"
+      >
       <span
         class="flex shrink-0 items-center justify-center rounded-md"
         :class="[
@@ -210,8 +251,27 @@ function onRenameKeyDown(event: KeyboardEvent) {
             compact
           />
         </span>
+        <span
+          v-if="showBranchFooter"
+          class="mt-0.5 flex items-center gap-1 text-[10px] leading-[1.2] text-[var(--oterm-muted)]"
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            class="shrink-0"
+            aria-hidden="true"
+          >
+            <circle cx="4.5" cy="4.5" r="1.5" stroke-width="1.2" />
+            <circle cx="11.5" cy="11.5" r="1.5" stroke-width="1.2" />
+            <path d="M6 4.5h3.5a2 2 0 0 1 2 2V9" stroke-width="1.2" stroke-linecap="round" />
+          </svg>
+          <span class="min-w-0 truncate font-mono">{{ entry.gitBranch }}</span>
+        </span>
       </span>
-    </div>
+      </div>
 
     <svg
       v-if="showUnseenNotification"
@@ -265,6 +325,7 @@ function onRenameKeyDown(event: KeyboardEvent) {
           @color-change="(color) => emit('colorChange', color)"
         />
       </Transition>
+    </div>
     </div>
   </div>
 </template>

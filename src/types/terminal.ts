@@ -148,6 +148,8 @@ export interface TerminalSidebarEntry {
   canMoveDown: boolean;
   entriesBelowCount: number;
   canCloseOthers: boolean;
+  terminalTabIndex: number;
+  isFirstPaneOfTab: boolean;
 }
 
 export interface SaveProfileDraft {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useTerminalTabDragReorder } from "../composables/useTerminalTabDragReorder";
 import { getGitStatus } from "../lib/gitApi";
 import { buildFeatureEntries, buildTerminalEntries } from "../lib/sidebarEntries";
 import type {
@@ -42,6 +43,7 @@ const emit = defineEmits<{
   setDefaultShell: [shellId: string];
   renameTab: [tabId: string, title: string];
   moveTab: [tabId: string, direction: "up" | "down"];
+  reorderTab: [tabId: string, toTerminalIndex: number];
   colorChange: [tabId: string, color: TerminalEntryColor];
   saveProfile: [draft: SaveProfileDraft];
 }>();
@@ -49,6 +51,7 @@ const emit = defineEmits<{
 const newMenuOpen = ref(false);
 const newMenuRef = ref<HTMLElement | null>(null);
 const newButtonRef = ref<HTMLElement | null>(null);
+const terminalListRef = ref<HTMLElement | null>(null);
 const openMenuEntryId = ref<string | null>(null);
 const renamingEntryId = ref<string | null>(null);
 const toastMessage = ref<string | null>(null);
@@ -103,6 +106,15 @@ const terminalEntries = computed(() => {
           gitDeletions: override.deletions,
         },
   );
+});
+
+const {
+  draggingTabId,
+  onDragPointerDown,
+  isDropTarget,
+  isDraggingTab,
+} = useTerminalTabDragReorder(terminalEntries, (tabId, toTerminalIndex) => {
+  emit("reorderTab", tabId, toTerminalIndex);
 });
 
 function showToast(message: string) {
@@ -380,6 +392,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div
+      ref="terminalListRef"
       class="oterm-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-2"
       @scroll="onSidebarScroll"
     >
@@ -436,12 +449,18 @@ onBeforeUnmount(() => {
         :entry="entry"
         :menu-open="openMenuEntryId === entry.entryId"
         :renaming="renamingEntryId === entry.entryId"
+        :dragging="isDraggingTab(entry)"
+        :drop-target="isDropTarget(entry)"
         @select="(tabId, paneId) => emit('select', tabId, paneId)"
         @menu-toggle="setMenuOpen"
         @action="(actionId) => onEntryAction(entry.entryId, actionId)"
         @color-change="(color) => onEntryColorChange(entry.entryId, color)"
         @rename-commit="onRenameCommit"
         @rename-cancel="onRenameCancel"
+        @drag-start="
+          (tabId, tabIndex, event) =>
+            onDragPointerDown(tabId, tabIndex, event, terminalListRef)
+        "
       />
     </div>
 

@@ -108,6 +108,8 @@ export function buildTerminalEntries(
         canMoveDown: tabIndex < terminalTabs.length - 1,
         entriesBelowCount: terminalTabs.length - tabIndex - 1,
         canCloseOthers: terminalTabs.length > 1,
+        terminalTabIndex: tabIndex,
+        isFirstPaneOfTab: paneIndex === 0,
       };
     }),
   );

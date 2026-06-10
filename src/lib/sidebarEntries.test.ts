@@ -115,4 +115,55 @@ describe("buildTerminalEntries", () => {
     expect(entries[0]?.hasUnseenNotification).toBe(true);
     expect(entries[0]?.isActive).toBe(false);
   });
+
+  it("sets terminalTabIndex and isFirstPaneOfTab for drag reorder", () => {
+    const tabA = terminalTab({ id: "tab-a", title: "A" });
+    const tabB = terminalTab({
+      id: "tab-b",
+      title: "B",
+      split: "horizontal",
+      panes: [
+        terminalTab().panes[0],
+        {
+          id: "pane-2",
+          sessionId: "session-2",
+          shellId: "pwsh",
+          cwd: "~/projects/other",
+          customTitle: null,
+          activeAgentId: null,
+          oscTitle: null,
+          hasUnseenNotification: false,
+        },
+      ],
+    });
+    tabB.panes[0].id = "pane-b1";
+
+    const entries = buildTerminalEntries([tabA, tabB], shells, tabA.id, tabA.panes[0].id, new Map());
+
+    expect(entries).toHaveLength(3);
+    expect(entries[0]?.terminalTabIndex).toBe(0);
+    expect(entries[0]?.isFirstPaneOfTab).toBe(true);
+    expect(entries[0]?.canMoveUp).toBe(false);
+    expect(entries[0]?.canMoveDown).toBe(true);
+
+    expect(entries[1]?.terminalTabIndex).toBe(1);
+    expect(entries[1]?.isFirstPaneOfTab).toBe(true);
+    expect(entries[2]?.terminalTabIndex).toBe(1);
+    expect(entries[2]?.isFirstPaneOfTab).toBe(false);
+    expect(entries[2]?.canMoveDown).toBe(false);
+  });
+
+  it("ignores feature tabs when computing terminalTabIndex", () => {
+    const tab = terminalTab({ id: "tab-a" });
+    const entries = buildTerminalEntries(
+      [tab, { kind: "settings", id: "settings-1", title: "Settings" }],
+      shells,
+      tab.id,
+      tab.panes[0].id,
+      new Map(),
+    );
+    expect(entries[0]?.terminalTabIndex).toBe(0);
+    expect(entries[0]?.canMoveUp).toBe(false);
+    expect(entries[0]?.canMoveDown).toBe(false);
+  });
 });

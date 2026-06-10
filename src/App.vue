@@ -16,6 +16,7 @@ import SettingsView from "./components/SettingsView.vue";
 import TitleBar from "./components/TitleBar.vue";
 import TooltipLayer from "./components/TooltipLayer.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
+import { useActiveBranchPr } from "./composables/useActiveBranchPr";
 import { useResizablePanel } from "./composables/useResizablePanel";
 import { useSourceControl } from "./composables/useSourceControl";
 import { useTerminalHistory } from "./composables/useTerminalHistory";
@@ -115,6 +116,7 @@ const {
   setTabTitle,
   setTabColor,
   moveTab,
+  reorderTerminalTab,
   serializeTerminalWorkspace,
   hydrateTerminalWorkspace,
 } = useWorkspace(() => defaultShellId.value);
@@ -348,6 +350,12 @@ const projectRoot = computed(() => {
 });
 
 const gitRepoRoot = computed(() => sourceControlStatus.value.repoRoot ?? null);
+const activeBranch = computed(() => sourceControlStatus.value.branch);
+const { activePr, loading: activePrLoading } = useActiveBranchPr(
+  gitRepoRoot,
+  activeBranch,
+  gitRefreshToken,
+);
 const canOpenGitFeatures = computed(() => Boolean(gitRepoRoot.value));
 
 function openPullRequests() {
@@ -737,6 +745,7 @@ onUnmounted(() => {
         @set-default-shell="setDefaultShell"
         @rename-tab="setTabTitle"
         @move-tab="moveTab"
+        @reorder-tab="reorderTerminalTab"
         @color-change="setTabColor"
         @save-profile="onSaveProfile"
         :git-refresh-token="gitRefreshToken"
@@ -855,9 +864,12 @@ onUnmounted(() => {
           :terminal-sidebar-open="terminalSidebarOpen"
           :tools-open="toolsOpen"
           :source-control-open="sourceControlOpen"
+          :active-pr="activePr"
+          :pr-loading="activePrLoading"
           @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
           @toggle-tools="toolsOpen = !toolsOpen"
           @toggle-source-control="toggleSourceControl"
+          @open-pull-requests="openPullRequests"
         />
       </div>
 
