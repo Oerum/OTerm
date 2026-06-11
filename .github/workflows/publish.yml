@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*' # Recommended standard: Trigger only on immutable release tags (e.g., v1.2.3)
+  workflow_dispatch:
 
 permissions:
   contents: write # Required to create the GitHub Release and upload assets
@@ -114,6 +115,30 @@ jobs:
           cuda: '12.6.0'
           method: network
 
+      - name: Integrate CUDA with Visual Studio
+        if: matrix.install_cuda && matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $src = Join-Path $env:CUDA_PATH 'extras\visual_studio_integration\MSBuildExtensions'
+          if (-not (Test-Path $src)) {
+            throw "CUDA Visual Studio integration files not found at $src"
+          }
+          $dests = @(
+            Get-ChildItem 'C:\Program Files\Microsoft Visual Studio\*\*\MSBuild\Microsoft\VC\*\BuildCustomizations' -Directory -ErrorAction SilentlyContinue
+            Get-ChildItem 'C:\Program Files (x86)\Microsoft Visual Studio\*\*\MSBuild\Microsoft\VC\*\BuildCustomizations' -Directory -ErrorAction SilentlyContinue
+          )
+          if (-not $dests) {
+            throw 'No Visual Studio BuildCustomizations directory found'
+          }
+          foreach ($dest in $dests) {
+            Copy-Item -Path "$src\*" -Destination $dest.FullName -Force
+            Write-Host "Installed CUDA MSBuild integration in $($dest.FullName)"
+          }
+          $nvcc = Join-Path $env:CUDA_PATH 'bin\nvcc.exe'
+          if (-not (Test-Path $nvcc)) { throw "nvcc not found at $nvcc" }
+          "CMAKE_CUDA_COMPILER=$nvcc" >> $env:GITHUB_ENV
+          "CUDACXX=$nvcc" >> $env:GITHUB_ENV
+
       - name: Set Windows build env
         if: matrix.platform == 'windows-latest'
         shell: bash
@@ -146,13 +171,19 @@ jobs:
             echo "BLAS_INCLUDE_DIRS=/usr/include/x86_64-linux-gnu/openblas" >> "$GITHUB_ENV"
           fi
           if [ "${{ matrix.install_vulkan_linux }}" = "true" ]; then
+            # Ubuntu headers; LunarG libvulkan-dev is loader-only and breaks FindVulkan.
+            sudo apt-get install -y libvulkan-dev
             curl -fsSL https://packages.lunarg.com/lunarg-signing-key-pub.asc \
               | sudo gpg --dearmor -o /usr/share/keyrings/lunarg.gpg
             echo "deb [signed-by=/usr/share/keyrings/lunarg.gpg] https://packages.lunarg.com/vulkan jammy main" \
               | sudo tee /etc/apt/sources.list.d/lunarg-vulkan.list >/dev/null
             sudo apt-get update
-            sudo apt-get install -y libvulkan-dev glslang-tools shaderc
+            sudo apt-get install -y shaderc
             command -v glslc
+            test -f /usr/include/vulkan/vulkan.h
+            echo "VULKAN_SDK=/usr" >> "$GITHUB_ENV"
+            echo "Vulkan_INCLUDE_DIR=/usr/include" >> "$GITHUB_ENV"
+            echo "Vulkan_LIBRARY=/usr/lib/x86_64-linux-gnu/libvulkan.so" >> "$GITHUB_ENV"
           fi
 
       - name: Install frontend dependencies
