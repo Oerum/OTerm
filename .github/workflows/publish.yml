@@ -30,21 +30,24 @@ jobs:
 
       - name: Install Vulkan SDK
         if: matrix.platform == 'windows-latest'
-        uses: humbletim/install-vulkan-sdk@v1.2
-        with:
-          version: latest
-          cache: true
+        shell: pwsh
+        run: |
+          $version = (Invoke-RestMethod -Uri "https://vulkan.lunarg.com/sdk/latest/windows.txt").Trim()
+          $dest = "C:\VulkanSDK\$version"
+          if (-not (Test-Path "$dest\Include\vulkan\vulkan.h")) {
+            $installer = "$env:RUNNER_TEMP\vulkan-sdk.exe"
+            Invoke-WebRequest "https://sdk.lunarg.com/sdk/download/$version/windows/vulkan_sdk.exe" -OutFile $installer
+            New-Item -ItemType Directory -Force -Path "C:\VulkanSDK" | Out-Null
+            & $installer --root $dest --accept-licenses --default-answer --confirm-command install
+          }
+          & "$dest\bin\glslangValidator.exe" --version
+          "VULKAN_SDK=$dest" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "Vulkan_INCLUDE_DIR=$dest\Include" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "Vulkan_LIBRARY=$dest\Lib\vulkan-1.lib" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install LLVM
         if: matrix.platform == 'windows-latest'
         run: choco install llvm -y
-
-      - name: Export Vulkan paths for CMake
-        if: matrix.platform == 'windows-latest'
-        shell: bash
-        run: |
-          echo "Vulkan_INCLUDE_DIR=${VULKAN_SDK}/Include" >> "$GITHUB_ENV"
-          echo "Vulkan_LIBRARY=${VULKAN_SDK}/Lib/vulkan-1.lib" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
