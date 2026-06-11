@@ -65,6 +65,10 @@ function ensureWindowsNativeEnv(env) {
     process.exit(1);
   }
   env.VULKAN_SDK = vulkanSdk;
+  env.Vulkan_ROOT = vulkanSdk;
+  env.CMAKE_PREFIX_PATH = env.CMAKE_PREFIX_PATH
+    ? `${vulkanSdk};${env.CMAKE_PREFIX_PATH}`
+    : vulkanSdk;
 
   const libClangPath = findLibClangPath();
   if (!libClangPath) {

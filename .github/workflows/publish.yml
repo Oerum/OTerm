@@ -22,7 +22,6 @@ jobs:
             args: ''
           - platform: 'windows-latest'
             args: ''
-            cargo_target_dir: 'C:\oterm-t'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -69,7 +68,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CARGO_TARGET_DIR: ${{ matrix.cargo_target_dir }}
           # Required if you want to support auto-updater signing.
           # You must generate these via `npx tauri signer generate` and set them in your GitHub Repository Secrets.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
