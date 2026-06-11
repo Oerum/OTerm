@@ -66,6 +66,8 @@ function ensureWindowsNativeEnv(env) {
   }
   env.VULKAN_SDK = vulkanSdk;
   env.Vulkan_ROOT = vulkanSdk;
+  env.Vulkan_INCLUDE_DIR = join(vulkanSdk, "Include");
+  env.Vulkan_LIBRARY = join(vulkanSdk, "Lib", "vulkan-1.lib");
   env.CMAKE_PREFIX_PATH = env.CMAKE_PREFIX_PATH
     ? `${vulkanSdk};${env.CMAKE_PREFIX_PATH}`
     : vulkanSdk;
@@ -90,6 +92,58 @@ const env = { ...process.env };
 ensureWindowsNativeEnv(env);
 
 const args = process.argv.slice(2);
+
+if (args.includes("build") && !env.TAURI_SIGNING_PRIVATE_KEY && !env.TAURI_PRIVATE_KEY) {
+  console.log("TAURI_SIGNING_PRIVATE_KEY not set. Disabling updater artifacts for this local build.");
+  let configIndex = -1;
+  let configValue = "";
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "-c" || args[i] === "--config") {
+      configIndex = i;
+      if (i + 1 < args.length) {
+        configValue = args[i + 1];
+      }
+      break;
+    } else if (args[i].startsWith("-c=")) {
+      configIndex = i;
+      configValue = args[i].slice(3);
+      break;
+    } else if (args[i].startsWith("--config=")) {
+      configIndex = i;
+      configValue = args[i].slice(9);
+      break;
+    }
+  }
+
+  let mergedConfig = { bundle: { createUpdaterArtifacts: false } };
+  if (configIndex !== -1 && configValue) {
+    try {
+      const existingConfig = JSON.parse(configValue);
+      mergedConfig = {
+        ...existingConfig,
+        bundle: {
+          ...existingConfig.bundle,
+          createUpdaterArtifacts: false
+        }
+      };
+    } catch (e) {
+      console.warn("Failed to parse existing --config argument, overriding it.");
+    }
+  }
+
+  if (configIndex !== -1) {
+    if (args[configIndex].includes("=")) {
+      const flag = args[configIndex].startsWith("-c=") ? "-c=" : "--config=";
+      args[configIndex] = flag + JSON.stringify(mergedConfig);
+    } else {
+      args[configIndex + 1] = JSON.stringify(mergedConfig);
+    }
+  } else {
+    args.push("-c", JSON.stringify(mergedConfig));
+  }
+}
+
 const tauriJs = join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");
 
 const child = spawn(process.execPath, [tauriJs, ...args], {
@@ -104,3 +158,4 @@ child.on("exit", (code, signal) => {
   }
   process.exit(code ?? 1);
 });
+

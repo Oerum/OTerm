@@ -39,6 +39,13 @@ jobs:
         if: matrix.platform == 'windows-latest'
         run: choco install llvm -y
 
+      - name: Export Vulkan paths for CMake
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          echo "Vulkan_INCLUDE_DIR=${VULKAN_SDK}/Include" >> "$GITHUB_ENV"
+          echo "Vulkan_LIBRARY=${VULKAN_SDK}/Lib/vulkan-1.lib" >> "$GITHUB_ENV"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -69,10 +76,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Required if you want to support auto-updater signing.
-          # You must generate these via `npx tauri signer generate` and set them in your GitHub Repository Secrets.
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          # Updater signing only on tag releases; branch pushes skip signing (see scripts/tauri.mjs).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ github.ref_type == 'tag' && secrets.TAURI_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_KEY_PASSWORD: ${{ github.ref_type == 'tag' && secrets.TAURI_KEY_PASSWORD || '' }}
         with:
           tagName: v__VERSION__
           releaseName: 'OTerm v__VERSION__'
