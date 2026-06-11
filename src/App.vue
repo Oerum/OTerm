@@ -97,7 +97,7 @@ import type { GitWorktreeInfo } from "./types/git";
 
 import { getVersion } from "@tauri-apps/api/app";
 
-const appVersion = ref("0.1.0");
+const appVersion = ref("0.1.1");
 
 const systemDefaultShellId = ref("cmd");
 const defaultShellId = ref("");

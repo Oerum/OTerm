@@ -233,7 +233,10 @@ fn apply_provider_headers(
     if provider == AiProvider::GithubCopilot {
         builder = builder
             .header("Copilot-Integration-Id", "vscode-chat")
-            .header("Editor-Version", "oterm/0.1.0");
+            .header(
+                "Editor-Version",
+                concat!("oterm/", env!("CARGO_PKG_VERSION")),
+            );
     }
     builder
 }
