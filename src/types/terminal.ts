@@ -165,7 +165,6 @@ export interface SaveProfileDraft {
 export type CreateMenuAction =
   | { kind: "default-terminal" }
   | { kind: "shell"; shellId: string }
-  | { kind: "agent" }
   | { kind: "reopen-closed" };
 
 export interface ClosedTerminalSession {

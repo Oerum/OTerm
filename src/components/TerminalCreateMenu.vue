@@ -40,14 +40,6 @@ const profileShells = computed(() =>
 const rows = computed<MenuRow[]>(() => {
   const items: MenuRow[] = [
     {
-      id: "agent",
-      label: "Agent",
-      disabled: true,
-      disabledReason: "Coming soon",
-      action: { kind: "agent" },
-      section: "launchers",
-    },
-    {
       id: "default-terminal",
       label: "Terminal",
       shortcut: "Ctrl+Shift+T",

@@ -1,13 +1,23 @@
 const EXECUTABLE_PATH_SUFFIX = /\.(exe|cmd|bat|com|msi)$/i;
+const UNIX_SHELL_PATTERNS = /\/(bin|usr\/bin|usr\/local\/bin)\/(bash|zsh|sh|fish|dash|tcsh|csh|nu|pwsh|elvish)$/i;
 
 export function isShellExecutablePath(path: string): boolean {
-  return EXECUTABLE_PATH_SUFFIX.test(path.trim().replace(/[/\\]+$/, ""));
+  const trimmed = path.trim().replace(/[/\\]+$/, "");
+  if (EXECUTABLE_PATH_SUFFIX.test(trimmed)) return true;
+  if (UNIX_SHELL_PATTERNS.test(trimmed.replace(/\\/g, "/"))) return true;
+  return false;
 }
 
-/** Replace `C:\Users\<name>` with `~` for display. */
+/** Replace `C:\Users\<name>`, `/Users/<name>`, or `/home/<name>` with `~` for display. */
 export function formatPath(cwd: string | undefined): string {
   if (!cwd || cwd === "~") return "~";
-  return cwd.replace(/^([A-Za-z]:\\Users\\[^\\]+)/, "~");
+  // Windows: C:\Users\<name>
+  let formatted = cwd.replace(/^([A-Za-z]:\\Users\\[^\\]+)/i, "~");
+  // macOS: /Users/<name>
+  formatted = formatted.replace(/^(\/Users\/[^\/]+)/i, "~");
+  // Linux: /home/<name>
+  formatted = formatted.replace(/^(\/home\/[^\/]+)/i, "~");
+  return formatted;
 }
 
 /** True when cwd is a real working directory, not home shorthand or a shell binary path. */
