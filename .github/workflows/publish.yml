@@ -112,7 +112,7 @@ jobs:
         if: matrix.install_cuda
         uses: Jimver/cuda-toolkit@v0.2.35
         with:
-          cuda: '12.6.0'
+          cuda: '13.2.0'
           method: network
 
       - name: Integrate CUDA with Visual Studio
@@ -145,9 +145,9 @@ jobs:
         run: echo "CARGO_TARGET_DIR=C:/oterm-t" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install Rust stable
