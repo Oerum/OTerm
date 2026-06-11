@@ -1,4 +1,4 @@
-import { computed, ref, watch, type Ref } from "vue";
+import { computed, ref, watch, onUnmounted, type Ref } from "vue";
 import {
   switchGitBranchApi,
   commitGitChanges,
@@ -45,9 +45,11 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
   const status = ref<GitSourceControlStatus>(emptyStatus());
   const branches = ref<GitBranchList>(emptyBranches());
   const history = ref<GitCommitEntry[]>([]);
+  const loadedCwd = ref<string | undefined>(undefined);
   const loading = ref(false);
   const operation = ref<GitOperation | null>(null);
   let refreshTimer: number | undefined;
+  let pollingInterval: number | undefined;
   let requestId = 0;
 
   const operationLabel = computed(() =>
@@ -72,6 +74,7 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
       status.value = emptyStatus();
       branches.value = emptyBranches();
       history.value = [];
+      loadedCwd.value = path;
       return;
     }
 
@@ -80,6 +83,7 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
       const next = await getSourceControlStatus(path);
       if (current !== requestId) return;
       status.value = next;
+      loadedCwd.value = path;
       if (next.isRepo && next.repoRoot) {
         await loadBranches(next.repoRoot);
         if (includeHistory) {
@@ -95,6 +99,7 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
         status.value = emptyStatus();
         branches.value = emptyBranches();
         history.value = [];
+        loadedCwd.value = path;
       }
     }
   }
@@ -220,12 +225,32 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     await runAction("switch", () => switchGitBranchApi(root, branch, isRemote), true);
   }
 
-  watch(cwd, () => scheduleRefresh(true), { immediate: true });
+  function startPolling() {
+    window.clearInterval(pollingInterval);
+    pollingInterval = window.setInterval(() => {
+      void refreshData(true);
+    }, 10000);
+  }
+
+  watch(
+    cwd,
+    () => {
+      scheduleRefresh(true);
+      startPolling();
+    },
+    { immediate: true },
+  );
+
+  onUnmounted(() => {
+    window.clearTimeout(refreshTimer);
+    window.clearInterval(pollingInterval);
+  });
 
   return {
     status,
     branches,
     history,
+    loadedCwd,
     graphRefreshToken,
     loading,
     operation,

@@ -37,6 +37,7 @@ const items = computed<MenuItem[]>(() => [
   { id: "copy-pane-title", label: "Copy pane title" },
   { id: "copy-working-directory", label: "Copy working directory" },
   { id: "rename-tab", label: "Rename tab", separatorBefore: true },
+  { id: "split-pane", label: "Split" },
   {
     id: "move-up",
     label: "Move tab up",

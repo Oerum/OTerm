@@ -1,0 +1,68 @@
+name: 'publish'
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # Recommended standard: Trigger only on immutable release tags (e.g., v1.2.3)
+    branches:
+      - 'v*.*.*' # Included to support your requested branch pushes, but strongly discouraged
+
+permissions:
+  contents: write # Required to create the GitHub Release and upload assets
+
+jobs:
+  publish-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: ''
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and upload Tauri bundle
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Required if you want to support auto-updater signing.
+          # You must generate these via `npx tauri signer generate` and set them in your GitHub Repository Secrets.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'OTerm v__VERSION__'
+          releaseBody: 'Release generated automatically by CI/CD pipeline.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useTerminalTabDragReorder } from "../composables/useTerminalTabDragReorder";
 import { getGitStatus } from "../lib/gitApi";
 import { buildFeatureEntries, buildTerminalEntries } from "../lib/sidebarEntries";
@@ -148,6 +148,63 @@ async function refreshGitForPane(paneId: string, cwd: string) {
   }
 }
 
+async function refreshGitForAllPanes() {
+  const cwds = new Set<string>();
+  for (const tab of props.tabs) {
+    if (!isTerminalTab(tab)) continue;
+    for (const pane of tab.panes) {
+      if (pane.cwd) {
+        cwds.add(pane.cwd);
+      }
+    }
+  }
+
+  const results = new Map<
+    string,
+    {
+      branch: string | null;
+      isRepo: boolean;
+      changedFiles: number;
+      additions: number;
+      deletions: number;
+    }
+  >();
+
+  await Promise.all(
+    Array.from(cwds).map(async (cwd) => {
+      try {
+        const status = await getGitStatus(cwd === "~" ? undefined : cwd);
+        results.set(cwd, {
+          branch: status.branch,
+          isRepo: status.isRepo,
+          changedFiles: status.changedFiles,
+          additions: status.additions,
+          deletions: status.deletions,
+        });
+      } catch {
+        results.set(cwd, {
+          branch: null,
+          isRepo: false,
+          changedFiles: 0,
+          additions: 0,
+          deletions: 0,
+        });
+      }
+    }),
+  );
+
+  for (const tab of props.tabs) {
+    if (!isTerminalTab(tab)) continue;
+    for (const pane of tab.panes) {
+      const res = results.get(pane.cwd);
+      if (res) {
+        gitByPane.value.set(pane.id, res);
+      }
+    }
+  }
+  gitByPane.value = new Map(gitByPane.value);
+}
+
 const paneCwdSignature = computed(() =>
   props.tabs
     .filter(isTerminalTab)
@@ -156,16 +213,12 @@ const paneCwdSignature = computed(() =>
 );
 
 let gitRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let pollingInterval: number | undefined;
 
 function scheduleGitRefresh() {
   if (gitRefreshTimer) clearTimeout(gitRefreshTimer);
   gitRefreshTimer = setTimeout(() => {
-    for (const tab of props.tabs) {
-      if (!isTerminalTab(tab)) continue;
-      for (const pane of tab.panes) {
-        void refreshGitForPane(pane.id, pane.cwd);
-      }
-    }
+    void refreshGitForAllPanes();
   }, 300);
 }
 
@@ -174,14 +227,20 @@ watch(paneCwdSignature, scheduleGitRefresh, { immediate: true });
 watch(
   () => props.gitRefreshToken,
   () => {
-    for (const tab of props.tabs) {
-      if (!isTerminalTab(tab)) continue;
-      for (const pane of tab.panes) {
-        void refreshGitForPane(pane.id, pane.cwd);
-      }
-    }
+    void refreshGitForAllPanes();
   },
 );
+
+onMounted(() => {
+  pollingInterval = window.setInterval(() => {
+    void refreshGitForAllPanes();
+  }, 10000);
+});
+
+onBeforeUnmount(() => {
+  if (gitRefreshTimer) clearTimeout(gitRefreshTimer);
+  window.clearInterval(pollingInterval);
+});
 
 function selectFeatureTab(tabId: string) {
   emit("select", tabId, "");
@@ -297,6 +356,14 @@ async function onEntryAction(entryId: string, actionId: TerminalMenuActionId) {
         color: entry.tabColor,
       });
       showToast(`Saved profile "${entry.title}"`);
+      break;
+    }
+    case "split-pane": {
+      emit("select", entry.tabId, entry.paneId);
+      nextTick(() => {
+        emit("split", entry.shellId);
+      });
+      openMenuEntryId.value = null;
       break;
     }
   }
@@ -465,20 +532,7 @@ onBeforeUnmount(() => {
       />
     </div>
 
-    <div class="no-drag border-t border-[var(--oterm-border)] p-3">
-      <button
-        type="button"
-        class="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-elevated)] px-3 py-2 text-xs text-[var(--oterm-muted)] transition hover:border-[var(--oterm-border-strong)] hover:text-[var(--oterm-text)] disabled:opacity-40"
-        :disabled="shells.length === 0"
-        @click="emit('split', defaultShellId)"
-      >
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor">
-          <rect x="2" y="2.5" width="10" height="9" rx="1" stroke-width="1.2" />
-          <path d="M7 2.5v9" stroke-width="1.2" />
-        </svg>
-        Split pane
-      </button>
-    </div>
+
 
     <Transition name="sidebar-toast">
       <p

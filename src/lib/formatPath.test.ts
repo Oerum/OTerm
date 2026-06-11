@@ -3,6 +3,7 @@ import {
   formatPath,
   formatPathFull,
   formatPathShort,
+  formatTitleCompact,
   isDisplayableWorkingDirectory,
 } from "./formatPath";
 
@@ -80,5 +81,27 @@ describe("formatPathFull", () => {
   it("hides shell executable paths", () => {
     expect(formatPathFull("C:\\Program Files\\PowerShell\\7\\pwsh.exe")).toBeNull();
     expect(formatPathFull("/bin/bash")).toBeNull();
+  });
+});
+
+describe("formatTitleCompact", () => {
+  it("returns empty string for undefined/empty", () => {
+    expect(formatTitleCompact(undefined)).toBe("");
+    expect(formatTitleCompact("")).toBe("");
+  });
+
+  it("leaves normal titles untouched", () => {
+    expect(formatTitleCompact("pwsh")).toBe("pwsh");
+    expect(formatTitleCompact("Terminal")).toBe("Terminal");
+  });
+
+  it("extracts binary/filename from full executable paths", () => {
+    expect(formatTitleCompact("C:\\Windows\\System32\\cmd.exe")).toBe("cmd.exe");
+    expect(formatTitleCompact("/usr/bin/zsh")).toBe("zsh");
+  });
+
+  it("extracts directory name from full directory paths", () => {
+    expect(formatTitleCompact("C:\\Users\\Filip\\Desktop\\oterm")).toBe("oterm");
+    expect(formatTitleCompact("/home/filip/projects/oterm")).toBe("oterm");
   });
 });

@@ -318,6 +318,26 @@ function onDocumentClick(event: MouseEvent) {
   openWithMenuOpen.value = false;
 }
 
+function getFileExtension(name: string) {
+  const parts = name.split(".");
+  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : "";
+}
+
+function getFileType(name: string, isDir: boolean) {
+  if (isDir) return "dir";
+  const ext = getFileExtension(name);
+  if (["zip", "tar", "gz", "tgz", "rar", "7z", "bz2", "xz"].includes(ext)) {
+    return "archive";
+  }
+  if (["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "mp4", "mkv", "mov", "avi"].includes(ext)) {
+    return "media";
+  }
+  if (["js", "ts", "json", "py", "rs", "go", "c", "cpp", "h", "cs", "java", "sh", "bat", "ps1", "html", "css", "yaml", "yml", "toml", "md", "vue"].includes(ext)) {
+    return "code";
+  }
+  return "file";
+}
+
 watch(
   () => props.rootPath,
   (path) => {
@@ -345,22 +365,26 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
-    class="relative z-10 flex w-72 shrink-0 flex-col bg-(--oterm-sidebar)"
+    class="relative z-10 flex w-72 shrink-0 flex-col bg-(--oterm-sidebar) border-r border-(--oterm-border)"
   >
-    <div class="relative flex items-center justify-between gap-2 border-b border-(--oterm-border) px-3 py-2">
-      <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--oterm-faint)">
-        Tools
+    <!-- Header -->
+    <div class="relative flex items-center justify-between gap-2 border-b border-(--oterm-border) px-4 py-3 bg-[var(--oterm-panel)]/30 shrink-0">
+      <span class="text-[10px] font-bold uppercase tracking-[0.15em] text-(--oterm-faint)">
+        Workspace Tools
       </span>
 
-      <div class="flex min-w-0 items-center gap-1">
+      <div class="flex min-w-0 items-center gap-1.5">
         <button
           v-if="envImportHint"
           type="button"
-          class="no-drag truncate rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-(--oterm-muted) transition hover:bg-white/5 hover:text-(--oterm-text) disabled:opacity-50"
+          class="no-drag header-tool-btn"
           :disabled="envImportLoading"
           :title="`Copy from ${envImportHint.sourcePath}`"
           @click="importEnvFromAncestor"
         >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
           Import .env
         </button>
 
@@ -368,8 +392,8 @@ onBeforeUnmount(() => {
           <button
             ref="openWithButtonRef"
             type="button"
-            class="no-drag rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-(--oterm-muted) transition hover:bg-white/5 hover:text-(--oterm-text)"
-            :class="openWithMenuOpen ? 'bg-white/5 text-(--oterm-text)' : ''"
+            class="no-drag header-tool-btn"
+            :class="openWithMenuOpen ? 'bg-white/10 text-white border-white/20' : ''"
             title="Open current folder with an external app"
             aria-haspopup="menu"
             :aria-expanded="openWithMenuOpen"
@@ -465,27 +489,49 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <!-- Env status notification -->
     <p
       v-if="envImportStatus"
-      class="border-b border-(--oterm-border) px-3 py-1.5 text-[10px] text-(--oterm-muted)"
+      class="border-b border-(--oterm-border) px-4 py-1.5 text-[10px] text-emerald-400 font-semibold bg-emerald-500/5 flex items-center gap-1.5 shrink-0"
     >
+      <span class="h-1 w-1 rounded-full bg-emerald-400" />
       {{ envImportStatus }}
     </p>
 
-    <div class="border-b border-(--oterm-border) p-3">
-      <label class="block text-[10px] uppercase tracking-wide text-(--oterm-faint)">
-        Search files
+    <!-- Search Files Bar -->
+    <div class="border-b border-(--oterm-border) p-4 shrink-0 bg-[var(--oterm-panel)]/10">
+      <label class="block text-[9px] uppercase tracking-widest font-bold text-(--oterm-faint)">
+        Search Files
       </label>
-      <input
-        v-model="searchQuery"
-        type="search"
-        placeholder="Search in current directory..."
-        class="no-drag mt-1.5 w-full rounded-lg border border-(--oterm-border) bg-(--oterm-bg) px-2.5 py-1.5 text-xs text-(--oterm-text) outline-none focus:border-(--oterm-accent)"
-      />
+      <div class="relative mt-1.5">
+        <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[var(--oterm-faint)]">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </span>
+        <input
+          v-model="searchQuery"
+          type="search"
+          placeholder="Filter workspace files..."
+          class="no-drag w-full rounded-lg border border-(--oterm-border) bg-(--oterm-bg)/60 py-1.5 pl-8 pr-2.5 text-xs text-(--oterm-text) placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 focus:ring-1 focus:ring-[var(--oterm-accent)]/15 transition duration-150"
+        />
+        <button 
+          v-if="searchQuery" 
+          type="button" 
+          class="absolute inset-y-0 right-0 flex items-center pr-2 text-[var(--oterm-faint)] hover:text-white"
+          @click="searchQuery = ''"
+        >
+          ×
+        </button>
+      </div>
     </div>
 
-    <div v-if="showingSearch" class="oterm-scroll min-h-0 flex-1 overflow-y-auto p-2">
-      <p v-if="searchLoading" class="px-2 py-2 text-xs text-(--oterm-faint)">Searching...</p>
+    <!-- Search Results View -->
+    <div v-if="showingSearch" class="oterm-scroll min-h-0 flex-1 overflow-y-auto p-3 space-y-0.5 bg-[var(--oterm-panel)]/5">
+      <p v-if="searchLoading" class="px-2 py-2 text-xs text-(--oterm-faint) flex items-center gap-1.5">
+        <span class="h-1.5 w-1.5 rounded-full bg-[var(--oterm-accent)] animate-ping" />
+        Searching...
+      </p>
       <p
         v-else-if="searchQuery.trim().length < MIN_SEARCH_LENGTH"
         class="px-2 py-2 text-xs text-(--oterm-faint)"
@@ -496,116 +542,116 @@ onBeforeUnmount(() => {
         v-else-if="searchResults.length === 0"
         class="px-2 py-2 text-xs text-(--oterm-faint)"
       >
-        No matches
+        No matches found.
       </p>
+      
       <button
         v-for="entry in searchResults"
         :key="entry.path"
         type="button"
-        class="no-drag mb-0.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition hover:bg-white/4"
+        class="no-drag flex w-full items-center gap-2.5 rounded-lg border border-transparent px-2.5 py-1.5 text-left text-xs transition duration-150"
+        :class="`hover:bg-white/4 hover:border-[var(--oterm-border)]`"
         @click="openEntry(entry)"
         @contextmenu.prevent="onEntryContextMenu($event, entry)"
       >
-        <span
-          class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-(--oterm-elevated) text-(--oterm-muted)"
-        >
-          <svg
-            v-if="entry.isDir"
-            width="12"
-            height="12"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              d="M2.5 5.5h4l1.2-1.5H13a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V6a.5.5 0 0 1 .5-.5Z"
-              stroke-width="1.2"
-              stroke-linejoin="round"
-            />
+        <!-- Icon -->
+        <span class="shrink-0 flex items-center justify-center">
+          <svg v-if="getFileType(entry.name, entry.isDir) === 'dir'" class="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
           </svg>
-          <svg
-            v-else
-            width="12"
-            height="12"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              d="M4.5 2.5h4.2L11 4.5h2a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z"
-              stroke-width="1.2"
-              stroke-linejoin="round"
-            />
+          <svg v-else-if="getFileType(entry.name, entry.isDir) === 'archive'" class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <line x1="12" y1="3" x2="12" y2="21"/>
+            <path d="M12 7h3M9 11h6M9 15h3"/>
+          </svg>
+          <svg v-else-if="getFileType(entry.name, entry.isDir) === 'media'" class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <svg v-else-if="getFileType(entry.name, entry.isDir) === 'code'" class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <polyline points="16 18 22 12 16 6"/>
+            <polyline points="8 6 2 12 8 18"/>
+          </svg>
+          <svg v-else class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
           </svg>
         </span>
-        <span class="min-w-0 flex-1 truncate text-(--oterm-text)">{{ entry.name }}</span>
+        <span class="min-w-0 flex-1 truncate text-white/90 font-medium">{{ entry.name }}</span>
       </button>
     </div>
 
+    <!-- Active directory explorer view -->
     <div v-else class="flex min-h-0 flex-1 flex-col">
-      <div class="flex flex-wrap gap-1 border-b border-(--oterm-border) px-2 py-2">
-        <button
-          v-for="(crumb, index) in breadcrumbs"
-          :key="crumb.path"
-          type="button"
-          class="no-drag truncate rounded px-1.5 py-0.5 text-[11px] text-(--oterm-muted) transition hover:bg-white/5 hover:text-(--oterm-text)"
-          @click="loadDirectory(crumb.path)"
-        >
-          {{ crumb.label }}<span v-if="index < breadcrumbs.length - 1" class="text-(--oterm-faint)"> /</span>
-        </button>
+      <!-- Breadcrumbs Bar -->
+      <div class="flex items-center gap-1 border-b border-(--oterm-border) px-3 py-2 bg-[var(--oterm-panel)]/30 overflow-x-auto oterm-scroll shrink-0">
+        <template v-for="(crumb, index) in breadcrumbs" :key="crumb.path">
+          <span v-if="index > 0" class="text-(--oterm-faint) flex items-center shrink-0">
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </span>
+          <button
+            type="button"
+            class="no-drag truncate rounded px-1.5 py-0.5 text-[10px] font-semibold text-(--oterm-muted) transition hover:bg-white/5 hover:text-white shrink-0"
+            @click="loadDirectory(crumb.path)"
+          >
+            {{ crumb.label }}
+          </button>
+        </template>
       </div>
 
-      <div class="oterm-scroll min-h-0 flex-1 overflow-y-auto p-2">
-        <p v-if="loading" class="px-2 py-2 text-xs text-(--oterm-faint)">Loading...</p>
+      <!-- Directories/Files List -->
+      <div class="oterm-scroll min-h-0 flex-1 overflow-y-auto p-3 space-y-0.5">
+        <p v-if="loading" class="px-2 py-2 text-xs text-(--oterm-faint) flex items-center gap-1.5">
+          <span class="h-1.5 w-1.5 rounded-full bg-[var(--oterm-accent)] animate-ping" />
+          Loading directory...
+        </p>
+        
         <button
           v-for="entry in entries"
           :key="entry.path"
           type="button"
-          class="no-drag mb-0.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition hover:bg-white/4"
+          class="no-drag flex w-full items-center gap-2.5 rounded-lg border border-transparent px-2.5 py-1.5 text-left text-xs transition duration-150"
+          :class="`hover:bg-white/4 hover:border-[var(--oterm-border)]`"
           @click="openEntry(entry)"
           @contextmenu.prevent="onEntryContextMenu($event, entry)"
         >
-          <span
-            class="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-(--oterm-elevated) text-(--oterm-muted)"
-          >
-            <svg
-              v-if="entry.isDir"
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                d="M2.5 5.5h4l1.2-1.5H13a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V6a.5.5 0 0 1 .5-.5Z"
-                stroke-width="1.2"
-                stroke-linejoin="round"
-              />
+          <!-- Icon -->
+          <span class="shrink-0 flex items-center justify-center">
+            <svg v-if="getFileType(entry.name, entry.isDir) === 'dir'" class="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
             </svg>
-            <svg
-              v-else
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                d="M4.5 2.5h4.2L11 4.5h2a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z"
-                stroke-width="1.2"
-                stroke-linejoin="round"
-              />
+            <svg v-else-if="getFileType(entry.name, entry.isDir) === 'archive'" class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="12" y1="3" x2="12" y2="21"/>
+              <path d="M12 7h3M9 11h6M9 15h3"/>
+            </svg>
+            <svg v-else-if="getFileType(entry.name, entry.isDir) === 'media'" class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            <svg v-else-if="getFileType(entry.name, entry.isDir) === 'code'" class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <polyline points="16 18 22 12 16 6"/>
+              <polyline points="8 6 2 12 8 18"/>
+            </svg>
+            <svg v-else class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
             </svg>
           </span>
-          <span class="truncate text-(--oterm-text)">{{ entry.name }}</span>
+          <span class="truncate text-white/90 font-medium">{{ entry.name }}</span>
         </button>
+        
+        <p v-if="entries.length === 0 && !loading" class="py-8 text-center text-xs text-[var(--oterm-muted)]">
+          Empty Folder.
+        </p>
       </div>
     </div>
 
+    <!-- Context Menu for file/folder actions -->
     <ExplorerContextMenu
       :open="contextMenu.open"
       :x="contextMenu.x"
@@ -619,3 +665,33 @@ onBeforeUnmount(() => {
     />
   </aside>
 </template>
+
+<style scoped>
+.header-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-family: var(--oterm-font-ui);
+  font-weight: 600;
+  color: var(--oterm-muted);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--oterm-border);
+  cursor: pointer;
+  transition: all 120ms ease;
+  user-select: none;
+}
+
+.header-tool-btn:hover:not(:disabled) {
+  color: var(--oterm-text);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--oterm-border-strong);
+}
+
+.header-tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+</style>

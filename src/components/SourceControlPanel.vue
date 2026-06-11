@@ -97,6 +97,16 @@ const diffExpanded = ref(false);
 const diffPaneRef = ref<HTMLElement | null>(null);
 const confirmOpen = ref(false);
 const pendingConfirm = ref<PendingConfirm | null>(null);
+const stagedCollapsed = ref(localStorage.getItem("oterm:sc-staged-collapsed") === "1");
+const changesCollapsed = ref(localStorage.getItem("oterm:sc-changes-collapsed") === "1");
+const untrackedCollapsed = ref(localStorage.getItem("oterm:sc-untracked-collapsed") === "1");
+const historyCollapsed = ref(localStorage.getItem("oterm:sc-history-collapsed") === "1");
+
+watch(stagedCollapsed, (val) => localStorage.setItem("oterm:sc-staged-collapsed", val ? "1" : "0"));
+watch(changesCollapsed, (val) => localStorage.setItem("oterm:sc-changes-collapsed", val ? "1" : "0"));
+watch(untrackedCollapsed, (val) => localStorage.setItem("oterm:sc-untracked-collapsed", val ? "1" : "0"));
+watch(historyCollapsed, (val) => localStorage.setItem("oterm:sc-history-collapsed", val ? "1" : "0"));
+
 let diffRequestId = 0;
 let editRequestId = 0;
 
@@ -308,34 +318,57 @@ function onUnstageAll() {
   if (unstageAllPaths.value.length) emit("unstage", unstageAllPaths.value);
 }
 
-type SyncOp = "fetch" | "pull" | "push" | "sync";
+const primarySyncAction = computed(() => {
+  const ahead = props.status.ahead || 0;
+  const behind = props.status.behind || 0;
+  const hasUpstream = Boolean(props.status.upstream);
 
-function syncBtnClass(op: SyncOp) {
-  const active = props.operation === op;
-  const base =
-    "flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40";
-  if (op === "push") {
-    return [
-      base,
-      active
-        ? "ring-1 ring-[#58a6ff] border-[#58a6ff]/60 bg-[#58a6ff]/25 text-[#58a6ff]"
-        : "border-[#58a6ff]/40 bg-[#58a6ff]/10 text-[#58a6ff] hover:bg-[#58a6ff]/20",
-    ];
+  if (!hasUpstream) {
+    return {
+      label: "Publish Branch",
+      op: "push" as const,
+      icon: "publish",
+      title: "Publish this branch to remote"
+    };
   }
-  if (op === "sync") {
-    return [
-      base,
-      active
-        ? "ring-1 ring-[var(--oterm-accent)] border-[var(--oterm-accent)]/60 bg-[var(--oterm-accent-dim)] text-[var(--oterm-accent)]"
-        : "border-[var(--oterm-accent)]/40 bg-[var(--oterm-accent-dim)] text-[var(--oterm-accent)] hover:opacity-90",
-    ];
+  if (ahead > 0 && behind > 0) {
+    return {
+      label: `Sync Changes (↑${ahead} · ↓${behind})`,
+      op: "sync" as const,
+      icon: "sync",
+      title: "Pull (rebase) and push commits"
+    };
   }
-  return [
-    base,
-    active
-      ? "ring-1 ring-[var(--oterm-accent)] border-[var(--oterm-accent)]/40 bg-white/5 text-[var(--oterm-text)]"
-      : "border-[var(--oterm-border)] bg-[var(--oterm-bg)]/60 text-[var(--oterm-text)] hover:bg-white/5",
-  ];
+  if (behind > 0) {
+    return {
+      label: `Pull (↓${behind})`,
+      op: "pull" as const,
+      icon: "pull",
+      title: "Pull commits from remote"
+    };
+  }
+  if (ahead > 0) {
+    return {
+      label: `Push (↑${ahead})`,
+      op: "push" as const,
+      icon: "push",
+      title: "Push commits to remote"
+    };
+  }
+  return {
+    label: "Fetch",
+    op: "fetch" as const,
+    icon: "fetch",
+    title: "Fetch updates from remote"
+  };
+});
+
+function onPrimarySyncClick() {
+  const op = primarySyncAction.value.op;
+  if (op === "fetch") emit("fetch");
+  else if (op === "pull") emit("pull");
+  else if (op === "push") emit("push");
+  else if (op === "sync") emit("sync");
 }
 
 const refreshSpinning = computed(() => props.operation === "refresh");
@@ -614,11 +647,17 @@ function syncSelectedFileWithStatus() {
     (f) => f.path === sel.path && f.staged === sel.staged && f.untracked === sel.untracked,
   );
   if (!stillExists) {
+    if (paneView.value === "edit" && editDirty.value) {
+      return;
+    }
     selectedFile.value = null;
     return;
   }
   if (!showDiffPane.value) return;
   if (paneView.value === "edit") {
+    if (editDirty.value) {
+      return;
+    }
     void loadEditContent(sel);
   } else {
     void loadDiff(sel);
@@ -644,6 +683,40 @@ watch(
   },
   { deep: true },
 );
+
+function parseFilePath(path: string) {
+  const parts = path.split("/");
+  const fileName = parts.pop() || "";
+  const dirPath = parts.join("/");
+  return { fileName, dirPath: dirPath ? dirPath + "/" : "" };
+}
+
+function statusBadgeClass(entry: GitFileEntry, staged: boolean) {
+  const base = "inline-flex items-center justify-center text-[9px] font-bold leading-none rounded w-5 h-5 shrink-0 select-none border";
+  if (entry.untracked) {
+    return `${base} bg-cyan-500/10 text-cyan-400 border-cyan-500/15`;
+  }
+  const status = entry.status.toUpperCase();
+  if (status === "A") {
+    return `${base} bg-emerald-500/10 text-emerald-400 border-emerald-500/15`;
+  }
+  if (status === "D") {
+    return `${base} bg-rose-500/10 text-rose-400 border-rose-500/15`;
+  }
+  if (staged) {
+    return `${base} bg-emerald-500/10 text-emerald-400 border-emerald-500/15`;
+  }
+  return `${base} bg-amber-500/10 text-amber-400 border-amber-500/15`;
+}
+
+function authorInitials(author: string): string {
+  if (!author) return "?";
+  const parts = author.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).slice(0, 2).toUpperCase();
+  }
+  return parts[0].slice(0, 2).toUpperCase();
+}
 </script>
 
 <template>
@@ -743,51 +816,103 @@ watch(
         </div>
 
         <div class="border-b border-[var(--oterm-border)] p-3">
-          <div class="mb-3 grid grid-cols-4 gap-1.5">
+          <!-- Primary context-aware action button -->
+          <div class="mb-2">
             <button
               type="button"
-              :class="syncBtnClass('fetch')"
+              class="w-full flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold tracking-wide transition shadow-sm border select-none disabled:cursor-not-allowed disabled:opacity-40"
               style="font-family: var(--oterm-font-ui)"
-              title="Fetch from remotes"
+              :class="[
+                primarySyncAction.op === 'push'
+                  ? 'bg-[#58a6ff]/10 hover:bg-[#58a6ff]/20 text-[#58a6ff] border-[#58a6ff]/40 focus:ring-1 focus:ring-[#58a6ff]'
+                  : primarySyncAction.op === 'sync'
+                    ? 'bg-[var(--oterm-accent)] text-[var(--oterm-bg)] hover:opacity-90 border-[var(--oterm-accent)]/80 focus:ring-1 focus:ring-[var(--oterm-accent)]'
+                    : 'bg-white/5 hover:bg-white/10 text-[var(--oterm-text)] border-[var(--oterm-border)] focus:ring-1 focus:ring-[var(--oterm-muted)]'
+              ]"
+              :title="primarySyncAction.title"
               :disabled="busy"
-              @click="emit('fetch')"
+              @click="onPrimarySyncClick"
             >
-              <span v-if="operation === 'fetch'" class="inline-block h-3 w-3 animate-spin rounded-full border border-current border-r-transparent" />
-              Fetch
+              <!-- Spinner if busy with primary sync operation -->
+              <span
+                v-if="operation === primarySyncAction.op"
+                class="inline-block h-3 w-3 animate-spin rounded-full border border-current border-r-transparent"
+              />
+              <!-- Icons -->
+              <svg v-else-if="primarySyncAction.icon === 'publish'" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M8 12V3M5 6l3-3 3 3M2 13h12" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <svg v-else-if="primarySyncAction.icon === 'push'" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M8 13V3M4 7l4-4 4 4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <svg v-else-if="primarySyncAction.icon === 'pull'" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M8 3v10M4 9l4 4 4-4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <svg v-else-if="primarySyncAction.icon === 'sync'" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M13.5 8a5.5 5.5 0 1 0-1.5 3.8M14 11.5v-3h-3" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <svg v-else width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M2.5 8h11M8 2.5V13.5" stroke-linecap="round" />
+              </svg>
+              
+              <span>{{ primarySyncAction.label }}</span>
             </button>
-            <button
-              type="button"
-              :class="syncBtnClass('pull')"
-              style="font-family: var(--oterm-font-ui)"
-              title="Pull from upstream"
-              :disabled="busy"
-              @click="emit('pull')"
-            >
-              <span v-if="operation === 'pull'" class="inline-block h-3 w-3 animate-spin rounded-full border border-current border-r-transparent" />
-              Pull
-            </button>
-            <button
-              type="button"
-              :class="syncBtnClass('push')"
-              style="font-family: var(--oterm-font-ui)"
-              title="Push to upstream"
-              :disabled="busy"
-              @click="emit('push')"
-            >
-              <span v-if="operation === 'push'" class="inline-block h-3 w-3 animate-spin rounded-full border border-current border-r-transparent" />
-              Push
-            </button>
-            <button
-              type="button"
-              :class="syncBtnClass('sync')"
-              style="font-family: var(--oterm-font-ui)"
-              title="Pull (rebase) then push"
-              :disabled="busy"
-              @click="emit('sync')"
-            >
-              <span v-if="operation === 'sync'" class="inline-block h-3 w-3 animate-spin rounded-full border border-current border-r-transparent" />
-              Sync
-            </button>
+          </div>
+
+          <!-- Secondary icon-only overrides toolbar -->
+          <div class="flex items-center justify-between gap-1.5 bg-white/[0.02] border border-[var(--oterm-border)] rounded-md p-1">
+            <span class="text-[9px] uppercase tracking-wider text-[var(--oterm-faint)] pl-1.5 font-semibold">Granular actions</span>
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                class="flex h-6 w-6 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Fetch updates from remote"
+                :disabled="busy"
+                @click="emit('fetch')"
+              >
+                <span v-if="operation === 'fetch'" class="h-2.5 w-2.5 animate-spin rounded-full border border-current border-r-transparent" />
+                <svg v-else width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M1.5 8.5v3h3M14.5 7.5v-3h-3" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M2 11.5A6 6 0 0 1 12 5.5M14 4.5a6 6 0 0 1-10 6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="flex h-6 w-6 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Pull from upstream"
+                :disabled="busy"
+                @click="emit('pull')"
+              >
+                <span v-if="operation === 'pull'" class="h-2.5 w-2.5 animate-spin rounded-full border border-current border-r-transparent" />
+                <svg v-else width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M8 2v9M4 7l4 4 4-4M2 14h12" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="flex h-6 w-6 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Push to upstream"
+                :disabled="busy"
+                @click="emit('push')"
+              >
+                <span v-if="operation === 'push'" class="h-2.5 w-2.5 animate-spin rounded-full border border-current border-r-transparent" />
+                <svg v-else width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M8 12V3M4 7l4-4 4 4M2 2h12" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="flex h-6 w-6 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Sync commits (Pull rebase + Push)"
+                :disabled="busy"
+                @click="emit('sync')"
+              >
+                <span v-if="operation === 'sync'" class="h-2.5 w-2.5 animate-spin rounded-full border border-current border-r-transparent" />
+                <svg v-else width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M13.5 8a5.5 5.5 0 1 0-1.5 3.8M14 11.5v-3h-3" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <p
@@ -920,113 +1045,198 @@ watch(
 
         <div class="oterm-scroll min-h-0 flex-1 overflow-y-auto">
           <section v-if="status.staged.length" class="border-b border-[var(--oterm-border)] py-2">
-            <p
-              class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]"
-              style="font-family: var(--oterm-font-ui)"
+            <button
+              type="button"
+              class="flex w-full items-center gap-1.5 px-3 pb-1.5 text-left select-none group/title"
+              @click="stagedCollapsed = !stagedCollapsed"
             >
-              Staged ({{ status.staged.length }})
-            </p>
-            <div
-              v-for="entry in status.staged"
-              :key="`staged:${entry.path}`"
-              :class="rowClass(entry, true, false)"
-              @click="selectFile(entry, true, false)"
-            >
-              <span class="w-5 shrink-0 text-xs font-medium text-[#3dd68c]">{{ statusLabel(entry) }}</span>
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 10 10"
+                fill="currentColor"
+                class="shrink-0 text-[var(--oterm-faint)] transition group-hover/title:text-[var(--oterm-text)]"
+                :class="stagedCollapsed ? '-rotate-90' : ''"
+              >
+                <path d="M3 1.5 7.5 5 3 8.5z" />
+              </svg>
               <span
-                class="min-w-0 flex-1 truncate text-sm text-[var(--oterm-text)]"
+                class="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)] group-hover/title:text-[var(--oterm-text)] transition"
                 style="font-family: var(--oterm-font-ui)"
-              >{{ entry.path }}</span>
-              <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />
-              <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
-                <button
-                  type="button"
-                  class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[var(--oterm-faint)] hover:bg-white/5 hover:text-[var(--oterm-text)]"
-                  title="Unstage"
-                  @click.stop="emit('unstage', [entry.path])"
+              >
+                Staged ({{ status.staged.length }})
+              </span>
+            </button>
+            <div v-if="!stagedCollapsed">
+              <div
+                v-for="entry in status.staged"
+                :key="`staged:${entry.path}`"
+                :class="rowClass(entry, true, false)"
+                @click="selectFile(entry, true, false)"
+              >
+                <span :class="statusBadgeClass(entry, true)">{{ statusLabel(entry) }}</span>
+                <div
+                  class="min-w-0 flex-1 py-0.5 flex items-baseline gap-1.5"
+                  style="font-family: var(--oterm-font-ui)"
                 >
-                  −
-                </button>
+                  <span class="truncate text-sm text-[var(--oterm-text)] font-medium">
+                    {{ parseFilePath(entry.path).fileName }}
+                  </span>
+                  <span class="truncate text-[10px] text-[var(--oterm-faint)]">
+                    {{ parseFilePath(entry.path).dirPath }}
+                  </span>
+                </div>
+                <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />
+                <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
+                  <button
+                    type="button"
+                    class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[var(--oterm-faint)] hover:bg-white/5 hover:text-[var(--oterm-text)]"
+                    title="Unstage"
+                    @click.stop="emit('unstage', [entry.path])"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 8h10" stroke-linecap="round" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </section>
 
           <section v-if="status.changes.length" class="border-b border-[var(--oterm-border)] py-2">
-            <p
-              class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]"
-              style="font-family: var(--oterm-font-ui)"
+            <button
+              type="button"
+              class="flex w-full items-center gap-1.5 px-3 pb-1.5 text-left select-none group/title"
+              @click="changesCollapsed = !changesCollapsed"
             >
-              Changes ({{ status.changes.length }})
-            </p>
-            <div
-              v-for="entry in status.changes"
-              :key="`changes:${entry.path}`"
-              :class="rowClass(entry, false, false)"
-              @click="selectFile(entry, false, false)"
-            >
-              <span class="w-5 shrink-0 text-xs font-medium text-[var(--oterm-muted)]">{{ statusLabel(entry) }}</span>
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 10 10"
+                fill="currentColor"
+                class="shrink-0 text-[var(--oterm-faint)] transition group-hover/title:text-[var(--oterm-text)]"
+                :class="changesCollapsed ? '-rotate-90' : ''"
+              >
+                <path d="M3 1.5 7.5 5 3 8.5z" />
+              </svg>
               <span
-                class="min-w-0 flex-1 truncate text-sm text-[var(--oterm-text)]"
+                class="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)] group-hover/title:text-[var(--oterm-text)] transition"
                 style="font-family: var(--oterm-font-ui)"
-              >{{ entry.path }}</span>
-              <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />
-              <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
-                <button
-                  type="button"
-                  class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#3dd68c] hover:bg-white/5"
-                  title="Stage"
-                  @click.stop="emit('stage', [entry.path])"
+              >
+                Changes ({{ status.changes.length }})
+              </span>
+            </button>
+            <div v-if="!changesCollapsed">
+              <div
+                v-for="entry in status.changes"
+                :key="`changes:${entry.path}`"
+                :class="rowClass(entry, false, false)"
+                @click="selectFile(entry, false, false)"
+              >
+                <span :class="statusBadgeClass(entry, false)">{{ statusLabel(entry) }}</span>
+                <div
+                  class="min-w-0 flex-1 py-0.5 flex items-baseline gap-1.5"
+                  style="font-family: var(--oterm-font-ui)"
                 >
-                  +
-                </button>
-                <button
-                  type="button"
-                  class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#ff7b72] hover:bg-white/5"
-                  title="Revert"
-                  @click.stop="confirmRevert([entry.path], false)"
-                >
-                  ↺
-                </button>
+                  <span class="truncate text-sm text-[var(--oterm-text)] font-medium">
+                    {{ parseFilePath(entry.path).fileName }}
+                  </span>
+                  <span class="truncate text-[10px] text-[var(--oterm-faint)]">
+                    {{ parseFilePath(entry.path).dirPath }}
+                  </span>
+                </div>
+                <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />
+                <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
+                  <button
+                    type="button"
+                    class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#3dd68c] hover:bg-white/5"
+                    title="Stage"
+                    @click.stop="emit('stage', [entry.path])"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M8 3v10M3 8h10" stroke-linecap="round" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#ff7b72] hover:bg-white/5"
+                    title="Revert"
+                    @click.stop="confirmRevert([entry.path], false)"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 8a5 5 0 0 1 8.5-3.5L13 6M13 3v3h-3" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </section>
 
           <section v-if="status.untracked.length" class="border-b border-[var(--oterm-border)] py-2">
-            <p
-              class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]"
-              style="font-family: var(--oterm-font-ui)"
+            <button
+              type="button"
+              class="flex w-full items-center gap-1.5 px-3 pb-1.5 text-left select-none group/title"
+              @click="untrackedCollapsed = !untrackedCollapsed"
             >
-              Untracked ({{ status.untracked.length }})
-            </p>
-            <div
-              v-for="entry in status.untracked"
-              :key="`untracked:${entry.path}`"
-              :class="rowClass(entry, false, true)"
-              @click="selectFile(entry, false, true)"
-            >
-              <span class="w-5 shrink-0 text-xs font-medium text-[var(--oterm-faint)]">U</span>
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 10 10"
+                fill="currentColor"
+                class="shrink-0 text-[var(--oterm-faint)] transition group-hover/title:text-[var(--oterm-text)]"
+                :class="untrackedCollapsed ? '-rotate-90' : ''"
+              >
+                <path d="M3 1.5 7.5 5 3 8.5z" />
+              </svg>
               <span
-                class="min-w-0 flex-1 truncate text-sm text-[var(--oterm-text)]"
+                class="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)] group-hover/title:text-[var(--oterm-text)] transition"
                 style="font-family: var(--oterm-font-ui)"
-              >{{ entry.path }}</span>
-              <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />
-              <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
-                <button
-                  type="button"
-                  class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#3dd68c] hover:bg-white/5"
-                  title="Stage"
-                  @click.stop="emit('stage', [entry.path])"
+              >
+                Untracked ({{ status.untracked.length }})
+              </span>
+            </button>
+            <div v-if="!untrackedCollapsed">
+              <div
+                v-for="entry in status.untracked"
+                :key="`untracked:${entry.path}`"
+                :class="rowClass(entry, false, true)"
+                @click="selectFile(entry, false, true)"
+              >
+                <span :class="statusBadgeClass(entry, false)">U</span>
+                <div
+                  class="min-w-0 flex-1 py-0.5 flex items-baseline gap-1.5"
+                  style="font-family: var(--oterm-font-ui)"
                 >
-                  +
-                </button>
-                <button
-                  type="button"
-                  class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#ff7b72] hover:bg-white/5"
-                  title="Delete"
-                  @click.stop="confirmRevert([entry.path], true)"
-                >
-                  ×
-                </button>
+                  <span class="truncate text-sm text-[var(--oterm-text)] font-medium">
+                    {{ parseFilePath(entry.path).fileName }}
+                  </span>
+                  <span class="truncate text-[10px] text-[var(--oterm-faint)]">
+                    {{ parseFilePath(entry.path).dirPath }}
+                  </span>
+                </div>
+                <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />
+                <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
+                  <button
+                    type="button"
+                    class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#3dd68c] hover:bg-white/5"
+                    title="Stage"
+                    @click.stop="emit('stage', [entry.path])"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M8 3v10M3 8h10" stroke-linecap="round" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#ff7b72] hover:bg-white/5"
+                    title="Delete"
+                    @click.stop="confirmRevert([entry.path], true)"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 3l10 10M13 3L3 13" stroke-linecap="round" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </section>
@@ -1043,27 +1253,60 @@ watch(
           />
 
           <section v-if="history.length" class="py-2">
-            <p
-              class="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]"
-              style="font-family: var(--oterm-font-ui)"
+            <button
+              type="button"
+              class="flex w-full items-center gap-1.5 px-3 pb-1.5 text-left select-none group/title"
+              @click="historyCollapsed = !historyCollapsed"
             >
-              History
-            </p>
-            <div
-              v-for="entry in history"
-              :key="entry.hash"
-              class="px-3 py-1.5 hover:bg-white/[0.03]"
-            >
-              <p
-                class="truncate text-sm text-[var(--oterm-text)]"
-                style="font-family: var(--oterm-font-ui)"
-              >{{ entry.subject }}</p>
-              <p
-                class="mt-0.5 truncate text-xs text-[var(--oterm-faint)]"
-                style="font-family: var(--oterm-font-mono)"
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 10 10"
+                fill="currentColor"
+                class="shrink-0 text-[var(--oterm-faint)] transition group-hover/title:text-[var(--oterm-text)]"
+                :class="historyCollapsed ? '-rotate-90' : ''"
               >
-                {{ entry.shortHash }} · {{ entry.author }} · {{ entry.date }}
-              </p>
+                <path d="M3 1.5 7.5 5 3 8.5z" />
+              </svg>
+              <span
+                class="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)] group-hover/title:text-[var(--oterm-text)] transition"
+                style="font-family: var(--oterm-font-ui)"
+              >
+                History ({{ history.length }})
+              </span>
+            </button>
+
+            <div v-if="!historyCollapsed" class="flex flex-col">
+              <button
+                v-for="entry in history"
+                :key="entry.hash"
+                type="button"
+                class="flex w-full items-start gap-2.5 px-3 py-1.5 hover:bg-white/[0.03] text-left transition"
+                :class="selectedCommitHash === entry.hash ? 'bg-white/[0.05] border-l-2 border-l-[var(--oterm-accent)] pl-2.5' : 'border-l-2 border-l-transparent'"
+                @click="selectCommit(entry.hash)"
+              >
+                <!-- Initials Badge acting as Avatar -->
+                <div
+                  class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.06] border border-white/[0.08] text-[8px] font-semibold text-[var(--oterm-muted)]"
+                  style="font-family: var(--oterm-font-ui)"
+                >
+                  {{ authorInitials(entry.author) }}
+                </div>
+                <div class="min-w-0 flex-1 py-px">
+                  <p
+                    class="truncate text-xs leading-snug text-[var(--oterm-text)] font-medium"
+                    style="font-family: var(--oterm-font-ui)"
+                  >
+                    {{ entry.subject }}
+                  </p>
+                  <p
+                    class="mt-0.5 truncate text-[10px] leading-none text-[var(--oterm-faint)]"
+                    style="font-family: var(--oterm-font-mono)"
+                  >
+                    {{ entry.shortHash }} <span class="text-[var(--oterm-muted)]">· {{ entry.author }} · {{ entry.date }}</span>
+                  </p>
+                </div>
+              </button>
             </div>
           </section>
 

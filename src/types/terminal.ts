@@ -123,7 +123,8 @@ export type TerminalMenuActionId =
   | "close-tab"
   | "close-other-tabs"
   | "close-tabs-below"
-  | "save-as-profile";
+  | "save-as-profile"
+  | "split-pane";
 
 export interface TerminalSidebarEntry {
   entryId: string;

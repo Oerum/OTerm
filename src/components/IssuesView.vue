@@ -27,6 +27,7 @@ const loading = ref(false);
 const detailLoading = ref(false);
 const error = ref<string | null>(null);
 const includeClosed = ref(false);
+const assignedToMe = ref(false);
 const filterLabel = ref("");
 const filterAuthor = ref("");
 const filterAssignee = ref("");
@@ -43,7 +44,7 @@ const listFilters = computed<IssueListFilters>(() => ({
   state: includeClosed.value ? "all" : "open",
   label: filterLabel.value.trim() || null,
   author: filterAuthor.value.trim() || null,
-  assignee: filterAssignee.value.trim() || null,
+  assignee: assignedToMe.value ? "@me" : (filterAssignee.value.trim() || null),
 }));
 
 const filteredIssues = computed(() => {
@@ -199,7 +200,7 @@ watch(() => props.repoRoot, () => {
   selectedNumber.value = null;
   void loadIssues();
 });
-watch(includeClosed, () => void loadIssues());
+watch([includeClosed, assignedToMe], () => void loadIssues());
 watch([filterLabel, filterAuthor, filterAssignee], scheduleFilterReload);
 watch(selectedNumber, (number) => {
   if (number) void loadDetail(number);
@@ -219,59 +220,85 @@ watch(filteredIssues, (rows) => {
     class="flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)] outline-none"
   >
     <header
-      class="flex shrink-0 items-center gap-2 border-b border-[var(--oterm-border)] px-4 py-2"
+      class="flex shrink-0 items-center gap-3 border-b border-[var(--oterm-border)] px-4 py-2 bg-[var(--oterm-panel)]"
     >
-      <h2 class="text-sm font-medium">Issues</h2>
-      <span class="truncate text-xs text-[var(--oterm-muted)]">{{ repoRoot }}</span>
+      <div class="flex items-center gap-2 min-w-0">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" class="text-[var(--oterm-accent)] shrink-0">
+          <circle cx="8" cy="8" r="6" stroke-width="1.5" />
+          <path d="M8 11.5h.01M8 5v4" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        <h2 class="text-sm font-semibold tracking-wide">Issues</h2>
+        <span class="truncate text-xs text-[var(--oterm-faint)] font-mono max-w-[200px]" :title="repoRoot">{{ repoRoot }}</span>
+      </div>
       <div class="flex-1" />
-      <label class="flex items-center gap-1.5 text-xs text-[var(--oterm-muted)]">
-        <input v-model="includeClosed" type="checkbox" class="accent-[var(--oterm-accent)]" />
-        Show closed
-      </label>
-      <button
-        type="button"
-        class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
-        :disabled="loading"
-        @click="loadIssues"
-      >
-        Refresh
-      </button>
-      <button
-        type="button"
-        class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
-        @click="emit('close')"
-      >
-        Close tab
-      </button>
+      <div class="flex items-center gap-3">
+        <label class="flex items-center gap-2 text-xs text-[var(--oterm-muted)] cursor-pointer select-none">
+          <input v-model="assignedToMe" type="checkbox" class="rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)] cursor-pointer" />
+          Assigned to me
+        </label>
+        
+        <label class="flex items-center gap-2 text-xs text-[var(--oterm-muted)] cursor-pointer select-none">
+          <input v-model="includeClosed" type="checkbox" class="rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)] cursor-pointer" />
+          Show closed
+        </label>
+        
+        <div class="h-4 w-[1px] bg-[var(--oterm-border)]" />
+        
+        <button
+          type="button"
+          class="pr-header-btn"
+          :disabled="loading"
+          @click="loadIssues"
+        >
+          Refresh
+        </button>
+        <button
+          type="button"
+          class="pr-header-btn"
+          @click="emit('close')"
+        >
+          Close
+        </button>
+      </div>
     </header>
 
     <div
-      class="grid shrink-0 gap-2 border-b border-[var(--oterm-border)] px-4 py-2 sm:grid-cols-2 lg:grid-cols-4"
+      class="flex flex-wrap shrink-0 items-center gap-2 border-b border-[var(--oterm-border)] px-4 py-2 bg-[var(--oterm-panel)]/35"
     >
-      <input
-        v-model="search"
-        type="search"
-        placeholder="Filter list…"
-        class="rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
-      />
-      <input
-        v-model="filterLabel"
-        type="text"
-        placeholder="Label"
-        class="rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
-      />
-      <input
-        v-model="filterAuthor"
-        type="text"
-        placeholder="Author"
-        class="rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
-      />
-      <input
-        v-model="filterAssignee"
-        type="text"
-        placeholder="Assignee"
-        class="rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
-      />
+      <div class="relative flex-1 min-w-[200px]">
+        <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[var(--oterm-faint)]">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+            <path d="M11.5 11.5L14.5 14.5M13 7.5a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </span>
+        <input
+          v-model="search"
+          type="search"
+          placeholder="Filter list by title, labels, assignees…"
+          class="w-full rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 py-1 pl-7.5 pr-2.5 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition duration-150"
+        />
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <input
+          v-model="filterLabel"
+          type="text"
+          placeholder="Label"
+          class="w-24 rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 px-2 py-1 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition"
+        />
+        <input
+          v-model="filterAuthor"
+          type="text"
+          placeholder="Author"
+          class="w-24 rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 px-2 py-1 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition"
+        />
+        <input
+          v-model="filterAssignee"
+          type="text"
+          placeholder="Assignee"
+          :disabled="assignedToMe"
+          class="w-24 rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 px-2 py-1 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition disabled:opacity-40"
+        />
+      </div>
     </div>
 
     <p v-if="provider && !provider.authOk" class="px-4 py-3 text-sm text-[var(--oterm-muted)]">
@@ -281,50 +308,56 @@ watch(filteredIssues, (rows) => {
     <p v-if="error" class="px-4 py-2 text-sm text-[var(--oterm-danger)]">{{ error }}</p>
 
     <div class="flex min-h-0 flex-1">
-      <aside class="w-80 shrink-0 overflow-auto border-r border-[var(--oterm-border)]">
-        <p v-if="loading" class="p-4 text-xs text-[var(--oterm-muted)]">Loading…</p>
-        <button
-          v-for="issue in filteredIssues"
-          :key="issue.number"
-          type="button"
-          class="block w-full border-b border-[var(--oterm-border)] px-3 py-2 text-left text-sm transition hover:bg-white/5"
-          :class="selectedNumber === issue.number ? 'bg-white/5' : ''"
-          @click="selectIssue(issue.number)"
-        >
-          <div class="flex items-center gap-2">
-            <span class="text-[var(--oterm-muted)]">#{{ issue.number }}</span>
-            <span
-              class="rounded px-1 text-[10px] uppercase"
-              :class="
-                issue.state === 'OPEN'
-                  ? 'bg-green-500/20 text-green-300'
-                  : 'bg-white/10 text-[var(--oterm-muted)]'
-              "
-            >
-              {{ issue.state }}
-            </span>
-          </div>
-          <div class="mt-1 truncate font-medium">{{ issue.title }}</div>
-          <div class="mt-0.5 truncate text-xs text-[var(--oterm-muted)]">
-            {{ issue.author }}
-            <span v-if="issue.assignees.length"> · {{ issue.assignees.join(", ") }}</span>
-          </div>
-          <div v-if="issue.labels.length" class="mt-1 flex flex-wrap gap-1">
-            <span
-              v-for="label in issue.labels"
-              :key="label"
-              class="rounded bg-white/10 px-1 text-[10px] text-[var(--oterm-muted)]"
-            >
-              {{ label }}
-            </span>
-          </div>
-        </button>
-        <p
-          v-if="!loading && filteredIssues.length === 0 && provider?.authOk"
-          class="p-4 text-xs text-[var(--oterm-muted)]"
-        >
-          No issues found.
-        </p>
+      <aside class="w-80 shrink-0 overflow-auto border-r border-[var(--oterm-border)] flex flex-col justify-between">
+        <div class="overflow-y-auto flex-1 oterm-scroll">
+          <p v-if="loading" class="p-4 text-xs text-[var(--oterm-muted)]">Loading…</p>
+          <button
+            v-for="issue in filteredIssues"
+            :key="issue.number"
+            type="button"
+            class="block w-full border-b border-[var(--oterm-border)] px-3 py-2 text-left text-sm transition hover:bg-white/5"
+            :class="selectedNumber === issue.number ? 'bg-white/5 border-l-2 border-l-[var(--oterm-accent)] pl-[10px]' : 'border-l-2 border-l-transparent'"
+            @click="selectIssue(issue.number)"
+          >
+            <div class="flex items-center gap-2">
+              <span class="text-[var(--oterm-muted)]">#{{ issue.number }}</span>
+              <span
+                class="rounded px-1 text-[10px] uppercase"
+                :class="
+                  issue.state === 'OPEN'
+                    ? 'bg-green-500/20 text-green-300'
+                    : 'bg-white/10 text-[var(--oterm-muted)]'
+                "
+              >
+                {{ issue.state }}
+              </span>
+            </div>
+            <div class="mt-1 truncate font-medium">{{ issue.title }}</div>
+            <div class="mt-0.5 truncate text-xs text-[var(--oterm-muted)]">
+              {{ issue.author }}
+              <span v-if="issue.assignees.length"> · {{ issue.assignees.join(", ") }}</span>
+            </div>
+            <div v-if="issue.labels.length" class="mt-1 flex flex-wrap gap-1">
+              <span
+                v-for="label in issue.labels"
+                :key="label"
+                class="rounded bg-white/10 px-1 text-[10px] text-[var(--oterm-muted)]"
+              >
+                {{ label }}
+              </span>
+            </div>
+          </button>
+          <p
+            v-if="!loading && filteredIssues.length === 0 && provider?.authOk"
+            class="p-4 text-xs text-[var(--oterm-muted)]"
+          >
+            No issues found.
+          </p>
+        </div>
+        <div v-if="filteredIssues.length > 0" class="shrink-0 border-t border-[var(--oterm-border)] px-3 py-1.5 bg-[var(--oterm-panel)]/40 flex items-center justify-between text-[10px] text-[var(--oterm-faint)] select-none">
+          <span>Use <kbd class="px-1 py-0.5 bg-white/5 border border-white/10 rounded">↑</kbd> <kbd class="px-1 py-0.5 bg-white/5 border border-white/10 rounded">↓</kbd> keys to navigate</span>
+          <span>{{ filteredIssues.length }} issues</span>
+        </div>
       </aside>
 
       <section v-if="selected" class="min-w-0 flex-1 overflow-auto p-4">
@@ -408,3 +441,32 @@ watch(filteredIssues, (rows) => {
     </p>
   </div>
 </template>
+
+<style scoped>
+.pr-header-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--oterm-font-ui);
+  color: var(--oterm-muted);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--oterm-border);
+  cursor: pointer;
+  transition: all 120ms ease;
+  font-weight: 500;
+}
+
+.pr-header-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--oterm-text);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.pr-header-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+</style>

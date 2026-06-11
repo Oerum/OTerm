@@ -95,7 +95,9 @@ import { listGitWorktrees } from "./lib/gitApi";
 import { resolveActiveWorktree, resolveGitMutationRoot, switchGitBranch } from "./lib/switchGitBranch";
 import type { GitWorktreeInfo } from "./types/git";
 
-const appVersion = "0.1.0";
+import { getVersion } from "@tauri-apps/api/app";
+
+const appVersion = ref("0.1.0");
 
 const systemDefaultShellId = ref("cmd");
 const defaultShellId = ref("");
@@ -278,6 +280,7 @@ const {
   status: sourceControlStatus,
   branches: gitBranches,
   history: gitHistory,
+  loadedCwd: sourceControlLoadedCwd,
   graphRefreshToken: gitGraphRefreshToken,
   loading: sourceControlLoading,
   operation: sourceControlOperation,
@@ -309,14 +312,19 @@ const gitBadgeStatus = computed(() => ({
   deletions: sourceControlStatus.value.deletions,
 }));
 
-const activePaneGit = computed(() => ({
-  paneId: activePaneId.value ?? "",
-  branch: sourceControlStatus.value.branch,
-  isRepo: sourceControlStatus.value.isRepo,
-  changedFiles: sourceControlStatus.value.changedFiles,
-  additions: sourceControlStatus.value.additions,
-  deletions: sourceControlStatus.value.deletions,
-}));
+const activePaneGit = computed(() => {
+  if (sourceControlLoadedCwd.value !== activeCwd.value) {
+    return undefined;
+  }
+  return {
+    paneId: activePaneId.value ?? "",
+    branch: sourceControlStatus.value.branch,
+    isRepo: sourceControlStatus.value.isRepo,
+    changedFiles: sourceControlStatus.value.changedFiles,
+    additions: sourceControlStatus.value.additions,
+    deletions: sourceControlStatus.value.deletions,
+  };
+});
 
 let promptGitRefreshTimer: number | undefined;
 const sourceControlPanelRef = ref<InstanceType<typeof SourceControlPanel> | null>(null);
@@ -1046,9 +1054,19 @@ async function refitTerminals() {
 
 let unlistenTerminalAgentChanged: (() => void) | null = null;
 
+function onWindowFocus() {
+  void refreshGitViews();
+}
+
 onMounted(() => {
   void bootstrap();
+  void getVersion().then((version) => {
+    appVersion.value = version;
+  }).catch((err) => {
+    console.error("Failed to load app version:", err);
+  });
   window.addEventListener("keydown", onKeyDown, true);
+  window.addEventListener("focus", onWindowFocus);
   void listenTerminalAgentChanged((event) => {
     onTerminalAgentChanged(
       event.sessionId,
@@ -1069,6 +1087,7 @@ watch(
 
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeyDown, true);
+  window.removeEventListener("focus", onWindowFocus);
   window.clearTimeout(promptGitRefreshTimer);
   unlistenTerminalAgentChanged?.();
 });
@@ -1159,7 +1178,7 @@ onUnmounted(() => {
               v-if="tab.kind === 'terminal'"
               v-show="tab.id === activeTabId"
               class="flex min-h-0 flex-1 divide-[var(--oterm-border)]"
-              :class="tab.split === 'horizontal' ? 'flex-row divide-x' : 'flex-col'"
+              :class="tab.split === 'horizontal' ? 'flex-row divide-x' : 'flex-col divide-y'"
             >
               <TerminalPane
                 v-for="pane in tab.panes"

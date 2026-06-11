@@ -73,7 +73,8 @@ pub fn available_shells() -> Vec<ShellProfile> {
         );
     }
 
-    if let Some(path) = resolve_program_with_fallbacks(&["fish", "fish.exe"], &fish_fallback_paths())
+    if let Some(path) =
+        resolve_program_with_fallbacks(&["fish", "fish.exe"], &fish_fallback_paths())
     {
         push_shell(
             &mut shells,

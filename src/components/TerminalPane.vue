@@ -182,6 +182,7 @@ const pathMenuX = ref(0);
 const pathMenuY = ref(0);
 const pathMenuPath = ref<string | null>(null);
 const pathMenuIsUrl = ref(false);
+const pathMenuHasSelection = ref(false);
 const pathCopiedVisible = ref(false);
 const agentComposerRef = ref<InstanceType<typeof AgentComposer> | null>(null);
 const agentComposerOpen = ref(false);
@@ -494,13 +495,43 @@ function registerPathLinkProvider() {
 function onTerminalContextMenu(event: MouseEvent) {
   if (!terminal || !pathsInteractiveEnabled()) return;
   const hit = findTerminalLinkAtMouseEvent(terminal, event);
-  if (!hit) return;
   event.preventDefault();
   pathMenuX.value = event.clientX;
   pathMenuY.value = event.clientY;
-  pathMenuPath.value = hit.text;
-  pathMenuIsUrl.value = isHttpUrl(hit.text);
+  pathMenuHasSelection.value = terminal.hasSelection();
+  if (hit) {
+    pathMenuPath.value = hit.text;
+    pathMenuIsUrl.value = isHttpUrl(hit.text);
+  } else {
+    pathMenuPath.value = null;
+    pathMenuIsUrl.value = false;
+  }
   pathMenuOpen.value = true;
+}
+
+async function copySelectedText() {
+  if (!terminal) return;
+  const selection = terminal.getSelection();
+  if (selection) {
+    try {
+      await navigator.clipboard.writeText(selection);
+    } catch {
+      // Clipboard may be unavailable.
+    }
+  }
+  closePathMenu();
+}
+
+async function pasteText() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text) {
+      void forwardTerminalInput(text);
+    }
+  } catch {
+    // Clipboard may be unavailable.
+  }
+  closePathMenu();
 }
 
 function stripAnsi(text: string): string {
@@ -925,6 +956,7 @@ async function mountTerminal() {
     letterSpacing: 0,
     scrollback: 5000,
     rescaleOverlappingGlyphs: true,
+    allowTransparency: true,
     theme: resolveSshTerminalTheme(props.themeId),
   });
 
@@ -954,6 +986,34 @@ async function mountTerminal() {
   });
 
   terminal.attachCustomKeyEventHandler((event) => {
+    const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+    
+    // Copy shortcut (Ctrl+C / Cmd+C when selection exists)
+    const isCopy = (isMac && event.metaKey && event.key.toLowerCase() === "c" && !event.ctrlKey && !event.altKey) ||
+                   (!isMac && event.ctrlKey && event.key.toLowerCase() === "c" && !event.metaKey && !event.altKey);
+    if (isCopy && terminal && terminal.hasSelection()) {
+      if (event.type === "keydown") {
+        navigator.clipboard.writeText(terminal.getSelection()).catch(() => {});
+      }
+      event.preventDefault();
+      return false;
+    }
+
+    // Paste shortcut (Ctrl+V / Cmd+V)
+    const isPaste = (isMac && event.metaKey && event.key.toLowerCase() === "v" && !event.ctrlKey && !event.altKey) ||
+                    (!isMac && event.ctrlKey && event.key.toLowerCase() === "v" && !event.metaKey && !event.altKey);
+    if (isPaste && terminal) {
+      if (event.type === "keydown") {
+        navigator.clipboard.readText().then((text) => {
+          if (text) {
+            void forwardTerminalInput(text);
+          }
+        }).catch(() => {});
+      }
+      event.preventDefault();
+      return false;
+    }
+
     if (!suggestion.value || isSshSession.value) return true;
     if (event.key === "Tab" && !event.shiftKey) {
       event.preventDefault();
@@ -1212,6 +1272,24 @@ onBeforeUnmount(async () => {
 
 const isReady = computed(() => Boolean(localSessionId.value));
 
+const currentTheme = computed(() => resolveSshTerminalTheme(props.themeId));
+const terminalBgStyle = computed(() => {
+  const bg = currentTheme.value.background;
+  if (!bg || bg === "transparent") {
+    return { backgroundColor: "var(--oterm-bg)" };
+  }
+  return { backgroundColor: bg };
+});
+
+watch(
+  () => props.themeId,
+  (themeId) => {
+    if (terminal) {
+      terminal.options.theme = resolveSshTerminalTheme(themeId);
+    }
+  },
+);
+
 const agentComposerVisible = computed(() =>
   Boolean(isReady.value && localSessionId.value && agentComposerOpen.value),
 );
@@ -1247,8 +1325,9 @@ watch(suggestionStripVisible, () => {
 
 <template>
   <div
-    class="terminal-pane relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--oterm-bg)]"
+    class="terminal-pane relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     :class="active ? 'terminal-pane--active' : ''"
+    :style="terminalBgStyle"
     @mousedown="emit('focusPane')"
   >
     <div ref="containerRef" class="terminal-output min-h-0 w-full flex-1 px-4 py-3" />
@@ -1289,10 +1368,13 @@ watch(suggestionStripVisible, () => {
       :y="pathMenuY"
       :path="pathMenuPath"
       :is-url="pathMenuIsUrl"
+      :has-selection="pathMenuHasSelection"
       @close="closePathMenu"
       @copy="copyPathFromMenu"
       @append="appendPathFromMenu"
       @open="openUrlFromMenu"
+      @copy-selection="copySelectedText"
+      @paste="pasteText"
     />
     <div
       v-if="pathCopiedVisible"

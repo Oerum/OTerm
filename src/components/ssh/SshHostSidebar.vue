@@ -24,6 +24,7 @@ const emit = defineEmits<{
   addHost: [];
   exportLibrary: [];
   importLibrary: [];
+  openTerminalDirectly: [endpoint: SshEndpoint];
 }>();
 
 const collapsedGroups = ref<Set<string>>(new Set());
@@ -78,9 +79,11 @@ function endpointSubtitle(endpoint: SshEndpoint) {
 }
 
 function rowClass(endpoint: SshEndpoint) {
-  return props.selectedEndpointId === endpoint.id
-    ? "border-[var(--oterm-accent)]/50 bg-[var(--oterm-accent)]/5"
-    : "border-[var(--oterm-border)] bg-[var(--oterm-panel)]";
+  const isSelected = props.selectedEndpointId === endpoint.id;
+  if (isSelected) {
+    return "border-[var(--oterm-accent)] bg-[var(--oterm-accent-dim)]/10 shadow-[0_0_10px_rgba(0,229,186,0.03)] scale-[1.01] z-10 text-white";
+  }
+  return "border-[var(--oterm-border)] bg-[var(--oterm-panel)]/30 hover:bg-[var(--oterm-panel)]/80 hover:border-[var(--oterm-border-strong)] hover:scale-[1.005]";
 }
 
 function renderGroups(parentId: string | null, depth = 0): Array<{ group: SshGroup; depth: number }> {
@@ -98,141 +101,260 @@ const groupRows = computed(() => renderGroups(null));
 </script>
 
 <template>
-  <aside class="flex min-h-0 flex-col border-r border-[var(--oterm-border)]">
-    <div class="space-y-2 border-b border-[var(--oterm-border)] p-3">
-      <input
-        :value="search"
-        type="search"
-        placeholder="Search hosts..."
-        class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2 py-1.5 text-sm outline-none focus:border-[var(--oterm-accent)]/50"
-        @input="emit('update:search', ($event.target as HTMLInputElement).value)"
-      />
-      <div class="flex flex-wrap gap-1">
+  <aside class="flex min-h-0 flex-col border-r border-[var(--oterm-border)] bg-[var(--oterm-panel)]/30">
+    <!-- Search and Actions Bar -->
+    <div class="space-y-3 border-b border-[var(--oterm-border)] p-4 bg-[var(--oterm-panel)]/60">
+      <div class="relative">
+        <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[var(--oterm-faint)]">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </span>
+        <input
+          :value="search"
+          type="search"
+          placeholder="Search hosts..."
+          class="w-full rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/60 py-1.5 pl-8 pr-3 text-xs text-white placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/40 focus:ring-1 focus:ring-[var(--oterm-accent)]/15 transition duration-150"
+          @input="emit('update:search', ($event.target as HTMLInputElement).value)"
+        />
+      </div>
+
+      <!-- Action Tools -->
+      <div class="flex flex-wrap gap-1.5">
         <button
           type="button"
-          class="rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
+          class="sidebar-action-btn"
+          title="Add Group folder"
           @click="emit('addGroup')"
         >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
           Group
         </button>
         <button
           type="button"
-          class="rounded border border-[var(--oterm-accent)]/40 px-2 py-1 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10"
+          class="sidebar-action-btn sidebar-action-btn--accent"
+          title="Add SSH/Mosh host"
           @click="emit('addHost')"
         >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
           Host
         </button>
+        <div class="flex-1" />
         <button
           type="button"
-          class="rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
+          class="sidebar-action-btn"
+          title="Export hosts"
           @click="emit('exportLibrary')"
         >
           Export
         </button>
         <button
           type="button"
-          class="rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
+          class="sidebar-action-btn"
+          title="Import hosts file"
           @click="emit('importLibrary')"
         >
           Import
         </button>
       </div>
-      <div v-if="allTags.length" class="flex flex-wrap gap-1">
+
+      <!-- Tags Filters -->
+      <div v-if="allTags.length" class="flex flex-wrap gap-1 border-t border-[var(--oterm-border)]/50 pt-2">
         <button
           v-for="tag in allTags"
           :key="tag"
           type="button"
-          class="rounded-full border px-2 py-0.5 text-[10px]"
+          class="rounded-full border px-2 py-0.5 text-[9px] font-semibold transition"
           :class="
             selectedTagFilters.includes(tag)
-              ? 'border-[var(--oterm-accent)]/50 bg-[var(--oterm-accent)]/10 text-[var(--oterm-accent)]'
-              : 'border-[var(--oterm-border)] text-[var(--oterm-muted)] hover:bg-white/5'
+              ? 'border-[var(--oterm-accent)]/55 bg-[var(--oterm-accent-dim)]/10 text-[var(--oterm-accent)]'
+              : 'border-[var(--oterm-border)] text-[var(--oterm-muted)] hover:text-white hover:bg-white/5'
           "
           @click="toggleTag(tag)"
         >
-          {{ tag }}
+          #{{ tag }}
         </button>
       </div>
     </div>
 
-    <div class="oterm-scroll min-h-0 flex-1 overflow-auto p-2">
-      <button
-        type="button"
-        class="mb-1 w-full rounded px-2 py-1 text-left text-xs"
-        :class="
-          selectedGroupId === 'all'
-            ? 'bg-[var(--oterm-accent)]/10 text-[var(--oterm-accent)]'
-            : 'text-[var(--oterm-muted)] hover:bg-white/5'
-        "
-        @click="emit('update:selectedGroupId', 'all')"
-      >
-        All hosts ({{ library.endpoints.length }})
-      </button>
-      <button
-        type="button"
-        class="mb-2 w-full rounded px-2 py-1 text-left text-xs"
-        :class="
-          selectedGroupId === 'uncategorized'
-            ? 'bg-[var(--oterm-accent)]/10 text-[var(--oterm-accent)]'
-            : 'text-[var(--oterm-muted)] hover:bg-white/5'
-        "
-        @click="emit('update:selectedGroupId', 'uncategorized')"
-      >
-        Uncategorized ({{ endpointsInGroup(library.endpoints, null).length }})
-      </button>
-
-      <div v-for="{ group, depth } in groupRows" :key="group.id" class="mb-1">
+    <!-- Hosts and Categories List -->
+    <div class="oterm-scroll min-h-0 flex-1 overflow-auto p-3 space-y-3">
+      
+      <!-- Group categories -->
+      <div class="space-y-1">
         <button
           type="button"
-          class="flex w-full items-center gap-1 rounded px-2 py-1 text-left text-xs font-medium"
-          :style="{ paddingLeft: `${8 + depth * 12}px` }"
+          class="w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold"
           :class="
-            selectedGroupId === group.id
+            selectedGroupId === 'all'
               ? 'bg-[var(--oterm-accent)]/10 text-[var(--oterm-accent)]'
-              : 'text-[var(--oterm-muted)] hover:bg-white/5'
+              : 'text-[var(--oterm-muted)] hover:text-white hover:bg-white/5'
           "
-          @click="emit('update:selectedGroupId', group.id)"
+          @click="emit('update:selectedGroupId', 'all')"
         >
-          <span
-            v-if="childGroups(library.groups, group.id).length"
-            class="inline-block w-3 text-[10px]"
-            @click.stop="toggleGroupCollapse(group.id)"
-          >
-            {{ collapsedGroups.has(group.id) ? "▸" : "▾" }}
+          <span class="flex items-center gap-1.5">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
+              <line x1="7" y1="2" x2="7" y2="22"/>
+            </svg>
+            All Connections
           </span>
-          <span v-else class="inline-block w-3" />
-          {{ group.name }}
-          ({{ endpointsInGroup(library.endpoints, group.id).length }})
+          <span class="font-mono text-[10px] opacity-75">({{ library.endpoints.length }})</span>
         </button>
+        <button
+          type="button"
+          class="w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold"
+          :class="
+            selectedGroupId === 'uncategorized'
+              ? 'bg-[var(--oterm-accent)]/10 text-[var(--oterm-accent)]'
+              : 'text-[var(--oterm-muted)] hover:text-white hover:bg-white/5'
+          "
+          @click="emit('update:selectedGroupId', 'uncategorized')"
+        >
+          <span class="flex items-center gap-1.5">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            Uncategorized
+          </span>
+          <span class="font-mono text-[10px] opacity-75">({{ endpointsInGroup(library.endpoints, null).length }})</span>
+        </button>
+
+        <!-- Nested Groups rendering -->
+        <div v-for="{ group, depth } in groupRows" :key="group.id">
+          <button
+            type="button"
+            class="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold"
+            :style="{ paddingLeft: `${8 + depth * 12}px` }"
+            :class="
+              selectedGroupId === group.id
+                ? 'bg-[var(--oterm-accent)]/10 text-[var(--oterm-accent)]'
+                : 'text-[var(--oterm-muted)] hover:text-white hover:bg-white/5'
+            "
+            @click="emit('update:selectedGroupId', group.id)"
+          >
+            <span class="flex items-center gap-1.5 min-w-0 flex-1">
+              <span
+                v-if="childGroups(library.groups, group.id).length"
+                class="text-[10px] flex items-center justify-center w-3 h-3 hover:bg-white/10 rounded"
+                @click.stop="toggleGroupCollapse(group.id)"
+              >
+                {{ collapsedGroups.has(group.id) ? "▸" : "▾" }}
+              </span>
+              <span v-else class="w-3 shrink-0" />
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" class="text-amber-500 shrink-0">
+                <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+              </svg>
+              <span class="truncate">{{ group.name }}</span>
+            </span>
+            <span class="font-mono text-[10px] opacity-75 shrink-0 ml-1">({{ endpointsInGroup(library.endpoints, group.id).length }})</span>
+          </button>
+        </div>
       </div>
 
-      <div class="mt-3 space-y-1">
-        <button
+      <!-- Endpoints Hosts List -->
+      <div class="space-y-1.5 border-t border-[var(--oterm-border)] pt-3">
+        <div class="text-[9px] font-bold uppercase tracking-wider text-[var(--oterm-faint)] px-1 mb-2">Saved Hosts</div>
+        <div
           v-for="endpoint in filteredEndpoints"
           :key="endpoint.id"
-          type="button"
-          class="w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-white/[0.02]"
+          class="sidebar-host-card w-full flex items-center justify-between rounded-xl border p-3 text-left text-sm cursor-pointer transition-all duration-150"
           :class="rowClass(endpoint)"
           @click="emit('selectEndpoint', endpoint)"
         >
-          <div class="truncate font-medium">{{ endpointDisplayLabel(endpoint) }}</div>
-          <div class="mt-0.5 truncate text-[10px] text-[var(--oterm-muted)]">
-            {{ endpointSubtitle(endpoint) }}
+          <div class="min-w-0 flex-1 flex gap-2.5 items-center">
+            <!-- Server Icon with connection type color dots -->
+            <div class="h-8 w-8 rounded-lg bg-white/3 flex items-center justify-center shrink-0 border border-white/5 relative">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[var(--oterm-muted)]">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+                <line x1="6" y1="6" x2="6.01" y2="6"/>
+                <line x1="6" y1="18" x2="6.01" y2="18"/>
+              </svg>
+              <!-- Protocol Indicator Dot -->
+              <span 
+                class="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full border border-[var(--oterm-panel)]"
+                :class="endpoint.connectionType === 'mosh' ? 'bg-amber-500' : 'bg-emerald-500'"
+                :title="endpoint.connectionType === 'mosh' ? 'Mosh Protocol' : 'SSH Protocol'"
+              />
+            </div>
+            
+            <div class="min-w-0">
+              <div class="truncate font-semibold text-white">{{ endpointDisplayLabel(endpoint) }}</div>
+              <div class="truncate text-[10px] text-[var(--oterm-muted)] font-mono mt-0.5">
+                {{ endpointSubtitle(endpoint) }}
+              </div>
+              <div v-if="endpoint.tags.length" class="mt-1.5 flex flex-wrap gap-1">
+                <span
+                  v-for="tag in endpoint.tags"
+                  :key="tag"
+                  class="rounded-full border border-[var(--oterm-border)] px-1.5 py-0 text-[8px] font-semibold text-[var(--oterm-faint)]"
+                >
+                  {{ tag }}
+                </span>
+              </div>
+            </div>
           </div>
-          <div v-if="endpoint.tags.length" class="mt-1 flex flex-wrap gap-1">
-            <span
-              v-for="tag in endpoint.tags"
-              :key="tag"
-              class="rounded-full border border-[var(--oterm-border)] px-1.5 py-0 text-[9px] text-[var(--oterm-muted)]"
-            >
-              {{ tag }}
-            </span>
-          </div>
-        </button>
-        <p v-if="filteredEndpoints.length === 0" class="px-2 py-4 text-xs text-[var(--oterm-muted)]">
-          No hosts in this view.
+
+          <!-- Quick Terminal Trigger Button -->
+          <button
+            type="button"
+            class="h-6 w-6 rounded-md hover:bg-white/5 flex items-center justify-center text-[var(--oterm-muted)] hover:text-[var(--oterm-accent)] transition shrink-0 ml-2"
+            title="Launch Terminal Session directly"
+            @click.stop="emit('openTerminalDirectly', endpoint)"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 17 10 11 4 5" />
+              <line x1="12" y1="19" x2="20" y2="19" />
+            </svg>
+          </button>
+        </div>
+        <p v-if="filteredEndpoints.length === 0" class="py-8 text-center text-xs text-[var(--oterm-faint)]">
+          No hosts found matching query.
         </p>
       </div>
     </div>
   </aside>
 </template>
+
+<style scoped>
+.sidebar-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-family: var(--oterm-font-ui);
+  font-weight: 600;
+  color: var(--oterm-muted);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--oterm-border);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.sidebar-action-btn:hover {
+  color: var(--oterm-text);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--oterm-border-strong);
+}
+
+.sidebar-action-btn--accent {
+  color: var(--oterm-accent);
+  border-color: rgba(0, 229, 186, 0.2);
+}
+
+.sidebar-action-btn--accent:hover {
+  background: rgba(0, 229, 186, 0.08);
+  border-color: rgba(0, 229, 186, 0.4);
+}
+
+.sidebar-host-card {
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+</style>

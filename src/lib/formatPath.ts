@@ -38,3 +38,14 @@ export function formatPathFull(cwd: string | undefined): string | null {
   const formatted = formatPath(cwd);
   return formatted === "~" ? null : formatted;
 }
+
+/** Format terminal title to show only the executable or directory basename when it is a full path. */
+export function formatTitleCompact(title: string | undefined): string {
+  if (!title) return "";
+  const trimmed = title.trim();
+  if (trimmed.includes("/") || trimmed.includes("\\")) {
+    const parts = trimmed.replace(/\\/g, "/").split("/").filter(Boolean);
+    return parts[parts.length - 1] ?? trimmed;
+  }
+  return trimmed;
+}

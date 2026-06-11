@@ -47,6 +47,13 @@ const graphHeight = ref(readStoredGraphHeight());
 
 const graphSkip = ref(0);
 
+const hoveredRowIndex = ref<number | null>(null);
+
+const hoveredColor = computed(() => {
+  if (hoveredRowIndex.value === null) return null;
+  return layout.value.rows[hoveredRowIndex.value]?.color ?? null;
+});
+
 const PAGE_SIZE = 50;
 
 function appendCommits(existing: GraphCommit[], page: GraphCommit[]): GraphCommit[] {
@@ -344,6 +351,7 @@ function isSelected(hash: string): boolean {
             shape-rendering="geometricPrecision"
             aria-hidden="true"
           >
+            <!-- Background paths -->
             <template v-for="row in layout.rows" :key="`paths:${row.hash}`">
               <path
                 v-for="(path, pathIndex) in row.paths"
@@ -351,11 +359,70 @@ function isSelected(hash: string): boolean {
                 :d="path.d"
                 fill="none"
                 :stroke="path.color"
-                stroke-width="2"
+                :stroke-width="hoveredColor === path.color ? 3.5 : 2"
+                :opacity="hoveredColor === null || hoveredColor === path.color ? 1 : 0.2"
                 stroke-linecap="round"
                 stroke-linejoin="round"
+                class="transition-all duration-150 ease-in-out"
               />
             </template>
+
+            <!-- Interactive overlay nodes -->
+            <g
+              v-for="(row, index) in layout.rows"
+              :key="`node:${row.hash}`"
+              :opacity="hoveredRowIndex === null || hoveredRowIndex === index || hoveredColor === row.color ? 1 : 0.2"
+              class="transition-all duration-150 ease-in-out"
+            >
+              <!-- HEAD commit nodes -->
+              <template v-if="isHeadCommit(commits[index]?.decorations)">
+                <!-- Hover halo ring -->
+                <circle
+                  v-if="hoveredRowIndex === index"
+                  :cx="row.nodeX"
+                  :cy="row.nodeY"
+                  :r="GRAPH_HEAD_R + 3"
+                  :fill="row.color"
+                  opacity="0.15"
+                />
+                <!-- Outer circle -->
+                <circle
+                  :cx="row.nodeX"
+                  :cy="row.nodeY"
+                  :r="GRAPH_HEAD_R"
+                  fill="var(--oterm-bg)"
+                  :stroke="row.color ?? '#3794ff'"
+                  stroke-width="2.5"
+                />
+                <!-- Center dot -->
+                <circle
+                  :cx="row.nodeX"
+                  :cy="row.nodeY"
+                  r="2"
+                  :fill="row.color ?? '#3794ff'"
+                />
+              </template>
+
+              <!-- Regular commit nodes -->
+              <template v-else>
+                <!-- Hover halo ring -->
+                <circle
+                  v-if="hoveredRowIndex === index"
+                  :cx="row.nodeX"
+                  :cy="row.nodeY"
+                  :r="GRAPH_NODE_R + 3"
+                  :fill="row.color"
+                  opacity="0.15"
+                />
+                <circle
+                  :cx="row.nodeX"
+                  :cy="row.nodeY"
+                  :r="hoveredRowIndex === index ? GRAPH_NODE_R + 1 : GRAPH_NODE_R"
+                  :fill="row.color ?? '#3794ff'"
+                  class="transition-all duration-150 ease-in-out"
+                />
+              </template>
+            </g>
           </svg>
 
           <button
@@ -366,47 +433,16 @@ function isSelected(hash: string): boolean {
             :class="isSelected(commit.hash) ? 'bg-white/[0.05]' : ''"
             :style="{ minHeight: `${GRAPH_ROW_HEIGHT}px` }"
             @click="onSelect(commit.hash)"
+            @mouseenter="hoveredRowIndex = index"
+            @mouseleave="hoveredRowIndex = null"
           >
             <div
-              class="relative shrink-0"
+              class="shrink-0"
               :style="{
                 width: `${Math.max(layout.rows[index]?.laneCount ?? 1, 1) * GRAPH_LANE_WIDTH}px`,
                 height: `${GRAPH_ROW_HEIGHT}px`,
               }"
             >
-              <span
-                v-if="isHeadCommit(commit.decorations)"
-                class="absolute rounded-full border-2 bg-[var(--oterm-bg)]"
-                :style="{
-                  left: `${(layout.rows[index]?.nodeX ?? GRAPH_LANE_WIDTH / 2) - GRAPH_HEAD_R}px`,
-                  top: `${GRAPH_ROW_HEIGHT / 2 - GRAPH_HEAD_R}px`,
-                  width: `${GRAPH_HEAD_R * 2}px`,
-                  height: `${GRAPH_HEAD_R * 2}px`,
-                  borderColor: layout.rows[index]?.color ?? '#3794ff',
-                }"
-              />
-              <span
-                v-else
-                class="absolute rounded-full"
-                :style="{
-                  left: `${(layout.rows[index]?.nodeX ?? GRAPH_LANE_WIDTH / 2) - GRAPH_NODE_R}px`,
-                  top: `${GRAPH_ROW_HEIGHT / 2 - GRAPH_NODE_R}px`,
-                  width: `${GRAPH_NODE_R * 2}px`,
-                  height: `${GRAPH_NODE_R * 2}px`,
-                  backgroundColor: layout.rows[index]?.color ?? '#3794ff',
-                }"
-              />
-              <span
-                v-if="isHeadCommit(commit.decorations)"
-                class="absolute rounded-full"
-                :style="{
-                  left: `${(layout.rows[index]?.nodeX ?? GRAPH_LANE_WIDTH / 2) - 2}px`,
-                  top: `${GRAPH_ROW_HEIGHT / 2 - 2}px`,
-                  width: '4px',
-                  height: '4px',
-                  backgroundColor: layout.rows[index]?.color ?? '#3794ff',
-                }"
-              />
             </div>
             <div class="min-w-0 flex-1 py-0.5">
               <p

@@ -52,6 +52,7 @@ import BranchListItem from "./BranchListItem.vue";
 import CreateBranchDialog from "./CreateBranchDialog.vue";
 import CreatePullRequestDialog from "./CreatePullRequestDialog.vue";
 import MergeBranchDialog from "./MergeBranchDialog.vue";
+import GitDiffViewer from "./GitDiffViewer.vue";
 
 const props = defineProps<{
   repoRoot: string;
@@ -76,6 +77,8 @@ const compareTarget = ref("");
 const compareContent = ref("");
 const loading = ref(false);
 const busy = ref(false);
+const rightPanelTab = ref<"details" | "compare">("details");
+const isMaximized = ref(false);
 const error = ref<string | null>(null);
 const filter = ref("");
 const branchFilter = ref("");
@@ -116,6 +119,7 @@ const branchContextMenuOpen = ref(false);
 const branchContextMenuX = ref(0);
 const branchContextMenuY = ref(0);
 const branchContextTarget = ref<BranchRefInfo | null>(null);
+const branchFilterInput = ref<HTMLInputElement | null>(null);
 
 const groupedBranches = computed(() =>
   filterBranchSections(groupBranches(branches.value), branchFilter.value),
@@ -672,6 +676,15 @@ function onDocumentMouseDown(event: MouseEvent) {
 }
 
 function onKeyDown(event: KeyboardEvent) {
+  const active = document.activeElement;
+  const isInput = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA");
+
+  if (event.key === "/" && !isInput) {
+    event.preventDefault();
+    branchFilterInput.value?.focus();
+    return;
+  }
+
   if (!event.altKey) return;
   if (event.key === "PageUp") {
     event.preventDefault();
@@ -697,52 +710,77 @@ watch(() => props.repoRoot, () => {
   collapsedFolders.value = new Set();
   void load();
 });
-watch(selectedHash, () => void loadDetails());
+watch(selectedHash, () => {
+  rightPanelTab.value = "details";
+  void loadDetails();
+});
 </script>
 
 <template>
   <div class="relative flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)]">
-    <header
-      class="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--oterm-border)] px-4 py-2"
-    >
-      <h2 class="text-sm font-medium">Branches</h2>
-      <span class="truncate text-xs text-[var(--oterm-muted)]">{{ repoRoot }}</span>
+    <header class="flex shrink-0 items-center gap-3 border-b border-[var(--oterm-border)] px-4 py-3 bg-[var(--oterm-panel)]">
+      <div class="flex items-center gap-2 min-w-0">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" class="text-[var(--oterm-accent)] shrink-0">
+          <path d="M5 4.5a2.5 2.5 0 100 5v2.5M11 11.5a2.5 2.5 0 100-5v-2.5M5 7h6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <h2 class="text-sm font-semibold tracking-wide">Branches</h2>
+        <span class="truncate text-xs text-[var(--oterm-faint)] font-mono max-w-[200px]" :title="repoRoot">{{ repoRoot }}</span>
+      </div>
+      
       <div class="flex-1" />
-      <input
-        v-model="filter"
-        type="search"
-        placeholder="Filter commits"
-        class="rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
-      />
-      <label class="flex items-center gap-1 text-xs text-[var(--oterm-muted)]">
-        <input v-model="showIncomingOnly" type="checkbox" class="accent-[var(--oterm-accent)]" />
-        Incoming
-      </label>
-      <label class="flex items-center gap-1 text-xs text-[var(--oterm-muted)]">
-        <input v-model="showOutgoingOnly" type="checkbox" class="accent-[var(--oterm-accent)]" />
-        Outgoing
-      </label>
-      <button
-        type="button"
-        class="rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
-        :disabled="loading"
-        @click="load"
-      >
-        Refresh
-      </button>
-      <button
-        type="button"
-        class="rounded border border-[var(--oterm-border)] px-2 py-1 text-xs hover:bg-white/5"
-        @click="emit('close')"
-      >
-        Close tab
-      </button>
+      
+      <div class="flex items-center gap-3 flex-wrap">
+        <div class="relative min-w-[150px]">
+          <span class="absolute inset-y-0 left-0 flex items-center pl-2 text-[var(--oterm-faint)]">
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+              <path d="M11.5 11.5L14.5 14.5M13 7.5a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </span>
+          <input
+            v-model="filter"
+            type="search"
+            placeholder="Filter commits…"
+            class="w-full rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 py-1.5 pl-6.5 pr-2.5 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition"
+          />
+        </div>
+        
+        <label class="flex items-center gap-2 text-xs text-[var(--oterm-muted)] cursor-pointer select-none">
+          <input v-model="showIncomingOnly" type="checkbox" class="rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)] cursor-pointer" />
+          Incoming
+        </label>
+        
+        <label class="flex items-center gap-2 text-xs text-[var(--oterm-muted)] cursor-pointer select-none">
+          <input v-model="showOutgoingOnly" type="checkbox" class="rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)] cursor-pointer" />
+          Outgoing
+        </label>
+        
+        <div class="h-4 w-[1px] bg-[var(--oterm-border)]" />
+        
+        <button
+          type="button"
+          class="pr-header-btn"
+          title="Refresh commit history"
+          :disabled="loading"
+          @click="load"
+        >
+          Refresh
+        </button>
+        
+        <button
+          type="button"
+          class="pr-header-btn"
+          title="Close branches view"
+          @click="emit('close')"
+        >
+          Close
+        </button>
+      </div>
     </header>
 
     <p v-if="error" class="px-4 py-2 text-sm text-[var(--oterm-danger)]">{{ error }}</p>
 
     <div class="flex min-h-0 flex-1">
-      <aside class="oterm-scroll w-64 shrink-0 overflow-auto border-r border-[var(--oterm-border)] p-2">
+      <aside v-show="!isMaximized" class="oterm-scroll w-64 shrink-0 overflow-auto border-r border-[var(--oterm-border)] bg-[var(--oterm-panel)]/30 p-2">
         <div class="mb-2 flex items-center justify-between gap-1">
           <h3 class="text-xs font-medium uppercase text-[var(--oterm-muted)]">Branches</h3>
           <button
@@ -756,10 +794,11 @@ watch(selectedHash, () => void loadDetails());
           </button>
         </div>
         <input
+          ref="branchFilterInput"
           v-model="branchFilter"
           type="search"
-          placeholder="Filter branches"
-          class="mb-2 w-full rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
+          placeholder="Filter branches (Press / to focus)"
+          class="mb-2 w-full rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 px-2.5 py-1.5 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition"
         />
 
         <div v-for="section in groupedBranches" :key="section.label" class="mb-3">
@@ -808,7 +847,7 @@ watch(selectedHash, () => void loadDetails());
         </div>
       </aside>
 
-      <section class="flex min-w-0 flex-1 flex-col border-r border-[var(--oterm-border)]">
+      <section v-show="!isMaximized" class="flex min-w-0 flex-1 flex-col border-r border-[var(--oterm-border)]">
         <div class="oterm-scroll min-h-0 flex-1 overflow-auto font-mono text-xs">
           <button
             v-for="commit in filteredGraph"
@@ -825,155 +864,209 @@ watch(selectedHash, () => void loadDetails());
         </div>
       </section>
 
-      <section class="flex min-h-0 min-w-0 w-[28rem] shrink-0 flex-col overflow-hidden text-sm">
-        <template v-if="details">
-          <div class="shrink-0 overflow-visible p-3 pb-2">
-            <h3 class="font-medium">{{ details.subject }}</h3>
-            <p class="mt-1 text-xs text-[var(--oterm-muted)]">
-              {{ details.shortHash }} · {{ details.author }} · {{ details.date }}
-            </p>
-            <pre
-              v-if="details.body"
-              class="mt-2 whitespace-pre-wrap text-xs text-[var(--oterm-muted)]"
-              >{{ details.body }}</pre
+      <section 
+        class="flex min-h-0 min-w-0 flex-col overflow-hidden text-sm bg-[var(--oterm-panel)]/10 border-l border-[var(--oterm-border)]"
+        :class="isMaximized ? 'flex-1' : 'w-[28rem] shrink-0'"
+      >
+        <!-- Tabs Header -->
+        <div class="flex shrink-0 border-b border-[var(--oterm-border)] bg-[var(--oterm-panel)]/25 px-2 items-center justify-between">
+          <div class="flex">
+            <button
+              type="button"
+              class="right-tab-btn"
+              :class="{ 'right-tab-btn--active': rightPanelTab === 'details' }"
+              @click="rightPanelTab = 'details'"
             >
+              Commit Details
+            </button>
+            <button
+              type="button"
+              class="right-tab-btn"
+              :class="{ 'right-tab-btn--active': rightPanelTab === 'compare' }"
+              @click="rightPanelTab = 'compare'"
+            >
+              Compare Branches
+            </button>
+          </div>
 
-            <div class="mt-3 flex flex-wrap gap-1">
-            <button
-              type="button"
-              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
-              :disabled="busy"
-              @click="runAction(() => switchDetached(repoRoot, details!.hash))"
-            >
-              Switch to detached HEAD
-            </button>
-            <button
-              type="button"
-              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
-              @click="openCommitInBrowser"
-            >
-              Open in browser
-            </button>
-            <button
-              type="button"
-              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
-              :disabled="busy"
-              @click="runAction(() => revertCommit(repoRoot, details!.hash))"
-            >
-              Revert
-            </button>
-            <div class="relative" data-reset-menu-root>
-              <button
-                type="button"
-                class="flex items-center gap-1 rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
-                :disabled="busy"
-                @click.stop="resetMenuOpen = !resetMenuOpen"
-              >
-                Reset
-                <svg
-                  width="8"
-                  height="8"
-                  viewBox="0 0 8 8"
-                  fill="none"
-                  stroke="currentColor"
-                  class="opacity-70"
+          <button
+            type="button"
+            class="p-1 mr-1 rounded hover:bg-white/5 text-[var(--oterm-muted)] hover:text-[var(--oterm-text)] transition flex items-center gap-1 text-[10px]"
+            :title="isMaximized ? 'Restore layout' : 'Maximize diff view'"
+            @click="isMaximized = !isMaximized"
+          >
+            <svg v-if="isMaximized" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+              <path d="M4 10h2v2M12 6h-2V4M10 6l2.5-2.5M6 10l-2.5 2.5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <svg v-else width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+              <path d="M1.5 6.5h5v-5M14.5 9.5h-5v5M9.5 9.5l4.5 4.5M6.5 6.5l-4.5-4.5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            {{ isMaximized ? 'Minimize' : 'Maximize' }}
+          </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <!-- Commit Details Tab -->
+          <div v-show="rightPanelTab === 'details'" class="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <template v-if="details">
+              <div class="shrink-0 p-3 pb-2 border-b border-[var(--oterm-border)] bg-[var(--oterm-panel)]/5">
+                <h3 class="font-medium text-xs leading-snug">{{ details.subject }}</h3>
+                <p class="mt-1 text-[10px] text-[var(--oterm-muted)] font-mono">
+                  {{ details.shortHash }} · {{ details.author }} · {{ details.date }}
+                </p>
+                <pre
+                  v-if="details.body"
+                  class="mt-2 whitespace-pre-wrap text-[11px] text-[var(--oterm-muted)] font-sans max-h-24 overflow-y-auto oterm-scroll"
+                  >{{ details.body }}</pre
                 >
-                  <path d="M2 3l2 2 2-2" stroke-width="1.2" stroke-linecap="round" />
-                </svg>
-              </button>
-              <div
-                v-if="resetMenuOpen"
-                class="absolute right-0 top-full z-30 mt-1 w-max max-w-[calc(100vw-2rem)] overflow-hidden rounded-md border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-1 shadow-lg"
-              >
-                <button
-                  type="button"
-                  class="block w-full px-3 py-1.5 text-left text-xs hover:bg-white/5"
-                  @click="runReset('mixed')"
-                >
-                  Keep Changes (--mixed)
-                </button>
-                <button
-                  type="button"
-                  class="block w-full px-3 py-1.5 text-left text-xs hover:bg-white/5"
-                  @click="runReset('hard')"
-                >
-                  Delete Changes (--hard)
-                </button>
+
+                <div class="mt-3 flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
+                    :disabled="busy"
+                    @click="runAction(() => switchDetached(repoRoot, details!.hash))"
+                  >
+                    Switch to detached HEAD
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
+                    @click="openCommitInBrowser"
+                  >
+                    Open in browser
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
+                    :disabled="busy"
+                    @click="runAction(() => revertCommit(repoRoot, details!.hash))"
+                  >
+                    Revert
+                  </button>
+                  <div class="relative" data-reset-menu-root>
+                    <button
+                      type="button"
+                      class="flex items-center gap-1 rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
+                      :disabled="busy"
+                      @click.stop="resetMenuOpen = !resetMenuOpen"
+                    >
+                      Reset
+                      <svg
+                        width="8"
+                        height="8"
+                        viewBox="0 0 8 8"
+                        fill="none"
+                        stroke="currentColor"
+                        class="opacity-70"
+                      >
+                        <path d="M2 3l2 2 2-2" stroke-width="1.2" stroke-linecap="round" />
+                      </svg>
+                    </button>
+                    <div
+                      v-if="resetMenuOpen"
+                      class="absolute right-0 top-full z-30 mt-1 w-max max-w-[calc(100vw-2rem)] overflow-hidden rounded-md border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-1 shadow-lg"
+                    >
+                      <button
+                        type="button"
+                        class="block w-full px-3 py-1.5 text-left text-xs hover:bg-white/5"
+                        @click="runReset('mixed')"
+                      >
+                        Keep Changes (--mixed)
+                      </button>
+                      <button
+                        type="button"
+                        class="block w-full px-3 py-1.5 text-left text-xs hover:bg-white/5"
+                        @click="runReset('hard')"
+                      >
+                        Delete Changes (--hard)
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
+                    :disabled="busy"
+                    @click="runAction(() => cherryPickCommit(repoRoot, details!.hash))"
+                  >
+                    Cherry-pick
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
+                    :disabled="busy"
+                    @click="createBranchFromSelection"
+                  >
+                    New branch
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
+                    :disabled="busy"
+                    @click="runAction(createTagFromSelection)"
+                  >
+                    New tag
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
+                    :disabled="busy"
+                    @click="runAction(squashFromSelection)"
+                  >
+                    Squash
+                  </button>
+                </div>
               </div>
-            </div>
-            <button
-              type="button"
-              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
-              :disabled="busy"
-              @click="runAction(() => cherryPickCommit(repoRoot, details!.hash))"
-            >
-              Cherry-pick
-            </button>
-            <button
-              type="button"
-              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
-              :disabled="busy"
-              @click="createBranchFromSelection"
-            >
-              New branch
-            </button>
-            <button
-              type="button"
-              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
-              :disabled="busy"
-              @click="runAction(createTagFromSelection)"
-            >
-              New tag
-            </button>
-            <button
-              type="button"
-              class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
-              :disabled="busy"
-              @click="runAction(squashFromSelection)"
-            >
-              Squash
-            </button>
-            </div>
 
-            <div class="mt-4 min-w-0 space-y-2">
-              <div class="text-xs font-medium text-[var(--oterm-muted)]">Compare</div>
-              <div
-                class="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2"
-              >
+              <div class="flex-1 min-h-0 bg-[var(--oterm-bg)]">
+                <GitDiffViewer :content="details.diff" class="h-full" />
+              </div>
+            </template>
+            <div v-else class="flex-1 flex flex-col items-center justify-center text-xs text-[var(--oterm-faint)] gap-1">
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                <circle cx="8" cy="8" r="6" stroke-width="1.5" />
+                <path d="M8 11.5h.01M8 5v4" stroke-width="2" stroke-linecap="round" />
+              </svg>
+              <span>Select a commit in the graph to view details</span>
+            </div>
+          </div>
+
+          <!-- Compare Branches Tab -->
+          <div v-show="rightPanelTab === 'compare'" class="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <div class="shrink-0 p-3 pb-3 border-b border-[var(--oterm-border)] bg-[var(--oterm-panel)]/5 space-y-2">
+              <div class="text-xs font-semibold text-[var(--oterm-muted)]">Compare Branches / Refs</div>
+              <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2">
                 <input
                   v-model="compareBase"
-                  placeholder="Base"
-                  class="min-w-0 rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
+                  placeholder="Base ref"
+                  class="min-w-0 rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 px-2.5 py-1 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition"
                 />
                 <input
                   v-model="compareTarget"
-                  placeholder="Target"
-                  class="min-w-0 rounded border border-[var(--oterm-border)] bg-transparent px-2 py-1 text-xs"
+                  placeholder="Target ref"
+                  class="min-w-0 rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 px-2.5 py-1 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition"
                 />
                 <button
                   type="button"
-                  class="shrink-0 whitespace-nowrap rounded border border-[var(--oterm-border)] px-3 py-1 text-xs"
+                  class="pr-header-btn px-3 py-1 font-semibold"
                   @click="onCompare"
                 >
                   Compare
                 </button>
               </div>
             </div>
+            <div class="flex-1 min-h-0 bg-[var(--oterm-bg)]">
+              <GitDiffViewer v-if="compareContent" :content="compareContent" class="h-full" />
+              <div v-else class="flex flex-col items-center justify-center h-full text-xs text-[var(--oterm-faint)] gap-1">
+                <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                  <path d="M5 4.5a2.5 2.5 0 100 5v2.5M11 11.5a2.5 2.5 0 100-5v-2.5M5 7h6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span>Enter base and target refs to compare their differences</span>
+              </div>
+            </div>
           </div>
-
-          <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-3 pb-3">
-            <pre
-              v-if="compareContent"
-              class="oterm-scroll max-h-48 shrink-0 overflow-auto rounded border border-[var(--oterm-border)] bg-[var(--oterm-panel)] p-2 text-[10px] leading-relaxed whitespace-pre-wrap"
-              >{{ compareContent }}</pre
-            >
-            <pre
-              class="oterm-scroll min-h-0 flex-1 overflow-auto rounded border border-[var(--oterm-border)] bg-[var(--oterm-panel)] p-2 text-[10px] leading-relaxed whitespace-pre-wrap text-[var(--oterm-muted)]"
-              >{{ details.diff }}</pre
-            >
-          </div>
-        </template>
-        <p v-else class="p-3 text-sm text-[var(--oterm-muted)]">Select a commit</p>
+        </div>
       </section>
     </div>
 
@@ -1046,3 +1139,56 @@ watch(selectedHash, () => void loadDetails());
     />
   </div>
 </template>
+
+<style scoped>
+.pr-header-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--oterm-font-ui);
+  color: var(--oterm-muted);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--oterm-border);
+  cursor: pointer;
+  transition: all 120ms ease;
+  font-weight: 500;
+}
+
+.pr-header-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--oterm-text);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.pr-header-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.right-tab-btn {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-family: var(--oterm-font-ui);
+  font-weight: 500;
+  color: var(--oterm-muted);
+  border-bottom: 2px solid transparent;
+  transition: all 150ms ease;
+  cursor: pointer;
+  background: transparent;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+}
+
+.right-tab-btn:hover {
+  color: var(--oterm-text);
+}
+
+.right-tab-btn--active {
+  border-bottom-color: var(--oterm-accent);
+  color: var(--oterm-text);
+}
+</style>

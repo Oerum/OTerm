@@ -647,8 +647,7 @@ pub fn find_vscode_launcher() -> Option<PathBuf> {
             candidates.push(root.join("code.cmd"));
             candidates.push(root.join("code.exe"));
         }
-        first_existing_file(&candidates)
-            .or_else(|| which_on_path(&["code.cmd", "code.exe"]))
+        first_existing_file(&candidates).or_else(|| which_on_path(&["code.cmd", "code.exe"]))
     }
 
     #[cfg(target_os = "macos")]

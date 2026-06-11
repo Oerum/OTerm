@@ -5,9 +5,15 @@ import {
   type CliAgentId,
 } from "../lib/terminalAgentMode";
 
-const props = defineProps<{
-  agentId: CliAgentId;
-}>();
+const props = withDefaults(
+  defineProps<{
+    agentId: CliAgentId;
+    size?: "sm" | "md";
+  }>(),
+  {
+    size: "sm",
+  }
+);
 
 const agent = computed(() => getCliAgentDefinition(props.agentId));
 
@@ -29,20 +35,25 @@ const lightTile = computed(() => {
       v-if="agent.logoFile"
       :src="agent.logoFile"
       :alt="agent.displayName"
-      width="16"
-      height="16"
-      class="h-4 w-4 shrink-0"
+      :class="size === 'md' ? 'h-[18px] w-[18px]' : 'h-3.5 w-3.5'"
+      class="shrink-0"
     />
 
     <span
       v-else
-      class="flex h-4 w-4 items-center justify-center rounded-full"
-      :class="lightTile ? 'border border-[var(--oterm-border-strong)] bg-[var(--oterm-surface)]' : ''"
+      class="flex items-center justify-center rounded-full"
+      :class="[
+        size === 'md' ? 'h-[18px] w-[18px]' : 'h-3.5 w-3.5',
+        lightTile ? 'border border-[var(--oterm-border-strong)] bg-[var(--oterm-surface)]' : ''
+      ]"
       :style="lightTile ? undefined : { backgroundColor: agent.brandColor }"
     >
       <span
-        class="text-[9px] font-semibold leading-none"
-        :class="lightTile ? 'text-[var(--oterm-text)]' : 'text-white'"
+        class="font-semibold leading-none"
+        :class="[
+          size === 'md' ? 'text-[10px]' : 'text-[8px]',
+          lightTile ? 'text-[var(--oterm-text)]' : 'text-white'
+        ]"
       >
         {{ initial }}
       </span>

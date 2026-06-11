@@ -8,6 +8,7 @@ import {
   type DiffHunk,
   type SideBySideCell,
 } from "../lib/parseUnifiedDiff";
+import { diffWords, type WordDiffChunk } from "../lib/wordDiff";
 import type { SelectedGitFile } from "../types/git";
 
 const SIDE_BY_SIDE_MIN_WIDTH = 960;
@@ -34,7 +35,6 @@ const emit = defineEmits<{
 
 const hunkRefs = ref<Record<number, HTMLElement | null>>({});
 const viewerRootRef = ref<HTMLElement | null>(null);
-const sideBySide = ref(false);
 let resizeObserver: ResizeObserver | null = null;
 
 const parsed = computed(() => parseUnifiedDiff(props.content));
@@ -43,6 +43,28 @@ const fileHeaders = computed(() => parsed.value.fileHeaders);
 const sideBySideRows = computed(() =>
   hunks.value.map((hunk) => ({ hunk, rows: buildSideBySideRows(hunk) })),
 );
+
+const manualSideBySide = ref<boolean | null>(null);
+const responsiveSideBySide = ref(false);
+
+const sideBySide = computed({
+  get: () => manualSideBySide.value ?? responsiveSideBySide.value,
+  set: (val: boolean) => {
+    manualSideBySide.value = val;
+  },
+});
+
+const totalAdditions = computed(() => {
+  return hunks.value.reduce((acc, hunk) => {
+    return acc + hunk.lines.filter((line) => line.kind === "add").length;
+  }, 0);
+});
+
+const totalDeletions = computed(() => {
+  return hunks.value.reduce((acc, hunk) => {
+    return acc + hunk.lines.filter((line) => line.kind === "remove").length;
+  }, 0);
+});
 
 const canHunkOps = computed(
   () => Boolean(props.selectedFile && !props.selectedFile.untracked && hunks.value.length > 0),
@@ -75,7 +97,7 @@ function sideCellClass(cell: SideBySideCell) {
 }
 
 function updateSideBySideLayout(width: number) {
-  sideBySide.value = width >= SIDE_BY_SIDE_MIN_WIDTH;
+  responsiveSideBySide.value = width >= SIDE_BY_SIDE_MIN_WIDTH;
 }
 
 onMounted(() => {
@@ -178,10 +200,118 @@ watch(
     emit("update:activeHunkIndex", 0);
   },
 );
+
+const diffChunksMap = computed(() => {
+  const map = new Map<string, WordDiffChunk[]>();
+  
+  hunks.value.forEach((hunk) => {
+    const lines = hunk.lines;
+    let i = 0;
+    while (i < lines.length) {
+      const removes: { line: typeof lines[number]; index: number }[] = [];
+      while (i < lines.length && lines[i].kind === "remove") {
+        removes.push({ line: lines[i], index: i });
+        i++;
+      }
+      
+      const adds: { line: typeof lines[number]; index: number }[] = [];
+      while (i < lines.length && lines[i].kind === "add") {
+        adds.push({ line: lines[i], index: i });
+        i++;
+      }
+      
+      const pairCount = Math.min(removes.length, adds.length);
+      for (let p = 0; p < pairCount; p++) {
+        const removeLine = removes[p];
+        const addLine = adds[p];
+        
+        const { oldChunks, newChunks } = diffWords(removeLine.line.text, addLine.line.text);
+        
+        map.set(`${hunk.index}:line:${removeLine.index}`, oldChunks);
+        map.set(`${hunk.index}:line:${addLine.index}`, newChunks);
+      }
+      
+      if (removes.length === 0 && adds.length === 0) {
+        i++;
+      }
+    }
+  });
+  
+  return map;
+});
+
+function cellHasWordDiff(cell: SideBySideCell) {
+  if (cell.sourceLineIndex == null) return false;
+  return diffChunksMap.value.has(`${cell.hunkIndex}:line:${cell.sourceLineIndex}`);
+}
+
+function getWordDiffChunks(cell: SideBySideCell): WordDiffChunk[] {
+  if (cell.sourceLineIndex == null) return [];
+  return diffChunksMap.value.get(`${cell.hunkIndex}:line:${cell.sourceLineIndex}`) || [];
+}
+
+function lineHasWordDiff(hunkIndex: number, lineIndex: number) {
+  return diffChunksMap.value.has(`${hunkIndex}:line:${lineIndex}`);
+}
+
+function getLineWordDiffChunks(hunkIndex: number, lineIndex: number): WordDiffChunk[] {
+  return diffChunksMap.value.get(`${hunkIndex}:line:${lineIndex}`) || [];
+}
+
+function chunkClass(chunk: WordDiffChunk) {
+  if (chunk.type === "added") return "diff-word-highlight--add";
+  if (chunk.type === "removed") return "diff-word-highlight--remove";
+  return "";
+}
+
+function onPaneScroll(event: Event) {
+  const target = event.target as HTMLElement;
+  const scrollLeft = target.scrollLeft;
+  
+  if (!viewerRootRef.value) return;
+  const allCodeEls = viewerRootRef.value.querySelectorAll(".diff-code");
+  
+  allCodeEls.forEach((el) => {
+    const codeEl = el as HTMLElement;
+    if (codeEl.scrollLeft !== scrollLeft) {
+      codeEl.scrollLeft = scrollLeft;
+    }
+  });
+}
 </script>
 
 <template>
   <div ref="viewerRootRef" class="diff-viewer flex min-h-0 flex-1 flex-col">
+    <div
+      v-if="!loading && !error && content.trim() && hunks.length"
+      class="diff-toolbar flex items-center justify-between border-b border-[var(--oterm-border)] px-3 py-1.5 bg-white/[0.01] text-[11px] text-[var(--oterm-muted)]"
+    >
+      <div class="flex items-center gap-2">
+        <span class="font-medium text-[var(--oterm-text)]">Changes</span>
+        <span class="flex items-center gap-1.5 font-mono">
+          <span class="text-[var(--diff-insert-text)]">+{{ totalAdditions }}</span>
+          <span class="text-[var(--diff-remove-text)]">-{{ totalDeletions }}</span>
+        </span>
+      </div>
+      <div class="flex items-center gap-1">
+        <button
+          type="button"
+          class="diff-toolbar-btn"
+          :class="{ 'diff-toolbar-btn--active': !sideBySide }"
+          @click="sideBySide = false"
+        >
+          Unified
+        </button>
+        <button
+          type="button"
+          class="diff-toolbar-btn"
+          :class="{ 'diff-toolbar-btn--active': sideBySide }"
+          @click="sideBySide = true"
+        >
+          Split
+        </button>
+      </div>
+    </div>
     <div v-if="loading" class="px-3 py-4 text-sm text-[var(--oterm-faint)]">Loading diff…</div>
     <div v-else-if="error" class="px-3 py-4 text-sm text-[var(--diff-remove-text)]">{{ error }}</div>
     <div v-else-if="!content.trim()" class="px-3 py-4 text-sm text-[var(--oterm-faint)]">
@@ -256,7 +386,9 @@ watch(
                       :disabled="sideCellDisabled(row.left)"
                       @click="onStageLine(hunk, row.left.sourceLineIndex!)"
                     >
-                      +
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                        <path d="M8 3v10M3 8h10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
                     </button>
                     <button
                       v-if="showUnstageActions && row.left.kind === 'add'"
@@ -266,17 +398,30 @@ watch(
                       :disabled="sideCellDisabled(row.left)"
                       @click="onUnstageLine(hunk, row.left.sourceLineIndex!)"
                     >
-                      −
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                        <path d="M3 8h10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
                     </button>
                   </div>
                 </template>
               </div>
               <div class="diff-lnum">{{ row.left.lineNumber ?? "" }}</div>
-              <div class="diff-code">
+              <div class="diff-code" @scroll="onPaneScroll">
                 <span v-if="row.left.kind === 'remove'" class="diff-prefix">−</span>
                 <span v-else-if="row.left.kind === 'context'" class="diff-prefix">&nbsp;</span>
                 <span v-else class="diff-prefix">&nbsp;</span>
-                <span class="diff-text">{{ row.left.kind === "empty" ? " " : row.left.text || " " }}</span>
+                <span class="diff-text">
+                  <template v-if="cellHasWordDiff(row.left)">
+                    <span
+                      v-for="(chunk, cIdx) in getWordDiffChunks(row.left)"
+                      :key="cIdx"
+                      :class="chunkClass(chunk)"
+                    >{{ chunk.text }}</span>
+                  </template>
+                  <template v-else>
+                    {{ row.left.kind === "empty" ? " " : row.left.text || " " }}
+                  </template>
+                </span>
               </div>
             </div>
             <div class="diff-split-divider" aria-hidden="true" />
@@ -320,7 +465,9 @@ watch(
                       :disabled="sideCellDisabled(row.right)"
                       @click="onStageLine(hunk, row.right.sourceLineIndex!)"
                     >
-                      +
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                        <path d="M8 3v10M3 8h10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
                     </button>
                     <button
                       v-if="showUnstageActions && row.right.kind === 'add'"
@@ -330,17 +477,30 @@ watch(
                       :disabled="sideCellDisabled(row.right)"
                       @click="onUnstageLine(hunk, row.right.sourceLineIndex!)"
                     >
-                      −
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                        <path d="M3 8h10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
                     </button>
                   </div>
                 </template>
               </div>
               <div class="diff-lnum">{{ row.right.lineNumber ?? "" }}</div>
-              <div class="diff-code">
+              <div class="diff-code" @scroll="onPaneScroll">
                 <span v-if="row.right.kind === 'add'" class="diff-prefix">+</span>
                 <span v-else-if="row.right.kind === 'context'" class="diff-prefix">&nbsp;</span>
                 <span v-else class="diff-prefix">&nbsp;</span>
-                <span class="diff-text">{{ row.right.kind === "empty" ? " " : row.right.text || " " }}</span>
+                <span class="diff-text">
+                  <template v-if="cellHasWordDiff(row.right)">
+                    <span
+                      v-for="(chunk, cIdx) in getWordDiffChunks(row.right)"
+                      :key="cIdx"
+                      :class="chunkClass(chunk)"
+                    >{{ chunk.text }}</span>
+                  </template>
+                  <template v-else>
+                    {{ row.right.kind === "empty" ? " " : row.right.text || " " }}
+                  </template>
+                </span>
               </div>
             </div>
           </div>
@@ -403,7 +563,9 @@ watch(
                     :disabled="lineActionsDisabled(hunk.index, lineIndex)"
                     @click="onStageLine(hunk, lineIndex)"
                   >
-                    +
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                      <path d="M8 3v10M3 8h10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
                   </button>
                   <button
                     v-if="showUnstageActions"
@@ -413,18 +575,31 @@ watch(
                     :disabled="lineActionsDisabled(hunk.index, lineIndex)"
                     @click="onUnstageLine(hunk, lineIndex)"
                   >
-                    −
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                      <path d="M3 8h10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
                   </button>
                 </div>
               </template>
             </div>
             <div class="diff-lnum diff-lnum--old">{{ line.oldLine ?? "" }}</div>
             <div class="diff-lnum diff-lnum--new">{{ line.newLine ?? "" }}</div>
-            <div class="diff-code">
+            <div class="diff-code" @scroll="onPaneScroll">
               <span v-if="line.kind === 'add'" class="diff-prefix">+</span>
               <span v-else-if="line.kind === 'remove'" class="diff-prefix">−</span>
               <span v-else class="diff-prefix">&nbsp;</span>
-              <span class="diff-text">{{ line.text || " " }}</span>
+              <span class="diff-text">
+                <template v-if="lineHasWordDiff(hunk.index, lineIndex)">
+                  <span
+                    v-for="(chunk, cIdx) in getLineWordDiffChunks(hunk.index, lineIndex)"
+                    :key="cIdx"
+                    :class="chunkClass(chunk)"
+                  >{{ chunk.text }}</span>
+                </template>
+                <template v-else>
+                  {{ line.text || " " }}
+                </template>
+              </span>
             </div>
           </div>
         </section>
@@ -436,6 +611,34 @@ watch(
 <style scoped>
 .diff-viewer {
   background: var(--diff-editor-bg);
+}
+
+.diff-toolbar {
+  font-family: var(--oterm-font-ui);
+  user-select: none;
+}
+
+.diff-toolbar-btn {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--oterm-border);
+  color: var(--oterm-muted);
+  cursor: pointer;
+  transition: all 120ms ease;
+  font-family: var(--oterm-font-ui);
+}
+
+.diff-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--oterm-text);
+}
+
+.diff-toolbar-btn--active {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--oterm-text);
+  font-weight: 500;
 }
 
 .diff-feedback {
@@ -456,27 +659,38 @@ watch(
 
 .diff-body {
   font-size: 12px;
-  line-height: 20px;
+  line-height: 22px;
 }
 
 .diff-hunk--active {
   outline: 1px solid color-mix(in srgb, var(--oterm-accent) 35%, transparent);
   outline-offset: -1px;
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--oterm-accent) 4%, transparent);
 }
 
 .diff-hunk-header {
-  padding: 4px 12px 4px 52px;
-  color: var(--oterm-faint);
-  background: var(--diff-hunk-header-bg);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 6px 12px 6px 52px;
+  color: var(--oterm-muted);
+  background: color-mix(in srgb, var(--diff-editor-bg) 96%, white);
   border-top: 1px solid var(--oterm-border);
   border-bottom: 1px solid var(--oterm-border);
   user-select: none;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 .diff-row {
   display: grid;
   grid-template-columns: 40px 44px 44px minmax(0, 1fr);
-  min-height: 20px;
+  min-height: 22px;
+}
+
+.diff-row:hover,
+.diff-split-pane:hover {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .diff-line--add {
@@ -484,9 +698,17 @@ watch(
   border-left: 3px solid var(--diff-insert-border);
 }
 
+.diff-line--add:hover {
+  background: color-mix(in srgb, var(--diff-insert-bg) 115%, transparent);
+}
+
 .diff-line--remove {
   background: var(--diff-remove-bg);
   border-left: 3px solid var(--diff-remove-border);
+}
+
+.diff-line--remove:hover {
+  background: color-mix(in srgb, var(--diff-remove-bg) 115%, transparent);
 }
 
 .diff-line--context {
@@ -505,7 +727,7 @@ watch(
 .diff-split-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
-  min-height: 20px;
+  min-height: 22px;
 }
 
 .diff-split-pane {
@@ -524,6 +746,14 @@ watch(
   justify-content: center;
   background: var(--diff-gutter-bg);
   border-right: 1px solid var(--oterm-border);
+}
+
+.diff-line--add .diff-gutter {
+  background: color-mix(in srgb, var(--diff-insert-bg) 50%, var(--diff-gutter-bg));
+}
+
+.diff-line--remove .diff-gutter {
+  background: color-mix(in srgb, var(--diff-remove-bg) 50%, var(--diff-gutter-bg));
 }
 
 .diff-gutter-actions {
@@ -546,27 +776,42 @@ watch(
   width: 18px;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
-  font-size: 13px;
+  border-radius: 4px;
+  font-size: 11px;
   line-height: 1;
-  color: var(--oterm-faint);
-  transition: background 100ms ease, color 100ms ease;
+  color: var(--oterm-muted);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
 }
 
 .diff-gutter-btn:hover:not(:disabled) {
+  transform: scale(1.08);
   background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.diff-gutter-btn:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .diff-gutter-btn--revert:hover:not(:disabled) {
   color: var(--diff-remove-text);
+  background: color-mix(in srgb, var(--diff-remove-border) 15%, transparent);
+  border-color: color-mix(in srgb, var(--diff-remove-border) 30%, transparent);
 }
 
 .diff-gutter-btn--stage:hover:not(:disabled) {
   color: var(--diff-insert-text);
+  background: color-mix(in srgb, var(--diff-insert-border) 15%, transparent);
+  border-color: color-mix(in srgb, var(--diff-insert-border) 30%, transparent);
 }
 
 .diff-gutter-btn--unstage:hover:not(:disabled) {
   color: var(--oterm-text);
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .diff-gutter-btn:disabled {
@@ -597,12 +842,22 @@ watch(
   border-right: 1px solid var(--oterm-border);
 }
 
+.diff-line--add .diff-lnum {
+  color: color-mix(in srgb, var(--diff-insert-border) 60%, var(--diff-lnum));
+}
+
+.diff-line--remove .diff-lnum {
+  color: color-mix(in srgb, var(--diff-remove-border) 60%, var(--diff-lnum));
+}
+
 .diff-code {
   display: flex;
   min-width: 0;
   padding-right: 12px;
   white-space: pre;
   overflow-x: auto;
+  font-size: 13px;
+  line-height: 22px;
 }
 
 .diff-line--add .diff-code {
@@ -626,5 +881,40 @@ watch(
 
 .diff-text {
   min-width: 0;
+}
+
+.diff-word-highlight--add {
+  background: rgba(63, 185, 80, 0.35);
+  border-radius: 2px;
+  padding: 1px 2px;
+  margin: 0 -1px;
+  font-weight: 500;
+}
+
+.diff-word-highlight--remove {
+  background: rgba(248, 81, 73, 0.35);
+  border-radius: 2px;
+  padding: 1px 2px;
+  margin: 0 -1px;
+  font-weight: 500;
+  text-decoration: line-through;
+  opacity: 0.85;
+}
+
+.diff-code::-webkit-scrollbar {
+  height: 3px;
+}
+
+.diff-code::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.diff-code::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+
+.diff-code::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 </style>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useWindowDrag } from "../composables/useWindowDrag";
-import { formatPathFull, formatPathShort, isShellExecutablePath } from "../lib/formatPath";
+import { formatPathFull, formatPathShort, formatTitleCompact, isShellExecutablePath } from "../lib/formatPath";
 import type { ShellProfile, WorkspacePane } from "../types/terminal";
 
 const props = defineProps<{
@@ -24,9 +24,11 @@ const oscTitle = computed(() => {
   return title;
 });
 
-const displayTitle = computed(() =>
+const fullDisplayTitle = computed(() =>
   manualTabTitle.value ? props.tabTitle : (oscTitle.value || shellLabel.value),
 );
+
+const displayTitle = computed(() => formatTitleCompact(fullDisplayTitle.value));
 
 const shortCwd = computed(() => formatPathShort(props.pane?.cwd));
 
@@ -42,7 +44,10 @@ const cwdTooltip = computed(() => formatPathFull(props.pane?.cwd));
     <span
       class="flex min-w-0 max-w-full items-center gap-0 truncate text-xs text-[var(--oterm-muted)]"
     >
-      <span class="shrink-0 text-[var(--oterm-text)]">{{ displayTitle }}</span>
+      <span
+        class="shrink-0 text-[var(--oterm-text)]"
+        :title="fullDisplayTitle !== displayTitle ? fullDisplayTitle : undefined"
+      >{{ displayTitle }}</span>
       <template v-if="shortCwd">
         <span class="shrink-0 text-[var(--oterm-faint)]"> / </span>
         <span

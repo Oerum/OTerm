@@ -2,7 +2,6 @@
 import { computed, onUnmounted, watch } from "vue";
 
 const MENU_WIDTH = 220;
-const MENU_HEIGHT = 120;
 const MENU_MARGIN = 8;
 
 const props = defineProps<{
@@ -11,6 +10,7 @@ const props = defineProps<{
   y: number;
   path: string | null;
   isUrl: boolean;
+  hasSelection: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -18,6 +18,8 @@ const emit = defineEmits<{
   copy: [];
   append: [];
   open: [];
+  copySelection: [];
+  paste: [];
 }>();
 
 const modifierLabel = computed(() =>
@@ -30,13 +32,14 @@ const menuStyle = computed(() => {
   if (typeof window === "undefined") {
     return { left: `${props.x}px`, top: `${props.y}px` };
   }
+  const height = props.path ? 120 : 60;
   const left =
     props.x + MENU_WIDTH > window.innerWidth
       ? Math.max(MENU_MARGIN, window.innerWidth - MENU_WIDTH - MENU_MARGIN)
       : props.x;
   const top =
-    props.y + MENU_HEIGHT > window.innerHeight
-      ? Math.max(MENU_MARGIN, window.innerHeight - MENU_HEIGHT - MENU_MARGIN)
+    props.y + height > window.innerHeight
+      ? Math.max(MENU_MARGIN, window.innerHeight - height - MENU_MARGIN)
       : props.y;
   return { left: `${left}px`, top: `${top}px` };
 });
@@ -48,7 +51,7 @@ function onKeyDown(event: KeyboardEvent) {
 }
 
 watch(
-  () => props.open && props.path,
+  () => props.open,
   (isOpen) => {
     if (isOpen) {
       window.addEventListener("keydown", onKeyDown);
@@ -67,7 +70,7 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <div
-      v-if="open && path"
+      v-if="open"
       class="fixed inset-0 z-[100]"
       @mousedown="emit('close')"
       @contextmenu.prevent="emit('close')"
@@ -78,28 +81,49 @@ onUnmounted(() => {
         @mousedown.stop
         @contextmenu.stop.prevent
       >
+        <template v-if="path">
+          <button
+            v-if="isUrl"
+            type="button"
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
+            @click="emit('open')"
+          >
+            Open in browser
+          </button>
+          <button
+            type="button"
+            class="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
+            @click="emit('append')"
+          >
+            <span>Append to current command</span>
+            <span class="shrink-0 text-[var(--warp-faint)]">({{ modifierLabel }} + Click)</span>
+          </button>
+          <button
+            type="button"
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
+            @click="emit('copy')"
+          >
+            Copy link/path
+          </button>
+          <div class="my-1 border-t border-[var(--warp-border)]" />
+        </template>
+
         <button
-          v-if="isUrl"
           type="button"
-          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
-          @click="emit('open')"
+          :disabled="!hasSelection"
+          class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs transition enabled:text-[var(--warp-text)] disabled:text-[var(--warp-faint)] enabled:hover:bg-white/[0.06]"
+          @click="emit('copySelection')"
         >
-          Open in browser
+          <span>Copy</span>
+          <span class="shrink-0 text-[var(--warp-faint)]">{{ modifierLabel }} + C</span>
         </button>
         <button
           type="button"
-          class="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
-          @click="emit('append')"
+          class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
+          @click="emit('paste')"
         >
-          <span>Append to current command</span>
-          <span class="shrink-0 text-[var(--warp-faint)]">({{ modifierLabel }} + Click)</span>
-        </button>
-        <button
-          type="button"
-          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
-          @click="emit('copy')"
-        >
-          Copy
+          <span>Paste</span>
+          <span class="shrink-0 text-[var(--warp-faint)]">{{ modifierLabel }} + V</span>
         </button>
       </div>
     </div>

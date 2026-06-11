@@ -1,31 +1,31 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  --font-sans: "Outfit", "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
 }
 
 :root {
-  --oterm-bg: #0a0a0a;
-  --oterm-panel: #111111;
-  --oterm-elevated: #181818;
-  --oterm-line: var(--oterm-elevated);
-  --oterm-border: rgba(255, 255, 255, 0.06);
-  --oterm-border-strong: rgba(255, 255, 255, 0.1);
+  --oterm-bg: #000000;
+  --oterm-panel: #07080a;
+  --oterm-elevated: #121316;
+  --oterm-line: rgba(255, 255, 255, 0.05);
+  --oterm-border: rgba(255, 255, 255, 0.045);
+  --oterm-border-strong: rgba(255, 255, 255, 0.09);
   --oterm-text: #ececec;
-  --oterm-muted: #8a8a8a;
-  --oterm-faint: #5c5c5c;
-  --oterm-accent: #00d4aa;
-  --oterm-accent-dim: rgba(0, 212, 170, 0.14);
+  --oterm-muted: #949da6;
+  --oterm-faint: #5f6672;
+  --oterm-accent: #00e5ba;
+  --oterm-accent-dim: rgba(0, 229, 186, 0.10);
   --oterm-danger: #ff5f57;
-  --oterm-titlebar: #0a0a0a;
-  --oterm-sidebar: #0f0f0f;
-  --oterm-font-ui: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  --oterm-titlebar: #000000;
+  --oterm-sidebar: #000000;
+  --oterm-font-ui: "Outfit", "Inter", system-ui, -apple-system, sans-serif;
   --oterm-font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
 
   --term-entry-bg: #1e1e1e;
   --term-entry-text: #ccc;
-  --term-menu-width: 180px;
+  --term-menu-width: 150px;
   --term-transition: 120ms ease;
 
   --term-create-bg: #1e1e1e;

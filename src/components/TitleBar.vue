@@ -50,7 +50,7 @@ function onDragMouseDown(event: MouseEvent) {
   <header
     class="flex h-9 shrink-0 items-center border-b border-[var(--oterm-border)] bg-[var(--oterm-titlebar)]"
   >
-    <div class="no-drag flex items-center pl-2.5 pr-2">
+    <div class="no-drag flex h-full w-56 shrink-0 items-center border-r border-[var(--oterm-border)] pl-2.5 pr-2">
       <img
         src="/app-icon.svg"
         alt=""
@@ -65,7 +65,7 @@ function onDragMouseDown(event: MouseEvent) {
           class="flex h-6 w-6 items-center justify-center rounded-full border transition"
           :class="
             terminalSidebarOpen
-              ? 'border-[#42D96B]/50 bg-[var(--oterm-accent-dim)] text-[#7EF2D1]'
+              ? 'border-[var(--oterm-accent)]/40 bg-[var(--oterm-accent-dim)] text-[var(--oterm-accent)]'
               : 'border-white/10 text-[var(--oterm-muted)] hover:border-white/20 hover:text-[#F5F5F7]'
           "
           title="Toggle terminal sidebar"
@@ -86,7 +86,7 @@ function onDragMouseDown(event: MouseEvent) {
           class="flex h-6 w-6 items-center justify-center rounded-full border transition"
           :class="
             toolsOpen
-              ? 'border-[#42D96B]/50 bg-[var(--oterm-accent-dim)] text-[#7EF2D1]'
+              ? 'border-[var(--oterm-accent)]/40 bg-[var(--oterm-accent-dim)] text-[var(--oterm-accent)]'
               : 'border-white/10 text-[var(--oterm-muted)] hover:border-white/20 hover:text-[#F5F5F7]'
           "
           title="Toggle tools sidebar"
