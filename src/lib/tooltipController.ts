@@ -2,8 +2,11 @@ import { ref } from "vue";
 
 const SHOW_DELAY_MS = 450;
 
+export type TooltipVariant = "default" | "path";
+
 export const tooltipVisible = ref(false);
 export const tooltipText = ref("");
+export const tooltipVariant = ref<TooltipVariant>("default");
 export const tooltipX = ref(0);
 export const tooltipY = ref(0);
 
@@ -47,17 +50,27 @@ function showTooltipForElement(el: HTMLElement, text: string) {
     showTimer = null;
     if (activeTarget !== el) return;
     tooltipText.value = text;
+    tooltipVariant.value = readTooltipVariant(el);
     positionForElement(el);
     tooltipVisible.value = true;
   }, SHOW_DELAY_MS);
+}
+
+function resetTooltipState() {
+  tooltipVisible.value = false;
+  tooltipText.value = "";
+  tooltipVariant.value = "default";
+}
+
+function readTooltipVariant(el: HTMLElement): TooltipVariant {
+  return el.dataset.otermTooltipVariant === "path" ? "path" : "default";
 }
 
 function hideTooltipForElement(el: HTMLElement) {
   if (activeTarget !== el) return;
   clearShowTimer();
   activeTarget = null;
-  tooltipVisible.value = false;
-  tooltipText.value = "";
+  resetTooltipState();
 }
 
 export function hideTooltip() {
@@ -66,8 +79,7 @@ export function hideTooltip() {
     restoreNativeTitle(activeTarget);
     activeTarget = null;
   }
-  tooltipVisible.value = false;
-  tooltipText.value = "";
+  resetTooltipState();
 }
 
 export function clampTooltipPosition(width: number, height: number) {

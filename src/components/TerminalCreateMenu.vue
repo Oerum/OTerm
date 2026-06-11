@@ -40,14 +40,6 @@ const profileShells = computed(() =>
 const rows = computed<MenuRow[]>(() => {
   const items: MenuRow[] = [
     {
-      id: "agent",
-      label: "Agent",
-      disabled: true,
-      disabledReason: "Coming soon",
-      action: { kind: "agent" },
-      section: "launchers",
-    },
-    {
       id: "default-terminal",
       label: "Terminal",
       shortcut: "Ctrl+Shift+T",
@@ -68,24 +60,6 @@ const rows = computed<MenuRow[]>(() => {
       section: "launchers" as const,
       shellId: shell.id,
     })),
-    {
-      id: "new-worktree-config",
-      label: "New worktree config",
-      disabled: true,
-      disabledReason: "Coming soon",
-      action: { kind: "new-worktree-config" },
-      section: "configs",
-      submenu: true,
-    },
-    {
-      id: "new-tab-config",
-      label: "New tab config",
-      disabled: true,
-      disabledReason: "Coming soon",
-      action: { kind: "new-tab-config" },
-      section: "configs",
-      submenu: true,
-    },
     {
       id: "reopen-closed",
       label: "Reopen closed session",

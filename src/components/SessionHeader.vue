@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useWindowDrag } from "../composables/useWindowDrag";
+import { formatPathFull, formatPathShort, isShellExecutablePath } from "../lib/formatPath";
 import type { ShellProfile, WorkspacePane } from "../types/terminal";
 
 const props = defineProps<{
@@ -17,7 +18,19 @@ const shellLabel = computed(
 
 const manualTabTitle = computed(() => props.tabTitle !== "Terminal");
 
-const oscTitle = computed(() => props.pane?.oscTitle?.trim() ?? "");
+const oscTitle = computed(() => {
+  const title = props.pane?.oscTitle?.trim() ?? "";
+  if (!title || isShellExecutablePath(title)) return "";
+  return title;
+});
+
+const displayTitle = computed(() =>
+  manualTabTitle.value ? props.tabTitle : (oscTitle.value || shellLabel.value),
+);
+
+const shortCwd = computed(() => formatPathShort(props.pane?.cwd));
+
+const cwdTooltip = computed(() => formatPathFull(props.pane?.cwd));
 </script>
 
 <template>
@@ -26,12 +39,18 @@ const oscTitle = computed(() => props.pane?.oscTitle?.trim() ?? "");
     data-tauri-drag-region
     @mousedown="startDrag"
   >
-    <span class="truncate text-xs text-[var(--oterm-muted)]">
-      <span class="text-[var(--oterm-text)]">
-        {{ manualTabTitle ? tabTitle : (oscTitle || shellLabel) }}
-      </span>
-      <span class="text-[var(--oterm-faint)]"> / </span>
-      <span class="text-[var(--oterm-text)]">{{ pane?.cwd ?? "~" }}</span>
+    <span
+      class="flex min-w-0 max-w-full items-center gap-0 truncate text-xs text-[var(--oterm-muted)]"
+    >
+      <span class="shrink-0 text-[var(--oterm-text)]">{{ displayTitle }}</span>
+      <template v-if="shortCwd">
+        <span class="shrink-0 text-[var(--oterm-faint)]"> / </span>
+        <span
+          class="min-w-0 truncate text-[var(--oterm-text)]"
+          data-oterm-tooltip-variant="path"
+          :title="cwdTooltip ?? undefined"
+        >{{ shortCwd }}</span>
+      </template>
     </span>
   </div>
 </template>

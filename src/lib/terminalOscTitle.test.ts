@@ -15,4 +15,11 @@ describe("normalizeOscTitle", () => {
     const long = "a".repeat(130);
     expect(normalizeOscTitle(long)).toBe("a".repeat(120));
   });
+
+  it("drops shell executable path titles", () => {
+    expect(normalizeOscTitle("C:\\Program Files\\PowerShell\\7\\pwsh.exe")).toBeNull();
+    expect(
+      normalizeOscTitle("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"),
+    ).toBeNull();
+  });
 });
