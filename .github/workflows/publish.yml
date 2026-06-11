@@ -109,9 +109,10 @@ jobs:
 
       - name: Install CUDA toolkit
         if: matrix.install_cuda
-        uses: Jimver/cuda-toolkit@v0.2.11
+        uses: Jimver/cuda-toolkit@v0.2.35
         with:
-          cuda: '12.4.0'
+          cuda: '12.6.0'
+          method: network
 
       - name: Set Windows build env
         if: matrix.platform == 'windows-latest'
@@ -164,4 +165,4 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: ${{ matrix.include_updater && github.ref_type == 'tag' }}
-          args: --features ${{ matrix.whisper_features }} -c "{\"productName\":\"OTerm${{ matrix.product_suffix }}\"}"
+          args: --features ${{ matrix.whisper_features }} -c '{"productName":"OTerm${{ matrix.product_suffix }}"}'
