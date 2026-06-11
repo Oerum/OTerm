@@ -144,6 +144,8 @@ pub fn run() {
                     eprintln!("oterm: toast branding init failed: {error}");
                 }
             }
+            #[cfg(not(windows))]
+            let _ = app;
             tauri::async_runtime::spawn_blocking(|| {
                 if let Err(error) =
                     fs::cleanup_old_composer_attachments(fs::COMPOSER_ATTACHMENTS_MAX_AGE_DAYS)

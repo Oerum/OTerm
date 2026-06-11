@@ -261,6 +261,9 @@ pub async fn fs_show_shell_context_menu(
     #[cfg(not(windows))]
     let owner = None::<isize>;
 
+    #[cfg(not(windows))]
+    let _ = window;
+
     tauri::async_runtime::spawn_blocking(move || {
         context_menu::show_shell_context_menu(&resolved, x, y, owner)
     })
