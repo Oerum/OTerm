@@ -1,11 +1,7 @@
-const EXECUTABLE_PATH_SUFFIX = /\.(exe|cmd|bat|com|msi)$/i;
-const UNIX_SHELL_PATTERNS = /\/(bin|usr\/bin|usr\/local\/bin)\/(bash|zsh|sh|fish|dash|tcsh|csh|nu|pwsh|elvish)$/i;
+const EXECUTABLE_PATH_SUFFIX = /(\/|\\|^)(bash|zsh|sh|fish|nu|nushell|elvish|pwsh|powershell|cmd)(\.exe)?$/i;
 
 export function isShellExecutablePath(path: string): boolean {
-  const trimmed = path.trim().replace(/[/\\]+$/, "");
-  if (EXECUTABLE_PATH_SUFFIX.test(trimmed)) return true;
-  if (UNIX_SHELL_PATTERNS.test(trimmed.replace(/\\/g, "/"))) return true;
-  return false;
+  return EXECUTABLE_PATH_SUFFIX.test(path.trim().replace(/[\/\\]+$/, ""));
 }
 
 /** Replace `C:\Users\<name>`, `/Users/<name>`, or `/home/<name>` with `~` for display. */
