@@ -1,0 +1,5 @@
+# This file defines code owners for the repository.
+# Each line defines a pattern and the owners that should be requested for review.
+# Learn more at: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+*       @Oerum
