@@ -75,6 +75,7 @@ import {
   notifyAgentEnded,
   shouldTreatAgentPollClearAsCrash,
 } from "../lib/agentLifecycle";
+import { shouldForwardPtyResize } from "../lib/terminalResize";
 import type { TerminalExitEvent, TerminalOutputEvent } from "../types/terminal";
 import {
   isTerminalAutocompleteConfigured,
@@ -886,13 +887,28 @@ function onWindowKeyCapture(event: KeyboardEvent) {
   terminal?.focus();
 }
 
+async function syncPtyResize() {
+  if (!terminal || !localSessionId.value) return;
+  if (
+    !shouldForwardPtyResize({
+      tabActive: props.tabActive,
+      cols: terminal.cols,
+      rows: terminal.rows,
+    })
+  ) {
+    return;
+  }
+  await resizeSession(localSessionId.value, terminal.cols, terminal.rows);
+}
+
 async function handleResize() {
   if (!terminal || !fitAddon || !localSessionId.value) return;
-  fitAddon.fit();
+  if (props.tabActive) {
+    fitAddon.fit();
+  }
   window.clearTimeout(resizeTimer);
-  resizeTimer = window.setTimeout(async () => {
-    if (!terminal || !localSessionId.value) return;
-    await resizeSession(localSessionId.value, terminal.cols, terminal.rows);
+  resizeTimer = window.setTimeout(() => {
+    void syncPtyResize();
   }, 100);
 }
 
@@ -1022,17 +1038,6 @@ async function waitForBootstrapAbort() {
   ]);
 }
 
-async function suspendLocalSessionForTabHide() {
-  const sessionId = resolveSessionIdToKill();
-  localSessionId.value = null;
-  backendSessionId.value = null;
-  pendingBootstrapInput.length = 0;
-  await killBackendSessionIfPresent(sessionId);
-  if (sessionId) {
-    emit("sessionReleased", props.paneId);
-  }
-}
-
 type ShutdownOptions = {
   markEndedLocally?: boolean;
 };
@@ -1127,16 +1132,7 @@ watch(
 
 watch(
   () => props.tabActive,
-  (tabActive, wasActive) => {
-    if (
-      wasActive &&
-      !tabActive &&
-      !isSshSession.value &&
-      localSessionId.value &&
-      !disposed
-    ) {
-      void suspendLocalSessionForTabHide();
-    }
+  (tabActive) => {
     if (
       tabActive &&
       terminal &&
@@ -1145,8 +1141,26 @@ watch(
       !localSessionId.value &&
       !launchError.value
     ) {
-      launchError.value = null;
-      void bootstrapSession();
+      if (props.sessionId) {
+        bindSessionId(props.sessionId);
+      } else {
+        launchError.value = null;
+        void bootstrapSession();
+      }
+    }
+  },
+);
+
+watch(
+  () => props.sessionId,
+  (sessionId) => {
+    if (
+      sessionId &&
+      !localSessionId.value &&
+      !disposed &&
+      !sessionEndedLocally.value
+    ) {
+      bindSessionId(sessionId);
     }
   },
 );

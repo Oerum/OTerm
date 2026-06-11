@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { GitStatus } from "../types/git";
 import type { PullRequestSummary } from "../types/pullRequest";
 import type { ShellProfile, WorkspacePane } from "../types/terminal";
+import { formatPath } from "../lib/formatPath";
 import AgentFooterBadge from "./AgentFooterBadge.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
 
@@ -25,11 +26,6 @@ const emit = defineEmits<{
   openPullRequests: [];
   toggleAgentComposer: [];
 }>();
-
-function formatPath(cwd: string | undefined) {
-  if (!cwd || cwd === "~") return "~";
-  return cwd.replace(/^([A-Za-z]:\\Users\\[^\\]+)/, "~");
-}
 
 const displayPath = computed(() => formatPath(props.pane?.cwd));
 

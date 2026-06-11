@@ -219,9 +219,7 @@ const {
   ensureDiffPaneWidth,
   onResizeHandlePointerDown,
   onFileListResizePointerDown,
-} = useResizablePanel(() => {
-  void refitTerminals();
-});
+} = useResizablePanel();
 
 const {
   shells,
@@ -1061,9 +1059,13 @@ onMounted(() => {
   });
 });
 
-watch([terminalSidebarOpen, toolsOpen, sourceControlOpen, sourceControlWidth], () => {
-  void refitTerminals();
-});
+watch(
+  [terminalSidebarOpen, toolsOpen, sourceControlOpen, sourceControlWidth, sourceControlResizing],
+  () => {
+    if (sourceControlResizing.value) return;
+    void refitTerminals();
+  },
+);
 
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeyDown, true);
