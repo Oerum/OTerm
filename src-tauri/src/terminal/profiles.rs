@@ -170,6 +170,7 @@ fn preferred_system_shell_id() -> String {
     }
 }
 
+#[cfg(windows)]
 fn shell_id_from_comspec(path: &str) -> Option<String> {
     shell_id_from_executable_path(path)
 }

@@ -20,23 +20,37 @@ jobs:
             args: ''
           - platform: 'windows-latest'
             args: ''
-            cargo_target_dir: 'C:\oterm-t'
 
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Vulkan SDK
         if: matrix.platform == 'windows-latest'
-        uses: humbletim/install-vulkan-sdk@v1.2.1
-        with:
-          version: latest
-          cache: true
+        shell: pwsh
+        run: |
+          $version = (Invoke-RestMethod -Uri "https://vulkan.lunarg.com/sdk/latest/windows.txt").Trim()
+          $dest = "C:\VulkanSDK\$version"
+          if (-not (Test-Path "$dest\Include\vulkan\vulkan.h")) {
+            $installer = "$env:RUNNER_TEMP\vulkan-sdk.exe"
+            Invoke-WebRequest "https://sdk.lunarg.com/sdk/download/$version/windows/vulkan_sdk.exe" -OutFile $installer
+            New-Item -ItemType Directory -Force -Path "C:\VulkanSDK" | Out-Null
+            & $installer --root $dest --accept-licenses --default-answer --confirm-command install
+          }
+          & "$dest\bin\glslangValidator.exe" --version
+          "VULKAN_SDK=$dest" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "Vulkan_INCLUDE_DIR=$dest\Include" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "Vulkan_LIBRARY=$dest\Lib\vulkan-1.lib" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install LLVM
         if: matrix.platform == 'windows-latest'
         run: choco install llvm -y
+
+      - name: Set Windows build env
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: echo "CARGO_TARGET_DIR=C:/oterm-t" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -59,6 +73,7 @@ jobs:
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
             libasound2-dev libopenblas-dev cmake pkg-config
+          echo "BLAS_INCLUDE_DIRS=/usr/include/x86_64-linux-gnu/openblas" >> "$GITHUB_ENV"
 
       - name: Install frontend dependencies
         run: npm ci
@@ -67,15 +82,14 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CARGO_TARGET_DIR: ${{ matrix.cargo_target_dir }}
-          # Required if you want to support auto-updater signing.
-          # You must generate these via `npx tauri signer generate` and set them in your GitHub Repository Secrets.
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          # Updater signing only on tag releases; branch pushes skip signing (see scripts/tauri.mjs).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ github.ref_type == 'tag' && secrets.TAURI_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_KEY_PASSWORD: ${{ github.ref_type == 'tag' && secrets.TAURI_KEY_PASSWORD || '' }}
         with:
           tagName: v__VERSION__
           releaseName: 'OTerm v__VERSION__'
           releaseBody: 'Release generated automatically by CI/CD pipeline.'
           releaseDraft: true
           prerelease: false
+          includeUpdaterJson: ${{ github.ref_type == 'tag' }}
           args: ${{ matrix.args }}

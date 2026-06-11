@@ -9,11 +9,11 @@ use std::process::{Command, Stdio};
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-fn hide_console(cmd: &mut Command) {
+fn hide_console(_cmd: &mut Command) {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(CREATE_NO_WINDOW);
+        _cmd.creation_flags(CREATE_NO_WINDOW);
     }
 }
 

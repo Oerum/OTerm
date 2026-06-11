@@ -1,9 +1,13 @@
+#[cfg(windows)]
 use std::fs;
 use std::path::{Path, PathBuf};
 
 const ICON_DIR: &str = "icons";
+#[cfg(windows)]
 const CACHE_DIR_NAME: &str = "OTerm";
+#[cfg(windows)]
 const TOAST_ICON_NAME: &str = "toast.png";
+#[cfg(windows)]
 const APP_ICON_NAME: &str = "app.ico";
 
 #[cfg(windows)]
@@ -18,6 +22,7 @@ const NOTIFICATION_ICON_NAMES: &[&str] = &["icon.icns", "icon.png", "128x128@2x.
 #[cfg(target_os = "linux")]
 const NOTIFICATION_ICON_NAMES: &[&str] = &["128x128@2x.png", "icon.png", "128x128.png"];
 
+#[cfg(windows)]
 pub struct NotificationAssets {
     pub toast_icon: PathBuf,
     pub app_icon: PathBuf,
@@ -171,6 +176,7 @@ fn copy_if_newer(source: &Path, dest: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(windows)]
 pub fn xml_escape(value: &str) -> String {
     value
         .replace('&', "&amp;")
