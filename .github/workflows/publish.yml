@@ -49,6 +49,11 @@ jobs:
         if: matrix.platform == 'windows-latest'
         run: choco install llvm -y
 
+      - name: Set Windows build env
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: echo "CARGO_TARGET_DIR=C:/oterm-t" >> "$GITHUB_ENV"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -88,4 +93,5 @@ jobs:
           releaseBody: 'Release generated automatically by CI/CD pipeline.'
           releaseDraft: true
           prerelease: false
+          includeUpdaterJson: ${{ github.ref_type == 'tag' }}
           args: ${{ matrix.args }}
