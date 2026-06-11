@@ -112,7 +112,7 @@ jobs:
         if: matrix.install_cuda && contains(matrix.platform, 'windows')
         uses: Jimver/cuda-toolkit@v0.2.35
         with:
-          cuda: '12.8.1'
+          cuda: '13.2.0'
           method: network
           sub-packages: '["nvcc","cudart","thrust","visual_studio_integration"]'
 
@@ -120,7 +120,7 @@ jobs:
         if: matrix.install_cuda && matrix.platform == 'ubuntu-22.04'
         uses: Jimver/cuda-toolkit@v0.2.35
         with:
-          cuda: '12.6.0'
+          cuda: '13.2.0'
           method: network
 
       - name: Integrate CUDA with Visual Studio
