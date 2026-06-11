@@ -26,6 +26,31 @@
 - Branch switching goes through `switchGitBranch()` in `src/lib/switchGitBranch.ts` (worktree-aware; uses `git switch` via Tauri).
 - Use the merge skill for branch merges; use `gh` for GitHub operations.
 
+## Version bumps
+
+When the user asks to bump or release a version:
+
+1. **Target version** — Use the semver they gave (e.g. `0.1.3`). If they did not specify one, ask before changing anything.
+2. **Update npm metadata** — Set the same version in both files (no `v` prefix in JSON):
+   - `package.json` → `"version"`
+   - `package-lock.json` → root `"version"` and `packages[""].version`
+
+   Prefer `npm version <X.Y.Z> --no-git-tag-version` from repo root (updates both files); otherwise edit both manually and keep them in sync.
+
+3. **Commit** — Stage only the version files unless the user asked to include other changes:
+   ```bash
+   git add package.json package-lock.json
+   git commit -m "bump: version to v<X.Y.Z>"
+   ```
+   Include the usual `Co-Authored-By` footer on AI commits.
+
+4. **Tag** — Create an annotated tag matching the commit (with `v` prefix):
+   ```bash
+   git tag -a v<X.Y.Z> -m "Release v<X.Y.Z>"
+   ```
+
+5. **Push** — Only if the user explicitly asks: push the commit and tag (`git push && git push origin v<X.Y.Z>` or `gh`).
+
 ## Architecture
 - Vertical slices per feature; minimal diffs; match existing Vue composable patterns.
 - Git IPC: `src/lib/gitApi.ts` → Tauri commands in `src-tauri/src/git/`.
