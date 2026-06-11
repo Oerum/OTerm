@@ -39,7 +39,7 @@ jobs:
             include_updater: true
 
           - job_name: Windows (CUDA)
-            platform: windows-latest
+            platform: windows-2022
             whisper_features: whisper-cuda
             product_suffix: ' CUDA'
             install_vulkan: false
@@ -108,15 +108,23 @@ jobs:
         if: matrix.install_llvm
         run: choco install llvm -y
 
-      - name: Install CUDA toolkit
-        if: matrix.install_cuda
+      - name: Install CUDA toolkit (Windows)
+        if: matrix.install_cuda && contains(matrix.platform, 'windows')
         uses: Jimver/cuda-toolkit@v0.2.35
         with:
-          cuda: '13.2.0'
+          cuda: '12.8.1'
+          method: network
+          sub-packages: '["nvcc","cudart","thrust","visual_studio_integration"]'
+
+      - name: Install CUDA toolkit (Linux)
+        if: matrix.install_cuda && matrix.platform == 'ubuntu-22.04'
+        uses: Jimver/cuda-toolkit@v0.2.35
+        with:
+          cuda: '12.6.0'
           method: network
 
       - name: Integrate CUDA with Visual Studio
-        if: matrix.install_cuda && matrix.platform == 'windows-latest'
+        if: matrix.install_cuda && contains(matrix.platform, 'windows')
         shell: pwsh
         run: |
           $src = Join-Path $env:CUDA_PATH 'extras\visual_studio_integration\MSBuildExtensions'
@@ -139,8 +147,22 @@ jobs:
           "CMAKE_CUDA_COMPILER=$nvcc" >> $env:GITHUB_ENV
           "CUDACXX=$nvcc" >> $env:GITHUB_ENV
 
+      - name: Prefer x64 MSVC for CUDA
+        if: matrix.install_cuda && contains(matrix.platform, 'windows')
+        shell: pwsh
+        run: |
+          $cl = Get-ChildItem 'C:\Program Files*\Microsoft Visual Studio\*\*\VC\Tools\MSVC\*\bin\Hostx64\x64\cl.exe' -ErrorAction SilentlyContinue |
+            Sort-Object { $_.FullName } -Descending |
+            Select-Object -First 1
+          if (-not $cl) { throw 'Hostx64 cl.exe not found' }
+          $clDir = $cl.DirectoryName
+          Write-Host "Using cl.exe: $($cl.FullName)"
+          $env:PATH = "$clDir;$env:PATH"
+          "PATH=$env:PATH" >> $env:GITHUB_ENV
+          "CMAKE_CUDA_HOST_COMPILER=$($cl.FullName)" >> $env:GITHUB_ENV
+
       - name: Set Windows build env
-        if: matrix.platform == 'windows-latest'
+        if: contains(matrix.platform, 'windows')
         shell: bash
         run: echo "CARGO_TARGET_DIR=C:/oterm-t" >> "$GITHUB_ENV"
 
@@ -171,19 +193,22 @@ jobs:
             echo "BLAS_INCLUDE_DIRS=/usr/include/x86_64-linux-gnu/openblas" >> "$GITHUB_ENV"
           fi
           if [ "${{ matrix.install_vulkan_linux }}" = "true" ]; then
-            # Ubuntu headers; LunarG libvulkan-dev is loader-only and breaks FindVulkan.
-            sudo apt-get install -y libvulkan-dev
-            curl -fsSL https://packages.lunarg.com/lunarg-signing-key-pub.asc \
-              | sudo gpg --dearmor -o /usr/share/keyrings/lunarg.gpg
-            echo "deb [signed-by=/usr/share/keyrings/lunarg.gpg] https://packages.lunarg.com/vulkan jammy main" \
-              | sudo tee /etc/apt/sources.list.d/lunarg-vulkan.list >/dev/null
-            sudo apt-get update
-            sudo apt-get install -y shaderc
+            VULKAN_SDK_VERSION="$(curl -fsSL https://vulkan.lunarg.com/sdk/latest/linux.txt)"
+            VULKAN_SDK_DIR="$RUNNER_TEMP/vulkan-sdk-$VULKAN_SDK_VERSION"
+            if [ ! -f "$VULKAN_SDK_DIR/setup-env.sh" ]; then
+              mkdir -p "$VULKAN_SDK_DIR"
+              curl -fsSL "https://sdk.lunarg.com/sdk/download/${VULKAN_SDK_VERSION}/linux/vulkan_sdk.tar.xz" |
+                tar -xJ --strip-components=1 -C "$VULKAN_SDK_DIR"
+            fi
+            # shellcheck disable=SC1091
+            source "$VULKAN_SDK_DIR/setup-env.sh"
+            echo "VULKAN_SDK=$VULKAN_SDK" >> "$GITHUB_ENV"
+            echo "Vulkan_INCLUDE_DIR=$VULKAN_SDK/include" >> "$GITHUB_ENV"
+            echo "Vulkan_LIBRARY=$VULKAN_SDK/lib/libvulkan.so" >> "$GITHUB_ENV"
+            echo "PATH=$PATH" >> "$GITHUB_ENV"
+            echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
             command -v glslc
-            test -f /usr/include/vulkan/vulkan.h
-            echo "VULKAN_SDK=/usr" >> "$GITHUB_ENV"
-            echo "Vulkan_INCLUDE_DIR=/usr/include" >> "$GITHUB_ENV"
-            echo "Vulkan_LIBRARY=/usr/lib/x86_64-linux-gnu/libvulkan.so" >> "$GITHUB_ENV"
+            test -f "$VULKAN_SDK/include/vulkan/vulkan.h"
           fi
 
       - name: Install frontend dependencies
