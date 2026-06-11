@@ -1,10 +1,10 @@
 use super::{
-    composer_attachments_dir, context_menu, create_directory, default_project_root, expand_path,
-    find_devenv_launcher, find_env_import_hint, find_rider_launcher, find_vscode_launcher,
-    find_zed_launcher, import_env_file, list_directory, list_solution_files, open_in_rider,
-    open_in_system_file_explorer, open_in_visual_studio, open_in_vscode, open_in_zed,
-    read_file_bytes, remove_path, search_files, system_file_explorer_label, user_home,
-    write_file_bytes,
+    clipboard_paste_dir, composer_attachments_dir, context_menu, create_directory,
+    default_project_root, expand_path, find_devenv_launcher, find_env_import_hint,
+    find_rider_launcher, find_vscode_launcher, find_zed_launcher, import_env_file, list_directory,
+    list_solution_files, open_in_rider, open_in_system_file_explorer, open_in_visual_studio,
+    open_in_vscode, open_in_zed, read_file_bytes, remove_path, search_files,
+    system_file_explorer_label, user_home, write_file_bytes, write_temp_image_bytes,
 };
 use serde::Serialize;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -218,32 +218,73 @@ pub async fn fs_open_in_file_explorer(path: String) -> Result<(), String> {
         .map_err(|err| err.to_string())?
 }
 
-#[tauri::command]
-pub fn fs_write_temp_attachment(data: Vec<u8>, extension: String) -> Result<String, String> {
-    const ALLOWED: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp"];
-    const MAX_BYTES: usize = 20 * 1024 * 1024;
-    let ext = extension.trim().trim_start_matches('.').to_lowercase();
-    if !ALLOWED.contains(&ext.as_str()) {
-        return Err(format!("Unsupported attachment extension: {ext}"));
+fn encode_rgba_to_png(data: &[u8], width: u32, height: u32) -> Result<Vec<u8>, String> {
+    if width == 0 || height == 0 {
+        return Err("Invalid image dimensions".to_string());
     }
-    if data.is_empty() {
-        return Err("Attachment data is empty".to_string());
-    }
-    if data.len() > MAX_BYTES {
+    let expected = (width as usize)
+        .saturating_mul(height as usize)
+        .saturating_mul(4);
+    if data.len() != expected {
         return Err(format!(
-            "Attachment exceeds {MAX_BYTES} byte limit ({} bytes)",
+            "RGBA byte length mismatch: expected {expected}, got {}",
             data.len()
         ));
     }
 
-    let temp_root = composer_attachments_dir();
-    std::fs::create_dir_all(&temp_root).map_err(|err| err.to_string())?;
+    let mut png_bytes = Vec::new();
+    let mut encoder = png::Encoder::new(&mut png_bytes, width, height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder.write_header().map_err(|err| err.to_string())?;
+    writer
+        .write_image_data(data)
+        .map_err(|err| err.to_string())?;
+    drop(writer);
 
-    let file_name = format!("{}.{}", uuid::Uuid::new_v4(), ext);
-    let path = temp_root.join(file_name);
-    std::fs::write(&path, &data).map_err(|err| err.to_string())?;
+    Ok(png_bytes)
+}
 
-    Ok(path.to_string_lossy().into_owned())
+#[tauri::command]
+pub fn fs_write_temp_attachment_rgba(
+    data: Vec<u8>,
+    width: u32,
+    height: u32,
+) -> Result<String, String> {
+    let png_bytes = encode_rgba_to_png(&data, width, height)?;
+    write_temp_image_bytes(&png_bytes, "png", &composer_attachments_dir())
+}
+
+#[tauri::command]
+pub fn fs_write_temp_clipboard_paste_rgba(
+    data: Vec<u8>,
+    width: u32,
+    height: u32,
+) -> Result<String, String> {
+    let png_bytes = encode_rgba_to_png(&data, width, height)?;
+    write_temp_image_bytes(&png_bytes, "png", &clipboard_paste_dir())
+}
+
+#[tauri::command]
+pub fn fs_write_temp_attachment(data: Vec<u8>, extension: String) -> Result<String, String> {
+    write_temp_image_bytes(&data, &extension, &composer_attachments_dir())
+}
+
+#[tauri::command]
+pub fn fs_write_temp_clipboard_paste(data: Vec<u8>, extension: String) -> Result<String, String> {
+    write_temp_image_bytes(&data, &extension, &clipboard_paste_dir())
+}
+
+#[tauri::command]
+pub fn fs_save_gemini_clipboard_image_rgba(
+    data: Vec<u8>,
+    width: u32,
+    height: u32,
+    project_root: String,
+) -> Result<super::gemini_clipboard::GeminiClipboardSaveResult, String> {
+    let png_bytes = encode_rgba_to_png(&data, width, height)?;
+    let project_root = expand_path(&project_root)?;
+    super::gemini_clipboard::save_gemini_clipboard_png(&png_bytes, &project_root)
 }
 
 #[tauri::command]

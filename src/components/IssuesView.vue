@@ -7,6 +7,7 @@ import {
   viewIssue,
 } from "../lib/issueApi";
 import { detectPrProvider } from "../lib/pullRequestApi";
+import { writeClipboardText } from "../lib/clipboard";
 import type { IssueDetail, IssueListFilters, IssueSummary } from "../types/issue";
 import type { PrProviderInfo } from "../types/pullRequest";
 import MarkdownContent from "./MarkdownContent.vue";
@@ -149,7 +150,7 @@ async function onOpen(issue: IssueSummary) {
 }
 
 async function onCopyUrl(issue: IssueSummary) {
-  await navigator.clipboard.writeText(issue.url);
+  await writeClipboardText(issue.url);
   showToast("Issue URL copied");
 }
 

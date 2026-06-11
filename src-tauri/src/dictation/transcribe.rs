@@ -1,6 +1,20 @@
 use std::path::Path;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
+pub fn compiled_whisper_backend() -> &'static str {
+    if cfg!(feature = "whisper-cuda") {
+        "cuda"
+    } else if cfg!(feature = "whisper-vulkan") {
+        "vulkan"
+    } else if cfg!(feature = "whisper-metal") {
+        "metal"
+    } else if cfg!(feature = "whisper-openblas") {
+        "openblas"
+    } else {
+        "unknown"
+    }
+}
+
 pub struct WhisperEngine {
     ctx: WhisperContext,
 }
@@ -13,7 +27,12 @@ impl WhisperEngine {
                 .ok_or_else(|| "Invalid model path".to_string())?,
             WhisperContextParameters::default(),
         )
-        .map_err(|err| format!("Failed to load Whisper model: {err}"))?;
+        .map_err(|err| {
+            format!(
+                "Failed to load Whisper model (backend: {}): {err}",
+                compiled_whisper_backend()
+            )
+        })?;
         Ok(Self { ctx })
     }
 
@@ -70,4 +89,14 @@ fn num_cpus() -> i32 {
     std::thread::available_parallelism()
         .map(|n| n.get().min(8) as i32)
         .unwrap_or(4)
+}
+
+#[cfg(test)]
+mod backend_tests {
+    use super::compiled_whisper_backend;
+
+    #[test]
+    fn compiled_backend_is_not_unknown() {
+        assert_ne!(compiled_whisper_backend(), "unknown");
+    }
 }

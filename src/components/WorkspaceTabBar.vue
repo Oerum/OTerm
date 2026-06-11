@@ -34,10 +34,18 @@ function tabLabel(tab: WorkspaceTab) {
   const pane = tab.panes[0];
   const shell = shellLabels.value[pane?.shellId ?? ""] ?? "Terminal";
   const cwd = pane?.cwd;
-  if (!cwd || cwd === "~") return shell;
-  const parts = cwd.replace(/\\/g, "/").split("/").filter(Boolean);
-  const folder = parts[parts.length - 1];
-  return folder ? `${shell} · ${folder}` : shell;
+  let label = shell;
+  if (cwd && cwd !== "~") {
+    const parts = cwd.replace(/\\/g, "/").split("/").filter(Boolean);
+    const folder = parts[parts.length - 1];
+    if (folder) {
+      label = `${shell} · ${folder}`;
+    }
+  }
+  if (pane?.activeProcessCmd) {
+    label = `${label} (${pane.activeProcessCmd})`;
+  }
+  return label;
 }
 
 function toggleNewMenu() {

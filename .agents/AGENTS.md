@@ -64,14 +64,21 @@ npm run build
 
 **`src-tauri/` — Rust**
 
+Whisper uses a compile-time backend feature. Resolve the platform default (or `OTERM_WHISPER_BACKEND`) once, then pass it to every `cargo` command:
+
 ```bash
+WHISPER_FEATURE=$(node ../scripts/whisper-backend.mjs)   # bash
+# PowerShell: $env:WHISPER_FEATURE = node ..\scripts\whisper-backend.mjs
+
 cd src-tauri
 cargo fmt --all -- --check
-cargo clippy --all-targets -- -D warnings
-cargo test --lib
-cargo test
+cargo clippy --all-targets --features "$WHISPER_FEATURE" -- -D warnings
+cargo test --lib --features "$WHISPER_FEATURE"
+cargo test --features "$WHISPER_FEATURE"
 cd ..
 ```
+
+`npm run tauri dev|build` injects the feature automatically via `scripts/tauri.mjs`.
 
 - `cargo fmt --check` — formatting drift fails the gate; run `cargo fmt --all` to fix.
 - `cargo clippy … -D warnings` — Clippy warnings are treated as errors.
@@ -99,14 +106,17 @@ npm test
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 npm run build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$WhisperFeature = node scripts/whisper-backend.mjs
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if (-not $env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR = "C:\oterm-t" }
 Push-Location src-tauri
 cargo fmt --all -- --check
 if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
-cargo clippy --all-targets -- -D warnings
+cargo clippy --all-targets --features $WhisperFeature -- -D warnings
 if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
-cargo test --lib
+cargo test --lib --features $WhisperFeature
 if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
-cargo test
+cargo test --features $WhisperFeature
 if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
 Pop-Location
 npm run tauri build
@@ -120,11 +130,12 @@ npm ci && \
 npx vue-tsc --noEmit && \
 npm test && \
 npm run build && \
+WHISPER_FEATURE=$(node scripts/whisper-backend.mjs) && \
 ( cd src-tauri && \
   cargo fmt --all -- --check && \
-  cargo clippy --all-targets -- -D warnings && \
-  cargo test --lib && \
-  cargo test ) && \
+  cargo clippy --all-targets --features "$WHISPER_FEATURE" -- -D warnings && \
+  cargo test --lib --features "$WHISPER_FEATURE" && \
+  cargo test --features "$WHISPER_FEATURE" ) && \
 npm run tauri build
 ```
 
@@ -137,9 +148,9 @@ npm run tauri build
 | 3 | `npm test` | Vitest (`vitest run`) |
 | 4 | `npm run build` | Typecheck + Vite production build |
 | 5 | `cargo fmt --all -- --check` | Rust formatting |
-| 6 | `cargo clippy --all-targets -- -D warnings` | Rust lints (warnings denied) |
-| 7 | `cargo test --lib` | Rust unit tests |
-| 8 | `cargo test` | Rust unit + integration tests |
+| 6 | `cargo clippy --all-targets --features <whisper-backend> -- -D warnings` | Rust lints (warnings denied) |
+| 7 | `cargo test --lib --features <whisper-backend>` | Rust unit tests |
+| 8 | `cargo test --features <whisper-backend>` | Rust unit + integration tests |
 | 9 | `npm run tauri build` | End-to-end desktop build |
 
 ### Optional (not part of default gate)

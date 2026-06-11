@@ -17,7 +17,7 @@ import {
 import { isDictationShortcut } from "../lib/appKeyboardShortcuts";
 import {
   attachmentDisplayName,
-  extractClipboardImagePaths,
+  readClipboardImagePaths,
   formatAgentComposerMessage,
   isMediaAttachmentPath,
   pickMediaAttachmentPaths,
@@ -312,7 +312,10 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 async function onPaste(event: ClipboardEvent) {
-  const paths = await extractClipboardImagePaths(event.clipboardData);
+  const paths = await readClipboardImagePaths({
+    clipboardData: event.clipboardData,
+    destination: "composer",
+  });
   if (paths.length === 0) return;
   event.preventDefault();
   addAttachmentPaths(paths);
@@ -361,6 +364,7 @@ onBeforeUnmount(() => {
 defineExpose({
   focusComposer,
   toggleDictation,
+  addAttachmentPaths,
 });
 </script>
 

@@ -10,16 +10,76 @@ permissions:
 
 jobs:
   publish-tauri:
+    name: ${{ matrix.job_name }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
-            args: ''
-          - platform: 'ubuntu-22.04'
-            args: ''
-          - platform: 'windows-latest'
-            args: ''
+          - job_name: macOS (Metal)
+            platform: macos-latest
+            whisper_features: whisper-metal
+            product_suffix: ''
+            install_vulkan: false
+            install_llvm: false
+            install_cuda: false
+            install_openblas: false
+            install_vulkan_linux: false
+            include_updater: true
+
+          - job_name: Windows (Vulkan)
+            platform: windows-latest
+            whisper_features: whisper-vulkan
+            product_suffix: ' Vulkan'
+            install_vulkan: true
+            install_llvm: true
+            install_cuda: false
+            install_openblas: false
+            install_vulkan_linux: false
+            include_updater: true
+
+          - job_name: Windows (CUDA)
+            platform: windows-latest
+            whisper_features: whisper-cuda
+            product_suffix: ' CUDA'
+            install_vulkan: false
+            install_llvm: true
+            install_cuda: true
+            install_openblas: false
+            install_vulkan_linux: false
+            include_updater: false
+
+          - job_name: Linux (Vulkan)
+            platform: ubuntu-22.04
+            whisper_features: whisper-vulkan
+            product_suffix: ' Vulkan'
+            install_vulkan: false
+            install_llvm: false
+            install_cuda: false
+            install_openblas: false
+            install_vulkan_linux: true
+            include_updater: true
+
+          - job_name: Linux (CUDA)
+            platform: ubuntu-22.04
+            whisper_features: whisper-cuda
+            product_suffix: ' CUDA'
+            install_vulkan: false
+            install_llvm: false
+            install_cuda: true
+            install_openblas: false
+            install_vulkan_linux: false
+            include_updater: false
+
+          - job_name: Linux (OpenBLAS)
+            platform: ubuntu-22.04
+            whisper_features: whisper-openblas
+            product_suffix: ' CPU'
+            install_vulkan: false
+            install_llvm: false
+            install_cuda: false
+            install_openblas: true
+            install_vulkan_linux: false
+            include_updater: false
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -27,7 +87,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install Vulkan SDK
-        if: matrix.platform == 'windows-latest'
+        if: matrix.install_vulkan
         shell: pwsh
         run: |
           $version = (Invoke-RestMethod -Uri "https://vulkan.lunarg.com/sdk/latest/windows.txt").Trim()
@@ -44,8 +104,14 @@ jobs:
           "Vulkan_LIBRARY=$dest\Lib\vulkan-1.lib" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install LLVM
-        if: matrix.platform == 'windows-latest'
+        if: matrix.install_llvm
         run: choco install llvm -y
+
+      - name: Install CUDA toolkit
+        if: matrix.install_cuda
+        uses: Jimver/cuda-toolkit@v0.2.11
+        with:
+          cuda: '12.4.0'
 
       - name: Set Windows build env
         if: matrix.platform == 'windows-latest'
@@ -65,6 +131,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+          shared-key: ${{ matrix.whisper_features }}
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -72,8 +139,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
-            libasound2-dev libopenblas-dev cmake pkg-config
-          echo "BLAS_INCLUDE_DIRS=/usr/include/x86_64-linux-gnu/openblas" >> "$GITHUB_ENV"
+            libasound2-dev cmake pkg-config
+          if [ "${{ matrix.install_openblas }}" = "true" ]; then
+            sudo apt-get install -y libopenblas-dev
+            echo "BLAS_INCLUDE_DIRS=/usr/include/x86_64-linux-gnu/openblas" >> "$GITHUB_ENV"
+          fi
+          if [ "${{ matrix.install_vulkan_linux }}" = "true" ]; then
+            sudo apt-get install -y libvulkan-dev glslang-tools
+          fi
 
       - name: Install frontend dependencies
         run: npm ci
@@ -82,7 +155,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Updater signing only on tag releases; branch pushes skip signing (see scripts/tauri.mjs).
           TAURI_SIGNING_PRIVATE_KEY: ${{ github.ref_type == 'tag' && secrets.TAURI_PRIVATE_KEY || '' }}
           TAURI_SIGNING_KEY_PASSWORD: ${{ github.ref_type == 'tag' && secrets.TAURI_KEY_PASSWORD || '' }}
         with:
@@ -91,5 +163,5 @@ jobs:
           releaseBody: 'Release generated automatically by CI/CD pipeline.'
           releaseDraft: true
           prerelease: false
-          includeUpdaterJson: ${{ github.ref_type == 'tag' }}
-          args: ${{ matrix.args }}
+          includeUpdaterJson: ${{ matrix.include_updater && github.ref_type == 'tag' }}
+          args: --features ${{ matrix.whisper_features }} -c "{\"productName\":\"OTerm${{ matrix.product_suffix }}\"}"

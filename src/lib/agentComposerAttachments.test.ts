@@ -1,9 +1,24 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const {
+  readComposerClipboardImagePathMock,
+  readNativeClipboardImagePathMock,
+} = vi.hoisted(() => ({
+  readComposerClipboardImagePathMock: vi.fn<() => Promise<string | null>>(),
+  readNativeClipboardImagePathMock: vi.fn<() => Promise<string | null>>(),
+}));
+
+vi.mock("./clipboard", () => ({
+  readComposerClipboardImagePath: readComposerClipboardImagePathMock,
+  readNativeClipboardImagePath: readNativeClipboardImagePathMock,
+}));
+
 import {
   attachmentDisplayName,
   extensionFromImageMimeType,
   formatAgentComposerMessage,
   isMediaAttachmentPath,
+  readClipboardImagePaths,
 } from "./agentComposerAttachments";
 
 describe("isMediaAttachmentPath", () => {
@@ -68,5 +83,38 @@ describe("formatAgentComposerMessage", () => {
         "C:\\Users\\Filip\\Pictures\\shot.png",
       ]),
     ).toBe("line one\nline two\nC:\\Users\\Filip\\Pictures\\shot.png");
+  });
+});
+
+describe("readClipboardImagePaths", () => {
+  beforeEach(() => {
+    readComposerClipboardImagePathMock.mockReset();
+    readNativeClipboardImagePathMock.mockReset();
+  });
+
+  it("falls back to composer clipboard image read by default", async () => {
+    readComposerClipboardImagePathMock.mockResolvedValue("C:\\Temp\\composer-attachments\\clip.png");
+
+    await expect(readClipboardImagePaths()).resolves.toEqual([
+      "C:\\Temp\\composer-attachments\\clip.png",
+    ]);
+    expect(readComposerClipboardImagePathMock).toHaveBeenCalledTimes(1);
+    expect(readNativeClipboardImagePathMock).not.toHaveBeenCalled();
+  });
+
+  it("uses native clipboard image read when destination is native", async () => {
+    readNativeClipboardImagePathMock.mockResolvedValue("C:\\Temp\\clipboard-paste\\clip.png");
+
+    await expect(
+      readClipboardImagePaths({ destination: "native" }),
+    ).resolves.toEqual(["C:\\Temp\\clipboard-paste\\clip.png"]);
+    expect(readNativeClipboardImagePathMock).toHaveBeenCalledTimes(1);
+    expect(readComposerClipboardImagePathMock).not.toHaveBeenCalled();
+  });
+
+  it("returns empty array when both dom and tauri reads fail", async () => {
+    readComposerClipboardImagePathMock.mockResolvedValue(null);
+
+    await expect(readClipboardImagePaths()).resolves.toEqual([]);
   });
 });

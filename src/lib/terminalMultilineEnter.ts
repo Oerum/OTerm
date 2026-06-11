@@ -26,8 +26,20 @@ export function getMultilineEnterPayload(event: KeyboardEvent): string | null {
   return "\n";
 }
 
+/** xterm sends BS (\\b) for Ctrl+Backspace; readline/PSReadLine expect Ctrl+W for backward word kill. */
+export function getCtrlBackspaceWordDeletePayload(event: KeyboardEvent): string | null {
+  if (event.type !== "keydown") return null;
+  if (!event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return null;
+  if (event.key !== "Backspace") return null;
+  return "\x17";
+}
+
 export function getPtyKeyOverride(event: KeyboardEvent): string | null {
-  return getCtrlDEofPayload(event) ?? getMultilineEnterPayload(event);
+  return (
+    getCtrlDEofPayload(event) ??
+    getMultilineEnterPayload(event) ??
+    getCtrlBackspaceWordDeletePayload(event)
+  );
 }
 
 function isAgentComposerTarget(target: HTMLElement | null): boolean {

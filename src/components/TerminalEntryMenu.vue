@@ -6,6 +6,7 @@ import type { TerminalEntryColor, TerminalMenuActionId, TerminalSidebarEntry } f
 const props = defineProps<{
   entry: TerminalSidebarEntry;
   open: boolean;
+  openUpward?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -151,7 +152,8 @@ onUnmounted(() => {
   <div
     ref="menuRef"
     role="menu"
-    class="no-drag term-entry-menu absolute right-0 top-full z-50 mt-0.5 w-[var(--term-menu-width)] overflow-hidden rounded-md border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-0.5 shadow-xl"
+    class="no-drag term-entry-menu absolute right-0 z-50 w-[var(--term-menu-width)] overflow-hidden rounded-md border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-0.5 shadow-xl"
+    :class="openUpward ? 'bottom-full mb-0.5' : 'top-full mt-0.5'"
     @mousedown.stop
   >
     <template v-for="item in items" :key="item.id">

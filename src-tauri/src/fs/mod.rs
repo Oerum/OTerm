@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod context_menu;
+pub mod gemini_clipboard;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -13,9 +14,40 @@ pub fn composer_attachments_dir() -> PathBuf {
         .join("composer-attachments")
 }
 
+pub fn clipboard_paste_dir() -> PathBuf {
+    std::env::temp_dir().join("oterm").join("clipboard-paste")
+}
+
+pub fn write_temp_image_bytes(data: &[u8], extension: &str, dir: &Path) -> Result<String, String> {
+    const ALLOWED: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp"];
+    const MAX_BYTES: usize = 20 * 1024 * 1024;
+    let ext = extension.trim().trim_start_matches('.').to_lowercase();
+    if !ALLOWED.contains(&ext.as_str()) {
+        return Err(format!("Unsupported attachment extension: {ext}"));
+    }
+    if data.is_empty() {
+        return Err("Attachment data is empty".to_string());
+    }
+    if data.len() > MAX_BYTES {
+        return Err(format!(
+            "Attachment exceeds {MAX_BYTES} byte limit ({} bytes)",
+            data.len()
+        ));
+    }
+
+    std::fs::create_dir_all(dir).map_err(|err| err.to_string())?;
+
+    let file_name = format!("{}.{}", uuid::Uuid::new_v4(), ext);
+    let path = dir.join(file_name);
+    std::fs::write(&path, data).map_err(|err| err.to_string())?;
+
+    Ok(path.to_string_lossy().into_owned())
+}
+
 pub fn cleanup_old_composer_attachments(max_age_days: u64) -> Result<(), String> {
     let max_age = Duration::from_secs(max_age_days.saturating_mul(24 * 60 * 60));
     cleanup_old_composer_attachments_in(&composer_attachments_dir(), max_age)?;
+    cleanup_old_composer_attachments_in(&clipboard_paste_dir(), max_age)?;
     Ok(())
 }
 

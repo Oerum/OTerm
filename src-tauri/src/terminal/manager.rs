@@ -1,4 +1,4 @@
-use crate::terminal::agent_process::detect_agent_in_tree;
+use crate::terminal::agent_process::{detect_active_process, detect_agent_in_tree};
 use crate::terminal::profiles::{resolve_shell, ShellProfile};
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
@@ -276,24 +276,52 @@ fn spawn_child_exit_watcher(
     });
 }
 
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TerminalProcessChangedEvent {
+    session_id: String,
+    process_name: Option<String>,
+    command: Option<String>,
+}
+
 fn spawn_agent_poller(app: AppHandle, session_id: String, root_pid: u32, cancel: Arc<AtomicBool>) {
     thread::spawn(move || {
         let mut system = sysinfo::System::new();
         let root = sysinfo::Pid::from_u32(root_pid);
-        let mut last: Option<String> = None;
+        let mut last_agent: Option<String> = None;
+        let mut last_proc_name: Option<String> = None;
+        let mut last_proc_cmd: Option<String> = None;
         while !cancel.load(Ordering::Relaxed) {
-            let current = detect_agent_in_tree(&mut system, root_pid);
+            let current_agent = detect_agent_in_tree(&mut system, root_pid);
             if system.process(root).is_none() {
                 break;
             }
-            if current != last {
+            if current_agent != last_agent {
                 let payload = TerminalAgentChangedEvent {
                     session_id: session_id.clone(),
-                    agent_id: current.clone(),
+                    agent_id: current_agent.clone(),
                 };
                 let _ = app.emit("terminal-agent-changed", payload);
-                last = current;
+                last_agent = current_agent;
             }
+
+            let current_proc = detect_active_process(&system, root_pid);
+            let (proc_name, proc_cmd) = match current_proc {
+                Some(p) => (Some(p.name), Some(p.command)),
+                None => (None, None),
+            };
+
+            if proc_name != last_proc_name || proc_cmd != last_proc_cmd {
+                let payload = TerminalProcessChangedEvent {
+                    session_id: session_id.clone(),
+                    process_name: proc_name.clone(),
+                    command: proc_cmd.clone(),
+                };
+                let _ = app.emit("terminal-process-changed", payload);
+                last_proc_name = proc_name;
+                last_proc_cmd = proc_cmd;
+            }
+
             thread::sleep(Duration::from_millis(1500));
         }
     });

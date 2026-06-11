@@ -1,5 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import {
+  readComposerClipboardImagePath,
+  readNativeClipboardImagePath,
+  type ClipboardImageDestination,
+} from "./clipboard";
+
+export type { ClipboardImageDestination };
 
 const MEDIA_EXTENSIONS = [
   "png",
@@ -44,15 +51,23 @@ export function isMediaAttachmentPath(path: string): boolean {
   return MEDIA_EXTENSION_SET.has(ext);
 }
 
-export async function saveClipboardImageAttachment(file: File): Promise<string | null> {
+export async function saveClipboardImageAttachment(
+  file: File,
+  destination: ClipboardImageDestination = "composer",
+): Promise<string | null> {
   const extension = extensionFromImageMimeType(file.type);
   if (!extension) return null;
 
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (bytes.length === 0) return null;
 
+  const command =
+    destination === "composer"
+      ? "fs_write_temp_attachment"
+      : "fs_write_temp_clipboard_paste";
+
   try {
-    return await invoke<string>("fs_write_temp_attachment", {
+    return await invoke<string>(command, {
       data: Array.from(bytes),
       extension,
     });
@@ -61,8 +76,9 @@ export async function saveClipboardImageAttachment(file: File): Promise<string |
   }
 }
 
-export async function extractClipboardImagePaths(
+async function readDomClipboardImagePaths(
   clipboard: DataTransfer | null,
+  destination: ClipboardImageDestination,
 ): Promise<string[]> {
   if (!clipboard) return [];
 
@@ -71,12 +87,37 @@ export async function extractClipboardImagePaths(
     if (!item.type.startsWith("image/")) continue;
     const file = item.getAsFile();
     if (!file) continue;
-    const path = await saveClipboardImageAttachment(file);
+    const path = await saveClipboardImageAttachment(file, destination);
     if (path && isMediaAttachmentPath(path)) {
       paths.push(path);
     }
   }
   return paths;
+}
+
+export async function readClipboardImagePaths(options?: {
+  clipboardData?: DataTransfer | null;
+  destination?: ClipboardImageDestination;
+}): Promise<string[]> {
+  const destination = options?.destination ?? "composer";
+  const fromDom = await readDomClipboardImagePaths(
+    options?.clipboardData ?? null,
+    destination,
+  );
+  if (fromDom.length > 0) return fromDom;
+
+  const fromTauri =
+    destination === "composer"
+      ? await readComposerClipboardImagePath()
+      : await readNativeClipboardImagePath();
+  return fromTauri && isMediaAttachmentPath(fromTauri) ? [fromTauri] : [];
+}
+
+/** @deprecated Use readClipboardImagePaths instead. */
+export async function extractClipboardImagePaths(
+  clipboard: DataTransfer | null,
+): Promise<string[]> {
+  return readClipboardImagePaths({ clipboardData: clipboard });
 }
 
 export async function pickMediaAttachmentPaths(): Promise<string[]> {

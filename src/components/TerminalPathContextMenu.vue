@@ -76,7 +76,7 @@ onUnmounted(() => {
       @contextmenu.prevent="emit('close')"
     >
       <div
-        class="no-drag absolute min-w-52 rounded-lg border border-[var(--warp-border)] bg-[var(--warp-elevated)] py-1 shadow-xl"
+        class="no-drag absolute min-w-52 rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-elevated)] py-1 shadow-xl"
         :style="menuStyle"
         @mousedown.stop
         @contextmenu.stop.prevent
@@ -85,45 +85,45 @@ onUnmounted(() => {
           <button
             v-if="isUrl"
             type="button"
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--oterm-text)] transition hover:bg-white/[0.06]"
             @click="emit('open')"
           >
             Open in browser
           </button>
           <button
             type="button"
-            class="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
+            class="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-xs text-[var(--oterm-text)] transition hover:bg-white/[0.06]"
             @click="emit('append')"
           >
             <span>Append to current command</span>
-            <span class="shrink-0 text-[var(--warp-faint)]">({{ modifierLabel }} + Click)</span>
+            <span class="shrink-0 text-[var(--oterm-faint)]">({{ modifierLabel }} + Click)</span>
           </button>
           <button
             type="button"
-            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
+            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--oterm-text)] transition hover:bg-white/[0.06]"
             @click="emit('copy')"
           >
             Copy link/path
           </button>
-          <div class="my-1 border-t border-[var(--warp-border)]" />
+          <div class="my-1 border-t border-[var(--oterm-border)]/60" />
         </template>
 
         <button
           type="button"
           :disabled="!hasSelection"
-          class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs transition enabled:text-[var(--warp-text)] disabled:text-[var(--warp-faint)] enabled:hover:bg-white/[0.06]"
+          class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs transition enabled:text-[var(--oterm-text)] disabled:text-[var(--oterm-faint)] enabled:hover:bg-white/[0.06]"
           @click="emit('copySelection')"
         >
           <span>Copy</span>
-          <span class="shrink-0 text-[var(--warp-faint)]">{{ modifierLabel }} + C</span>
+          <span class="shrink-0 text-[var(--oterm-faint)]">{{ modifierLabel }} + C</span>
         </button>
         <button
           type="button"
-          class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs text-[var(--warp-text)] transition hover:bg-white/[0.06]"
+          class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs text-[var(--oterm-text)] transition hover:bg-white/[0.06]"
           @click="emit('paste')"
         >
           <span>Paste</span>
-          <span class="shrink-0 text-[var(--warp-faint)]">{{ modifierLabel }} + V</span>
+          <span class="shrink-0 text-[var(--oterm-faint)]">{{ modifierLabel }} + V</span>
         </button>
       </div>
     </div>

@@ -60,34 +60,111 @@ const iconSizeClass = computed(() =>
   props.entry.splitIndex != null && props.entry.splitIndex > 1 ? "h-4 w-4" : "h-[22px] w-[22px]",
 );
 
-// Format the path subtitle to show the leaf and parent directory (e.g. …/parent/leaf)
-const displaySubtitle = computed(() => {
-  const sub = props.entry.subtitle;
-  if (!sub) return "";
-  const parts = sub.split(" · ");
-  const path = parts.length >= 2 ? parts[1] : parts[0];
+const gitContext = computed(() => {
+  if (!props.entry.gitIsRepo || !props.entry.gitRepoRoot) {
+    return null;
+  }
+  const rootPath = props.entry.gitRepoRoot.replace(/\\/g, "/");
+  const segments = rootPath.split("/").filter(Boolean);
+  const folderName = segments[segments.length - 1] || "";
 
-  if (path === props.entry.title) {
-    return "";
+  if (rootPath.includes("/.worktree/")) {
+    const parts = rootPath.split("/.worktree/");
+    const mainRepoPath = parts[0];
+    const mainRepoSegments = mainRepoPath.split("/").filter(Boolean);
+    const mainRepoName = mainRepoSegments[mainRepoSegments.length - 1] || "";
+    const worktreeSegment = parts[1].split("/")[0];
+    return {
+      mainRepoName,
+      worktreeName: worktreeSegment,
+      isWorktree: true,
+      displayName: `${mainRepoName} (${worktreeSegment})`,
+    };
   }
 
-  const normalizedPath = path.replace(/\\/g, "/");
-  const pathParts = normalizedPath.split("/").filter(Boolean);
-  if (pathParts.length === 0) {
-    return "";
+  if (props.entry.gitIsWorktree) {
+    return {
+      mainRepoName: null,
+      worktreeName: folderName,
+      isWorktree: true,
+      displayName: folderName,
+    };
   }
 
-  const leaf = pathParts[pathParts.length - 1];
-  if (pathParts.length === 1) {
-    return leaf;
-  }
+  return {
+    mainRepoName: folderName,
+    worktreeName: null,
+    isWorktree: false,
+    displayName: folderName,
+  };
+});
 
-  let parent = pathParts[pathParts.length - 2];
-  if (parent.length > 8) {
-    parent = parent.substring(0, 7) + "…";
+const isCustom = computed(() => {
+  if (props.entry.activeAgentId) return true;
+  if (props.entry.tabTitle !== "Terminal") return true;
+  const cwd = props.entry.cwd;
+  if (!cwd || cwd === "~") {
+    return props.entry.title !== props.entry.shellLabel;
   }
+  const parts = cwd.replace(/\\/g, "/").split("/").filter(Boolean);
+  const lastFolder = parts[parts.length - 1] || "";
+  const cleanTitle = props.entry.title.replace(/\s*\(\d+\)$/, "");
+  return cleanTitle !== lastFolder && cleanTitle !== props.entry.shellLabel;
+});
 
-  return `…/${parent}/${leaf}`;
+const displayRepoName = computed(() => {
+  if (gitContext.value) {
+    if (gitContext.value.isWorktree && gitContext.value.mainRepoName) {
+      return gitContext.value.mainRepoName;
+    }
+    return gitContext.value.displayName;
+  }
+  const cwd = props.entry.cwd;
+  if (!cwd || cwd === "~") {
+    return "Local";
+  }
+  const parts = cwd.replace(/\\/g, "/").split("/").filter(Boolean);
+  return parts[parts.length - 1] || "Local";
+});
+
+const displayTitleText = computed(() => {
+  if (isCustom.value) {
+    return props.entry.title;
+  }
+  let title = displayRepoName.value;
+  if (props.entry.splitIndex) {
+    title = `${title} (${props.entry.splitIndex})`;
+  }
+  return title;
+});
+
+const homeCollapsedPath = computed(() => {
+  const cwd = props.entry.cwd;
+  if (!cwd) return "";
+  let displayPath = cwd.replace(/\\/g, "/");
+  displayPath = displayPath.replace(/^C:\/Users\/[^/]+/i, "~");
+  return displayPath;
+});
+
+const displayCwdContext = computed(() => {
+  let pathPart = "";
+  const cwd = props.entry.cwd;
+  if (cwd) {
+    const normCwd = cwd.replace(/\\/g, "/");
+    if (props.entry.gitIsRepo && props.entry.gitRepoRoot) {
+      const normRoot = props.entry.gitRepoRoot.replace(/\\/g, "/");
+      if (normCwd === normRoot) {
+        pathPart = "./";
+      } else if (normCwd.startsWith(normRoot + "/")) {
+        pathPart = `./${normCwd.substring(normRoot.length + 1)}`;
+      } else {
+        pathPart = normCwd;
+      }
+    } else {
+      pathPart = homeCollapsedPath.value;
+    }
+  }
+  return pathPart;
 });
 
 watch(
@@ -150,10 +227,28 @@ function onRenameKeyDown(event: KeyboardEvent) {
 function onDragHandlePointerDown(event: PointerEvent) {
   emit("dragStart", props.entry.tabId, props.entry.terminalTabIndex, event);
 }
+
+const openUpward = ref(false);
+const dotMenuRef = ref<HTMLElement | null>(null);
+
+watch(
+  () => props.menuOpen,
+  (isOpen) => {
+    if (isOpen && dotMenuRef.value) {
+      const rect = dotMenuRef.value.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom;
+      openUpward.value = spaceBelow < 320 && rect.top > spaceBelow;
+    }
+  }
+);
 </script>
 
 <template>
-  <div class="relative mb-0.5">
+  <div
+    class="relative pb-1.5 mb-1.5 border-b last:border-b-0 last:pb-0 last:mb-0.5"
+    :class="entry.isActive ? 'border-transparent' : 'border-[var(--oterm-border-strong)]'"
+  >
     <div
       v-if="dropTarget"
       class="pointer-events-none absolute inset-x-0 -top-px z-10 h-0.5 rounded-full bg-[var(--oterm-accent)] shadow-[0_0_8px_rgba(0,229,186,0.5)]"
@@ -273,7 +368,7 @@ function onDragHandlePointerDown(event: PointerEvent) {
         </span>
 
         <!-- Title and Subtitle -->
-        <span class="min-w-0 flex-1 leading-[1.2]">
+        <div class="min-w-0 flex-1 leading-[1.2]">
           <input
             v-if="renaming"
             ref="renameInputRef"
@@ -285,45 +380,163 @@ function onDragHandlePointerDown(event: PointerEvent) {
             @keydown="onRenameKeyDown"
             @blur="onRenameBlur"
           />
-          <div v-else class="flex items-center gap-1.5 min-w-0">
-            <span
-              class="truncate font-bold text-[11px] shrink"
-              :class="entry.isActive ? 'text-white' : 'text-[var(--term-entry-text)]'"
-            >
-              {{ entry.title }}
-            </span>
-            <!-- Git branch beside title -->
-            <span
-              v-if="showBranchFooter"
-              class="flex items-center gap-0.5 text-[9px] text-sky-400 font-mono bg-sky-500/10 px-1 py-0.2 rounded border border-sky-400/20 shrink-0"
-            >
-              <svg
-                width="8"
-                height="8"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                class="text-sky-400 shrink-0"
-                aria-hidden="true"
+          <div v-else class="flex flex-col min-w-0 w-full">
+            <!-- Line 1: Repo/Worktree Context & Branch -->
+            <div class="flex items-center justify-between gap-1.5 min-w-0">
+              <!-- Repo / Worktree / Workspace name -->
+              <span
+                class="truncate font-semibold text-[10.5px] tracking-wide"
+                :class="[
+                  entry.isActive 
+                    ? 'text-white' 
+                    : 'text-[var(--oterm-muted)]',
+                  gitContext?.isWorktree ? 'text-teal-400 font-medium' : ''
+                ]"
               >
-                <circle cx="4.5" cy="4.5" r="1.5" stroke-width="1.2" />
-                <circle cx="11.5" cy="11.5" r="1.5" stroke-width="1.2" />
-                <path d="M6 4.5h3.5a2 2 0 0 1 2 2V9" stroke-width="1.2" stroke-linecap="round" />
-              </svg>
-              <span class="max-w-[70px] truncate">{{ entry.gitBranch }}</span>
-            </span>
-          </div>
-          <!-- Subtitle / Path -->
-          <span class="flex items-center gap-1.5 text-[9px] leading-[1.2] text-[var(--oterm-faint)] mt-0.5">
-            <span class="min-w-0 truncate font-mono">{{ displaySubtitle }}</span>
-            <GitDiffBadge
+                <!-- Show repo/worktree icon/emoji or text -->
+                <span class="flex items-center gap-1.5 min-w-0">
+                  <!-- Worktree icon or Repo icon -->
+                  <svg
+                    v-if="gitContext?.isWorktree"
+                    width="10"
+                    height="10"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    class="text-teal-400 shrink-0"
+                    aria-hidden="true"
+                  >
+                    <circle cx="4.5" cy="11.5" r="2.5" />
+                    <circle cx="11.5" cy="4.5" r="2.5" />
+                    <path d="M4.5 9V6a2 2 0 0 1 2-2h3" />
+                  </svg>
+                  <svg
+                    v-else-if="gitContext"
+                    width="10"
+                    height="10"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    class="text-[var(--oterm-muted)] shrink-0"
+                    :class="entry.isActive ? 'text-[var(--oterm-accent)]' : ''"
+                    aria-hidden="true"
+                  >
+                    <path d="M1.75 3A1.75 1.75 0 0 0 0 4.75v6.5C0 12.21 1.75 13 1.75 13h12.5c.96 0 1.75-.79 1.75-1.75v-5.5A1.75 1.75 0 0 0 14.25 4H8.75L7.25 2.5H1.75z" />
+                  </svg>
+                  
+                  <span class="truncate">{{ displayTitleText }}</span>
+                  <span
+                    v-if="gitContext?.isWorktree && gitContext?.mainRepoName && !isCustom"
+                    class="text-[9px] text-teal-400/80 font-medium shrink truncate ml-0.5"
+                    :title="`Worktree: ${gitContext.worktreeName}`"
+                  >
+                    / {{ gitContext.worktreeName }}
+                  </span>
+                </span>
+              </span>
+
+              <!-- Right aligned badges: WT & process -->
+              <div class="flex items-center gap-1 shrink-0">
+                <!-- WT indicator tag -->
+                <span
+                  v-if="gitContext?.isWorktree && !isCustom"
+                  class="px-1 py-0.2 text-[7.5px] font-extrabold tracking-wide uppercase text-teal-400 bg-teal-500/10 border border-teal-400/20 rounded-sm"
+                  title="Git Worktree"
+                >
+                  WT
+                </span>
+
+                <!-- Running process badge -->
+                <span
+                  v-if="entry.activeProcessCmd"
+                  class="flex items-center gap-1 text-[8.5px] px-1.5 py-0.2 rounded border font-mono text-emerald-400 bg-emerald-500/10 border-emerald-400/20 transition-colors"
+                  :title="entry.activeProcessCmd"
+                >
+                  <span class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span class="max-w-[85px] truncate font-medium">{{ entry.activeProcessCmd }}</span>
+                </span>
+              </div>
+            </div>
+
+            <!-- Line 2: Shell Badge -->
+            <div class="flex items-center min-w-0 mt-0.5">
+              <!-- Shell Badge -->
+              <span
+                class="px-1 py-0.2 text-[8px] font-bold font-sans tracking-wide rounded border uppercase shrink-0 transition-colors"
+                :class="[
+                  entry.isActive
+                    ? 'text-[var(--oterm-accent)] bg-[var(--oterm-accent-dim)]/20 border-[var(--oterm-accent)]/20'
+                    : 'text-[var(--oterm-muted)] bg-white/5 border-white/5'
+                ]"
+              >
+                {{ entry.shellLabel }}
+              </span>
+            </div>
+
+            <!-- Line 3: CWD Path -->
+            <div
+              v-if="displayCwdContext"
+              class="flex items-center min-w-0 mt-0.5"
+            >
+              <!-- Relative CWD or manual title -->
+              <span
+                class="truncate font-mono text-[9px] min-w-0"
+                :class="[
+                  entry.isActive 
+                    ? 'text-[var(--oterm-text)] font-semibold' 
+                    : 'text-[var(--oterm-faint)]'
+                ]"
+              >
+                {{ displayCwdContext }}
+              </span>
+            </div>
+
+            <!-- Line 4: Git status Diff -->
+            <div
               v-if="entry.gitIsRepo"
-              :git-status="gitStatus"
-              readonly
-              compact
-            />
-          </span>
-        </span>
+              class="flex items-center gap-1.5 min-w-0 mt-0.5"
+            >
+              <!-- Git Diff Badge -->
+              <GitDiffBadge
+                :git-status="gitStatus"
+                readonly
+                compact
+              />
+            </div>
+
+            <!-- Line 5: Branch pill / badge -->
+            <div
+              v-if="showBranchFooter"
+              class="flex items-center min-w-0 mt-0.5"
+            >
+              <span
+                class="flex items-center gap-0.5 text-[8.5px] px-1 py-0.2 rounded border font-mono transition-colors"
+                :class="[
+                  gitContext?.isWorktree
+                    ? 'text-teal-400 bg-teal-500/10 border-teal-400/20'
+                    : 'text-sky-400 bg-sky-500/10 border-sky-400/20'
+                ]"
+              >
+                <svg
+                  width="7"
+                  height="7"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  class="shrink-0"
+                  aria-hidden="true"
+                >
+                  <circle cx="4.5" cy="4.5" r="1.5" stroke-width="1.2" />
+                  <circle cx="11.5" cy="11.5" r="1.5" stroke-width="1.2" />
+                  <path d="M6 4.5h3.5a2 2 0 0 1 2 2V9" stroke-width="1.2" stroke-linecap="round" />
+                </svg>
+                <span class="max-w-[140px] truncate">{{ entry.gitBranch }}</span>
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Notifications -->
@@ -344,7 +557,7 @@ function onDragHandlePointerDown(event: PointerEvent) {
       </svg>
 
       <!-- Action dot-menu -->
-      <div class="relative shrink-0">
+      <div ref="dotMenuRef" class="relative shrink-0">
         <button
           v-if="!renaming"
           type="button"
@@ -375,6 +588,7 @@ function onDragHandlePointerDown(event: PointerEvent) {
             v-if="menuOpen && !renaming"
             :entry="entry"
             :open="menuOpen"
+            :open-upward="openUpward"
             @close="emit('menuToggle', entry.entryId, false)"
             @action="(id) => emit('action', id)"
             @color-change="(color) => emit('colorChange', color)"

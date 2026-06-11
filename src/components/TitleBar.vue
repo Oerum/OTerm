@@ -19,6 +19,7 @@ defineProps<{
   gitWorktreeHint?: { path: string; branch: string | null } | null;
   canOpenGitFeatures: boolean;
   appVersion: string;
+  sidebarWidthPx?: number;
 }>();
 
 const emit = defineEmits<{
@@ -50,7 +51,10 @@ function onDragMouseDown(event: MouseEvent) {
   <header
     class="flex h-9 shrink-0 items-center border-b border-[var(--oterm-border)] bg-[var(--oterm-titlebar)]"
   >
-    <div class="no-drag flex h-full w-56 shrink-0 items-center border-r border-[var(--oterm-border)] pl-2.5 pr-2">
+    <div
+      class="no-drag flex h-full shrink-0 items-center border-r border-[var(--oterm-border)] pl-2.5 pr-2"
+      :style="{ width: sidebarWidthPx ? `${sidebarWidthPx}px` : '224px' }"
+    >
       <img
         src="/app-icon.svg"
         alt=""

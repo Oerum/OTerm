@@ -14,6 +14,8 @@ use crate::process::{git_program, hidden_command, hidden_command_with_stdin};
 #[serde(rename_all = "camelCase")]
 pub struct GitStatus {
     pub is_repo: bool,
+    pub repo_root: Option<String>,
+    pub is_worktree: bool,
     pub branch: Option<String>,
     pub upstream: Option<String>,
     pub ahead: u32,
@@ -453,8 +455,15 @@ fn resolve_cwd(path: Option<String>) -> Result<PathBuf, String> {
 
 pub(crate) fn read_git_status(cwd: &Path) -> GitStatus {
     let sc = read_source_control(cwd);
+    let is_worktree = sc
+        .repo_root
+        .as_ref()
+        .map(|root| Path::new(root).join(".git").is_file())
+        .unwrap_or(false);
     GitStatus {
         is_repo: sc.is_repo,
+        repo_root: sc.repo_root,
+        is_worktree,
         branch: sc.branch,
         upstream: sc.upstream,
         ahead: sc.ahead,

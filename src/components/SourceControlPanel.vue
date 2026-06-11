@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
-import {
-  SOURCE_CONTROL_DIFF_PANE_MIN_WIDTH,
-} from "../composables/useResizablePanel";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { getCommitDetails } from "../lib/branchManagerApi";
 import { getGitFileDiff, getGitStagedDiff, readGitWorkingFile, writeGitWorkingFile } from "../lib/gitApi";
 import type { CommitDetails } from "../types/branchManager";
@@ -27,6 +24,7 @@ import GitFileEditor from "./GitFileEditor.vue";
 import GitFileLineStats from "./GitFileLineStats.vue";
 
 type PaneView = "diff" | "edit";
+type DiffPanelMode = "list" | "all" | "single";
 
 type PendingConfirm = {
   title: string;
@@ -77,6 +75,7 @@ const selectedFile = ref<SelectedGitFile | null>(null);
 const selectedCommitHash = ref<string | null>(null);
 const commitDetails = ref<CommitDetails | null>(null);
 const paneView = ref<PaneView>("diff");
+const diffPanelMode = ref<DiffPanelMode>("list");
 const diffContent = ref("");
 const diffLoading = ref(false);
 const diffError = ref<string | null>(null);
@@ -112,8 +111,12 @@ let editRequestId = 0;
 
 const editDirty = computed(() => editContent.value !== editSavedContent.value);
 
-const showDiffPane = computed(
-  () => props.panelWidth >= props.fileListWidth + SOURCE_CONTROL_DIFF_PANE_MIN_WIDTH,
+const showDiffPane = computed(() => diffPanelMode.value !== "list");
+const showAllDiffsLabel = computed(() =>
+  diffPanelMode.value === "all" ? "Close diffs" : "Show all diffs",
+);
+const showAllDiffsButton = computed(
+  () => props.status.isRepo && allChangedFiles.value.length > 0 && diffPanelMode.value === "list",
 );
 
 const canNavigateHunks = computed(
@@ -131,12 +134,6 @@ function goToNextHunk() {
 }
 
 function onDiffPaneKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape" && diffExpanded.value) {
-    event.preventDefault();
-    event.stopPropagation();
-    setDiffExpanded(false);
-    return;
-  }
   if (paneView.value !== "diff") return;
   if (!event.altKey) return;
   if (event.key === "ArrowUp") {
@@ -154,8 +151,16 @@ function setDiffExpanded(expanded: boolean) {
   emit("diff-expanded-change", expanded);
 }
 
-function toggleDiffExpanded() {
-  setDiffExpanded(!diffExpanded.value);
+function closeDiffPane() {
+  setDiffExpanded(false);
+  diffPanelMode.value = "list";
+}
+
+function onWindowKeydown(event: KeyboardEvent) {
+  if (!diffExpanded.value || event.key !== "Escape") return;
+  event.preventDefault();
+  event.stopPropagation();
+  closeDiffPane();
 }
 
 function showHunkFeedback(message: string, isError = false) {
@@ -402,9 +407,36 @@ function selectCommit(hash: string) {
   selectedFile.value = null;
   paneView.value = "diff";
   activeHunkIndex.value = 0;
+  diffPanelMode.value = "all";
+  setDiffExpanded(true);
   void loadCommitDiff(hash);
-  emit("expand-panel");
 }
+
+function openAllDiffs() {
+  if (!confirmDiscardEdits()) return;
+  diffPanelMode.value = "all";
+  setDiffExpanded(true);
+  if (!selectedFile.value && allChangedFiles.value.length > 0) {
+    const first = allChangedFiles.value[0];
+    selectedFile.value = {
+      path: first.path,
+      staged: first.staged,
+      untracked: first.untracked,
+    };
+  }
+}
+
+function openSingleFileDiff(entry: GitFileEntry, staged: boolean, untracked: boolean) {
+  if (!confirmDiscardEdits()) return;
+  selectedCommitHash.value = null;
+  commitDetails.value = null;
+  selectedFile.value = { path: entry.path, staged, untracked };
+  activeHunkIndex.value = 0;
+  paneView.value = "diff";
+  diffPanelMode.value = "single";
+  setDiffExpanded(true);
+}
+
 
 function selectFile(entry: GitFileEntry, staged: boolean, untracked: boolean) {
   if (
@@ -627,6 +659,7 @@ watch(showDiffPane, (visible) => {
   }
   if (!visible) {
     setDiffExpanded(false);
+    diffPanelMode.value = "list";
     diffRequestId += 1;
     diffContent.value = "";
     diffError.value = null;
@@ -635,9 +668,18 @@ watch(showDiffPane, (visible) => {
 });
 
 watch(diffExpanded, async (expanded) => {
+  if (expanded) {
+    window.addEventListener("keydown", onWindowKeydown, true);
+  } else {
+    window.removeEventListener("keydown", onWindowKeydown, true);
+  }
   if (!expanded) return;
   await nextTick();
   diffPaneRef.value?.focus();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onWindowKeydown, true);
 });
 
 function syncSelectedFileWithStatus() {
@@ -722,9 +764,11 @@ function authorInitials(author: string): string {
 <template>
   <aside
     class="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--oterm-sidebar)]"
+    :class="diffPanelMode !== 'list' ? 'diff-panel-overlay' : ''"
   >
   <div class="flex min-h-0 flex-1 flex-col" :class="showDiffPane ? 'flex-row' : 'flex-col'">
     <div
+      v-if="diffPanelMode !== 'single'"
       class="flex min-h-0 shrink-0 flex-col"
       :style="{ width: showDiffPane ? `${fileListWidth}px` : undefined }"
       :class="showDiffPane ? 'border-r border-[var(--oterm-border)]' : 'min-w-0 flex-1'"
@@ -912,6 +956,15 @@ function authorInitials(author: string): string {
                   <path d="M13.5 8a5.5 5.5 0 1 0-1.5 3.8M14 11.5v-3h-3" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </button>
+              <button
+                v-if="showAllDiffsButton"
+                type="button"
+                class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-xs text-[var(--oterm-text)] transition hover:bg-white/5"
+                style="font-family: var(--oterm-font-ui)"
+                @click="openAllDiffs"
+              >
+                {{ showAllDiffsLabel }}
+              </button>
             </div>
           </div>
 
@@ -1072,7 +1125,9 @@ function authorInitials(author: string): string {
                 v-for="entry in status.staged"
                 :key="`staged:${entry.path}`"
                 :class="rowClass(entry, true, false)"
+                title="Double-click to view diff"
                 @click="selectFile(entry, true, false)"
+                @dblclick="openSingleFileDiff(entry, true, false)"
               >
                 <span :class="statusBadgeClass(entry, true)">{{ statusLabel(entry) }}</span>
                 <div
@@ -1131,7 +1186,9 @@ function authorInitials(author: string): string {
                 v-for="entry in status.changes"
                 :key="`changes:${entry.path}`"
                 :class="rowClass(entry, false, false)"
+                title="Double-click to view diff"
                 @click="selectFile(entry, false, false)"
+                @dblclick="openSingleFileDiff(entry, false, false)"
               >
                 <span :class="statusBadgeClass(entry, false)">{{ statusLabel(entry) }}</span>
                 <div
@@ -1200,7 +1257,9 @@ function authorInitials(author: string): string {
                 v-for="entry in status.untracked"
                 :key="`untracked:${entry.path}`"
                 :class="rowClass(entry, false, true)"
+                title="Double-click to view diff"
                 @click="selectFile(entry, false, true)"
+                @dblclick="openSingleFileDiff(entry, false, true)"
               >
                 <span :class="statusBadgeClass(entry, false)">U</span>
                 <div
@@ -1249,7 +1308,7 @@ function authorInitials(author: string): string {
             :selected-hash="selectedCommitHash"
             :refresh-token="graphRefreshToken"
             @select-commit="selectCommit"
-            @expand-panel="emit('expand-panel')"
+            @expand-panel="openAllDiffs"
           />
 
           <section v-if="history.length" class="py-2">
@@ -1328,7 +1387,7 @@ function authorInitials(author: string): string {
     </div>
 
     <div
-      v-if="showDiffPane"
+      v-if="showDiffPane && diffPanelMode !== 'single'"
       class="relative z-10 w-2 shrink-0 cursor-col-resize hover:bg-white/5"
       title="Drag to resize file list"
       @pointerdown="onFileListResizePointerDown"
@@ -1338,7 +1397,6 @@ function authorInitials(author: string): string {
       v-if="showDiffPane && status.isRepo"
       ref="diffPaneRef"
       class="flex min-h-0 min-w-0 flex-1 flex-col outline-none"
-      :class="diffExpanded ? 'diff-pane-expanded' : ''"
       tabindex="0"
       @keydown="onDiffPaneKeydown"
     >
@@ -1447,14 +1505,14 @@ function authorInitials(author: string): string {
             {{ saving ? "Saving…" : "Save" }}
           </button>
           <button
+            v-if="diffExpanded"
             type="button"
             class="flex h-7 w-7 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
-            :title="diffExpanded ? 'Exit full screen (Esc)' : 'Expand diff/editor'"
-            :aria-label="diffExpanded ? 'Exit full screen' : 'Expand diff/editor'"
-            @click="toggleDiffExpanded"
+            title="Close expanded diff (Esc)"
+            aria-label="Close expanded diff"
+            @click="closeDiffPane"
           >
             <svg
-              v-if="diffExpanded"
               width="13"
               height="13"
               viewBox="0 0 16 16"
@@ -1463,26 +1521,9 @@ function authorInitials(author: string): string {
               aria-hidden="true"
             >
               <path
-                d="M5 2H2v3M11 2h3v3M5 14H2v-3M11 14h3v-3"
-                stroke-width="1.4"
+                d="M4 4l8 8M12 4l-8 8"
+                stroke-width="1.5"
                 stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            <svg
-              v-else
-              width="13"
-              height="13"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                d="M3 3h4M3 3v4M13 3H9M13 3v4M3 13h4M3 13V9M13 13H9M13 13V9"
-                stroke-width="1.4"
-                stroke-linecap="round"
-                stroke-linejoin="round"
               />
             </svg>
           </button>
@@ -1534,10 +1575,11 @@ function authorInitials(author: string): string {
 </template>
 
 <style scoped>
-.diff-pane-expanded {
+.diff-panel-overlay {
   position: fixed;
   inset: 0;
   z-index: 200;
   background: var(--oterm-bg);
 }
+
 </style>

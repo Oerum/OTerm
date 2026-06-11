@@ -45,7 +45,7 @@ import {
   loadDefaultShellId,
   saveDefaultShellId,
 } from "./lib/shellSettings";
-import { getSetting } from "./lib/settingsStore";
+import { getSetting, setSetting } from "./lib/settingsStore";
 import { loadPersistedTerminalWorkspace } from "./lib/workspaceStore";
 import type { DockerContainer } from "./types/docker";
 import type { SshEndpoint } from "./types/sshSftp";
@@ -71,6 +71,7 @@ import {
   killTerminal,
   listShells,
   listenTerminalAgentChanged,
+  listenTerminalProcessChanged,
   writeTerminal,
 } from "./lib/terminalApi";
 import type { CliAgentId } from "./lib/terminalAgentMode";
@@ -218,10 +219,56 @@ const {
   widthPx: sourceControlWidth,
   fileListWidthPx: sourceControlFileListWidth,
   resizing: sourceControlResizing,
-  ensureDiffPaneWidth,
   onResizeHandlePointerDown,
   onFileListResizePointerDown,
 } = useResizablePanel();
+
+const SIDEBAR_WIDTH_KEY = "oterm:sidebar-width";
+const DEFAULT_SIDEBAR_WIDTH = 224;
+const MIN_SIDEBAR_WIDTH = 180;
+const MAX_SIDEBAR_WIDTH = 480;
+
+const sidebarWidthPx = ref(DEFAULT_SIDEBAR_WIDTH);
+const sidebarResizing = ref(false);
+
+function loadSidebarWidth(): number {
+  const raw = getSetting(SIDEBAR_WIDTH_KEY);
+  if (!raw) return DEFAULT_SIDEBAR_WIDTH;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_SIDEBAR_WIDTH;
+  return Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, parsed));
+}
+
+function onSidebarResizePointerDown(event: PointerEvent) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  sidebarResizing.value = true;
+
+  const startX = event.clientX;
+  const startWidth = sidebarWidthPx.value;
+
+  function onPointerMove(moveEvent: PointerEvent) {
+    const next = Math.max(
+      MIN_SIDEBAR_WIDTH,
+      Math.min(MAX_SIDEBAR_WIDTH, startWidth + (moveEvent.clientX - startX))
+    );
+    if (next !== sidebarWidthPx.value) {
+      sidebarWidthPx.value = next;
+      window.dispatchEvent(new Event("resize"));
+    }
+  }
+
+  function onPointerUp() {
+    sidebarResizing.value = false;
+    document.removeEventListener("pointermove", onPointerMove);
+    document.removeEventListener("pointerup", onPointerUp);
+    void setSetting(SIDEBAR_WIDTH_KEY, String(sidebarWidthPx.value));
+    window.dispatchEvent(new Event("resize"));
+  }
+
+  document.addEventListener("pointermove", onPointerMove);
+  document.addEventListener("pointerup", onPointerUp);
+}
 
 const {
   shells,
@@ -246,6 +293,7 @@ const {
   setPaneSshEndpoint,
   setPaneCwd,
   setPaneAgent,
+  setPaneProcess,
   setPaneOscTitle,
   setPaneUnseenNotification,
   setTabTitle,
@@ -323,6 +371,7 @@ const activePaneGit = computed(() => {
     changedFiles: sourceControlStatus.value.changedFiles,
     additions: sourceControlStatus.value.additions,
     deletions: sourceControlStatus.value.deletions,
+    repoRoot: sourceControlStatus.value.repoRoot ?? null,
   };
 });
 
@@ -464,7 +513,6 @@ async function maybeOfferCreatePrAfterPush() {
     prepareCreatePrForm();
     if (!sourceControlOpen.value) {
       sourceControlOpen.value = true;
-      ensureDiffPaneWidth();
     }
     createPrBannerVisible.value = true;
   } catch {
@@ -519,9 +567,6 @@ function onPromptReady(paneId: string) {
 
 function toggleSourceControl() {
   sourceControlOpen.value = !sourceControlOpen.value;
-  if (sourceControlOpen.value) {
-    ensureDiffPaneWidth();
-  }
   void refreshGitViews();
 }
 
@@ -533,12 +578,47 @@ const projectRoot = computed(() => {
 
 const gitRepoRoot = computed(() => sourceControlStatus.value.repoRoot ?? null);
 const activeBranch = computed(() => sourceControlStatus.value.branch);
+const activeWorkspaceTab = computed(
+  () => tabs.value.find((tab) => tab.id === activeTabId.value) ?? null,
+);
 const { activePr, loading: activePrLoading } = useActiveBranchPr(
   gitRepoRoot,
   activeBranch,
   gitRefreshToken,
 );
 const canOpenGitFeatures = computed(() => Boolean(gitRepoRoot.value));
+
+const sourceControlRestoreOnReturn = ref(false);
+
+watch(
+  () => sourceControlStatus.value.isRepo,
+  (isRepo) => {
+    if (!isRepo) {
+      sourceControlOpen.value = false;
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  [() => activeWorkspaceTab.value?.kind ?? null, () => sourceControlStatus.value.isRepo],
+  ([kind, isRepo], [previousKind, previousIsRepo]) => {
+    if (previousKind === "terminal" && kind !== "terminal" && previousIsRepo) {
+      sourceControlRestoreOnReturn.value = sourceControlOpen.value;
+    }
+
+    if (kind === "terminal" && isRepo && sourceControlRestoreOnReturn.value) {
+      sourceControlOpen.value = true;
+      sourceControlRestoreOnReturn.value = false;
+      return;
+    }
+
+    if (!isRepo) {
+      sourceControlOpen.value = false;
+    }
+  },
+  { immediate: true },
+);
 
 function openPullRequests() {
   const root = gitRepoRoot.value;
@@ -989,6 +1069,21 @@ function onTerminalAgentChanged(sessionId: string, agentId: CliAgentId | null) {
   }
 }
 
+function onTerminalProcessChanged(
+  sessionId: string,
+  processName: string | null,
+  command: string | null,
+) {
+  for (const tab of tabs.value) {
+    if (!isTerminalTab(tab)) continue;
+    const pane = tab.panes.find((entry) => entry.sessionId === sessionId);
+    if (pane) {
+      setPaneProcess(pane.id, processName, command);
+      return;
+    }
+  }
+}
+
 async function openPathInTerminal(path: string) {
   const pane = activePane.value;
   if (!pane?.sessionId) return;
@@ -1053,12 +1148,14 @@ async function refitTerminals() {
 }
 
 let unlistenTerminalAgentChanged: (() => void) | null = null;
+let unlistenTerminalProcessChanged: (() => void) | null = null;
 
 function onWindowFocus() {
   void refreshGitViews();
 }
 
 onMounted(() => {
+  sidebarWidthPx.value = loadSidebarWidth();
   void bootstrap();
   void getVersion().then((version) => {
     appVersion.value = version;
@@ -1075,6 +1172,15 @@ onMounted(() => {
   }).then((unlisten) => {
     unlistenTerminalAgentChanged = unlisten;
   });
+  void listenTerminalProcessChanged((event) => {
+    onTerminalProcessChanged(
+      event.sessionId,
+      event.processName,
+      event.command,
+    );
+  }).then((unlisten) => {
+    unlistenTerminalProcessChanged = unlisten;
+  });
 });
 
 watch(
@@ -1090,6 +1196,7 @@ onUnmounted(() => {
   window.removeEventListener("focus", onWindowFocus);
   window.clearTimeout(promptGitRefreshTimer);
   unlistenTerminalAgentChanged?.();
+  unlistenTerminalProcessChanged?.();
 });
 </script>
 
@@ -1107,6 +1214,7 @@ onUnmounted(() => {
       :git-worktree-hint="gitWorktreeHint"
       :can-open-git-features="canOpenGitFeatures"
       :app-version="appVersion"
+      :sidebar-width-px="sidebarWidthPx"
       @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
       @toggle-tools="toolsOpen = !toolsOpen"
       @toggle-source-control="toggleSourceControl"
@@ -1128,6 +1236,7 @@ onUnmounted(() => {
         :shells="shells"
         :default-shell-id="defaultShellId"
         :can-reopen-closed="canReopenClosed"
+        :width-px="sidebarWidthPx"
         @select="selectTerminal"
         @close="closeTab"
         @close-many="closeTabs"
@@ -1144,16 +1253,25 @@ onUnmounted(() => {
         :active-pane-git="activePaneGit"
       />
 
+      <div
+        v-if="terminalSidebarOpen"
+        class="no-drag relative z-20 w-[1px] shrink-0 cursor-col-resize bg-[var(--oterm-border)] hover:bg-[var(--oterm-accent)]/40 transition-colors"
+        :class="sidebarResizing ? 'bg-[var(--oterm-accent)]' : ''"
+        title="Drag to resize sidebar"
+        @pointerdown="onSidebarResizePointerDown"
+      >
+        <div class="absolute -inset-x-1.5 top-0 bottom-0 z-30 cursor-col-resize" />
+      </div>
+
       <ToolsPanel
         v-if="toolsOpen"
-        :class="terminalSidebarOpen ? 'border-l border-[var(--oterm-border)]' : ''"
         :root-path="projectRoot"
         @navigate="cdFromExplorer"
       />
 
       <div
         class="relative flex min-w-0 flex-1 flex-col"
-        :class="terminalSidebarOpen || toolsOpen ? 'border-l border-[var(--oterm-border)]' : ''"
+        :class="toolsOpen ? 'border-l border-[var(--oterm-border)]' : ''"
       >
         <SessionHeader
           v-if="activePane && activeTerminalTab"
@@ -1325,7 +1443,6 @@ onUnmounted(() => {
           :on-file-list-resize-pointer-down="onFileListResizePointerDown"
           :graph-refresh-token="gitGraphRefreshToken"
           @refresh="() => runGitAction(refreshSourceControl)"
-          @expand-panel="ensureDiffPaneWidth"
           @stage="(paths) => runGitAction(() => stageGitPaths(paths))"
           @unstage="(paths) => runGitAction(() => unstageGitPaths(paths))"
           @revert="(paths, untracked) => runGitAction(() => revertGitPaths(paths, untracked))"

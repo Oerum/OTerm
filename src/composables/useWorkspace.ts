@@ -318,6 +318,22 @@ export function useWorkspace(getDefaultShellId: () => string) {
     }
   }
 
+  function setPaneProcess(
+    paneId: string,
+    processName: string | null,
+    command: string | null,
+  ) {
+    for (const tab of tabs.value) {
+      if (!isTerminalTab(tab)) continue;
+      const pane = tab.panes.find((item) => item.id === paneId);
+      if (pane) {
+        pane.activeProcessName = processName;
+        pane.activeProcessCmd = command;
+        return;
+      }
+    }
+  }
+
   function setPaneOscTitle(paneId: string, title: string | null) {
     for (const tab of tabs.value) {
       if (!isTerminalTab(tab)) continue;
@@ -515,6 +531,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     setPaneSshEndpoint,
     setPaneCwd,
     setPaneAgent,
+    setPaneProcess,
     setPaneOscTitle,
     setPaneUnseenNotification,
     setPaneShell,

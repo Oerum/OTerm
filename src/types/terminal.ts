@@ -22,6 +22,12 @@ export interface TerminalAgentChangedEvent {
   agentId: string | null;
 }
 
+export interface TerminalProcessChangedEvent {
+  sessionId: string;
+  processName: string | null;
+  command: string | null;
+}
+
 export type TerminalEntryColor =
   | "none"
   | "green"
@@ -37,6 +43,8 @@ export interface WorkspacePane {
   cwd: string;
   customTitle: string | null;
   activeAgentId: CliAgentId | null;
+  activeProcessName?: string | null;
+  activeProcessCmd?: string | null;
   oscTitle: string | null;
   hasUnseenNotification: boolean;
   /** When set, the pane uses the native russh SSH terminal instead of a local shell. */
@@ -143,10 +151,14 @@ export interface TerminalSidebarEntry {
   tabColor: TerminalEntryColor;
   gitBranch: string | null;
   gitIsRepo: boolean;
+  gitRepoRoot: string | null;
+  gitIsWorktree: boolean;
   gitChangedFiles: number;
   gitAdditions: number;
   gitDeletions: number;
   isActive: boolean;
+  activeProcessName?: string | null;
+  activeProcessCmd?: string | null;
   hasUnseenNotification: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;

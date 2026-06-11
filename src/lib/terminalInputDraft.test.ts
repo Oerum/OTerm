@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyTerminalInputDraft,
   isRecordableCommand,
   normalizeSubmittedCommand,
 } from "./terminalInputDraft";
@@ -20,5 +21,15 @@ describe("isRecordableCommand", () => {
     expect(isRecordableCommand("")).toBe(false);
     expect(isRecordableCommand("cd")).toBe(true);
     expect(isRecordableCommand("x".repeat(201))).toBe(false);
+  });
+});
+
+describe("applyTerminalInputDraft", () => {
+  it("deletes the previous word on Ctrl+W", () => {
+    expect(applyTerminalInputDraft("npm run build", "\x17")).toBe("npm run ");
+  });
+
+  it("still deletes a single character on backspace", () => {
+    expect(applyTerminalInputDraft("abc", "\x7f")).toBe("ab");
   });
 });

@@ -2,6 +2,10 @@ import { spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  resolveWhisperBackend,
+  whisperCargoFeature,
+} from "./whisper-backend.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -51,11 +55,40 @@ function findLibClangPath() {
   return null;
 }
 
-function ensureWindowsNativeEnv(env) {
-  if (process.platform !== "win32") {
-    return;
+function argsIncludeFeatures(args) {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--features" || args[i] === "-F") {
+      return true;
+    }
+    if (args[i].startsWith("--features=")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function injectWhisperFeature(args, feature) {
+  if (argsIncludeFeatures(args)) {
+    return args;
   }
 
+  console.log(`Using Whisper backend feature: ${feature}`);
+  return [...args, "--features", feature];
+}
+
+function ensureWindowsLibClang(env) {
+  const libClangPath = findLibClangPath();
+  if (!libClangPath) {
+    console.error(
+      "LIBCLANG_PATH is not set and LLVM/libclang was not found in the default install paths.",
+    );
+    console.error("Install LLVM, then retry or set LIBCLANG_PATH manually.");
+    process.exit(1);
+  }
+  env.LIBCLANG_PATH = libClangPath;
+}
+
+function ensureWindowsVulkanEnv(env) {
   const vulkanSdk = findVulkanSdk();
   if (!vulkanSdk) {
     console.error(
@@ -72,26 +105,36 @@ function ensureWindowsNativeEnv(env) {
     ? `${vulkanSdk};${env.CMAKE_PREFIX_PATH}`
     : vulkanSdk;
 
-  const libClangPath = findLibClangPath();
-  if (!libClangPath) {
-    console.error(
-      "LIBCLANG_PATH is not set and LLVM/libclang was not found in the default install paths.",
-    );
-    console.error("Install LLVM, then retry or set LIBCLANG_PATH manually.");
-    process.exit(1);
-  }
-  env.LIBCLANG_PATH = libClangPath;
-
-  // whisper.cpp's Vulkan shader build can hit MAX_PATH under the repo target dir.
   if (!env.CARGO_TARGET_DIR) {
     env.CARGO_TARGET_DIR = "C:\\oterm-t";
   }
 }
 
-const env = { ...process.env };
-ensureWindowsNativeEnv(env);
+function ensureWindowsNativeEnv(env, backend) {
+  if (process.platform !== "win32") {
+    return;
+  }
 
-const args = process.argv.slice(2);
+  ensureWindowsLibClang(env);
+
+  if (backend === "vulkan") {
+    ensureWindowsVulkanEnv(env);
+  }
+}
+
+let whisperBackend;
+try {
+  whisperBackend = resolveWhisperBackend();
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
+
+const env = { ...process.env };
+ensureWindowsNativeEnv(env, whisperBackend);
+
+let args = process.argv.slice(2);
+args = injectWhisperFeature(args, whisperCargoFeature(whisperBackend));
 
 if (args.includes("build") && !env.TAURI_SIGNING_PRIVATE_KEY && !env.TAURI_PRIVATE_KEY) {
   console.log("TAURI_SIGNING_PRIVATE_KEY not set. Disabling updater artifacts for this local build.");
@@ -158,4 +201,3 @@ child.on("exit", (code, signal) => {
   }
   process.exit(code ?? 1);
 });
-

@@ -39,8 +39,13 @@ import {
   pathMatchToLinkRange,
   scanLineForTerminalLinks,
 } from "../lib/terminalPaths";
+import {
+  resolveTerminalLinkCtrlClickAction,
+  shouldEnableTerminalPathInteractions,
+} from "../lib/terminalLinkInteraction";
 import { isDictationShortcut } from "../lib/appKeyboardShortcuts";
 import {
+  getCtrlBackspaceWordDeletePayload,
   getCtrlDEofPayload,
   getMultilineEnterPayload,
   resolveCtrlDTerminalPayload,
@@ -57,6 +62,21 @@ import {
   sshTerminalSpawn,
   sshTerminalWrite,
 } from "../lib/sshTerminalApi";
+import { pushAppToast } from "../lib/appToast";
+import {
+  clipboardHasPasteableImage,
+  readNativeClipboardImagePath,
+  readClipboardText,
+  saveGeminiClipboardImage,
+  writeClipboardText,
+} from "../lib/clipboard";
+import {
+  isMediaAttachmentPath,
+  readClipboardImagePaths,
+} from "../lib/agentComposerAttachments";
+import {
+  insertAgentPromptText,
+} from "../lib/agentComposerSubmit";
 import {
   killTerminal,
   resizeTerminal,
@@ -176,7 +196,7 @@ const activeAgentId = ref<CliAgentId | null>(props.activeAgentId ?? null);
 const agentExitConfirmPending = ref(false);
 const promptClearSuppressUntil = ref(0);
 const awaitingOutputSinceFocus = ref(false);
-const tuiModeActive = ref(Boolean(props.activeAgentId));
+const tuiModeActive = ref(false);
 const pathMenuOpen = ref(false);
 const pathMenuX = ref(0);
 const pathMenuY = ref(0);
@@ -188,6 +208,11 @@ const agentComposerRef = ref<InstanceType<typeof AgentComposer> | null>(null);
 const agentComposerOpen = ref(false);
 const agentCleanExitPending = ref(false);
 let agentCleanExitTimer: number | undefined;
+
+function clearAgentCleanExitPending() {
+  agentCleanExitPending.value = false;
+  window.clearTimeout(agentCleanExitTimer);
+}
 
 function markAgentCleanExitPending() {
   agentCleanExitPending.value = true;
@@ -215,7 +240,6 @@ function emitNotificationIfNeeded(check: (ctx: ReturnType<typeof notificationCon
 function setActiveAgent(agentId: CliAgentId | null, emitChange = true) {
   if (activeAgentId.value === agentId) return;
   activeAgentId.value = agentId;
-  tuiModeActive.value = Boolean(agentId);
   if (!agentId) {
     agentComposerOpen.value = false;
   }
@@ -322,7 +346,7 @@ let sshExitFallbackTimer: number | undefined;
 const pendingBootstrapInput: string[] = [];
 
 function pathsInteractiveEnabled(): boolean {
-  return !activeAgentId.value && !tuiModeActive.value;
+  return shouldEnableTerminalPathInteractions(tuiModeActive.value);
 }
 
 function closePathMenu() {
@@ -343,7 +367,7 @@ async function copyPathFromMenu() {
   const path = pathMenuPath.value;
   if (!path) return;
   try {
-    await navigator.clipboard.writeText(path);
+    await writeClipboardText(path);
     showPathCopiedToast();
   } catch {
     // Clipboard may be unavailable.
@@ -481,7 +505,13 @@ function registerPathLinkProvider() {
           range: pathMatchToLinkRange(path, bufferLineNumber),
           decorations: { underline: true, pointerCursor: true },
           activate(event, linkText) {
-            if (event.ctrlKey || event.metaKey) {
+            const action = resolveTerminalLinkCtrlClickAction(event, linkText);
+            if (action === "open-url") {
+              event.preventDefault();
+              void openUrl(linkText);
+              return;
+            }
+            if (action === "append-to-prompt") {
               event.preventDefault();
               void appendToPrompt(linkText);
             }
@@ -514,7 +544,7 @@ async function copySelectedText() {
   const selection = terminal.getSelection();
   if (selection) {
     try {
-      await navigator.clipboard.writeText(selection);
+      await writeClipboardText(selection);
     } catch {
       // Clipboard may be unavailable.
     }
@@ -523,14 +553,7 @@ async function copySelectedText() {
 }
 
 async function pasteText() {
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text) {
-      void forwardTerminalInput(text);
-    }
-  } catch {
-    // Clipboard may be unavailable.
-  }
+  await handleClipboardPaste();
   closePathMenu();
 }
 
@@ -776,6 +799,9 @@ function trackCwd(data: string) {
     if (activeAgentId.value && !next.activeAgentId) {
       markAgentCleanExitPending();
     }
+    if (next.activeAgentId) {
+      clearAgentCleanExitPending();
+    }
     setActiveAgent(next.activeAgentId);
   }
   agentExitConfirmPending.value = next.agentExitConfirmPending;
@@ -830,6 +856,7 @@ function maybeRecordCommand(data: string, preferredLine = "") {
 
   const agentId = detectCliAgent(command);
   if (agentId) {
+    clearAgentCleanExitPending();
     setActiveAgent(agentId);
     agentExitConfirmPending.value = false;
     promptClearSuppressUntil.value = agentLaunchPromptClearSuppressUntil();
@@ -839,6 +866,9 @@ function maybeRecordCommand(data: string, preferredLine = "") {
     setActiveAgent(null);
     agentExitConfirmPending.value = false;
     promptClearSuppressUntil.value = 0;
+    if (wasAgent) {
+      markAgentCleanExitPending();
+    }
     if (isSshSession.value && !wasAgent && !tuiModeActive.value) {
       window.clearTimeout(sshExitFallbackTimer);
       sshExitFallbackTimer = window.setTimeout(() => {
@@ -902,11 +932,13 @@ function onWindowKeyCapture(event: KeyboardEvent) {
 
   if (!shouldForwardPtyKeyOverride(event, props.active, containerRef.value)) return;
 
-  const multilinePayload = getMultilineEnterPayload(event);
   const ctrlDPayload = getCtrlDEofPayload(event)
     ? resolveCtrlDTerminalPayload(agentExitConfirmPending.value)
     : null;
-  const ptyPayload = ctrlDPayload ?? multilinePayload;
+  const ptyPayload =
+    ctrlDPayload ??
+    getMultilineEnterPayload(event) ??
+    getCtrlBackspaceWordDeletePayload(event);
   if (!ptyPayload) return;
 
   event.preventDefault();
@@ -916,6 +948,200 @@ function onWindowKeyCapture(event: KeyboardEvent) {
   }
   void forwardTerminalInput(ptyPayload);
   terminal?.focus();
+}
+
+function isAgentComposerEventTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(target.closest(".agent-composer"));
+}
+
+let clipboardPasteInFlight = false;
+let consumeTerminalPaste = false;
+
+type ClipboardPasteOptions = {
+  fromShortcut?: boolean;
+  geminiAltPaste?: boolean;
+};
+
+function shouldUseAgentNativePaste(): boolean {
+  return Boolean(
+    activeAgentId.value && localSessionId.value && !agentComposerOpen.value,
+  );
+}
+
+async function pasteClipboardText(): Promise<boolean> {
+  try {
+    const text = await readClipboardText();
+    if (!text) return false;
+    await forwardTerminalInput(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function injectClipboardImagePaths(paths: string[]): Promise<void> {
+  if (!localSessionId.value || !activeAgentId.value || paths.length === 0) return;
+
+  if (agentComposerOpen.value) {
+    agentComposerRef.value?.addAttachmentPaths(paths);
+    await agentComposerRef.value?.focusComposer();
+    pushAppToast("Image attached", "info");
+    return;
+  }
+
+  for (const path of paths) {
+    await insertAgentPromptText(
+      localSessionId.value,
+      activeAgentId.value,
+      path,
+      writeSession,
+    );
+  }
+  pushAppToast("Image pasted into agent prompt", "info");
+  terminal?.focus();
+}
+
+async function pasteGeminiClipboardImageToPrompt(): Promise<boolean> {
+  if (!localSessionId.value) return false;
+
+  const projectRoot = paneCwd.value.trim() || "~";
+  const saved = await saveGeminiClipboardImage(projectRoot);
+  if (!saved?.promptReference) {
+    pushAppToast("Could not read clipboard image", "warning");
+    return true;
+  }
+
+  await insertAgentPromptText(
+    localSessionId.value,
+    "gemini",
+    saved.promptReference,
+    writeSession,
+  );
+  terminal?.focus();
+  return true;
+}
+
+async function handleAgentNativePaste(options?: ClipboardPasteOptions): Promise<boolean> {
+  if (!shouldUseAgentNativePaste() || !localSessionId.value || !activeAgentId.value) {
+    return false;
+  }
+
+  if (
+    activeAgentId.value === "gemini" &&
+    (options?.geminiAltPaste || (await clipboardHasPasteableImage()))
+  ) {
+    return pasteGeminiClipboardImageToPrompt();
+  }
+
+  if (await clipboardHasPasteableImage()) {
+    const fallbackPath = await readNativeClipboardImagePath();
+    if (fallbackPath && isMediaAttachmentPath(fallbackPath)) {
+      await injectClipboardImagePaths([fallbackPath]);
+      return true;
+    }
+    pushAppToast("Could not read clipboard image", "warning");
+    return true;
+  }
+
+  return pasteClipboardText();
+}
+
+async function handleClipboardPaste(
+  event?: ClipboardEvent,
+  options?: ClipboardPasteOptions,
+): Promise<boolean> {
+  if (!props.active) return false;
+  if (event?.target && isAgentComposerEventTarget(event.target)) return false;
+
+  const agentNativePaste = shouldUseAgentNativePaste();
+  const shouldConsume =
+    consumeTerminalPaste || agentNativePaste || Boolean(options?.fromShortcut);
+
+  if (shouldConsume && event) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
+  if (clipboardPasteInFlight) {
+    return shouldConsume;
+  }
+
+  clipboardPasteInFlight = true;
+  try {
+    const imageOnClipboard = await clipboardHasPasteableImage(event?.clipboardData ?? null);
+
+    if (
+      agentNativePaste &&
+      imageOnClipboard &&
+      activeAgentId.value === "gemini" &&
+      localSessionId.value
+    ) {
+      return pasteGeminiClipboardImageToPrompt();
+    }
+
+    const paths = await readClipboardImagePaths({
+      clipboardData: event?.clipboardData ?? null,
+      destination: agentComposerOpen.value ? "composer" : "native",
+    });
+
+    if (paths.length > 0 && activeAgentId.value && localSessionId.value) {
+      if (agentNativePaste && activeAgentId.value === "gemini") {
+        return pasteGeminiClipboardImageToPrompt();
+      }
+      await injectClipboardImagePaths(paths);
+      return true;
+    }
+
+    if (agentNativePaste) {
+      return handleAgentNativePaste(options);
+    }
+
+    if (event) return false;
+
+    return pasteClipboardText();
+  } finally {
+    clipboardPasteInFlight = false;
+    consumeTerminalPaste = false;
+  }
+}
+
+function isTerminalPasteShortcut(event: KeyboardEvent): boolean {
+  const isMac =
+    typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+  return (
+    (isMac &&
+      event.metaKey &&
+      event.key.toLowerCase() === "v" &&
+      !event.ctrlKey &&
+      !event.altKey) ||
+    (!isMac &&
+      event.ctrlKey &&
+      event.key.toLowerCase() === "v" &&
+      !event.metaKey &&
+      !event.altKey)
+  );
+}
+
+function isGeminiImagePasteShortcut(event: KeyboardEvent): boolean {
+  return (
+    activeAgentId.value === "gemini" &&
+    event.altKey &&
+    event.key.toLowerCase() === "v" &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey
+  );
+}
+
+async function onWindowPasteCapture(event: ClipboardEvent) {
+  if (!props.active) return;
+  if (isAgentComposerEventTarget(event.target)) return;
+  if (consumeTerminalPaste || shouldUseAgentNativePaste()) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+  await handleClipboardPaste(event);
 }
 
 async function syncPtyResize() {
@@ -986,29 +1212,38 @@ async function mountTerminal() {
   });
 
   terminal.attachCustomKeyEventHandler((event) => {
+    const wordDeletePayload = getCtrlBackspaceWordDeletePayload(event);
+    if (wordDeletePayload) {
+      event.preventDefault();
+      return false;
+    }
+
     const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-    
+
     // Copy shortcut (Ctrl+C / Cmd+C when selection exists)
     const isCopy = (isMac && event.metaKey && event.key.toLowerCase() === "c" && !event.ctrlKey && !event.altKey) ||
                    (!isMac && event.ctrlKey && event.key.toLowerCase() === "c" && !event.metaKey && !event.altKey);
     if (isCopy && terminal && terminal.hasSelection()) {
       if (event.type === "keydown") {
-        navigator.clipboard.writeText(terminal.getSelection()).catch(() => {});
+        void writeClipboardText(terminal.getSelection()).catch(() => {});
       }
       event.preventDefault();
       return false;
     }
 
-    // Paste shortcut (Ctrl+V / Cmd+V)
-    const isPaste = (isMac && event.metaKey && event.key.toLowerCase() === "v" && !event.ctrlKey && !event.altKey) ||
-                    (!isMac && event.ctrlKey && event.key.toLowerCase() === "v" && !event.metaKey && !event.altKey);
-    if (isPaste && terminal) {
+    if (terminal && isGeminiImagePasteShortcut(event)) {
       if (event.type === "keydown") {
-        navigator.clipboard.readText().then((text) => {
-          if (text) {
-            void forwardTerminalInput(text);
-          }
-        }).catch(() => {});
+        consumeTerminalPaste = true;
+        void handleClipboardPaste(undefined, { fromShortcut: true, geminiAltPaste: true });
+      }
+      event.preventDefault();
+      return false;
+    }
+
+    if (terminal && isTerminalPasteShortcut(event)) {
+      if (event.type === "keydown") {
+        consumeTerminalPaste = true;
+        void handleClipboardPaste(undefined, { fromShortcut: true });
       }
       event.preventDefault();
       return false;
@@ -1166,6 +1401,7 @@ onMounted(async () => {
   backendSessionId.value = props.sessionId;
   await nextTick();
   window.addEventListener("keydown", onWindowKeyCapture, true);
+  window.addEventListener("paste", onWindowPasteCapture, true);
   await mountTerminal();
 });
 
@@ -1241,6 +1477,7 @@ watch(
 
 onBeforeUnmount(async () => {
   window.removeEventListener("keydown", onWindowKeyCapture, true);
+  window.removeEventListener("paste", onWindowPasteCapture, true);
   window.clearTimeout(resizeTimer);
   window.clearTimeout(suggestionTimer);
   window.clearTimeout(outputNotifyTimer);
@@ -1378,7 +1615,7 @@ watch(suggestionStripVisible, () => {
     />
     <div
       v-if="pathCopiedVisible"
-      class="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-lg border border-[var(--warp-border)] bg-[var(--warp-elevated)] px-3 py-1.5 text-xs text-[var(--warp-text)] shadow-lg"
+      class="pointer-events-none absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-elevated)] px-3 py-1.5 text-xs text-[var(--oterm-text)] shadow-lg"
     >
       Path copied
     </div>

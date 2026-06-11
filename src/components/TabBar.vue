@@ -22,8 +22,13 @@ const shellLabels = computed(() =>
 
 function tabLabel(tab: WorkspaceTab) {
   if (!isTerminalTab(tab)) return tab.title;
-  const shellId = tab.panes[0]?.shellId ?? "shell";
-  return shellLabels.value[shellId] ?? tab.title;
+  const pane = tab.panes[0];
+  const shellId = pane?.shellId ?? "shell";
+  const label = shellLabels.value[shellId] ?? tab.title;
+  if (pane?.activeProcessCmd) {
+    return `${label} (${pane.activeProcessCmd})`;
+  }
+  return label;
 }
 </script>
 

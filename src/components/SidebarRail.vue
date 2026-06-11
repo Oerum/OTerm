@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useTerminalTabDragReorder } from "../composables/useTerminalTabDragReorder";
 import { getGitStatus } from "../lib/gitApi";
 import { buildFeatureEntries, buildTerminalEntries } from "../lib/sidebarEntries";
+import { writeClipboardText } from "../lib/clipboard";
 import type {
   CreateMenuAction,
   SaveProfileDraft,
@@ -30,7 +31,9 @@ const props = defineProps<{
     changedFiles: number;
     additions: number;
     deletions: number;
+    repoRoot: string | null;
   };
+  widthPx?: number;
 }>();
 
 const emit = defineEmits<{
@@ -64,6 +67,8 @@ const gitByPane = ref(
       changedFiles: number;
       additions: number;
       deletions: number;
+      repoRoot: string | null;
+      isWorktree: boolean;
     }
   >(),
 );
@@ -104,6 +109,7 @@ const terminalEntries = computed(() => {
           gitChangedFiles: override.changedFiles,
           gitAdditions: override.additions,
           gitDeletions: override.deletions,
+          gitRepoRoot: override.repoRoot,
         },
   );
 });
@@ -134,6 +140,8 @@ async function refreshGitForPane(paneId: string, cwd: string) {
       changedFiles: status.changedFiles,
       additions: status.additions,
       deletions: status.deletions,
+      repoRoot: status.repoRoot ?? null,
+      isWorktree: status.isWorktree ?? false,
     });
     gitByPane.value = new Map(gitByPane.value);
   } catch {
@@ -143,6 +151,8 @@ async function refreshGitForPane(paneId: string, cwd: string) {
       changedFiles: 0,
       additions: 0,
       deletions: 0,
+      repoRoot: null,
+      isWorktree: false,
     });
     gitByPane.value = new Map(gitByPane.value);
   }
@@ -167,6 +177,8 @@ async function refreshGitForAllPanes() {
       changedFiles: number;
       additions: number;
       deletions: number;
+      repoRoot: string | null;
+      isWorktree: boolean;
     }
   >();
 
@@ -180,6 +192,8 @@ async function refreshGitForAllPanes() {
           changedFiles: status.changedFiles,
           additions: status.additions,
           deletions: status.deletions,
+          repoRoot: status.repoRoot ?? null,
+          isWorktree: status.isWorktree ?? false,
         });
       } catch {
         results.set(cwd, {
@@ -188,6 +202,8 @@ async function refreshGitForAllPanes() {
           changedFiles: 0,
           additions: 0,
           deletions: 0,
+          repoRoot: null,
+          isWorktree: false,
         });
       }
     }),
@@ -285,7 +301,7 @@ function setMenuOpen(entryId: string, open: boolean) {
 
 async function copyText(text: string, label: string) {
   try {
-    await navigator.clipboard.writeText(text);
+    await writeClipboardText(text);
     showToast(label);
   } catch {
     showToast("Copy failed");
@@ -416,7 +432,8 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
-    class="relative z-10 flex w-56 shrink-0 flex-col bg-[var(--oterm-sidebar)]"
+    class="relative z-10 flex shrink-0 flex-col bg-[var(--oterm-sidebar)]"
+    :style="{ width: widthPx ? `${widthPx}px` : '224px' }"
   >
     <div class="relative px-3 py-2.5">
       <div class="flex items-center justify-between">

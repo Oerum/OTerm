@@ -6,8 +6,14 @@ export type SubmitStrategy =
   | "bracketedPaste"
   | "bracketedPasteDelayedEnter";
 
-const BRACKETED_PASTE_START = "\x1b[200~";
-const BRACKETED_PASTE_END = "\x1b[201~";
+export const BRACKETED_PASTE_START = "\x1b[200~";
+export const BRACKETED_PASTE_END = "\x1b[201~";
+
+export type WriteTerminal = (sessionId: string, data: string) => Promise<void>;
+
+function usesBracketedPasteForInsert(text: string): boolean {
+  return /[\s\n\t]/.test(text);
+}
 const DELAYED_ENTER_MS = 50;
 const BRACKETED_PASTE_ENTER_DELAY_MS = 300;
 
@@ -77,10 +83,38 @@ export async function submitAgentComposerText(
   sessionId: string,
   agentId: CliAgentId,
   text: string,
-  write: (sessionId: string, data: string) => Promise<void>,
+  write: WriteTerminal,
 ): Promise<void> {
   const trimmed = text.trim();
   if (!trimmed) return;
 
   await submitWithStrategy(sessionId, trimmed, submitStrategyForAgent(agentId), write);
+}
+
+export async function insertAgentPromptText(
+  sessionId: string,
+  _agentId: CliAgentId,
+  text: string,
+  write: WriteTerminal,
+): Promise<void> {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+
+  if (usesBracketedPasteForInsert(trimmed)) {
+    await write(sessionId, `${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
+    return;
+  }
+
+  await write(sessionId, trimmed);
+}
+
+export async function triggerAgentNativeClipboardPaste(
+  sessionId: string,
+  write: WriteTerminal,
+): Promise<void> {
+  await write(sessionId, `${BRACKETED_PASTE_START}${BRACKETED_PASTE_END}`);
+}
+
+export function agentSupportsNativeClipboardImagePaste(agentId: CliAgentId): boolean {
+  return agentId === "gemini";
 }

@@ -37,7 +37,7 @@ Stop switching tabs. Stage your lines, monitor your containers, browse your remo
 ### 🎙️ 1. Hardware-Accelerated Local Dictation (Whisper)
 Compose prompts, write commit messages, or execute actions entirely with your voice. OTerm features a fully local, offline speech-to-text dictation system powered by `whisper-rs`, `cpal`, and `hound`.
 - **Offline & Private**: Default model `ggml-tiny.bin` is cached locally under `~/.oterm/whisper-models/`.
-- **GPU Accelerated**: Native acceleration via **Vulkan** (Windows), **Metal** (macOS), or **OpenBLAS** (Linux).
+- **GPU Accelerated**: Native acceleration via **Metal** (macOS), **Vulkan** (AMD/Intel on Windows & Linux), **CUDA** (NVIDIA on Windows & Linux), or **OpenBLAS** CPU fallback (Linux).
 
 ### 🤖 2. Integrated AI Assistant & Autocomplete
 OTerm features an integrated AI Agent Composer and autocomplete helper to turbocharge your "vibe coding" sessions. It's completely configurable with your favorite AI backend:
@@ -82,10 +82,18 @@ To compile the native Whisper and Tauri modules, your machine needs:
 - **Node.js** `>= 22`
 - **Rust Toolchain** (stable) with `rustfmt` + `clippy` components.
 - **CMake** & a **C++ Toolchain** (e.g., Build Tools for Visual Studio on Windows, Xcode on macOS).
-- **GPU Acceleration Dependencies**:
-  - **Windows**: [Vulkan SDK](https://vulkan.lunarg.com/) and `LIBCLANG_PATH` set (auto-detected by our dev script).
-  - **macOS**: Xcode Command Line Tools (Metal framework).
-  - **Linux**: `build-essential` and OpenBLAS development packages.
+- **Whisper backend (compile-time)**: OTerm ships multiple release builds per platform. Pick one backend when building locally:
+  - **macOS**: `whisper-metal` (default via `npm run tauri`)
+  - **Windows**: `whisper-vulkan` (default) or `whisper-cuda` for NVIDIA
+  - **Linux**: `whisper-vulkan` (default), `whisper-cuda` (NVIDIA), or `whisper-openblas` (CPU)
+  - Override with `OTERM_WHISPER_BACKEND=cuda|vulkan|openblas|metal` or pass `--features whisper-<backend>` to Cargo/Tauri.
+- **GPU / native build dependencies**:
+  - **Windows (Vulkan)**: [Vulkan SDK](https://vulkan.lunarg.com/) + LLVM/libclang (auto-detected by `scripts/tauri.mjs`).
+  - **Windows (CUDA)**: NVIDIA CUDA toolkit + LLVM/libclang.
+  - **macOS**: Xcode Command Line Tools (Metal).
+  - **Linux (Vulkan)**: `libvulkan-dev`, `glslang-tools`, and a C++ toolchain.
+  - **Linux (CUDA)**: NVIDIA CUDA toolkit.
+  - **Linux (OpenBLAS)**: `libopenblas-dev`.
 
 ### 📦 Installation & Setup
 
@@ -125,13 +133,16 @@ npm test
 npm run build
 
 # 4. Rust Backend Linting (Clippy & Fmt)
+# Windows: use a short target dir to avoid MAX_PATH failures in the Vulkan Whisper build.
+# PowerShell: $env:CARGO_TARGET_DIR = "C:\oterm-t"
 cd src-tauri
+WHISPER_FEATURE=$(node ../scripts/whisper-backend.mjs)
 cargo fmt --all -- --check
-cargo clippy --all-targets -- -D warnings
+cargo clippy --all-targets --features "$WHISPER_FEATURE" -- -D warnings
 
 # 5. Rust Unit & Integration Tests
-cargo test --lib
-cargo test  # Runs full pty integration tests (requires pwsh on Windows)
+cargo test --lib --features "$WHISPER_FEATURE"
+cargo test --features "$WHISPER_FEATURE"  # pty integration tests (requires pwsh on Windows)
 cd ..
 
 # 6. Full Desktop Build

@@ -20,6 +20,7 @@ import type {
 } from "../types/docker";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import { pushAppToast } from "../lib/appToast";
+import { writeClipboardText } from "../lib/clipboard";
 
 type PendingConfirm = {
   title: string;
@@ -361,7 +362,7 @@ function parsePorts(portsStr: string): Array<{ external: string; internal: strin
 
 async function copyToClipboard(text: string, typeLabel: string) {
   try {
-    await navigator.clipboard.writeText(text);
+    await writeClipboardText(text);
     pushAppToast(`${typeLabel} copied to clipboard`, "success");
   } catch (err) {
     pushAppToast(`Failed to copy ${typeLabel.toLowerCase()}`, "error");

@@ -38,6 +38,7 @@ import {
 } from "../lib/pullRequestApi";
 import { inferDefaultBaseBranch } from "../lib/prBranchDefaults";
 import { formatGitOperationError } from "../lib/formatGitError";
+import { writeClipboardText } from "../lib/clipboard";
 import { pushAppToast, setAppToastActivity } from "../lib/appToast";
 import type {
   BranchRefInfo,
@@ -450,7 +451,7 @@ async function onBranchContextCopyName() {
   if (!branch) return;
   closeBranchContextMenu();
   try {
-    await navigator.clipboard.writeText(branch.name);
+    await writeClipboardText(branch.name);
     pushAppToast("Branch name copied", "success");
   } catch {
     pushAppToast("Could not copy branch name", "error");

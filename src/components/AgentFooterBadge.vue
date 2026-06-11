@@ -23,6 +23,8 @@ const lightTile = computed(() => {
   const color = agent.value.brandColor.toLowerCase();
   return color === "#ffffff" || color === "#fff";
 });
+
+const cursorTile = computed(() => agent.value.id === "cursor");
 </script>
 
 <template>
@@ -35,7 +37,10 @@ const lightTile = computed(() => {
       v-if="agent.logoFile"
       :src="agent.logoFile"
       :alt="agent.displayName"
-      :class="size === 'md' ? 'h-[18px] w-[18px]' : 'h-3.5 w-3.5'"
+      :class="[
+        size === 'md' ? 'h-[18px] w-[18px]' : 'h-3.5 w-3.5',
+        cursorTile ? 'rounded-[4px] bg-white' : '',
+      ]"
       class="shrink-0"
     />
 

@@ -65,6 +65,8 @@ export function buildTerminalEntries(
       changedFiles: number;
       additions: number;
       deletions: number;
+      repoRoot: string | null;
+      isWorktree: boolean;
     }
   >,
 ): TerminalSidebarEntry[] {
@@ -94,6 +96,8 @@ export function buildTerminalEntries(
         cwd: pane.cwd,
         sessionId: pane.sessionId,
         activeAgentId: pane.activeAgentId,
+        activeProcessName: pane.activeProcessName ?? null,
+        activeProcessCmd: pane.activeProcessCmd ?? null,
         tabTitle: tab.title,
         renameDefault: baseTitle,
         tabColor: tab.color,
@@ -102,6 +106,8 @@ export function buildTerminalEntries(
         gitChangedFiles: git?.changedFiles ?? 0,
         gitAdditions: git?.additions ?? 0,
         gitDeletions: git?.deletions ?? 0,
+        gitRepoRoot: git?.repoRoot ?? null,
+        gitIsWorktree: git?.isWorktree ?? false,
         isActive: tab.id === activeTabId && pane.id === activePaneId,
         hasUnseenNotification: pane.hasUnseenNotification,
         canMoveUp: tabIndex > 0,

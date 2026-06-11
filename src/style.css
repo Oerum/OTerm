@@ -23,7 +23,6 @@
   --oterm-font-ui: "Outfit", "Inter", system-ui, -apple-system, sans-serif;
   --oterm-font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
 
-  --term-entry-bg: #1e1e1e;
   --term-entry-text: #ccc;
   --term-menu-width: 150px;
   --term-transition: 120ms ease;

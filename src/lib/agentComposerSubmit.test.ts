@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { formatAgentComposerMessage } from "./agentComposerAttachments";
 import {
+  agentSupportsNativeClipboardImagePaste,
+  BRACKETED_PASTE_END,
+  BRACKETED_PASTE_START,
+  insertAgentPromptText,
   submitAgentComposerText,
   submitStrategyForAgent,
   submitTerminalComposerText,
+  triggerAgentNativeClipboardPaste,
 } from "./agentComposerSubmit";
 
 describe("submitStrategyForAgent", () => {
@@ -95,5 +100,53 @@ describe("submitAgentComposerText", () => {
     );
     expect(write.mock.calls[1][1]).toBe("\r");
     vi.useRealTimers();
+  });
+});
+
+describe("insertAgentPromptText", () => {
+  it("skips empty insertions", async () => {
+    const write = vi.fn();
+    await insertAgentPromptText("sess", "gemini", "   ", write);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("writes simple paths without enter", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    await insertAgentPromptText("sess", "gemini", "C:\\tmp\\shot.png", write);
+
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write.mock.calls[0]).toEqual(["sess", "C:\\tmp\\shot.png"]);
+  });
+
+  it("uses bracketed paste for paths with spaces", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    await insertAgentPromptText(
+      "sess",
+      "gemini",
+      "C:\\Users\\Filip Pictures\\shot.png",
+      write,
+    );
+
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write.mock.calls[0][1]).toBe(
+      `${BRACKETED_PASTE_START}C:\\Users\\Filip Pictures\\shot.png${BRACKETED_PASTE_END}`,
+    );
+  });
+});
+
+describe("triggerAgentNativeClipboardPaste", () => {
+  it("sends an empty bracketed paste sequence", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    await triggerAgentNativeClipboardPaste("sess", write);
+
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write.mock.calls[0][1]).toBe(`${BRACKETED_PASTE_START}${BRACKETED_PASTE_END}`);
+  });
+});
+
+describe("agentSupportsNativeClipboardImagePaste", () => {
+  it("enables native clipboard fallback for gemini", () => {
+    expect(agentSupportsNativeClipboardImagePaste("gemini")).toBe(true);
+    expect(agentSupportsNativeClipboardImagePaste("cursor")).toBe(false);
   });
 });

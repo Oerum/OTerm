@@ -26,8 +26,10 @@ use docker::commands::{
 use fs::commands::{
     fs_create_dir, fs_import_env_file, fs_list_directory, fs_open_in_file_explorer,
     fs_open_in_rider, fs_open_in_visual_studio, fs_open_in_vscode, fs_open_in_zed, fs_read_file,
-    fs_remove_path, fs_search_files, fs_show_shell_context_menu, fs_tools_directory_hints,
-    fs_user_home, fs_write_file, fs_write_temp_attachment, FsSearchState,
+    fs_remove_path, fs_save_gemini_clipboard_image_rgba, fs_search_files,
+    fs_show_shell_context_menu, fs_tools_directory_hints, fs_user_home, fs_write_file,
+    fs_write_temp_attachment, fs_write_temp_attachment_rgba, fs_write_temp_clipboard_paste,
+    fs_write_temp_clipboard_paste_rgba, FsSearchState,
 };
 use git::commands::{
     git_checkout_branch, git_checkout_detached, git_cherry_pick, git_commit, git_commit_details,
@@ -111,6 +113,7 @@ fn prevent_default() -> tauri::plugin::TauriPlugin<tauri::Wry> {
 pub fn run() {
     let launch_state = LaunchState::from_args();
     tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
@@ -150,7 +153,7 @@ pub fn run() {
                 if let Err(error) =
                     fs::cleanup_old_composer_attachments(fs::COMPOSER_ATTACHMENTS_MAX_AGE_DAYS)
                 {
-                    eprintln!("oterm: composer attachment cleanup failed: {error}");
+                    eprintln!("oterm: temp image cleanup failed: {error}");
                 }
             });
             Ok(())
@@ -181,6 +184,10 @@ pub fn run() {
             fs_search_files,
             fs_show_shell_context_menu,
             fs_write_temp_attachment,
+            fs_write_temp_attachment_rgba,
+            fs_write_temp_clipboard_paste,
+            fs_write_temp_clipboard_paste_rgba,
+            fs_save_gemini_clipboard_image_rgba,
             git_status,
             git_source_control_status,
             git_stage_paths,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getCtrlBackspaceWordDeletePayload,
   getCtrlDEofPayload,
   getMultilineEnterPayload,
   getPtyKeyOverride,
@@ -70,6 +71,38 @@ describe("isAgentExitConfirmPrompt", () => {
   });
 });
 
+describe("getCtrlBackspaceWordDeletePayload", () => {
+  it("returns Ctrl+W for Ctrl+Backspace on keydown", () => {
+    expect(
+      getCtrlBackspaceWordDeletePayload(
+        keyEvent("Backspace", "keydown", { ctrlKey: true }),
+      ),
+    ).toBe("\x17");
+  });
+
+  it("returns null for plain Backspace or keyup", () => {
+    expect(getCtrlBackspaceWordDeletePayload(keyEvent("Backspace", "keydown"))).toBeNull();
+    expect(
+      getCtrlBackspaceWordDeletePayload(
+        keyEvent("Backspace", "keyup", { ctrlKey: true }),
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null when other modifiers are held", () => {
+    expect(
+      getCtrlBackspaceWordDeletePayload(
+        keyEvent("Backspace", "keydown", { ctrlKey: true, shiftKey: true }),
+      ),
+    ).toBeNull();
+    expect(
+      getCtrlBackspaceWordDeletePayload(
+        keyEvent("Backspace", "keydown", { ctrlKey: true, altKey: true }),
+      ),
+    ).toBeNull();
+  });
+});
+
 describe("getPtyKeyOverride", () => {
   it("prefers Ctrl+D over modified Enter when both match", () => {
     expect(getPtyKeyOverride(keyEvent("d", "keydown", { ctrlKey: true }))).toBe("\x04");
@@ -77,6 +110,12 @@ describe("getPtyKeyOverride", () => {
 
   it("returns newline for modified Enter", () => {
     expect(getPtyKeyOverride(enterEvent("keydown", { shiftKey: true }))).toBe("\n");
+  });
+
+  it("returns Ctrl+W for Ctrl+Backspace", () => {
+    expect(
+      getPtyKeyOverride(keyEvent("Backspace", "keydown", { ctrlKey: true })),
+    ).toBe("\x17");
   });
 });
 
