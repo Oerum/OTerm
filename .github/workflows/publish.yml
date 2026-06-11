@@ -22,11 +22,23 @@ jobs:
             args: ''
           - platform: 'windows-latest'
             args: ''
+            cargo_target_dir: 'C:\oterm-t'
 
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install Vulkan SDK
+        if: matrix.platform == 'windows-latest'
+        uses: humbletim/install-vulkan-sdk@v1.2.1
+        with:
+          version: latest
+          cache: true
+
+      - name: Install LLVM
+        if: matrix.platform == 'windows-latest'
+        run: choco install llvm -y
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -46,7 +58,9 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            libasound2-dev libopenblas-dev cmake pkg-config
 
       - name: Install frontend dependencies
         run: npm ci
@@ -55,6 +69,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_TARGET_DIR: ${{ matrix.cargo_target_dir }}
           # Required if you want to support auto-updater signing.
           # You must generate these via `npx tauri signer generate` and set them in your GitHub Repository Secrets.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
