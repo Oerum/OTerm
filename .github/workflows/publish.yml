@@ -146,7 +146,7 @@ jobs:
             echo "BLAS_INCLUDE_DIRS=/usr/include/x86_64-linux-gnu/openblas" >> "$GITHUB_ENV"
           fi
           if [ "${{ matrix.install_vulkan_linux }}" = "true" ]; then
-            sudo apt-get install -y libvulkan-dev glslang-tools
+            sudo apt-get install -y libvulkan-dev glslang-tools google-shaderc
           fi
 
       - name: Install frontend dependencies
@@ -156,13 +156,11 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ github.ref_type == 'tag' && secrets.TAURI_PRIVATE_KEY || '' }}
-          TAURI_SIGNING_KEY_PASSWORD: ${{ github.ref_type == 'tag' && secrets.TAURI_KEY_PASSWORD || '' }}
         with:
           tagName: v__VERSION__
           releaseName: 'OTerm v__VERSION__'
           releaseBody: 'Release generated automatically by CI/CD pipeline.'
           releaseDraft: true
           prerelease: false
-          includeUpdaterJson: ${{ matrix.include_updater && github.ref_type == 'tag' }}
-          args: --features ${{ matrix.whisper_features }} -c '{"productName":"OTerm${{ matrix.product_suffix }}"}'
+          includeUpdaterJson: false
+          args: --features ${{ matrix.whisper_features }} -c '{"productName":"OTerm${{ matrix.product_suffix }}","bundle":{"createUpdaterArtifacts":false}}'

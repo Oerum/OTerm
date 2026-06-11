@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   resolveWhisperBackend,
+  whisperBackendFromArgs,
   whisperCargoFeature,
 } from "./whisper-backend.mjs";
 
@@ -122,9 +123,10 @@ function ensureWindowsNativeEnv(env, backend) {
   }
 }
 
+let args = process.argv.slice(2);
 let whisperBackend;
 try {
-  whisperBackend = resolveWhisperBackend();
+  whisperBackend = whisperBackendFromArgs(args) ?? resolveWhisperBackend();
 } catch (error) {
   console.error(error.message);
   process.exit(1);
@@ -132,8 +134,6 @@ try {
 
 const env = { ...process.env };
 ensureWindowsNativeEnv(env, whisperBackend);
-
-let args = process.argv.slice(2);
 args = injectWhisperFeature(args, whisperCargoFeature(whisperBackend));
 
 if (args.includes("build") && !env.TAURI_SIGNING_PRIVATE_KEY && !env.TAURI_PRIVATE_KEY) {

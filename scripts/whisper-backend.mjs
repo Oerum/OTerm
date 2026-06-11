@@ -41,6 +41,37 @@ export function whisperCargoFeature(backend = resolveWhisperBackend()) {
   return WHISPER_BACKENDS[backend];
 }
 
+export function whisperBackendFromCargoFeature(feature) {
+  for (const [backend, cargoFeature] of Object.entries(WHISPER_BACKENDS)) {
+    if (cargoFeature === feature) {
+      return backend;
+    }
+  }
+  return null;
+}
+
+export function whisperBackendFromArgs(args) {
+  for (let i = 0; i < args.length; i++) {
+    let features = null;
+    if (args[i] === "--features" || args[i] === "-F") {
+      features = args[i + 1];
+    } else if (args[i].startsWith("--features=")) {
+      features = args[i].slice("--features=".length);
+    }
+    if (!features) {
+      continue;
+    }
+
+    for (const feature of features.split(",").map((entry) => entry.trim())) {
+      const backend = whisperBackendFromCargoFeature(feature);
+      if (backend) {
+        return backend;
+      }
+    }
+  }
+  return null;
+}
+
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 
 if (isMain) {
