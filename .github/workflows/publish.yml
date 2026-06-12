@@ -123,6 +123,15 @@ jobs:
           cuda: '13.2.0'
           method: network
 
+      - name: Export CUDA library path (Linux)
+        if: matrix.install_cuda && matrix.platform == 'ubuntu-22.04'
+        run: |
+          CUDA_LIB="/usr/local/cuda/targets/x86_64-linux/lib"
+          if [ ! -d "$CUDA_LIB" ]; then
+            CUDA_LIB="/usr/local/cuda/lib64"
+          fi
+          echo "LIBRARY_PATH=$CUDA_LIB:${LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+
       - name: Integrate CUDA with Visual Studio
         if: matrix.install_cuda && contains(matrix.platform, 'windows')
         shell: pwsh
@@ -148,19 +157,19 @@ jobs:
           "CMAKE_CUDA_COMPILER=$nvccCmake" >> $env:GITHUB_ENV
           "CUDACXX=$nvcc" >> $env:GITHUB_ENV
 
-      - name: Prefer x64 MSVC for CUDA
+      - name: Initialize MSVC dev environment
+        if: matrix.install_cuda && contains(matrix.platform, 'windows')
+        uses: ilammy/msvc-dev-cmd@v1.13.0
+        with:
+          arch: x64
+
+      - name: Set CUDA host compiler (Windows)
         if: matrix.install_cuda && contains(matrix.platform, 'windows')
         shell: pwsh
         run: |
-          $cl = Get-ChildItem 'C:\Program Files*\Microsoft Visual Studio\*\*\VC\Tools\MSVC\*\bin\Hostx64\x64\cl.exe' -ErrorAction SilentlyContinue |
-            Sort-Object { $_.FullName } -Descending |
-            Select-Object -First 1
-          if (-not $cl) { throw 'Hostx64 cl.exe not found' }
-          $clDir = $cl.DirectoryName
-          Write-Host "Using cl.exe: $($cl.FullName)"
-          $env:PATH = "$clDir;$env:PATH"
-          "PATH=$env:PATH" >> $env:GITHUB_ENV
-          $clPath = $cl.FullName -replace '\\', '/'
+          $cl = (Get-Command cl.exe -ErrorAction Stop).Source
+          Write-Host "Using cl.exe: $cl"
+          $clPath = $cl -replace '\\', '/'
           "CMAKE_CUDA_HOST_COMPILER=$clPath" >> $env:GITHUB_ENV
 
       - name: Set Windows build env
@@ -195,6 +204,7 @@ jobs:
             echo "BLAS_INCLUDE_DIRS=/usr/include/x86_64-linux-gnu/openblas" >> "$GITHUB_ENV"
           fi
           if [ "${{ matrix.install_vulkan_linux }}" = "true" ]; then
+            sudo apt-get install -y libvulkan-dev
             VULKAN_SDK_VERSION="$(curl -fsSL https://vulkan.lunarg.com/sdk/latest/linux.txt)"
             VULKAN_SDK_DIR="$RUNNER_TEMP/vulkan-sdk-$VULKAN_SDK_VERSION"
             if [ ! -f "$VULKAN_SDK_DIR/setup-env.sh" ]; then
@@ -213,6 +223,7 @@ jobs:
             echo "Vulkan_INCLUDE_DIR=$VULKAN_SDK/include" >> "$GITHUB_ENV"
             echo "Vulkan_LIBRARY=$VULKAN_LIB" >> "$GITHUB_ENV"
             echo "CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH" >> "$GITHUB_ENV"
+            echo "LIBRARY_PATH=$VULKAN_SDK/lib/VulkanLoader/lib:${LIBRARY_PATH:-}" >> "$GITHUB_ENV"
             echo "PATH=$PATH" >> "$GITHUB_ENV"
             echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
             command -v glslc
