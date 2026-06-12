@@ -144,7 +144,8 @@ jobs:
           }
           $nvcc = Join-Path $env:CUDA_PATH 'bin\nvcc.exe'
           if (-not (Test-Path $nvcc)) { throw "nvcc not found at $nvcc" }
-          "CMAKE_CUDA_COMPILER=$nvcc" >> $env:GITHUB_ENV
+          $nvccCmake = $nvcc -replace '\\', '/'
+          "CMAKE_CUDA_COMPILER=$nvccCmake" >> $env:GITHUB_ENV
           "CUDACXX=$nvcc" >> $env:GITHUB_ENV
 
       - name: Prefer x64 MSVC for CUDA
@@ -159,7 +160,8 @@ jobs:
           Write-Host "Using cl.exe: $($cl.FullName)"
           $env:PATH = "$clDir;$env:PATH"
           "PATH=$env:PATH" >> $env:GITHUB_ENV
-          "CMAKE_CUDA_HOST_COMPILER=$($cl.FullName)" >> $env:GITHUB_ENV
+          $clPath = $cl.FullName -replace '\\', '/'
+          "CMAKE_CUDA_HOST_COMPILER=$clPath" >> $env:GITHUB_ENV
 
       - name: Set Windows build env
         if: contains(matrix.platform, 'windows')
@@ -202,9 +204,15 @@ jobs:
             fi
             # shellcheck disable=SC1091
             source "$VULKAN_SDK_DIR/setup-env.sh"
+            VULKAN_LIB="$VULKAN_SDK/lib/VulkanLoader/lib/libvulkan.so"
+            if [ ! -f "$VULKAN_LIB" ]; then
+              VULKAN_LIB="$(find "$VULKAN_SDK/lib/VulkanLoader" -name 'libvulkan.so' -type f | head -1)"
+            fi
+            test -n "$VULKAN_LIB" && test -f "$VULKAN_LIB"
             echo "VULKAN_SDK=$VULKAN_SDK" >> "$GITHUB_ENV"
             echo "Vulkan_INCLUDE_DIR=$VULKAN_SDK/include" >> "$GITHUB_ENV"
-            echo "Vulkan_LIBRARY=$VULKAN_SDK/lib/libvulkan.so" >> "$GITHUB_ENV"
+            echo "Vulkan_LIBRARY=$VULKAN_LIB" >> "$GITHUB_ENV"
+            echo "CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH" >> "$GITHUB_ENV"
             echo "PATH=$PATH" >> "$GITHUB_ENV"
             echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
             command -v glslc
