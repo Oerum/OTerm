@@ -126,11 +126,14 @@ jobs:
       - name: Export CUDA library path (Linux)
         if: matrix.install_cuda && matrix.platform == 'ubuntu-22.04'
         run: |
-          CUDA_LIB="/usr/local/cuda/targets/x86_64-linux/lib"
+          CUDA_ROOT="${CUDA_PATH:-/usr/local/cuda-13.2}"
+          CUDA_LIB="$CUDA_ROOT/targets/x86_64-linux/lib"
           if [ ! -d "$CUDA_LIB" ]; then
-            CUDA_LIB="/usr/local/cuda/lib64"
+            CUDA_LIB="$CUDA_ROOT/lib64"
           fi
           echo "LIBRARY_PATH=$CUDA_LIB:${LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-L$CUDA_LIB" >> "$GITHUB_ENV"
+          echo "RUSTFLAGS=-L native=$CUDA_LIB -C link-arg=-Wl,-rpath,$CUDA_LIB" >> "$GITHUB_ENV"
 
       - name: Integrate CUDA with Visual Studio
         if: matrix.install_cuda && contains(matrix.platform, 'windows')
@@ -163,14 +166,11 @@ jobs:
         with:
           arch: x64
 
-      - name: Set CUDA host compiler (Windows)
+      - name: Set CUDA compile flags (Windows)
         if: matrix.install_cuda && contains(matrix.platform, 'windows')
         shell: pwsh
         run: |
-          $cl = (Get-Command cl.exe -ErrorAction Stop).Source
-          Write-Host "Using cl.exe: $cl"
-          $clPath = $cl -replace '\\', '/'
-          "CMAKE_CUDA_HOST_COMPILER=$clPath" >> $env:GITHUB_ENV
+          "CMAKE_CUDA_FLAGS=--use-local-env -allow-unsupported-compiler" >> $env:GITHUB_ENV
 
       - name: Set Windows build env
         if: contains(matrix.platform, 'windows')
