@@ -3,6 +3,7 @@ import {
   appendPromptScanBuffer,
   detectShellPrompt,
   detectTrailingShellPrompt,
+  isPlausiblePromptCwd,
   looksLikeTuiTransition,
 } from "./terminalPrompt";
 
@@ -57,6 +58,26 @@ describe("detectShellPrompt", () => {
     expect(detectShellPrompt("See /var/www> for details")).toBeNull();
     expect(detectShellPrompt("user@host:/home/user/projects$ still running")).toBeNull();
   });
+
+  it("does not false-positive on HTML closing tags in agent output", () => {
+    expect(detectShellPrompt("</div>")).toBeNull();
+    expect(detectShellPrompt("</span>")).toBeNull();
+    expect(detectShellPrompt("line of agent text </div>")).toBeNull();
+  });
+});
+
+describe("isPlausiblePromptCwd", () => {
+  it("accepts Windows and multi-segment Unix paths", () => {
+    expect(isPlausiblePromptCwd("C:\\Users\\Filip\\Desktop\\oterm")).toBe(true);
+    expect(isPlausiblePromptCwd("/home/user/projects")).toBe(true);
+    expect(isPlausiblePromptCwd("/var/www")).toBe(true);
+  });
+
+  it("rejects markup-like single-segment Unix paths", () => {
+    expect(isPlausiblePromptCwd("/div")).toBe(false);
+    expect(isPlausiblePromptCwd("/span")).toBe(false);
+    expect(isPlausiblePromptCwd("/p")).toBe(false);
+  });
 });
 
 describe("detectTrailingShellPrompt", () => {
@@ -78,6 +99,10 @@ describe("detectTrailingShellPrompt", () => {
         "Welcome to Agy\r\nPS C:\\Users\\Oerum\\Desktop\\oterm> \r\nAntigravity ready",
       ),
     ).toBeNull();
+  });
+
+  it("does not match HTML closing tags on the last line", () => {
+    expect(detectTrailingShellPrompt("streaming agent output </div>")).toBeNull();
   });
 });
 

@@ -32,7 +32,11 @@ import {
   normalizeSubmittedCommand,
 } from "../lib/terminalInputDraft";
 import { resolveTerminalDraftInput } from "../lib/terminalCurrentInput";
-import { appendPromptScanBuffer, looksLikeTuiTransition } from "../lib/terminalPrompt";
+import {
+  appendPromptScanBuffer,
+  isPlausiblePromptCwd,
+  looksLikeTuiTransition,
+} from "../lib/terminalPrompt";
 import {
   findTerminalLinkAtMouseEvent,
   isHttpUrl,
@@ -807,10 +811,10 @@ function trackCwd(data: string) {
   agentExitConfirmPending.value = next.agentExitConfirmPending;
 
   if (!next.trailingPrompt) return;
+  if (next.activeAgentId) return;
+  if (!isPlausiblePromptCwd(next.trailingPrompt.cwd)) return;
 
-  if (!activeAgentId.value) {
-    tuiModeActive.value = false;
-  }
+  tuiModeActive.value = false;
   paneCwd.value = next.trailingPrompt.cwd;
   finalizeExchange();
   promptScanBuffer = "";

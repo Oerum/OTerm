@@ -3,9 +3,20 @@ const PS_PROMPT =
 
 const CMD_PROMPT = /([A-Za-z]:\\[^>\r\n]*)>$/;
 
-/** Paths ending with `>` (pwsh/bash on some setups). */
+/** Paths ending with `>` (pwsh/bash on some setups). Reject HTML closing tags like </div>. */
 const UNIX_PROMPT_GT =
-  /((?:\/[\w.-]+)+)>$/;
+  /(?<!<)((?:\/[\w.-]+)+)>$/;
+
+const WINDOWS_CWD = /^[A-Za-z]:\\/;
+
+/** Reject markup fragments and other non-directory paths inferred from PTY output. */
+export function isPlausiblePromptCwd(cwd: string): boolean {
+  const trimmed = cwd.trim();
+  if (!trimmed || trimmed === "~") return false;
+  if (WINDOWS_CWD.test(trimmed)) return true;
+  if (!trimmed.startsWith("/")) return false;
+  return trimmed.split("/").filter(Boolean).length >= 2;
+}
 
 /** user@host:/path$ or user@host:/path# */
 const UNIX_PROMPT_BASH =
@@ -19,26 +30,31 @@ export function looksLikeTuiTransition(text: string): boolean {
   return /\x1b\[\?1049[hl]|\x1b\[2J|\x1b\[3J|\x1b\[H/.test(text);
 }
 
+function promptCwd(raw: string): { cwd: string } | null {
+  const cwd = raw.trim();
+  return isPlausiblePromptCwd(cwd) ? { cwd } : null;
+}
+
 export function detectShellPrompt(text: string): { cwd: string } | null {
   const line = text.trim();
   const psMatch = line.match(PS_PROMPT);
   if (psMatch?.[1]) {
-    return { cwd: psMatch[1].trim() };
+    return promptCwd(psMatch[1]);
   }
 
   const cmdMatch = line.match(CMD_PROMPT);
   if (cmdMatch?.[1]) {
-    return { cwd: cmdMatch[1].trim() };
+    return promptCwd(cmdMatch[1]);
   }
 
   const unixGtMatch = line.match(UNIX_PROMPT_GT);
   if (unixGtMatch?.[1]) {
-    return { cwd: unixGtMatch[1].trim() };
+    return promptCwd(unixGtMatch[1]);
   }
 
   const bashMatch = line.match(UNIX_PROMPT_BASH);
   if (bashMatch?.[1]) {
-    return { cwd: bashMatch[1].trim() };
+    return promptCwd(bashMatch[1]);
   }
 
   return null;
