@@ -135,6 +135,7 @@ jobs:
             CUDA_LIB="$CUDA_ROOT/lib64"
           fi
           echo "LIBRARY_PATH=$CUDA_LIB:${LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$CUDA_LIB:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
           echo "LDFLAGS=-L$CUDA_LIB" >> "$GITHUB_ENV"
           echo "RUSTFLAGS=-L native=$CUDA_LIB" >> "$GITHUB_ENV"
 
