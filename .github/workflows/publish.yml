@@ -118,7 +118,6 @@ jobs:
         with:
           cuda: '13.2.0'
           method: network
-          sub-packages: '["nvcc","cudart","thrust","visual_studio_integration"]'
 
       - name: Install CUDA toolkit (Linux)
         if: matrix.install_cuda && matrix.platform == 'ubuntu-22.04'
@@ -207,6 +206,7 @@ jobs:
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
             libasound2-dev cmake pkg-config libfuse2
           echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
+          echo "NO_STRIP=true" >> "$GITHUB_ENV"
           if [ "${{ matrix.install_openblas }}" = "true" ]; then
             sudo apt-get install -y libopenblas-dev
             echo "BLAS_INCLUDE_DIRS=/usr/include/x86_64-linux-gnu/openblas" >> "$GITHUB_ENV"
