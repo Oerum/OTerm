@@ -108,6 +108,10 @@ jobs:
         if: matrix.install_llvm
         run: choco install llvm -y
 
+      - name: Install Ninja (Windows CUDA)
+        if: matrix.install_cuda && contains(matrix.platform, 'windows')
+        run: choco install ninja -y
+
       - name: Install CUDA toolkit (Windows)
         if: matrix.install_cuda && contains(matrix.platform, 'windows')
         uses: Jimver/cuda-toolkit@v0.2.35
@@ -170,6 +174,9 @@ jobs:
         if: matrix.install_cuda && contains(matrix.platform, 'windows')
         shell: pwsh
         run: |
+          $cudaInclude = Join-Path $env:CUDA_PATH 'include'
+          "INCLUDE=$cudaInclude;$env:INCLUDE" >> $env:GITHUB_ENV
+          "CMAKE_GENERATOR=Ninja" >> $env:GITHUB_ENV
           "CMAKE_CUDA_FLAGS=--use-local-env -allow-unsupported-compiler" >> $env:GITHUB_ENV
 
       - name: Set Windows build env
@@ -198,7 +205,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
-            libasound2-dev cmake pkg-config
+            libasound2-dev cmake pkg-config libfuse2
+          echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
           if [ "${{ matrix.install_openblas }}" = "true" ]; then
             sudo apt-get install -y libopenblas-dev
             echo "BLAS_INCLUDE_DIRS=/usr/include/x86_64-linux-gnu/openblas" >> "$GITHUB_ENV"
