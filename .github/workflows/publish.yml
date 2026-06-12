@@ -20,6 +20,7 @@ jobs:
             platform: macos-latest
             whisper_features: whisper-metal
             product_suffix: ''
+            bundle_targets: ''
             install_vulkan: false
             install_llvm: false
             install_cuda: false
@@ -31,6 +32,7 @@ jobs:
             platform: windows-latest
             whisper_features: whisper-vulkan
             product_suffix: ' Vulkan'
+            bundle_targets: ''
             install_vulkan: true
             install_llvm: true
             install_cuda: false
@@ -42,6 +44,7 @@ jobs:
             platform: windows-2022
             whisper_features: whisper-cuda
             product_suffix: ' CUDA'
+            bundle_targets: ''
             install_vulkan: false
             install_llvm: true
             install_cuda: true
@@ -53,6 +56,7 @@ jobs:
             platform: ubuntu-22.04
             whisper_features: whisper-vulkan
             product_suffix: ' Vulkan'
+            bundle_targets: ''
             install_vulkan: false
             install_llvm: false
             install_cuda: false
@@ -64,6 +68,8 @@ jobs:
             platform: ubuntu-22.04
             whisper_features: whisper-cuda
             product_suffix: ' CUDA'
+            # AppImage bundling fails in CI (linuxdeploy exits immediately on CUDA-linked binary); deb/rpm work.
+            bundle_targets: ',"targets":["deb","rpm"]'
             install_vulkan: false
             install_llvm: false
             install_cuda: true
@@ -75,6 +81,7 @@ jobs:
             platform: ubuntu-22.04
             whisper_features: whisper-openblas
             product_suffix: ' CPU'
+            bundle_targets: ''
             install_vulkan: false
             install_llvm: false
             install_cuda: false
@@ -253,4 +260,4 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: false
-          args: --features ${{ matrix.whisper_features }} -c '{"productName":"OTerm${{ matrix.product_suffix }}","bundle":{"createUpdaterArtifacts":false}}'
+          args: --features ${{ matrix.whisper_features }} -c '{"productName":"OTerm${{ matrix.product_suffix }}","bundle":{"createUpdaterArtifacts":false${{ matrix.bundle_targets }}}}'
