@@ -112,13 +112,12 @@ fn register_process_aumid(app_id: &str) -> Result<(), String> {
 }
 
 fn current_process_app_id() -> Option<String> {
-    use windows::core::PWSTR;
-    use windows::Win32::Foundation::CoTaskMemFree;
+    use windows::Win32::System::Com::CoTaskMemFree;
     use windows::Win32::UI::Shell::GetCurrentProcessExplicitAppUserModelID;
 
     unsafe {
-        let mut app_id = PWSTR::null();
-        if GetCurrentProcessExplicitAppUserModelID(&mut app_id).is_err() || app_id.is_null() {
+        let app_id = GetCurrentProcessExplicitAppUserModelID().ok()?;
+        if app_id.is_null() {
             return None;
         }
 
