@@ -51,6 +51,7 @@ import ConfirmDialog from "./ConfirmDialog.vue";
 import BranchContextMenu from "./BranchContextMenu.vue";
 import BranchListItem from "./BranchListItem.vue";
 import CreateBranchDialog from "./CreateBranchDialog.vue";
+import CreateTagDialog from "./CreateTagDialog.vue";
 import CreatePullRequestDialog from "./CreatePullRequestDialog.vue";
 import MergeBranchDialog from "./MergeBranchDialog.vue";
 import GitDiffViewer from "./GitDiffViewer.vue";
@@ -92,6 +93,10 @@ const createDialogOpen = ref(false);
 const newBranchName = ref("");
 const createSourceBranch = ref("");
 const createExtraSource = ref<{ label: string; value: string } | null>(null);
+const createTagOpen = ref(false);
+const newTagName = ref("");
+const newTagMessage = ref("");
+const createTagTarget = ref<{ hash: string; shortHash: string } | null>(null);
 const collapsedFolders = ref<Set<string>>(new Set());
 const collapsedDefaultsApplied = ref(false);
 const confirmOpen = ref(false);
@@ -341,10 +346,44 @@ function createBranchFromSelection() {
   openCreateDialogFromCommit(details.value.hash, details.value.shortHash);
 }
 
-async function createTagFromSelection() {
-  const name = promptInput("Tag name");
-  if (!name?.trim() || !details.value) return;
-  await createTag(props.repoRoot, name.trim(), details.value.hash);
+function openCreateTagDialogFromSelection() {
+  if (!details.value) return;
+  error.value = null;
+  newTagName.value = "";
+  newTagMessage.value = "";
+  createTagTarget.value = {
+    hash: details.value.hash,
+    shortHash: details.value.shortHash,
+  };
+  createTagOpen.value = true;
+}
+
+function closeCreateTagDialog() {
+  createTagOpen.value = false;
+  createTagTarget.value = null;
+}
+
+function submitCreateTag() {
+  if (busy.value) return;
+  const target = createTagTarget.value;
+  const name = newTagName.value.trim();
+  const message = newTagMessage.value.trim();
+  if (!target || !name) return;
+  void runAction(
+    async () => {
+      await createTag(
+        props.repoRoot,
+        name,
+        target.hash,
+        message || undefined,
+      );
+      closeCreateTagDialog();
+    },
+    {
+      successMessage: `Created tag ${name}`,
+      activityMessage: "Creating tag…",
+    },
+  );
 }
 
 async function squashFromSelection() {
@@ -1005,7 +1044,7 @@ watch(selectedHash, () => {
                     type="button"
                     class="rounded border border-[var(--oterm-border)] px-2 py-0.5 text-xs"
                     :disabled="busy"
-                    @click="runAction(createTagFromSelection)"
+                    @click="openCreateTagDialogFromSelection"
                   >
                     New tag
                   </button>
@@ -1081,6 +1120,17 @@ watch(selectedHash, () => {
       v-model:source="createSourceBranch"
       @confirm="submitCreateBranch"
       @cancel="closeCreateDialog"
+    />
+
+    <CreateTagDialog
+      :open="createTagOpen"
+      :target-label="createTagTarget ? `commit ${createTagTarget.shortHash}` : ''"
+      :submit-disabled="busy"
+      :error="error"
+      v-model:name="newTagName"
+      v-model:message="newTagMessage"
+      @confirm="submitCreateTag"
+      @cancel="closeCreateTagDialog"
     />
 
     <ConfirmDialog

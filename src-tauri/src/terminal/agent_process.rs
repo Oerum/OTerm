@@ -95,6 +95,54 @@ fn exe_stem(name: &str) -> String {
         .to_ascii_lowercase()
 }
 
+fn hint_index_in_command(haystack: &str, hint: &str) -> Option<usize> {
+    let mut start = 0;
+    while start + hint.len() <= haystack.len() {
+        let Some(rel) = haystack[start..].find(hint) else {
+            return None;
+        };
+        let index = start + rel;
+        let before_ok = index == 0
+            || !haystack
+                .as_bytes()
+                .get(index - 1)
+                .is_some_and(|byte| byte.is_ascii_alphanumeric());
+        let after_idx = index + hint.len();
+        let after_ok = after_idx >= haystack.len()
+            || !haystack
+                .as_bytes()
+                .get(after_idx)
+                .is_some_and(|byte| byte.is_ascii_alphanumeric());
+        if before_ok && after_ok {
+            return Some(index);
+        }
+        start = index + 1;
+    }
+    None
+}
+
+fn match_agent_from_command_line(joined: &str) -> Option<&'static str> {
+    let lower = joined.to_ascii_lowercase();
+    let mut best: Option<(usize, usize, &'static str)> = None;
+
+    for agent in AGENTS {
+        for hint in agent.package_hints {
+            let Some(index) = hint_index_in_command(&lower, hint) else {
+                continue;
+            };
+            let hint_len = hint.len();
+            let is_better = best.map_or(true, |(best_idx, best_len, _)| {
+                index < best_idx || (index == best_idx && hint_len > best_len)
+            });
+            if is_better {
+                best = Some((index, hint_len, agent.id));
+            }
+        }
+    }
+
+    best.map(|(_, _, id)| id)
+}
+
 pub fn match_agent_from_process(name: &str, cmd: &[String]) -> Option<&'static str> {
     let stem = exe_stem(name);
 
@@ -114,16 +162,10 @@ pub fn match_agent_from_process(name: &str, cmd: &[String]) -> Option<&'static s
         .collect::<Vec<_>>()
         .join(" ");
 
-    for agent in AGENTS {
-        if agent.package_hints.iter().any(|hint| joined.contains(hint)) {
-            return Some(agent.id);
-        }
-    }
-
-    None
+    match_agent_from_command_line(&joined)
 }
 
-/// Walk descendants of `root_pid` and return the deepest matching agent id, if any.
+/// Walk descendants of `root_pid` and return the shallowest matching agent id, if any.
 pub fn detect_agent_in_tree(system: &mut System, root_pid: u32) -> Option<String> {
     system
         .refresh_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()));
@@ -151,7 +193,7 @@ pub fn detect_agent_in_tree(system: &mut System, root_pid: u32) -> Option<String
                 .collect();
             if let Some(agent_id) = match_agent_from_process(&name, &cmd) {
                 if best
-                    .map(|(best_depth, _)| depth > best_depth)
+                    .map(|(best_depth, _)| depth < best_depth)
                     .unwrap_or(true)
                 {
                     best = Some((depth, agent_id));
@@ -328,6 +370,18 @@ mod tests {
                 ],
             ),
             Some("claude")
+        );
+        assert_eq!(
+            match_agent_from_process(
+                "node.exe",
+                &[
+                    "node".into(),
+                    "/path/to/agy/cli.js".into(),
+                    "--model".into(),
+                    "gemini".into(),
+                ],
+            ),
+            Some("agy")
         );
     }
 

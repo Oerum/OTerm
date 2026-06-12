@@ -60,6 +60,11 @@ describe("detectCliAgent", () => {
     expect(detectCliAgent("bun agy")).toBe("agy");
   });
 
+  it("prefers the launched package over later provider/model flags", () => {
+    expect(detectCliAgent("bun agy --model gemini")).toBe("agy");
+    expect(detectCliAgent("npx agy run --provider gemini")).toBe("agy");
+  });
+
   it("returns null for normal shell commands", () => {
     expect(detectCliAgent("git status")).toBeNull();
     expect(detectCliAgent("npm install")).toBeNull();

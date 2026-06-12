@@ -168,6 +168,56 @@ function firstToken(command: string): string {
   return command.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
 }
 
+function isHintBoundaryChar(char: string | undefined): boolean {
+  return char === undefined || !/[a-z0-9]/i.test(char);
+}
+
+/** Earliest token-boundary match so `pi` does not match inside `anthropic`. */
+function hintIndexInCommand(command: string, hint: string): number {
+  const lower = command.toLowerCase();
+  let start = 0;
+
+  while (start <= lower.length - hint.length) {
+    const index = lower.indexOf(hint, start);
+    if (index === -1) return -1;
+
+    const before = index > 0 ? lower[index - 1] : undefined;
+    const after =
+      index + hint.length < lower.length ? lower[index + hint.length] : undefined;
+
+    if (isHintBoundaryChar(before) && isHintBoundaryChar(after)) {
+      return index;
+    }
+
+    start = index + 1;
+  }
+
+  return -1;
+}
+
+/** Prefer the agent whose package hint appears earliest (e.g. `bun agy --model gemini` → agy). */
+function detectAgentFromPackageRunner(command: string): CliAgentId | null {
+  const lower = command.toLowerCase();
+  let best: { index: number; hintLength: number; id: CliAgentId } | null = null;
+
+  for (const agent of CLI_AGENTS) {
+    for (const hint of agent.packageHints) {
+      const index = hintIndexInCommand(lower, hint);
+      if (index === -1) continue;
+      const hintLength = hint.length;
+      const isBetter =
+        !best ||
+        index < best.index ||
+        (index === best.index && hintLength > best.hintLength);
+      if (isBetter) {
+        best = { index, hintLength, id: agent.id };
+      }
+    }
+  }
+
+  return best?.id ?? null;
+}
+
 export function getCliAgentDefinition(id: CliAgentId): CliAgentDefinition {
   return AGENT_BY_ID.get(id)!;
 }
@@ -181,12 +231,7 @@ export function detectCliAgent(command: string): CliAgentId | null {
   if (direct) return direct;
 
   if (PACKAGE_RUNNER.test(trimmed)) {
-    const lower = trimmed.toLowerCase();
-    for (const agent of CLI_AGENTS) {
-      if (agent.packageHints.some((hint) => lower.includes(hint))) {
-        return agent.id;
-      }
-    }
+    return detectAgentFromPackageRunner(trimmed);
   }
 
   return null;
