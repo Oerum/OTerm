@@ -45,4 +45,14 @@ describe("buildTerminalNotificationContent", () => {
     expect(content.title).toBe(APP_NOTIFICATION_TITLE);
     expect(content.body).toBe("Terminal ready · Fix auth bug");
   });
+
+  it("uses completed agent identity after activeAgentId was cleared", () => {
+    const content = buildTerminalNotificationContent(
+      basePane,
+      "Windows PowerShell",
+      "cursor",
+    );
+    expect(content.title).toBe(APP_NOTIFICATION_TITLE);
+    expect(content.body).toBe("Cursor is ready · oterm");
+  });
 });

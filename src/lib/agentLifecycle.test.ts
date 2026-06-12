@@ -50,6 +50,12 @@ describe("buildAgentEndedMessage", () => {
     );
   });
 
+  it("includes exit code on crash copy", () => {
+    expect(buildAgentEndedMessage("cursor", "crash", 1)).toBe(
+      "Cursor exited unexpectedly (code 1)",
+    );
+  });
+
   it("includes exit code when present", () => {
     expect(buildAgentEndedMessage("cursor", "session_ended", 1)).toBe(
       "Cursor session ended (code 1)",

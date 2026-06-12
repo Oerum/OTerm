@@ -99,6 +99,11 @@ import {
   notifyAgentEnded,
   shouldTreatAgentPollClearAsCrash,
 } from "../lib/agentLifecycle";
+import {
+  buildAgentExitMarkerSuffix,
+  processAgentExitMarkerChunk,
+} from "../lib/terminalAgentExitMarker";
+import { shouldShowScrollToBottom } from "../lib/terminalScroll";
 import { shouldForwardPtyResize } from "../lib/terminalResize";
 import type { TerminalExitEvent, TerminalOutputEvent } from "../types/terminal";
 import {
@@ -179,7 +184,7 @@ const emit = defineEmits<{
   commandSubmitted: [command: string];
   agentModeChanged: [paneId: string, agentId: CliAgentId | null];
   oscTitleChanged: [paneId: string, title: string | null];
-  notificationReceived: [paneId: string];
+  notificationReceived: [paneId: string, completedAgentId?: CliAgentId | null];
   focusPane: [];
   composerOpenChanged: [paneId: string, open: boolean];
 }>();
@@ -211,7 +216,10 @@ const pathCopiedVisible = ref(false);
 const agentComposerRef = ref<InstanceType<typeof AgentComposer> | null>(null);
 const agentComposerOpen = ref(false);
 const agentCleanExitPending = ref(false);
+const pendingAgentExitMarkerId = ref<CliAgentId | null>(null);
+const showScrollToBottom = ref(false);
 let agentCleanExitTimer: number | undefined;
+let agentExitMarkerCarry = "";
 
 function clearAgentCleanExitPending() {
   agentCleanExitPending.value = false;
@@ -226,6 +234,74 @@ function markAgentCleanExitPending() {
   }, 3000);
 }
 
+function clearPendingAgentExitMarker() {
+  pendingAgentExitMarkerId.value = null;
+  agentExitMarkerCarry = "";
+}
+
+function updateScrollToBottomVisibility() {
+  if (!terminal) {
+    showScrollToBottom.value = false;
+    return;
+  }
+  const buffer = terminal.buffer.active;
+  showScrollToBottom.value = shouldShowScrollToBottom(
+    buffer.viewportY,
+    buffer.baseY,
+  );
+}
+
+function scrollTerminalToBottom() {
+  terminal?.scrollToBottom();
+  terminal?.focus();
+  updateScrollToBottomVisibility();
+}
+
+function handleAgentExitMarker(exitCode: number) {
+  const agentId = pendingAgentExitMarkerId.value ?? activeAgentId.value;
+  pendingAgentExitMarkerId.value = null;
+  if (!agentId) return;
+
+  if (exitCode === 0) {
+    markAgentCleanExitPending();
+    return;
+  }
+
+  clearAgentCleanExitPending();
+  notifyAgentEnded(props.paneId, agentId, "crash", { exitCode });
+  setActiveAgent(null);
+  agentExitConfirmPending.value = false;
+  promptClearSuppressUntil.value = 0;
+}
+
+function prepareTerminalOutput(data: string): string {
+  const parsed = processAgentExitMarkerChunk(agentExitMarkerCarry, data);
+  agentExitMarkerCarry = parsed.carry;
+  for (const marker of parsed.markers) {
+    handleAgentExitMarker(marker.exitCode);
+  }
+  return parsed.stripped;
+}
+
+function maybeAugmentEnterPayload(data: string, commandLine: string): string {
+  if (!/[\r\n]/.test(data) || isSshSession.value) return data;
+
+  const command = normalizeSubmittedCommand(commandLine);
+  const agentId = detectCliAgent(command);
+  const suffix = agentId ? buildAgentExitMarkerSuffix(props.shellId) : null;
+  if (!agentId || !suffix) return data;
+
+  pendingAgentExitMarkerId.value = agentId;
+  clearAgentCleanExitPending();
+
+  const lineEnding = data.includes("\r\n")
+    ? "\r\n"
+    : data.includes("\r")
+      ? "\r"
+      : "\n";
+  return `${suffix}${lineEnding}`;
+}
+
 function notificationContext() {
   return {
     paneActive: props.active,
@@ -235,9 +311,12 @@ function notificationContext() {
   };
 }
 
-function emitNotificationIfNeeded(check: (ctx: ReturnType<typeof notificationContext>) => boolean) {
+function emitNotificationIfNeeded(
+  check: (ctx: ReturnType<typeof notificationContext>) => boolean,
+  completedAgentId?: CliAgentId | null,
+) {
   if (check(notificationContext())) {
-    emit("notificationReceived", props.paneId);
+    emit("notificationReceived", props.paneId, completedAgentId);
   }
 }
 
@@ -799,8 +878,10 @@ function trackCwd(data: string) {
     scan.trailingPrompt,
   );
 
+  let completedAgentId: CliAgentId | null = null;
   if (next.activeAgentId !== activeAgentId.value) {
     if (activeAgentId.value && !next.activeAgentId) {
+      completedAgentId = activeAgentId.value;
       markAgentCleanExitPending();
     }
     if (next.activeAgentId) {
@@ -820,8 +901,8 @@ function trackCwd(data: string) {
   promptScanBuffer = "";
   emit("cwdChanged", props.paneId, next.trailingPrompt.cwd);
   const ctx = notificationContext();
-  if (shouldMarkUnseenFromPrompt(ctx)) {
-    emit("notificationReceived", props.paneId);
+  if (shouldMarkUnseenFromPrompt(ctx, completedAgentId)) {
+    emit("notificationReceived", props.paneId, completedAgentId);
     awaitingOutputSinceFocus.value = false;
   }
   emit("promptReady", props.paneId);
@@ -867,6 +948,7 @@ function maybeRecordCommand(data: string, preferredLine = "") {
   }
   if (isAgentExitCommand(command)) {
     const wasAgent = Boolean(activeAgentId.value);
+    clearPendingAgentExitMarker();
     setActiveAgent(null);
     agentExitConfirmPending.value = false;
     promptClearSuppressUntil.value = 0;
@@ -905,13 +987,15 @@ async function forwardTerminalInput(data: string) {
   maybeRecordCommand(data, commandLine);
   scheduleSuggestion();
 
+  const payload = maybeAugmentEnterPayload(data, commandLine);
+
   if (localSessionId.value) {
-    await writeSession(localSessionId.value, data);
+    await writeSession(localSessionId.value, payload);
     return;
   }
   if (launchError.value) return;
 
-  pendingBootstrapInput.push(data);
+  pendingBootstrapInput.push(payload);
   if (!props.tabActive) return;
   await bootstrapSession();
   if (localSessionId.value) {
@@ -1197,9 +1281,18 @@ async function mountTerminal() {
   terminal.focus();
   registerPathLinkProvider();
   pathRefreshDisposables.push(
-    terminal.onWriteParsed(() => schedulePathDecorations()),
-    terminal.onScroll(() => schedulePathDecorations()),
-    terminal.onResize(() => schedulePathDecorations()),
+    terminal.onWriteParsed(() => {
+      schedulePathDecorations();
+      updateScrollToBottomVisibility();
+    }),
+    terminal.onScroll(() => {
+      schedulePathDecorations();
+      updateScrollToBottomVisibility();
+    }),
+    terminal.onResize(() => {
+      schedulePathDecorations();
+      updateScrollToBottomVisibility();
+    }),
   );
   if (terminal.element) {
     terminalContextMenuHandler = onTerminalContextMenu;
@@ -1279,10 +1372,12 @@ async function mountTerminal() {
       void writeSession(event.payload.sessionId, `${snippet}\r`);
     }
     if (capturingResponse) responseBuffer += event.payload.data;
-    terminal.write(event.payload.data);
-    handleOutputNotification(event.payload.data);
-    trackCwd(event.payload.data);
+    const output = prepareTerminalOutput(event.payload.data);
+    terminal.write(output);
+    handleOutputNotification(output);
+    trackCwd(output);
     schedulePathDecorations();
+    updateScrollToBottomVisibility();
   });
 
   unlistenExit = await listen<TerminalExitEvent>("terminal-exit", (event) => {
@@ -1295,6 +1390,7 @@ async function mountTerminal() {
     bootstrapGeneration += 1;
     pendingBootstrapInput.length = 0;
     window.clearTimeout(sshExitFallbackTimer);
+    clearPendingAgentExitMarker();
     const endedAgentId = activeAgentId.value;
     if (endedAgentId) {
       notifyAgentEnded(props.paneId, endedAgentId, "session_ended", {
@@ -1351,6 +1447,7 @@ async function shutdownSession(
   }
   bootstrapGeneration += 1;
   window.clearTimeout(sshExitFallbackTimer);
+  clearPendingAgentExitMarker();
   if (isSshSession.value) {
     clearPendingSshTerminalLaunch(props.paneId);
     sshStartupSnippetPending = null;
@@ -1572,6 +1669,26 @@ watch(suggestionStripVisible, () => {
     @mousedown="emit('focusPane')"
   >
     <div ref="containerRef" class="terminal-output min-h-0 w-full flex-1 px-4 py-3" />
+    <button
+      v-if="showScrollToBottom"
+      type="button"
+      class="absolute bottom-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--oterm-border)] bg-[var(--oterm-elevated)] text-[var(--oterm-text)] shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition hover:bg-[var(--oterm-surface)]"
+      aria-label="Scroll to bottom"
+      @mousedown.stop
+      @click="scrollTerminalToBottom"
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 14 14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.75"
+        aria-hidden="true"
+      >
+        <path d="M3 5.5 7 9.5 11 5.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
     <AgentComposer
       v-if="agentComposerVisible && localSessionId"
       ref="agentComposerRef"

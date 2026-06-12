@@ -1,6 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { WorkspacePane } from "../types/terminal";
-import { getCliAgentDefinition } from "./terminalAgentMode";
+import { getCliAgentDefinition, type CliAgentId } from "./terminalAgentMode";
 
 export const APP_NOTIFICATION_TITLE = "OTerm";
 
@@ -11,9 +11,11 @@ export interface TerminalNotificationContent {
 
 function notificationHeadline(
   pane: Pick<WorkspacePane, "activeAgentId">,
+  completedAgentId?: CliAgentId | null,
 ): string {
-  if (pane.activeAgentId) {
-    return `${getCliAgentDefinition(pane.activeAgentId).displayName} is ready`;
+  const agentId = pane.activeAgentId ?? completedAgentId ?? null;
+  if (agentId) {
+    return `${getCliAgentDefinition(agentId).displayName} is ready`;
   }
   return "Terminal ready";
 }
@@ -40,8 +42,9 @@ export function buildTerminalNotificationContent(
     "customTitle" | "oscTitle" | "activeAgentId" | "cwd" | "shellId"
   >,
   _shellLabel: string,
+  completedAgentId?: CliAgentId | null,
 ): TerminalNotificationContent {
-  const headline = notificationHeadline(pane);
+  const headline = notificationHeadline(pane, completedAgentId);
   const detail = notificationDetail(pane);
   return {
     title: APP_NOTIFICATION_TITLE,

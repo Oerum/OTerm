@@ -83,7 +83,13 @@ fn send_desktop_notification(
     #[cfg(windows)]
     {
         let app_id = app.config().identifier.clone();
-        platform::windows::toast::send(&app_id, &title, &body, &icon)
+        match platform::windows::toast::send(&app_id, &title, &body, &icon) {
+            Ok(()) => Ok(()),
+            Err(error) if platform::windows::toast::should_fallback(&error) => {
+                platform::desktop::send(&app, &title, &body, &icon)
+            }
+            Err(error) => Err(error),
+        }
     }
     #[cfg(not(windows))]
     {

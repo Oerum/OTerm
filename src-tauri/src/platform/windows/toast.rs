@@ -31,6 +31,44 @@ pub fn init(identity: &ToastIdentity) -> Result<(), String> {
 }
 
 pub fn send(app_id: &str, title: &str, body: &str, icon_path: &Path) -> Result<(), String> {
+    let mut candidates = Vec::new();
+    if let Some(current) = current_process_app_id() {
+        candidates.push(current);
+    }
+    candidates.push(app_id.to_string());
+    for legacy in LEGACY_APP_IDS {
+        if !candidates.iter().any(|candidate| candidate == *legacy) {
+            candidates.push((*legacy).to_string());
+        }
+    }
+
+    let mut last_error = String::from("no toast app id candidates");
+    for candidate in candidates {
+        match send_with_app_id(&candidate, title, body, icon_path) {
+            Ok(()) => return Ok(()),
+            Err(error) => last_error = error,
+        }
+    }
+
+    Err(last_error)
+}
+
+pub fn should_fallback(error: &str) -> bool {
+    let lower = error.to_ascii_lowercase();
+    lower.contains("unsupported")
+        || lower.contains("not supported")
+        || lower.contains("element not found")
+        || lower.contains("0x80070490")
+        || lower.contains("class not registered")
+        || lower.contains("0x80040154")
+}
+
+fn send_with_app_id(
+    app_id: &str,
+    title: &str,
+    body: &str,
+    icon_path: &Path,
+) -> Result<(), String> {
     let image = if icon_path.is_file() {
         format!(
             r#"<image placement="appLogoOverride" src="{}" alt="OTerm" />"#,
@@ -71,6 +109,23 @@ fn register_process_aumid(app_id: &str) -> Result<(), String> {
 
     let id = HSTRING::from(app_id);
     unsafe { SetCurrentProcessExplicitAppUserModelID(&id) }.map_err(|e| e.to_string())
+}
+
+fn current_process_app_id() -> Option<String> {
+    use windows::core::PWSTR;
+    use windows::Win32::Foundation::CoTaskMemFree;
+    use windows::Win32::UI::Shell::GetCurrentProcessExplicitAppUserModelID;
+
+    unsafe {
+        let mut app_id = PWSTR::null();
+        if GetCurrentProcessExplicitAppUserModelID(&mut app_id).is_err() || app_id.is_null() {
+            return None;
+        }
+
+        let resolved = app_id.to_string().ok().filter(|value| !value.is_empty());
+        CoTaskMemFree(Some(app_id.0 as _));
+        resolved
+    }
 }
 
 fn register_aumid_branding(identity: &ToastIdentity) -> Result<(), String> {

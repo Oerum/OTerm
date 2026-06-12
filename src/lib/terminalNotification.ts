@@ -24,9 +24,14 @@ export function shouldMarkUnseenFromExplicitSignal(ctx: NotificationFocusContext
   return !isPaneFocused(ctx);
 }
 
-export function shouldMarkUnseenFromPrompt(ctx: NotificationFocusContext): boolean {
+export function shouldMarkUnseenFromPrompt(
+  ctx: NotificationFocusContext,
+  completedAgentId?: CliAgentId | null,
+): boolean {
   if (isPaneFocused(ctx)) return false;
-  return Boolean(ctx.activeAgentId || ctx.awaitingOutputSinceFocus);
+  return Boolean(
+    ctx.activeAgentId || completedAgentId || ctx.awaitingOutputSinceFocus,
+  );
 }
 
 export function shouldMarkUnseenFromOutput(ctx: NotificationFocusContext): boolean {

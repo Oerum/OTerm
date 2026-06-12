@@ -82,6 +82,10 @@ describe("shouldMarkUnseenFromPrompt", () => {
     expect(shouldMarkUnseenFromPrompt(unfocused)).toBe(false);
   });
 
+  it("marks unseen when agent completed and unfocused", () => {
+    expect(shouldMarkUnseenFromPrompt(unfocused, "cursor")).toBe(true);
+  });
+
   it("does not mark when focused", () => {
     expect(
       shouldMarkUnseenFromPrompt({ ...focused, activeAgentId: "claude" }),

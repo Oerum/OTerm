@@ -1044,7 +1044,10 @@ function findTerminalPane(paneId: string) {
   return null;
 }
 
-function onNotificationReceived(paneId: string) {
+function onNotificationReceived(
+  paneId: string,
+  completedAgentId?: CliAgentId | null,
+) {
   const pane = findTerminalPane(paneId);
   const alreadyUnseen = pane?.hasUnseenNotification ?? false;
   setPaneUnseenNotification(paneId, true);
@@ -1054,7 +1057,7 @@ function onNotificationReceived(paneId: string) {
 
   const shellLabel = shellLabelFor(shells.value, pane.shellId);
   void sendTerminalSystemNotification(
-    buildTerminalNotificationContent(pane, shellLabel),
+    buildTerminalNotificationContent(pane, shellLabel, completedAgentId),
   );
 }
 
