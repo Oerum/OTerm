@@ -86,6 +86,7 @@ import {
   insertAgentPromptText,
 } from "../lib/agentComposerSubmit";
 import {
+  drainTerminalOutput,
   killTerminal,
   queryTerminalActiveAgent,
   resizeTerminal,
@@ -113,7 +114,17 @@ import {
   reconcileActiveAgentId,
 } from "../lib/terminalAgentReconcile";
 import { shouldShowScrollToBottom } from "../lib/terminalScroll";
-import { shouldForwardPtyResize } from "../lib/terminalResize";
+import {
+  isValidPtySize,
+  MOUNT_CONTAINER_WAIT_MAX_FRAMES,
+  PTY_LAYOUT_WAIT_MAX_FRAMES,
+  shouldBlockBootstrap,
+  shouldForwardPtyResize,
+} from "../lib/terminalResize";
+import {
+  areTerminalEventListenersReady,
+  shouldBootstrapTerminalAfterListenerSetup,
+} from "../lib/terminalBootstrap";
 import type { TerminalExitEvent, TerminalOutputEvent } from "../types/terminal";
 import {
   isTerminalAutocompleteConfigured,
@@ -156,7 +167,23 @@ async function killBackendSession(sessionId: string) {
 }
 
 function resolveSessionIdToKill(): string | null {
-  return backendSessionId.value ?? localSessionId.value ?? props.sessionId;
+  return (
+    backendSessionId.value ??
+    localSessionId.value ??
+    bootstrappingSessionId ??
+    props.sessionId
+  );
+}
+
+const intentionallyKilledSessions = new Set<string>();
+
+async function killBootstrapSession(sessionId: string) {
+  intentionallyKilledSessions.add(sessionId);
+  try {
+    await killBackendSession(sessionId);
+  } catch {
+    intentionallyKilledSessions.delete(sessionId);
+  }
 }
 
 const SESSION_KILL_TIMEOUT_MS = 3000;
@@ -181,11 +208,65 @@ async function killBackendSessionIfPresent(sessionId: string | null) {
 function bindSessionId(sessionId: string) {
   localSessionId.value = sessionId;
   backendSessionId.value = sessionId;
+  bootstrappingSessionId = null;
+  bootstrapAwaitingLayout = false;
+  launchError.value = null;
   sessionEndedLocally.value = false;
+}
+
+function activeOutputSessionId(): string | null {
+  return localSessionId.value ?? bootstrappingSessionId;
+}
+
+async function replayPendingOutput(sessionId: string) {
+  if (isSshSession.value || !terminal) return;
+  try {
+    const drained = await drainTerminalOutput(sessionId);
+    if (!drained || disposed || localSessionId.value !== sessionId) return;
+    hasReceivedTerminalOutput = true;
+    cancelPromptKick();
+    const output = prepareTerminalOutput(drained);
+    terminal.write(output);
+    handleOutputNotification(output);
+    trackCwd(output);
+    schedulePathDecorations();
+    updateScrollToBottomVisibility();
+  } catch {
+    // Best-effort replay for output emitted before the listener attached.
+  }
+}
+
+async function spawnTerminalWithTimeout(
+  shellId: string,
+  cols: number,
+  rows: number,
+  cwd?: string,
+): Promise<string> {
+  let timeoutId: number | undefined;
+  try {
+    return await Promise.race([
+      spawnTerminal(shellId, cols, rows, cwd),
+      new Promise<string>((_, reject) => {
+        timeoutId = window.setTimeout(() => {
+          reject(new Error("Shell spawn timed out"));
+        }, SPAWN_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+    }
+  }
+}
+
+function notifySessionBootstrapping(sessionId: string) {
+  bootstrappingSessionId = sessionId;
+  emit("sessionBootstrapping", props.paneId, sessionId);
 }
 
 const emit = defineEmits<{
   sessionCreated: [paneId: string, sessionId: string];
+  sessionBootstrapping: [paneId: string, sessionId: string];
   sessionEnded: [paneId: string];
   sessionReleased: [paneId: string];
   cwdChanged: [paneId: string, cwd: string];
@@ -200,8 +281,8 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLElement | null>(null);
 
-const localSessionId = ref<string | null>(props.sessionId);
-const backendSessionId = ref<string | null>(props.sessionId);
+const localSessionId = ref<string | null>(null);
+const backendSessionId = ref<string | null>(null);
 const sessionEndedLocally = ref(false);
 const launchError = ref<string | null>(null);
 const pendingInput = ref("");
@@ -225,6 +306,7 @@ const pathMenuHasSelection = ref(false);
 const pathCopiedVisible = ref(false);
 const agentComposerRef = ref<InstanceType<typeof AgentComposer> | null>(null);
 const agentComposerOpen = ref(false);
+const bootstrapComplete = ref(false);
 const agentCleanExitPending = ref(false);
 const pendingAgentExitMarkerId = ref<CliAgentId | null>(null);
 const showScrollToBottom = ref(false);
@@ -391,7 +473,7 @@ function isComposerToggleShortcut(event: KeyboardEvent): boolean {
 }
 
 function openAgentComposer() {
-  if (!isReady.value || !localSessionId.value) return;
+  if (!bootstrapComplete.value || !isReady.value || !localSessionId.value) return;
   agentComposerOpen.value = true;
 }
 
@@ -456,6 +538,7 @@ let fitAddon: FitAddon | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let unlistenOutput: UnlistenFn | null = null;
 let unlistenExit: UnlistenFn | null = null;
+let eventListenersSetup: Promise<void> | null = null;
 let resizeTimer: number | undefined;
 let suggestionTimer: number | undefined;
 let suggestionRequestId = 0;
@@ -475,8 +558,14 @@ let terminalContextMenuHandler: ((event: MouseEvent) => void) | null = null;
 let sessionBootstrap: Promise<void> | null = null;
 let disposed = false;
 let bootstrapGeneration = 0;
+let bootstrappingSessionId: string | null = null;
 let sshExitFallbackTimer: number | undefined;
 const pendingBootstrapInput: string[] = [];
+const PROMPT_KICK_DELAY_MS = 400;
+const SPAWN_TIMEOUT_MS = 9000;
+let promptKickTimer: number | undefined;
+let hasReceivedTerminalOutput = false;
+let bootstrapAwaitingLayout = false;
 
 function pathsInteractiveEnabled(): boolean {
   return shouldEnableTerminalPathInteractions(tuiModeActive.value);
@@ -809,22 +898,103 @@ async function acceptSuggestion() {
   clearSuggestion();
 }
 
-async function clearInitialScreen(sessionId: string) {
-  if (!terminal || isSshSession.value) return;
-  terminal.clear();
-  terminal.reset();
+function isTerminalBufferEmpty(): boolean {
+  if (!terminal) return true;
+  const buffer = terminal.buffer.active;
+  if (buffer.length === 0) return true;
+  for (let i = 0; i < buffer.length; i += 1) {
+    const line = buffer.getLine(i);
+    if (line && line.translateToString(true).trim().length > 0) {
+      return false;
+    }
+  }
+  return true;
+}
 
-  if (props.shellId === "cmd") {
-    await writeSession(sessionId, "cls\r");
+function cancelPromptKick() {
+  window.clearTimeout(promptKickTimer);
+  promptKickTimer = undefined;
+}
+
+function schedulePromptKick(sessionId: string) {
+  cancelPromptKick();
+  hasReceivedTerminalOutput = false;
+  promptKickTimer = window.setTimeout(() => {
+    promptKickTimer = undefined;
+    if (disposed || localSessionId.value !== sessionId || !terminal) return;
+    if (hasReceivedTerminalOutput || !isTerminalBufferEmpty()) return;
+    void writeSession(sessionId, "\r");
+  }, PROMPT_KICK_DELAY_MS);
+}
+
+function isBootstrapBlocked(): boolean {
+  return shouldBlockBootstrap({
+    launchError: launchError.value,
+    awaitingReady: bootstrapAwaitingLayout,
+  });
+}
+
+function terminalEventListenersReady(): boolean {
+  return areTerminalEventListenersReady({
+    outputListenerReady: Boolean(unlistenOutput),
+    exitListenerReady: Boolean(unlistenExit),
+  });
+}
+
+function bootstrapReadyAfterListenerSetup(): boolean {
+  return shouldBootstrapTerminalAfterListenerSetup({
+    tabActive: props.tabActive,
+    outputListenerReady: Boolean(unlistenOutput),
+    exitListenerReady: Boolean(unlistenExit),
+  });
+}
+
+function retryBootstrapAfterListenersReady() {
+  void setupTerminalEventListeners().then(() => {
+    if (
+      disposed ||
+      !bootstrapReadyAfterListenerSetup() ||
+      localSessionId.value ||
+      sessionBootstrap ||
+      sessionEndedLocally.value
+    ) {
+      return;
+    }
+    void bootstrapSession();
+  });
+}
+
+function maybeRetryBootstrapWhenReady() {
+  if (
+    disposed ||
+    !props.tabActive ||
+    localSessionId.value ||
+    sessionBootstrap ||
+    sessionEndedLocally.value
+  ) {
+    return;
+  }
+  if (isBootstrapBlocked()) return;
+  if (!terminalEventListenersReady()) {
+    retryBootstrapAfterListenersReady();
     return;
   }
 
-  if (props.shellId === "pwsh" || props.shellId === "powershell") {
-    await writeSession(sessionId, "Clear-Host\r");
+  if (!terminal) {
+    if (!containerRef.value) return;
+    void mountTerminalWithRetry();
     return;
   }
 
-  await writeSession(sessionId, "\x1b[2J\x1b[3J\x1b[H");
+  if (!fitAddon) return;
+  fitAddon.fit();
+  if (!isValidPtySize(terminal.cols, terminal.rows)) {
+    bootstrapAwaitingLayout = true;
+    return;
+  }
+  bootstrapAwaitingLayout = false;
+  launchError.value = null;
+  void bootstrapSession();
 }
 
 async function ensureSshSession() {
@@ -854,6 +1024,7 @@ async function ensureSshSession() {
         return;
       }
       bindSessionId(sessionId);
+      bootstrapComplete.value = true;
       launchError.value = null;
       emit("sessionCreated", props.paneId, sessionId);
       return;
@@ -885,10 +1056,14 @@ async function bootstrapSession() {
     sessionEndedLocally.value ||
     !props.tabActive ||
     localSessionId.value ||
-    launchError.value ||
+    isBootstrapBlocked() ||
     !terminal ||
     !fitAddon
   ) {
+    return;
+  }
+  if (!terminalEventListenersReady()) {
+    retryBootstrapAfterListenersReady();
     return;
   }
   if (sessionBootstrap) return sessionBootstrap;
@@ -897,35 +1072,97 @@ async function bootstrapSession() {
     const generation = bootstrapGeneration;
     try {
       if (disposed || generation !== bootstrapGeneration) return;
+      bootstrapComplete.value = false;
+      launchError.value = null;
+      await nextTick();
       fitAddon!.fit();
       if (isSshSession.value) {
         await ensureSshSession();
+        if (localSessionId.value) {
+          bootstrapComplete.value = true;
+        }
       } else {
         const cwd =
           props.initialCwd && props.initialCwd !== "~" ? props.initialCwd : undefined;
-        const sessionId = await spawnTerminal(
-          props.shellId,
-          terminal!.cols,
-          terminal!.rows,
-          cwd,
-        );
-        if (disposed || generation !== bootstrapGeneration) {
-          await killBackendSession(sessionId);
-          return;
+        let layoutWaitFrames = 0;
+        while (
+          !disposed &&
+          generation === bootstrapGeneration &&
+          props.tabActive &&
+          !localSessionId.value
+        ) {
+          fitAddon!.fit();
+          if (!isValidPtySize(terminal!.cols, terminal!.rows)) {
+            layoutWaitFrames += 1;
+            if (layoutWaitFrames >= PTY_LAYOUT_WAIT_MAX_FRAMES) {
+              bootstrapAwaitingLayout = true;
+              launchError.value = "Terminal layout not ready";
+              break;
+            }
+            await new Promise<void>((resolve) => {
+              requestAnimationFrame(() => resolve());
+            });
+            continue;
+          }
+          layoutWaitFrames = 0;
+          bootstrapAwaitingLayout = false;
+          let sessionId: string;
+          try {
+            sessionId = await spawnTerminalWithTimeout(
+              props.shellId,
+              terminal!.cols,
+              terminal!.rows,
+              cwd,
+            );
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            launchError.value = message;
+            if (message.includes("timed out")) {
+              bootstrapAwaitingLayout = true;
+            }
+            break;
+          }
+          if (disposed || generation !== bootstrapGeneration) {
+            bootstrappingSessionId = null;
+            await killBootstrapSession(sessionId);
+            break;
+          }
+          notifySessionBootstrapping(sessionId);
+          launchError.value = null;
+          if (disposed || generation !== bootstrapGeneration) {
+            bootstrappingSessionId = null;
+            await killBootstrapSession(sessionId);
+            break;
+          }
+          bindSessionId(sessionId);
+          await replayPendingOutput(sessionId);
+          bootstrapComplete.value = true;
+          emit("sessionCreated", props.paneId, sessionId);
+          schedulePromptKick(sessionId);
+          break;
         }
-        bindSessionId(sessionId);
-        launchError.value = null;
-        emit("sessionCreated", props.paneId, sessionId);
-        await clearInitialScreen(sessionId);
       }
       await flushPendingBootstrapInput();
     } catch (err) {
       pendingBootstrapInput.length = 0;
+      bootstrappingSessionId = null;
+      bootstrapComplete.value = false;
+      bootstrapAwaitingLayout = false;
       const message = err instanceof Error ? err.message : String(err);
       launchError.value = message;
       terminal?.writeln(`\r\n[launch failed] ${message}`);
     } finally {
       sessionBootstrap = null;
+      const shouldRetry =
+        !disposed &&
+        props.tabActive &&
+        generation === bootstrapGeneration &&
+        !localSessionId.value &&
+        !sessionEndedLocally.value &&
+        !isBootstrapBlocked();
+      if (shouldRetry) {
+        void bootstrapSession();
+      }
     }
   })();
 
@@ -1068,7 +1305,7 @@ async function forwardTerminalInput(data: string) {
     }
     return;
   }
-  if (launchError.value) return;
+  if (launchError.value && !bootstrapAwaitingLayout) return;
 
   pendingBootstrapInput.push(payload);
   if (!props.tabActive) return;
@@ -1322,10 +1559,14 @@ async function syncPtyResize() {
 }
 
 async function handleResize() {
-  if (!terminal || !fitAddon || !localSessionId.value) return;
-  if (props.tabActive) {
-    fitAddon.fit();
+  if (!props.tabActive) return;
+  if (!terminal || !fitAddon) {
+    maybeRetryBootstrapWhenReady();
+    return;
   }
+  fitAddon.fit();
+  maybeRetryBootstrapWhenReady();
+  if (!localSessionId.value) return;
   window.clearTimeout(resizeTimer);
   resizeTimer = window.setTimeout(() => {
     void syncPtyResize();
@@ -1439,59 +1680,91 @@ async function mountTerminal() {
     await forwardTerminalInput(data);
   });
 
-  unlistenOutput = await listen<TerminalOutputEvent>("terminal-output", (event) => {
-    if (event.payload.sessionId !== localSessionId.value || !terminal) return;
-    if (sshStartupSnippetPending) {
-      const snippet = sshStartupSnippetPending;
-      sshStartupSnippetPending = null;
-      void writeSession(event.payload.sessionId, `${snippet}\r`);
-    }
-    if (capturingResponse) responseBuffer += event.payload.data;
-    const output = prepareTerminalOutput(event.payload.data);
-    terminal.write(output);
-    handleOutputNotification(output);
-    trackCwd(output);
-    schedulePathDecorations();
-    updateScrollToBottomVisibility();
-  });
-
-  unlistenExit = await listen<TerminalExitEvent>("terminal-exit", (event) => {
-    if (disposed) return;
-    const activeSessionId = backendSessionId.value ?? localSessionId.value;
-    if (event.payload.sessionId !== activeSessionId || !terminal) return;
-
-    disposed = true;
-    sessionEndedLocally.value = true;
-    bootstrapGeneration += 1;
-    pendingBootstrapInput.length = 0;
-    window.clearTimeout(sshExitFallbackTimer);
-    clearPendingAgentExitMarker();
-    const endedAgentId = activeAgentId.value;
-    if (endedAgentId) {
-      notifyAgentEnded(props.paneId, endedAgentId, "session_ended", {
-        exitCode: event.payload.exitCode,
-      });
-    }
-    setActiveAgent(null);
-    agentExitConfirmPending.value = false;
-    promptClearSuppressUntil.value = 0;
-    tuiModeActive.value = false;
-    clearPathDecorations();
-    localSessionId.value = null;
-    backendSessionId.value = null;
-    void killBackendSessionIfPresent(event.payload.sessionId);
-    emit("oscTitleChanged", props.paneId, null);
-    emit("sessionEnded", props.paneId);
-  });
-
   resizeObserver = new ResizeObserver(() => {
     void handleResize();
   });
   resizeObserver.observe(containerRef.value);
 
-  if (props.tabActive) {
-    await bootstrapSession();
+  await setupTerminalEventListeners();
+
+  if (bootstrapReadyAfterListenerSetup()) {
+    void bootstrapSession();
   }
+}
+
+async function setupTerminalEventListeners() {
+  if (unlistenOutput && unlistenExit) return;
+  if (eventListenersSetup) return eventListenersSetup;
+
+  eventListenersSetup = (async () => {
+    const [outputListener, exitListener] = await Promise.all([
+      listen<TerminalOutputEvent>("terminal-output", (event) => {
+        if (event.payload.sessionId !== activeOutputSessionId() || !terminal) return;
+        hasReceivedTerminalOutput = true;
+        cancelPromptKick();
+        if (sshStartupSnippetPending) {
+          const snippet = sshStartupSnippetPending;
+          sshStartupSnippetPending = null;
+          void writeSession(event.payload.sessionId, `${snippet}\r`);
+        }
+        if (capturingResponse) responseBuffer += event.payload.data;
+        const output = prepareTerminalOutput(event.payload.data);
+        terminal!.write(output);
+        handleOutputNotification(output);
+        trackCwd(output);
+        schedulePathDecorations();
+        updateScrollToBottomVisibility();
+      }),
+      listen<TerminalExitEvent>("terminal-exit", (event) => {
+        if (disposed) return;
+        if (intentionallyKilledSessions.has(event.payload.sessionId)) {
+          intentionallyKilledSessions.delete(event.payload.sessionId);
+          return;
+        }
+        const activeSessionId =
+          backendSessionId.value ?? localSessionId.value ?? bootstrappingSessionId;
+        if (event.payload.sessionId !== activeSessionId || !terminal) return;
+
+        disposed = true;
+        sessionEndedLocally.value = true;
+        bootstrapGeneration += 1;
+        pendingBootstrapInput.length = 0;
+        window.clearTimeout(sshExitFallbackTimer);
+        clearPendingAgentExitMarker();
+        const endedAgentId = activeAgentId.value;
+        if (endedAgentId) {
+          notifyAgentEnded(props.paneId, endedAgentId, "session_ended", {
+            exitCode: event.payload.exitCode,
+          });
+        }
+        setActiveAgent(null);
+        agentExitConfirmPending.value = false;
+        promptClearSuppressUntil.value = 0;
+        tuiModeActive.value = false;
+        clearPathDecorations();
+        localSessionId.value = null;
+        backendSessionId.value = null;
+        bootstrappingSessionId = null;
+        bootstrapComplete.value = false;
+        void killBackendSessionIfPresent(event.payload.sessionId);
+        emit("oscTitleChanged", props.paneId, null);
+        emit("sessionEnded", props.paneId);
+      }),
+    ]);
+
+    if (disposed) {
+      outputListener();
+      exitListener();
+      return;
+    }
+
+    unlistenOutput = outputListener;
+    unlistenExit = exitListener;
+  })().finally(() => {
+    eventListenersSetup = null;
+  });
+
+  return eventListenersSetup;
 }
 
 const SHUTDOWN_BOOTSTRAP_TIMEOUT_MS = 2500;
@@ -1528,12 +1801,19 @@ async function shutdownSession(
     sshStartupSnippetPending = null;
   }
   pendingBootstrapInput.length = 0;
+  bootstrapComplete.value = false;
+  bootstrappingSessionId = null;
+  bootstrapAwaitingLayout = false;
+  cancelPromptKick();
   await waitForBootstrapAbort();
   const sessionId = resolveSessionIdToKill();
   localSessionId.value = null;
   backendSessionId.value = null;
   await killBackendSessionIfPresent(sessionId);
   emit("oscTitleChanged", props.paneId, null);
+  if (sessionId) {
+    emit("sessionReleased", props.paneId);
+  }
   if (emitSessionEnded) {
     emit("sessionEnded", props.paneId);
   }
@@ -1573,13 +1853,42 @@ defineExpose({
 });
 
 onMounted(async () => {
-  localSessionId.value = props.sessionId;
-  backendSessionId.value = props.sessionId;
+  disposed = false;
+  localSessionId.value = null;
+  backendSessionId.value = null;
+  bootstrapComplete.value = false;
+  bootstrapAwaitingLayout = false;
+  launchError.value = null;
+  bootstrappingSessionId = null;
+  if (props.sessionId) {
+    await killBackendSessionIfPresent(props.sessionId);
+    emit("sessionReleased", props.paneId);
+  }
   await nextTick();
   window.addEventListener("keydown", onWindowKeyCapture, true);
   window.addEventListener("paste", onWindowPasteCapture, true);
-  await mountTerminal();
+  await mountTerminalWithRetry();
 });
+
+async function mountTerminalWithRetry(attempt = 0): Promise<boolean> {
+  await nextTick();
+  if (!containerRef.value) {
+    if (attempt < MOUNT_CONTAINER_WAIT_MAX_FRAMES) {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+      return mountTerminalWithRetry(attempt + 1);
+    }
+    bootstrapAwaitingLayout = true;
+    launchError.value = "Terminal container not ready";
+    return false;
+  }
+  if (terminal) return true;
+  bootstrapAwaitingLayout = false;
+  launchError.value = null;
+  await mountTerminal();
+  return true;
+}
 
 watch(
   () => [props.active, props.tabActive] as const,
@@ -1590,6 +1899,9 @@ watch(
       void scheduleTerminalFocus();
       void handleResize();
       scheduleSuggestion();
+      if (!localSessionId.value && !sessionEndedLocally.value) {
+        maybeRetryBootstrapWhenReady();
+      }
     } else if (!active) {
       clearSuggestion();
     }
@@ -1607,41 +1919,35 @@ watch(
   (tabActive) => {
     if (
       tabActive &&
-      terminal &&
       !disposed &&
       !sessionEndedLocally.value &&
       !localSessionId.value &&
-      !launchError.value
+      !isBootstrapBlocked()
     ) {
-      if (props.sessionId) {
-        bindSessionId(props.sessionId);
-      } else {
-        launchError.value = null;
-        void bootstrapSession();
-      }
+      maybeRetryBootstrapWhenReady();
     }
   },
 );
 
-watch(
-  () => props.sessionId,
-  (sessionId) => {
-    if (
-      sessionId &&
-      !localSessionId.value &&
-      !disposed &&
-      !sessionEndedLocally.value
-    ) {
-      bindSessionId(sessionId);
-    }
-  },
-);
+watch(containerRef, (element) => {
+  if (
+    element &&
+    !terminal &&
+    props.tabActive &&
+    !disposed &&
+    !localSessionId.value &&
+    !sessionEndedLocally.value
+  ) {
+    void mountTerminalWithRetry();
+  }
+});
 
 watch(
   () => props.shellId,
   async (shellId, previous) => {
     if (shellId === previous || !terminal || isSshSession.value) return;
     launchError.value = null;
+    bootstrapAwaitingLayout = false;
     pendingBootstrapInput.length = 0;
     sessionEndedLocally.value = false;
     await shutdownSession(false, { markEndedLocally: false });
@@ -1652,6 +1958,7 @@ watch(
 );
 
 onBeforeUnmount(async () => {
+  disposed = true;
   window.removeEventListener("keydown", onWindowKeyCapture, true);
   window.removeEventListener("paste", onWindowPasteCapture, true);
   window.clearTimeout(resizeTimer);
@@ -1673,6 +1980,7 @@ onBeforeUnmount(async () => {
   }
   pathRefreshDisposables = [];
   clearPathDecorations();
+  await eventListenersSetup?.catch(() => {});
   if (terminal?.element && terminalContextMenuHandler) {
     terminal.element.removeEventListener("contextmenu", terminalContextMenuHandler);
   }

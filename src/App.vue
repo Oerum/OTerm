@@ -61,13 +61,14 @@ import {
   clearPendingSshTerminalLaunch,
   setPendingSshTerminalLaunch,
 } from "./lib/sshTerminalLaunch";
-import { sshTerminalKill, sshTerminalWrite } from "./lib/sshTerminalApi";
+import { sshTerminalKill, sshTerminalKillAll, sshTerminalWrite } from "./lib/sshTerminalApi";
 import { buildTerminalLaunchCommand, terminalTabTitle } from "./lib/sshOpenSshArgs";
 import { saveHostPassword, saveIdentityPassphrase } from "./lib/sshCredentialStore";
 import type { SshConnectError } from "./types/sshSftp";
 import { getLaunchInitialCwd } from "./lib/launchApi";
 import {
   getDefaultShellId,
+  killAllTerminals,
   killTerminal,
   listShells,
   listenTerminalAgentChanged,
@@ -144,7 +145,10 @@ async function killPaneSession(pane: WorkspacePane) {
     await withTimeout(paneRef.killSession(), SESSION_KILL_TIMEOUT_MS);
   }
   const sessionId =
-    pane.sessionId ?? paneRef?.getBackendSessionId?.() ?? null;
+    pane.bootstrappingSessionId ??
+    pane.sessionId ??
+    paneRef?.getBackendSessionId?.() ??
+    null;
   if (!sessionId) return;
   await withTimeout(
     (async () => {
@@ -167,6 +171,16 @@ async function killAllTerminalSessionsForClose() {
     isTerminalTab(tab) ? tab.panes : [],
   );
   await Promise.all(panes.map((pane) => killPaneSession(pane)));
+  await withTimeout(
+    (async () => {
+      try {
+        await Promise.all([killAllTerminals(), sshTerminalKillAll()]);
+      } catch {
+        // Backend may already have torn down sessions.
+      }
+    })(),
+    SESSION_KILL_TIMEOUT_MS,
+  );
 }
 
 function bindTerminalPaneRef(paneId: string) {
@@ -289,6 +303,8 @@ const {
   selectTab,
   selectPane,
   setPaneSession,
+  setPaneBootstrappingSession,
+  clearPaneBootstrappingSession,
   clearPaneSession,
   setPaneSshEndpoint,
   setPaneCwd,
@@ -944,8 +960,14 @@ function selectTerminal(tabId: string, paneId: string) {
   if (paneId) selectPane(paneId);
 }
 
+function onSessionBootstrapping(paneId: string, sessionId: string) {
+  if (!sessionId) return;
+  setPaneBootstrappingSession(paneId, sessionId);
+}
+
 function onSessionCreated(paneId: string, sessionId: string) {
   if (!sessionId) return;
+  clearPaneBootstrappingSession(paneId);
   setPaneSession(paneId, sessionId);
   const pane = findWorkspacePane(paneId);
   if (pane?.sshEndpointId) {
@@ -959,6 +981,7 @@ function onSessionCreated(paneId: string, sessionId: string) {
 }
 
 function onSessionReleased(paneId: string) {
+  clearPaneBootstrappingSession(paneId);
   clearPaneSession(paneId);
 }
 
@@ -1044,6 +1067,18 @@ function findTerminalPane(paneId: string) {
   return null;
 }
 
+function findTerminalPaneBySessionId(sessionId: string) {
+  for (const tab of tabs.value) {
+    if (!isTerminalTab(tab)) continue;
+    const pane = tab.panes.find(
+      (entry) =>
+        entry.sessionId === sessionId || entry.bootstrappingSessionId === sessionId,
+    );
+    if (pane) return pane;
+  }
+  return null;
+}
+
 function onNotificationReceived(
   paneId: string,
   completedAgentId?: CliAgentId | null,
@@ -1062,14 +1097,8 @@ function onNotificationReceived(
 }
 
 function onTerminalAgentChanged(sessionId: string, agentId: CliAgentId | null) {
-  for (const tab of tabs.value) {
-    if (!isTerminalTab(tab)) continue;
-    const pane = tab.panes.find((entry) => entry.sessionId === sessionId);
-    if (pane) {
-      setPaneAgent(pane.id, agentId);
-      return;
-    }
-  }
+  const pane = findTerminalPaneBySessionId(sessionId);
+  if (pane) setPaneAgent(pane.id, agentId);
 }
 
 function onTerminalProcessChanged(
@@ -1077,14 +1106,8 @@ function onTerminalProcessChanged(
   processName: string | null,
   command: string | null,
 ) {
-  for (const tab of tabs.value) {
-    if (!isTerminalTab(tab)) continue;
-    const pane = tab.panes.find((entry) => entry.sessionId === sessionId);
-    if (pane) {
-      setPaneProcess(pane.id, processName, command);
-      return;
-    }
-  }
+  const pane = findTerminalPaneBySessionId(sessionId);
+  if (pane) setPaneProcess(pane.id, processName, command);
 }
 
 async function openPathInTerminal(path: string) {
@@ -1296,8 +1319,7 @@ onUnmounted(() => {
 
           <template v-for="tab in tabs" :key="tab.id">
             <section
-              v-if="tab.kind === 'terminal'"
-              v-show="tab.id === activeTabId"
+              v-if="tab.kind === 'terminal' && tab.id === activeTabId"
               class="flex min-h-0 flex-1 divide-[var(--oterm-border)]"
               :class="tab.split === 'horizontal' ? 'flex-row divide-x' : 'flex-col divide-y'"
             >
@@ -1315,6 +1337,7 @@ onUnmounted(() => {
                 :theme-id="terminalPaneThemes[pane.id] ?? null"
                 :ssh-endpoint-id="pane.sshEndpointId"
                 @session-created="onSessionCreated"
+                @session-bootstrapping="onSessionBootstrapping"
                 @session-ended="onSessionEnded"
                 @session-released="onSessionReleased"
                 @cwd-changed="setPaneCwd"

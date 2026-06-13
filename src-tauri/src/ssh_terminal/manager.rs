@@ -124,11 +124,25 @@ impl SshTerminalManager {
             .await
             .remove(session_id)
             .ok_or_else(|| format!("Unknown session: {session_id}"))?;
+        Self::teardown_session(session).await;
+        Ok(())
+    }
+
+    pub async fn kill_all(&self) {
+        let sessions = {
+            let mut guard = self.sessions.lock().await;
+            guard.drain().map(|(_, session)| session).collect::<Vec<_>>()
+        };
+        for session in sessions {
+            Self::teardown_session(session).await;
+        }
+    }
+
+    async fn teardown_session(session: Arc<SshTerminalSession>) {
         session.read_cancel.store(true, Ordering::Relaxed);
         session.exit_emitted.store(true, Ordering::Relaxed);
         let write_half = session.write_half.lock().await;
         let _ = write_half.close().await;
-        Ok(())
     }
 }
 

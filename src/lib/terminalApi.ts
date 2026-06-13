@@ -39,6 +39,14 @@ export function killTerminal(sessionId: string): Promise<void> {
   return invoke("terminal_kill", { sessionId });
 }
 
+export function killAllTerminals(): Promise<void> {
+  return invoke("terminal_kill_all");
+}
+
+export function drainTerminalOutput(sessionId: string): Promise<string> {
+  return invoke<string>("terminal_drain_output", { sessionId });
+}
+
 export function queryTerminalActiveAgent(
   sessionId: string,
 ): Promise<string | null> {

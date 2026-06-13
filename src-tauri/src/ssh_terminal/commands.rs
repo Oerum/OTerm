@@ -42,3 +42,9 @@ pub async fn ssh_terminal_kill(
 ) -> Result<(), String> {
     manager.kill(&session_id).await
 }
+
+#[tauri::command]
+pub async fn ssh_terminal_kill_all(manager: State<'_, SshTerminalManager>) -> Result<(), String> {
+    manager.kill_all().await;
+    Ok(())
+}

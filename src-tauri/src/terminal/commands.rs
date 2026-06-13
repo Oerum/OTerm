@@ -49,6 +49,11 @@ pub fn terminal_kill(manager: State<'_, PtyManager>, session_id: String) -> Resu
 }
 
 #[tauri::command]
+pub fn terminal_kill_all(manager: State<'_, PtyManager>) {
+    manager.kill_all();
+}
+
+#[tauri::command]
 pub fn terminal_drain_output(
     manager: State<'_, PtyManager>,
     session_id: String,

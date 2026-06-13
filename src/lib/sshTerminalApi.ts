@@ -30,3 +30,7 @@ export function sshTerminalResize(
 export function sshTerminalKill(sessionId: string): Promise<void> {
   return invoke("ssh_terminal_kill", { sessionId });
 }
+
+export function sshTerminalKillAll(): Promise<void> {
+  return invoke("ssh_terminal_kill_all");
+}

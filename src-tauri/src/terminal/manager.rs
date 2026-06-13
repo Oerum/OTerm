@@ -65,6 +65,11 @@ impl PtyManager {
         rows: u16,
         cwd: Option<String>,
     ) -> Result<String, String> {
+        if cols < 2 || rows < 2 {
+            return Err(format!(
+                "PTY size too small: {cols}x{rows} (minimum 2x2)"
+            ));
+        }
         let profile =
             resolve_shell(&shell_id).ok_or_else(|| format!("Unknown shell: {shell_id}"))?;
         let session_id = Uuid::new_v4().to_string();
@@ -220,6 +225,21 @@ impl PtyManager {
             .map_err(|_| "Session lock poisoned".to_string())?
             .remove(session_id)
             .ok_or_else(|| format!("Unknown session: {session_id}"))?;
+        Self::teardown_session(session);
+        Ok(())
+    }
+
+    pub fn kill_all(&self) {
+        let sessions = match self.sessions.lock() {
+            Ok(mut guard) => guard.drain().map(|(_, session)| session).collect::<Vec<_>>(),
+            Err(_) => return,
+        };
+        for session in sessions {
+            Self::teardown_session(session);
+        }
+    }
+
+    fn teardown_session(session: PtySession) {
         session.agent_poll_cancel.store(true, Ordering::Relaxed);
         session.exit_watch_cancel.store(true, Ordering::Relaxed);
         session.exit_emitted.store(true, Ordering::Relaxed);
@@ -230,7 +250,6 @@ impl PtyManager {
         drop(session.master);
         drop(session.writer);
         drop(session.child);
-        Ok(())
     }
 }
 

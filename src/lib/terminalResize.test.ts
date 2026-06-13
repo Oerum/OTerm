@@ -1,5 +1,56 @@
 import { describe, expect, it } from "vitest";
-import { shouldForwardPtyResize } from "./terminalResize";
+import {
+  isValidPtySize,
+  PTY_LAYOUT_WAIT_MAX_FRAMES,
+  shouldBlockBootstrap,
+  shouldForwardPtyResize,
+} from "./terminalResize";
+
+describe("PTY_LAYOUT_WAIT_MAX_FRAMES", () => {
+  it("caps layout wait at roughly half a second at 60fps", () => {
+    expect(PTY_LAYOUT_WAIT_MAX_FRAMES).toBeGreaterThanOrEqual(10);
+    expect(PTY_LAYOUT_WAIT_MAX_FRAMES).toBeLessThanOrEqual(30);
+  });
+});
+
+describe("isValidPtySize", () => {
+  it("accepts minimum and larger dimensions", () => {
+    expect(isValidPtySize(2, 2)).toBe(true);
+    expect(isValidPtySize(80, 24)).toBe(true);
+  });
+
+  it("rejects undersized dimensions", () => {
+    expect(isValidPtySize(1, 24)).toBe(false);
+    expect(isValidPtySize(80, 1)).toBe(false);
+    expect(isValidPtySize(0, 0)).toBe(false);
+  });
+});
+
+describe("shouldBlockBootstrap", () => {
+  it("blocks when a fatal launch error is set", () => {
+    expect(
+      shouldBlockBootstrap({ launchError: "spawn failed", awaitingReady: false }),
+    ).toBe(true);
+  });
+
+  it("allows retry while awaiting layout or mount readiness", () => {
+    expect(
+      shouldBlockBootstrap({ launchError: "Terminal layout not ready", awaitingReady: true }),
+    ).toBe(false);
+  });
+
+  it("allows retry after spawn timeout when marked as awaiting layout", () => {
+    expect(
+      shouldBlockBootstrap({ launchError: "Shell spawn timed out", awaitingReady: true }),
+    ).toBe(false);
+  });
+
+  it("blocks retry after spawn timeout when not awaiting layout", () => {
+    expect(
+      shouldBlockBootstrap({ launchError: "Shell spawn timed out", awaitingReady: false }),
+    ).toBe(true);
+  });
+});
 
 describe("shouldForwardPtyResize", () => {
   const base = {

@@ -135,6 +135,16 @@ describe("isGhostSuggestionCell", () => {
       } as never),
     ).toBe(false);
   });
+
+  it("treats cells without optional style methods as normal text", () => {
+    expect(
+      isGhostSuggestionCell({
+        getChars: () => "g",
+        getWidth: () => 1,
+        getCode: () => "g".charCodeAt(0),
+      } as never),
+    ).toBe(false);
+  });
 });
 
 describe("readTerminalCurrentInput", () => {

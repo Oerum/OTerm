@@ -13,9 +13,12 @@ const MUTED_PALETTE_MAX = 252;
 
 /** Shell inline suggestions (fish/zsh/PSReadLine) often use dim, italic, or muted palette fg. */
 export function isGhostSuggestionCell(cell: IBufferCell): boolean {
-  if (cell.isDim() || cell.isItalic()) return true;
-  if (cell.isFgPalette()) {
-    const fg = cell.getFgColor();
+  const isDim = typeof cell.isDim === "function" && Boolean(cell.isDim());
+  const isItalic = typeof cell.isItalic === "function" && Boolean(cell.isItalic());
+  if (isDim || isItalic) return true;
+
+  if (typeof cell.isFgPalette === "function" && cell.isFgPalette()) {
+    const fg = typeof cell.getFgColor === "function" ? cell.getFgColor() : 0;
     if (fg >= MUTED_PALETTE_MIN && fg <= MUTED_PALETTE_MAX) return true;
   }
   return false;
@@ -49,11 +52,10 @@ function readLineToString(
   line: IBufferLine,
   endColumn: number,
   stopAtGhost: boolean,
-  cell: IBufferCell,
 ): string {
   let raw = "";
   for (let x = 0; x < endColumn; x++) {
-    const current = line.getCell(x, cell);
+    const current = line.getCell(x);
     if (!current) break;
     if (stopAtGhost && isGhostSuggestionCell(current)) break;
     raw += current.getChars();
@@ -64,7 +66,6 @@ function readLineToString(
 export function readTerminalCurrentInput(terminal: Terminal): string {
   const buffer = terminal.buffer.active;
   const cursorY = buffer.baseY + buffer.cursorY;
-  const cell = {} as IBufferCell;
 
   let startY = cursorY;
   while (startY > 0) {
@@ -83,7 +84,7 @@ export function readTerminalCurrentInput(terminal: Terminal): string {
     const endColumn = isCursorLine
       ? Math.min(buffer.cursorX + 1, line.length)
       : line.length;
-    raw += readLineToString(line, endColumn, isCursorLine, cell);
+    raw += readLineToString(line, endColumn, isCursorLine);
   }
 
   return extractInputAfterPrompt(raw);

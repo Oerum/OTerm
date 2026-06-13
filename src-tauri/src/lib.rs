@@ -61,16 +61,19 @@ use ssh_sftp::commands::{
 };
 use ssh_sftp::session::SftpManager;
 use ssh_terminal::commands::{
-    ssh_terminal_kill, ssh_terminal_resize, ssh_terminal_spawn, ssh_terminal_write,
+    ssh_terminal_kill, ssh_terminal_kill_all, ssh_terminal_resize, ssh_terminal_spawn,
+    ssh_terminal_write,
 };
 use ssh_terminal::SshTerminalManager;
 use terminal::commands::{
-    terminal_default_shell_id, terminal_drain_output, terminal_kill, terminal_list_shells,
-    terminal_query_active_agent, terminal_resize, terminal_spawn, terminal_write,
+    terminal_default_shell_id, terminal_drain_output, terminal_kill, terminal_kill_all,
+    terminal_list_shells, terminal_query_active_agent, terminal_resize, terminal_spawn,
+    terminal_write,
 };
 use terminal::manager::PtyManager;
 
 use std::sync::Arc;
+use tauri::{Manager, RunEvent};
 
 #[tauri::command]
 fn send_desktop_notification(
@@ -174,6 +177,7 @@ pub fn run() {
             terminal_write,
             terminal_resize,
             terminal_kill,
+            terminal_kill_all,
             terminal_drain_output,
             terminal_query_active_agent,
             fs_list_directory,
@@ -270,6 +274,7 @@ pub fn run() {
             ssh_terminal_write,
             ssh_terminal_resize,
             ssh_terminal_kill,
+            ssh_terminal_kill_all,
             ssh_cred_set,
             ssh_cred_get,
             ssh_cred_delete,
@@ -286,6 +291,18 @@ pub fn run() {
             dictation_cancel_recording,
             dictation_stop_and_transcribe,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let RunEvent::Exit = event {
+                if let Some(pty) = app_handle.try_state::<PtyManager>() {
+                    pty.kill_all();
+                }
+                tauri::async_runtime::block_on(async {
+                    if let Some(ssh) = app_handle.try_state::<SshTerminalManager>() {
+                        ssh.kill_all().await;
+                    }
+                });
+            }
+        });
 }

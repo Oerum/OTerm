@@ -17,6 +17,7 @@ function terminalTab(overrides: Partial<WorkspaceTerminalTab> = {}): WorkspaceTe
       {
         id: "pane-1",
         sessionId: "session-1",
+        bootstrappingSessionId: null,
         shellId: "pwsh",
         cwd: "~/projects/oterm",
         customTitle: null,
@@ -128,6 +129,7 @@ describe("buildTerminalEntries", () => {
         {
           id: "pane-2",
           sessionId: "session-2",
+          bootstrappingSessionId: null,
           shellId: "pwsh",
           cwd: "~/projects/other",
           customTitle: null,

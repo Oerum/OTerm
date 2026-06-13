@@ -49,6 +49,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     return {
       id: uid("pane"),
       sessionId: null,
+      bootstrappingSessionId: null,
       shellId: shellId ?? getDefaultShellId(),
       cwd: cwd ?? "~",
       customTitle: null,
@@ -265,6 +266,33 @@ export function useWorkspace(getDefaultShellId: () => string) {
       const pane = tab.panes.find((item) => item.id === paneId);
       if (pane) {
         pane.sessionId = sessionId;
+        pane.bootstrappingSessionId = null;
+        return;
+      }
+    }
+  }
+
+  function setPaneBootstrappingSession(paneId: string, sessionId: string) {
+    for (const tab of tabs.value) {
+      if (!isTerminalTab(tab)) continue;
+      const pane = tab.panes.find((item) => item.id === paneId);
+      if (pane) {
+        pane.bootstrappingSessionId = sessionId;
+        return;
+      }
+    }
+  }
+
+  function clearPaneBootstrappingSession(paneId: string) {
+    for (const tab of tabs.value) {
+      if (!isTerminalTab(tab)) continue;
+      const pane = tab.panes.find((item) => item.id === paneId);
+      if (pane) {
+        pane.bootstrappingSessionId = null;
+        if (!pane.sessionId) {
+          pane.activeProcessName = null;
+          pane.activeProcessCmd = null;
+        }
         return;
       }
     }
@@ -276,7 +304,10 @@ export function useWorkspace(getDefaultShellId: () => string) {
       const pane = tab.panes.find((item) => item.id === paneId);
       if (pane) {
         pane.sessionId = null;
+        pane.bootstrappingSessionId = null;
         pane.activeAgentId = null;
+        pane.activeProcessName = null;
+        pane.activeProcessCmd = null;
         pane.oscTitle = null;
         pane.hasUnseenNotification = false;
         pane.sshEndpointId = null;
@@ -469,6 +500,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
       const panes = saved.panes.map((savedPane) => ({
         id: uid("pane"),
         sessionId: null,
+        bootstrappingSessionId: null,
         shellId: resolveShellId(savedPane.shellId),
         cwd: savedPane.cwd,
         customTitle: savedPane.customTitle,
@@ -527,6 +559,8 @@ export function useWorkspace(getDefaultShellId: () => string) {
     selectTab,
     selectPane,
     setPaneSession,
+    setPaneBootstrappingSession,
+    clearPaneBootstrappingSession,
     clearPaneSession,
     setPaneSshEndpoint,
     setPaneCwd,

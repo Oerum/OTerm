@@ -39,6 +39,7 @@ export type TerminalEntryColor =
 export interface WorkspacePane {
   id: string;
   sessionId: string | null;
+  bootstrappingSessionId: string | null;
   shellId: string;
   cwd: string;
   customTitle: string | null;
