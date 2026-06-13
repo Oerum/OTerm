@@ -31,18 +31,17 @@
 When the user asks to bump or release a version:
 
 1. **Target version** — Use the semver they gave (e.g. `0.1.3`). If they did not specify one, ask before changing anything.
-2. **Update npm metadata** — Set the same version in both files (no `v` prefix in JSON):
-   - `package.json` → `"version"`
-   - `package-lock.json` → root `"version"` and `packages[""].version`
+2. **Update all version files** — Keep the same version everywhere:
+   - `npm version <X.Y.Z> --no-git-tag-version` updates `package.json` and `package-lock.json`
+   - `node scripts/sync-version.mjs` (also runs automatically via the npm `version` lifecycle hook) updates `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`
 
-   Prefer `npm version <X.Y.Z> --no-git-tag-version` from repo root (updates both files); otherwise edit both manually and keep them in sync.
+   Or sync from a tag locally: `node scripts/sync-version.mjs --from-tag v<X.Y.Z>`.
 
-3. **Commit** — Stage only the version files unless the user asked to include other changes:
+3. **Commit** — Stage version files unless the user asked to include other changes:
    ```bash
-   git add package.json package-lock.json
+   git add package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
    git commit -m "bump: version to v<X.Y.Z>"
    ```
-   Include the usual `Co-Authored-By` footer on AI commits.
 
 4. **Tag** — Create an annotated tag matching the commit (with `v` prefix):
    ```bash
@@ -50,6 +49,8 @@ When the user asks to bump or release a version:
    ```
 
 5. **Push** — Only if the user explicitly asks: push the commit and tag (`git push && git push origin v<X.Y.Z>` or `gh`).
+
+   **CI:** On tag push, `.github/workflows/publish.yml` runs `scripts/sync-version.mjs --from-tag` before build so `tauri-action` uploads to the correct release even if local bumps were missed. Prefer bumping before tagging so git matches the release.
 
 ## Architecture
 - Vertical slices per feature; minimal diffs; match existing Vue composable patterns.

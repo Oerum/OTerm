@@ -1,7 +1,7 @@
 {
   "name": "oterm",
   "private": true,
-  "version": "0.1.6",
+  "version": "0.1.9",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "engines": {
@@ -12,7 +12,9 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "tauri": "node scripts/tauri.mjs"
+    "tauri": "node scripts/tauri.mjs",
+    "sync-version": "node scripts/sync-version.mjs",
+    "version": "node scripts/sync-version.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

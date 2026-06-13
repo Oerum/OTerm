@@ -249,6 +249,14 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Sync app version from git tag
+        if: github.ref_type == 'tag'
+        run: node scripts/sync-version.mjs --from-tag "${{ github.ref_name }}"
+
+      - name: Verify tag matches package version
+        if: github.ref_type == 'tag'
+        run: node scripts/verify-tag-version.mjs "${{ github.ref_name }}"
+
       - name: Prepare Tauri bundle config (Windows)
         if: contains(matrix.platform, 'windows')
         shell: pwsh
