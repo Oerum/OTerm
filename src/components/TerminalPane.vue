@@ -31,7 +31,7 @@ import {
   isRecordableCommand,
   normalizeSubmittedCommand,
 } from "../lib/terminalInputDraft";
-import { resolveTerminalDraftInput } from "../lib/terminalCurrentInput";
+import { resolveTerminalDraftInput, readTerminalCurrentInput } from "../lib/terminalCurrentInput";
 import {
   appendPromptScanBuffer,
   isPlausiblePromptCwd,
@@ -83,6 +83,7 @@ import {
 } from "../lib/agentComposerSubmit";
 import {
   killTerminal,
+  queryTerminalActiveAgent,
   resizeTerminal,
   spawnTerminal,
   writeTerminal,
@@ -103,6 +104,10 @@ import {
   buildAgentExitMarkerSuffix,
   processAgentExitMarkerChunk,
 } from "../lib/terminalAgentExitMarker";
+import {
+  parseDetectedCliAgentId,
+  reconcileActiveAgentId,
+} from "../lib/terminalAgentReconcile";
 import { shouldShowScrollToBottom } from "../lib/terminalScroll";
 import { shouldForwardPtyResize } from "../lib/terminalResize";
 import type { TerminalExitEvent, TerminalOutputEvent } from "../types/terminal";
@@ -197,6 +202,7 @@ const sessionEndedLocally = ref(false);
 const launchError = ref<string | null>(null);
 const pendingInput = ref("");
 const draftInput = ref("");
+const lastNonEmptyDraft = ref("");
 const exchanges = ref<TerminalCommandExchange[]>([]);
 const suggestion = ref<string | null>(null);
 const suggestionLoading = ref(false);
@@ -219,6 +225,8 @@ const agentCleanExitPending = ref(false);
 const pendingAgentExitMarkerId = ref<CliAgentId | null>(null);
 const showScrollToBottom = ref(false);
 let agentCleanExitTimer: number | undefined;
+let agentResyncTimer: number | undefined;
+let agentResyncRequestId = 0;
 let agentExitMarkerCarry = "";
 
 function clearAgentCleanExitPending() {
@@ -320,13 +328,51 @@ function emitNotificationIfNeeded(
   }
 }
 
+function markAgentLaunchState() {
+  clearAgentCleanExitPending();
+  agentExitConfirmPending.value = false;
+  promptClearSuppressUntil.value = agentLaunchPromptClearSuppressUntil();
+}
+
 function setActiveAgent(agentId: CliAgentId | null, emitChange = true) {
+  if (agentId && activeAgentId.value === agentId) {
+    markAgentLaunchState();
+    return;
+  }
   if (activeAgentId.value === agentId) return;
   activeAgentId.value = agentId;
   if (!agentId) {
     agentComposerOpen.value = false;
+  } else {
+    markAgentLaunchState();
   }
   if (emitChange) emit("agentModeChanged", props.paneId, agentId);
+}
+
+async function syncActiveAgentFromProcess() {
+  if (!localSessionId.value || activeAgentId.value || isSshSession.value) return;
+
+  const sessionId = localSessionId.value;
+  const requestId = ++agentResyncRequestId;
+  try {
+    const detected = await queryTerminalActiveAgent(sessionId);
+    if (requestId !== agentResyncRequestId || sessionId !== localSessionId.value) return;
+
+    const detectedId = parseDetectedCliAgentId(detected);
+    const nextId = reconcileActiveAgentId(activeAgentId.value, detectedId);
+    if (nextId) {
+      setActiveAgent(nextId);
+    }
+  } catch {
+    // Process query is best-effort reconciliation.
+  }
+}
+
+function scheduleAgentResyncAfterClear() {
+  window.clearTimeout(agentResyncTimer);
+  agentResyncTimer = window.setTimeout(() => {
+    void syncActiveAgentFromProcess();
+  }, 300);
 }
 
 function isComposerToggleShortcut(event: KeyboardEvent): boolean {
@@ -672,6 +718,25 @@ function getActiveDraft(): string {
   return resolveTerminalDraftInput(terminal, draftInput.value);
 }
 
+function resolveEnterCommandLine(isEnter: boolean): string {
+  if (!isEnter) return "";
+
+  const commandLine = getActiveDraft();
+  if (normalizeSubmittedCommand(commandLine)) return commandLine;
+
+  const fromBuffer = terminal ? readTerminalCurrentInput(terminal).trim() : "";
+  if (fromBuffer) return fromBuffer;
+
+  return lastNonEmptyDraft.value.trim();
+}
+
+function rememberDraftInput(data: string) {
+  draftInput.value = applyTerminalInputDraft(draftInput.value, data);
+  if (draftInput.value.trim()) {
+    lastNonEmptyDraft.value = draftInput.value;
+  }
+}
+
 function canSuggest(): boolean {
   const cfg = autocompleteSettings.value;
   return (
@@ -863,6 +928,7 @@ function trackCwd(data: string) {
   if (looksLikeTuiTransition(data)) {
     tuiModeActive.value = true;
     clearPathDecorations();
+    void syncActiveAgentFromProcess();
   }
 
   const scan = appendPromptScanBuffer(promptScanBuffer, data);
@@ -883,6 +949,7 @@ function trackCwd(data: string) {
     if (activeAgentId.value && !next.activeAgentId) {
       completedAgentId = activeAgentId.value;
       markAgentCleanExitPending();
+      scheduleAgentResyncAfterClear();
     }
     if (next.activeAgentId) {
       clearAgentCleanExitPending();
@@ -941,10 +1008,7 @@ function maybeRecordCommand(data: string, preferredLine = "") {
 
   const agentId = detectCliAgent(command);
   if (agentId) {
-    clearAgentCleanExitPending();
     setActiveAgent(agentId);
-    agentExitConfirmPending.value = false;
-    promptClearSuppressUntil.value = agentLaunchPromptClearSuppressUntil();
   }
   if (isAgentExitCommand(command)) {
     const wasAgent = Boolean(activeAgentId.value);
@@ -977,9 +1041,9 @@ async function forwardTerminalInput(data: string) {
   if (disposed) return;
 
   const isEnter = /[\r\n]/.test(data);
-  const commandLine = isEnter ? getActiveDraft() : "";
+  const commandLine = resolveEnterCommandLine(isEnter);
 
-  draftInput.value = applyTerminalInputDraft(draftInput.value, data);
+  rememberDraftInput(data);
   if (lastSubmittedCommand && draftInput.value.trim().length > 0) {
     finalizeExchange();
     promptScanBuffer = "";
@@ -991,6 +1055,9 @@ async function forwardTerminalInput(data: string) {
 
   if (localSessionId.value) {
     await writeSession(localSessionId.value, payload);
+    if (isEnter && !isSshSession.value) {
+      void syncActiveAgentFromProcess();
+    }
     return;
   }
   if (launchError.value) return;
@@ -1585,6 +1652,8 @@ onBeforeUnmount(async () => {
   window.clearTimeout(pathDecorationTimer);
   window.clearTimeout(pathCopiedTimer);
   window.clearTimeout(agentCleanExitTimer);
+  window.clearTimeout(agentResyncTimer);
+  agentResyncRequestId += 1;
   window.clearTimeout(sshExitFallbackTimer);
   clearAgentLifecycleDedupe(props.paneId);
   suggestionRequestId += 1;

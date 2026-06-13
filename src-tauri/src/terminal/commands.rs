@@ -55,3 +55,11 @@ pub fn terminal_drain_output(
 ) -> Result<String, String> {
     manager.drain_output(&session_id)
 }
+
+#[tauri::command]
+pub fn terminal_query_active_agent(
+    manager: State<'_, PtyManager>,
+    session_id: String,
+) -> Result<Option<String>, String> {
+    manager.query_active_agent(&session_id)
+}

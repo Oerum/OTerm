@@ -19,6 +19,7 @@ struct PtySession {
     writer: Mutex<Box<dyn Write + Send>>,
     pending_output: Arc<Mutex<String>>,
     child: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
+    root_pid: u32,
     agent_poll_cancel: Arc<AtomicBool>,
     exit_watch_cancel: Arc<AtomicBool>,
     exit_emitted: Arc<AtomicBool>,
@@ -115,6 +116,7 @@ impl PtyManager {
             writer: Mutex::new(writer),
             pending_output: Arc::clone(&pending_output),
             child: Arc::clone(&child),
+            root_pid,
             agent_poll_cancel: Arc::clone(&agent_poll_cancel),
             exit_watch_cancel: Arc::clone(&exit_watch_cancel),
             exit_emitted: Arc::clone(&exit_emitted),
@@ -197,6 +199,18 @@ impl PtyManager {
                 .map_err(|err| err.to_string())
         };
         resize_result
+    }
+
+    pub fn query_active_agent(&self, session_id: &str) -> Result<Option<String>, String> {
+        let sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| "Session lock poisoned".to_string())?;
+        let session = sessions
+            .get(session_id)
+            .ok_or_else(|| format!("Unknown session: {session_id}"))?;
+        let mut system = sysinfo::System::new();
+        Ok(detect_agent_in_tree(&mut system, session.root_pid))
     }
 
     pub fn kill(&self, session_id: &str) -> Result<(), String> {

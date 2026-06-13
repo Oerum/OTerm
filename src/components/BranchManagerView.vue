@@ -24,9 +24,12 @@ import {
   deleteBranch,
   getCommitDetails,
   getCommitGraph,
+  hasOriginRemote,
   listBranchRefs,
   listIncomingOutgoing,
+  listTagRefs,
   mergeBranch,
+  pushTag,
   resetCommit,
   revertCommit,
   squashCommits,
@@ -45,6 +48,7 @@ import type {
   CommitDetails,
   GraphCommit,
   ResetMode,
+  TagRefInfo,
 } from "../types/branchManager";
 import type { GitBranchList } from "../types/git";
 import ConfirmDialog from "./ConfirmDialog.vue";
@@ -52,6 +56,8 @@ import BranchContextMenu from "./BranchContextMenu.vue";
 import BranchListItem from "./BranchListItem.vue";
 import CreateBranchDialog from "./CreateBranchDialog.vue";
 import CreateTagDialog from "./CreateTagDialog.vue";
+import TagContextMenu from "./TagContextMenu.vue";
+import TagListItem from "./TagListItem.vue";
 import CreatePullRequestDialog from "./CreatePullRequestDialog.vue";
 import MergeBranchDialog from "./MergeBranchDialog.vue";
 import GitDiffViewer from "./GitDiffViewer.vue";
@@ -96,7 +102,14 @@ const createExtraSource = ref<{ label: string; value: string } | null>(null);
 const createTagOpen = ref(false);
 const newTagName = ref("");
 const newTagMessage = ref("");
+const pushTagToOrigin = ref(true);
 const createTagTarget = ref<{ hash: string; shortHash: string } | null>(null);
+const tags = ref<TagRefInfo[]>([]);
+const tagsSectionCollapsed = ref(false);
+const tagContextMenuOpen = ref(false);
+const tagContextMenuX = ref(0);
+const tagContextMenuY = ref(0);
+const tagContextTarget = ref<TagRefInfo | null>(null);
 const collapsedFolders = ref<Set<string>>(new Set());
 const collapsedDefaultsApplied = ref(false);
 const confirmOpen = ref(false);
@@ -168,6 +181,18 @@ const selectedIndex = computed(() =>
   graph.value.findIndex((c) => c.hash === selectedHash.value),
 );
 
+const hasOrigin = computed(() => hasOriginRemote(gitBranchList.value));
+
+const filteredTags = computed(() => {
+  const q = branchFilter.value.trim().toLowerCase();
+  if (!q) return tags.value;
+  return tags.value.filter(
+    (tag) =>
+      tag.name.toLowerCase().includes(q) ||
+      tag.shortHash.toLowerCase().includes(q),
+  );
+});
+
 function applyDefaultCollapsedFolders() {
   if (collapsedDefaultsApplied.value) return;
   const next = new Set(collapsedFolders.value);
@@ -187,11 +212,17 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    const [branchRows, graphPage] = await Promise.all([
+    const [branchRows, graphPage, tagRows, branchList] = await Promise.all([
       listBranchRefs(props.repoRoot),
       getCommitGraph(props.repoRoot, { limit: 250, scope: "all" }),
+      listTagRefs(props.repoRoot).catch(() => [] as TagRefInfo[]),
+      listGitBranches(props.repoRoot).catch(() => null),
     ]);
     branches.value = branchRows;
+    tags.value = tagRows;
+    if (branchList) {
+      gitBranchList.value = branchList;
+    }
     applyDefaultCollapsedFolders();
     graph.value = graphPage.commits;
     if (!selectedHash.value && graphPage.commits.length > 0) {
@@ -351,6 +382,7 @@ function openCreateTagDialogFromSelection() {
   error.value = null;
   newTagName.value = "";
   newTagMessage.value = "";
+  pushTagToOrigin.value = hasOrigin.value;
   createTagTarget.value = {
     hash: details.value.hash,
     shortHash: details.value.shortHash,
@@ -368,9 +400,14 @@ function submitCreateTag() {
   const target = createTagTarget.value;
   const name = newTagName.value.trim();
   const message = newTagMessage.value.trim();
+  const shouldPush = pushTagToOrigin.value && hasOrigin.value;
   if (!target || !name) return;
-  void runAction(
-    async () => {
+
+  void (async () => {
+    busy.value = true;
+    error.value = null;
+    setAppToastActivity("Creating tag…");
+    try {
       await createTag(
         props.repoRoot,
         name,
@@ -378,12 +415,33 @@ function submitCreateTag() {
         message || undefined,
       );
       closeCreateTagDialog();
-    },
-    {
-      successMessage: `Created tag ${name}`,
-      activityMessage: "Creating tag…",
-    },
-  );
+      emit("refreshGit");
+      await load();
+
+      if (shouldPush) {
+        setAppToastActivity("Pushing tag to origin…");
+        try {
+          await pushTag(props.repoRoot, name);
+          pushAppToast(`Created and pushed tag ${name} to origin`, "success");
+        } catch (err) {
+          const pushMessage = formatGitOperationError(err);
+          pushAppToast(
+            `Tag ${name} created locally; push failed: ${pushMessage}`,
+            "error",
+          );
+        }
+      } else {
+        pushAppToast(`Created tag ${name}`, "success");
+      }
+    } catch (err) {
+      const message = formatGitOperationError(err);
+      error.value = message;
+      pushAppToast(message, "error");
+    } finally {
+      setAppToastActivity(null);
+      busy.value = false;
+    }
+  })();
 }
 
 async function squashFromSelection() {
@@ -463,6 +521,47 @@ function openBranchContextMenu(branch: BranchRefInfo, event: MouseEvent) {
   branchContextMenuX.value = event.clientX;
   branchContextMenuY.value = event.clientY;
   branchContextMenuOpen.value = true;
+}
+
+function closeTagContextMenu() {
+  tagContextMenuOpen.value = false;
+  tagContextTarget.value = null;
+}
+
+function openTagContextMenu(tag: TagRefInfo, event: MouseEvent) {
+  tagContextTarget.value = tag;
+  tagContextMenuX.value = event.clientX;
+  tagContextMenuY.value = event.clientY;
+  tagContextMenuOpen.value = true;
+}
+
+function selectTag(tag: TagRefInfo) {
+  selectedHash.value = tag.hash;
+}
+
+async function onTagContextCopyName() {
+  const tag = tagContextTarget.value;
+  if (!tag) return;
+  closeTagContextMenu();
+  try {
+    await writeClipboardText(tag.name);
+    pushAppToast("Tag name copied", "success");
+  } catch {
+    pushAppToast("Could not copy tag name", "error");
+  }
+}
+
+function onTagContextPush() {
+  const tag = tagContextTarget.value;
+  if (!tag || tag.onOrigin) return;
+  closeTagContextMenu();
+  void runAction(
+    () => pushTag(props.repoRoot, tag.name),
+    {
+      successMessage: `Pushed tag ${tag.name} to origin`,
+      activityMessage: "Pushing tag…",
+    },
+  );
 }
 
 function switchBranchItem(branch: BranchRefInfo) {
@@ -885,6 +984,34 @@ watch(selectedHash, () => {
             />
           </template>
         </div>
+
+        <div class="mb-3 mt-1 border-t border-[var(--oterm-border)]/60 pt-2">
+          <button
+            type="button"
+            class="mb-1 flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] font-medium uppercase tracking-wide text-[var(--oterm-faint)] hover:bg-white/5"
+            @click="tagsSectionCollapsed = !tagsSectionCollapsed"
+          >
+            <span class="w-3 text-[10px]">{{ tagsSectionCollapsed ? "▸" : "▾" }}</span>
+            <span>Tags</span>
+            <span class="text-[var(--oterm-muted)]">({{ tags.length }})</span>
+          </button>
+          <template v-if="!tagsSectionCollapsed">
+            <p
+              v-if="filteredTags.length === 0"
+              class="px-2 py-1 text-[10px] text-[var(--oterm-faint)]"
+            >
+              {{ tags.length === 0 ? "No tags" : "No tags match filter" }}
+            </p>
+            <TagListItem
+              v-for="tag in filteredTags"
+              :key="tag.name"
+              :tag="tag"
+              :selected="selectedHash === tag.hash"
+              @select="selectTag(tag)"
+              @contextmenu="openTagContextMenu(tag, $event)"
+            />
+          </template>
+        </div>
       </aside>
 
       <section v-show="!isMaximized" class="flex min-w-0 flex-1 flex-col border-r border-[var(--oterm-border)]">
@@ -1125,10 +1252,12 @@ watch(selectedHash, () => {
     <CreateTagDialog
       :open="createTagOpen"
       :target-label="createTagTarget ? `commit ${createTagTarget.shortHash}` : ''"
+      :has-origin="hasOrigin"
       :submit-disabled="busy"
       :error="error"
       v-model:name="newTagName"
       v-model:message="newTagMessage"
+      v-model:push-to-origin="pushTagToOrigin"
       @confirm="submitCreateTag"
       @cancel="closeCreateTagDialog"
     />
@@ -1187,6 +1316,18 @@ watch(selectedHash, () => {
       @create-from="onBranchContextCreateFrom"
       @merge="onBranchContextMerge"
       @delete="onBranchContextDelete"
+    />
+
+    <TagContextMenu
+      :open="tagContextMenuOpen"
+      :x="tagContextMenuX"
+      :y="tagContextMenuY"
+      :tag="tagContextTarget"
+      :has-origin="hasOrigin"
+      :busy="busy"
+      @close="closeTagContextMenu"
+      @copy-name="onTagContextCopyName"
+      @push="onTagContextPush"
     />
   </div>
 </template>

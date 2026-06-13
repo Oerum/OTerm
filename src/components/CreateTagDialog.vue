@@ -7,10 +7,13 @@ const props = withDefaults(
     name: string;
     message: string;
     targetLabel: string;
+    pushToOrigin: boolean;
+    hasOrigin?: boolean;
     submitDisabled?: boolean;
     error?: string | null;
   }>(),
   {
+    hasOrigin: false,
     submitDisabled: false,
     error: null,
   },
@@ -19,6 +22,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   "update:name": [value: string];
   "update:message": [value: string];
+  "update:push-to-origin": [value: boolean];
   confirm: [];
   cancel: [];
 }>();
@@ -103,6 +107,20 @@ onUnmounted(() => window.removeEventListener("keydown", onKeyDown));
             @input="emit('update:message', ($event.target as HTMLTextAreaElement).value)"
           />
         </label>
+
+        <label
+          v-if="hasOrigin"
+          class="flex cursor-pointer select-none items-center gap-2 text-xs text-[var(--oterm-muted)]"
+        >
+          <input
+            type="checkbox"
+            :checked="pushToOrigin"
+            class="rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)]"
+            :disabled="submitDisabled"
+            @change="emit('update:push-to-origin', ($event.target as HTMLInputElement).checked)"
+          />
+          Push to origin
+        </label>
       </div>
 
       <div class="flex justify-end gap-2 border-t border-[var(--oterm-border)] px-5 py-4">
@@ -119,7 +137,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeyDown));
           class="rounded-md bg-[var(--oterm-accent)]/15 px-3 py-1.5 text-xs font-medium text-[var(--oterm-accent)] transition hover:bg-[var(--oterm-accent)]/25 disabled:cursor-not-allowed disabled:opacity-40"
           :disabled="submitDisabled || !name.trim()"
         >
-          Create tag
+          {{ hasOrigin && pushToOrigin ? "Create & push" : "Create tag" }}
         </button>
       </div>
     </form>

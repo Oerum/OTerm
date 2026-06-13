@@ -6,7 +6,9 @@ import type {
   CommitGraphPage,
   CompareResult,
   ResetMode,
+  TagRefInfo,
 } from "../types/branchManager";
+import type { GitBranchList } from "../types/git";
 
 export function listBranchRefs(repoRoot: string): Promise<BranchRefInfo[]> {
   return invoke<BranchRefInfo[]>("git_list_branch_refs", { repoRoot });
@@ -75,6 +77,26 @@ export function createTag(
     commit: commit ?? null,
     message: message ?? null,
   });
+}
+
+export function listTagRefs(repoRoot: string): Promise<TagRefInfo[]> {
+  return invoke<TagRefInfo[]>("git_list_tag_refs", { repoRoot });
+}
+
+export function pushTag(
+  repoRoot: string,
+  name: string,
+  remote?: string,
+): Promise<void> {
+  return invoke("git_push_tag", {
+    repoRoot,
+    name,
+    remote: remote ?? null,
+  });
+}
+
+export function hasOriginRemote(branchList: GitBranchList | null): boolean {
+  return (branchList?.remote ?? []).some((name) => name.startsWith("origin/"));
 }
 
 export function revertCommit(repoRoot: string, hash: string): Promise<void> {

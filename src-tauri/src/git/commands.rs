@@ -1,8 +1,9 @@
 use super::branches::{
     checkout_detached, cherry_pick_commit, compare_commits, create_branch, create_tag,
-    delete_branch, list_branch_refs, list_incoming_outgoing, list_worktrees, merge_branch,
-    read_commit_details, read_commit_graph, reset_commit, revert_commit, squash_commits,
-    BranchRefInfo, CommitDetails, CommitGraphPage, CompareResult, GitWorktreeInfo,
+    delete_branch, list_branch_refs, list_incoming_outgoing, list_tag_refs, list_worktrees,
+    merge_branch, push_tag, read_commit_details, read_commit_graph, reset_commit, revert_commit,
+    squash_commits, BranchRefInfo, CommitDetails, CommitGraphPage, CompareResult, GitWorktreeInfo,
+    TagRefInfo,
 };
 use super::issues::{
     create_branch_from_issue, list_issues, view_issue, IssueDetail, IssueListFilters, IssueSummary,
@@ -326,6 +327,20 @@ pub async fn git_create_tag(
     message: Option<String>,
 ) -> Result<(), String> {
     blocking_git(move || create_tag(repo_root, name, commit, message)).await
+}
+
+#[tauri::command]
+pub async fn git_list_tag_refs(repo_root: String) -> Result<Vec<TagRefInfo>, String> {
+    blocking_git(move || list_tag_refs(repo_root)).await
+}
+
+#[tauri::command]
+pub async fn git_push_tag(
+    repo_root: String,
+    name: String,
+    remote: Option<String>,
+) -> Result<(), String> {
+    blocking_git(move || push_tag(repo_root, name, remote)).await
 }
 
 #[tauri::command]

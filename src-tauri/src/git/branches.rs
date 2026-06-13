@@ -31,6 +31,15 @@ pub struct BranchRefInfo {
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TagRefInfo {
+    pub name: String,
+    pub hash: String,
+    pub short_hash: String,
+    pub on_origin: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GraphCommit {
     pub hash: String,
     pub short_hash: String,
@@ -195,6 +204,121 @@ pub fn list_branch_refs(repo_root: String) -> Result<Vec<BranchRefInfo>, String>
 
     refs.sort_by(|a, b| compare_branch_names(&a.name, &b.name));
     Ok(refs)
+}
+
+pub fn list_tag_refs(repo_root: String) -> Result<Vec<TagRefInfo>, String> {
+    let root = PathBuf::from(&repo_root);
+    let output = git_output(
+        &root,
+        &[
+            "for-each-ref",
+            "--format=%(refname:short)|%(objectname)|%(objectname:short)",
+            "refs/tags/",
+        ],
+    )?;
+
+    let mut refs = Vec::new();
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let mut parts = line.split('|');
+        let name = parts.next().unwrap_or("").to_string();
+        if name.is_empty() {
+            continue;
+        }
+        let tag_object = parts.next().unwrap_or("").to_string();
+        let short_hash = parts.next().unwrap_or("").to_string();
+        if tag_object.is_empty() {
+            continue;
+        }
+        let hash = tag_commit_oid(&root, &name).unwrap_or(tag_object.clone());
+        let display_short = if hash.len() >= 7 {
+            hash[..7].to_string()
+        } else {
+            short_hash
+        };
+        let on_origin = tag_on_origin(&root, &name, &tag_object);
+        refs.push(TagRefInfo {
+            name,
+            hash,
+            short_hash: display_short,
+            on_origin,
+        });
+    }
+
+    refs.sort_by(|a, b| compare_branch_names(&a.name, &b.name));
+    Ok(refs)
+}
+
+pub fn push_tag(
+    repo_root: String,
+    name: String,
+    remote: Option<String>,
+) -> Result<(), String> {
+    let root = PathBuf::from(repo_root);
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("Tag name is required".into());
+    }
+    let remote = remote
+        .filter(|r| !r.trim().is_empty())
+        .unwrap_or_else(|| "origin".to_string());
+    git_run(&root, &["push", &remote, name])
+}
+
+fn tag_commit_oid(root: &PathBuf, tag_name: &str) -> Option<String> {
+    git_output(
+        root,
+        &["rev-parse", &format!("{tag_name}^{{commit}}")],
+    )
+    .ok()
+    .map(|v| v.trim().to_string())
+    .filter(|v| !v.is_empty())
+    .or_else(|| {
+        git_output(root, &["rev-parse", tag_name])
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+    })
+}
+
+fn tag_on_origin(root: &PathBuf, tag_name: &str, _tag_object_oid: &str) -> bool {
+    let Some(local_commit) = tag_commit_oid(root, tag_name) else {
+        return false;
+    };
+    let Ok(output) = git_output(
+        root,
+        &[
+            "ls-remote",
+            "--tags",
+            "origin",
+            &format!("refs/tags/{tag_name}"),
+        ],
+    ) else {
+        return false;
+    };
+    if output.trim().is_empty() {
+        return false;
+    }
+
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Some((oid, refname)) = line.split_once('\t') else {
+            continue;
+        };
+        if refname.ends_with("^{}") && oid == local_commit {
+            return true;
+        }
+        if !refname.ends_with("^{}") && oid == local_commit {
+            return true;
+        }
+    }
+    false
 }
 
 pub fn read_commit_graph(
@@ -576,5 +700,45 @@ mod tests {
         assert_eq!(deduped.len(), 2);
         assert_eq!(deduped[0].hash, "aaa");
         assert_eq!(deduped[1].hash, "bbb");
+    }
+
+    #[test]
+    fn push_tag_and_list_on_origin() {
+        use std::fs;
+
+        let pid = std::process::id();
+        let dir = std::env::temp_dir().join(format!("oterm-tag-push-{pid}"));
+        let bare = std::env::temp_dir().join(format!("oterm-tag-push-bare-{pid}"));
+        let _ = fs::remove_dir_all(&dir);
+        let _ = fs::remove_dir_all(&bare);
+
+        fs::create_dir_all(&dir).unwrap();
+        git_run(&dir, &["init"]).unwrap();
+        git_run(&dir, &["config", "user.email", "t@example.com"]).unwrap();
+        git_run(&dir, &["config", "user.name", "test"]).unwrap();
+        fs::write(dir.join("a.txt"), "hello").unwrap();
+        git_run(&dir, &["add", "a.txt"]).unwrap();
+        git_run(&dir, &["commit", "-m", "init"]).unwrap();
+
+        git_run(&bare, &["init", "--bare"]).unwrap();
+        git_run(&dir, &["remote", "add", "origin", bare.to_str().unwrap()]).unwrap();
+        git_run(&dir, &["push", "-u", "origin", "HEAD"]).unwrap();
+
+        let root = dir.to_string_lossy().into_owned();
+        create_tag(root.clone(), "v0.0.1".into(), None, None).unwrap();
+
+        let before = list_tag_refs(root.clone()).unwrap();
+        assert_eq!(before.len(), 1);
+        assert_eq!(before[0].name, "v0.0.1");
+        assert!(!before[0].on_origin);
+
+        push_tag(root.clone(), "v0.0.1".into(), None).unwrap();
+
+        let after = list_tag_refs(root).unwrap();
+        assert_eq!(after.len(), 1);
+        assert!(after[0].on_origin);
+
+        let _ = fs::remove_dir_all(&dir);
+        let _ = fs::remove_dir_all(&bare);
     }
 }

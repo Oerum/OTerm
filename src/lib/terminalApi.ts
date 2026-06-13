@@ -39,6 +39,12 @@ export function killTerminal(sessionId: string): Promise<void> {
   return invoke("terminal_kill", { sessionId });
 }
 
+export function queryTerminalActiveAgent(
+  sessionId: string,
+): Promise<string | null> {
+  return invoke<string | null>("terminal_query_active_agent", { sessionId });
+}
+
 export function listenTerminalAgentChanged(
   handler: (event: TerminalAgentChangedEvent) => void,
 ): Promise<UnlistenFn> {

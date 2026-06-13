@@ -35,7 +35,8 @@ use git::commands::{
     git_checkout_branch, git_checkout_detached, git_cherry_pick, git_commit, git_commit_details,
     git_commit_graph, git_compare_commits, git_create_branch, git_create_tag, git_delete_branch,
     git_fetch, git_file_diff, git_incoming_outgoing, git_list_branch_refs, git_list_branches,
-    git_list_worktrees, git_log, git_merge_branch, git_pull, git_push, git_read_working_file,
+    git_list_tag_refs, git_list_worktrees, git_log, git_merge_branch, git_pull, git_push,
+    git_push_tag, git_read_working_file,
     git_remote_browser_url, git_reset_commit, git_revert_commit, git_revert_hunk,
     git_revert_tracked_paths, git_revert_untracked_paths, git_source_control_status,
     git_squash_commits, git_stage_hunk, git_stage_paths, git_staged_diff, git_status, git_sync,
@@ -65,7 +66,7 @@ use ssh_terminal::commands::{
 use ssh_terminal::SshTerminalManager;
 use terminal::commands::{
     terminal_default_shell_id, terminal_drain_output, terminal_kill, terminal_list_shells,
-    terminal_resize, terminal_spawn, terminal_write,
+    terminal_query_active_agent, terminal_resize, terminal_spawn, terminal_write,
 };
 use terminal::manager::PtyManager;
 
@@ -174,6 +175,7 @@ pub fn run() {
             terminal_resize,
             terminal_kill,
             terminal_drain_output,
+            terminal_query_active_agent,
             fs_list_directory,
             fs_user_home,
             fs_read_file,
@@ -244,6 +246,8 @@ pub fn run() {
             git_delete_branch,
             git_merge_branch,
             git_create_tag,
+            git_list_tag_refs,
+            git_push_tag,
             git_revert_commit,
             git_reset_commit,
             git_cherry_pick,

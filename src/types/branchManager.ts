@@ -9,6 +9,13 @@ export interface BranchRefInfo {
   remoteName: string | null;
 }
 
+export interface TagRefInfo {
+  name: string;
+  hash: string;
+  shortHash: string;
+  onOrigin: boolean;
+}
+
 export interface GraphCommit {
   hash: string;
   shortHash: string;
