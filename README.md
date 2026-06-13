@@ -89,7 +89,7 @@ To compile the native Whisper and Tauri modules, your machine needs:
   - Override with `OTERM_WHISPER_BACKEND=cuda|vulkan|openblas|metal` or pass `--features whisper-<backend>` to Cargo/Tauri.
 - **GPU / native build dependencies**:
   - **Windows (Vulkan)**: [Vulkan SDK](https://vulkan.lunarg.com/) + LLVM/libclang (auto-detected by `scripts/tauri.mjs`).
-  - **Windows (CUDA)**: NVIDIA CUDA toolkit + LLVM/libclang.
+  - **Windows (CUDA)**: NVIDIA CUDA toolkit + LLVM/libclang for local builds. Published **OTerm CUDA** Windows installers bundle the required CUDA runtime DLLs; end users do not need the CUDA toolkit installed.
   - **macOS**: Xcode Command Line Tools (Metal).
   - **Linux (Vulkan)**: `libvulkan-dev`, `glslang-tools`, and a C++ toolchain.
   - **Linux (CUDA)**: NVIDIA CUDA toolkit.
