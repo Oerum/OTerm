@@ -1,5 +1,6 @@
 # Custom
 .brain/
+src-tauri/cuda-runtime/
 
 # Rust (https://github.com/github/gitignore/blob/main/Rust.gitignore)
 debug/

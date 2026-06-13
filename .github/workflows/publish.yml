@@ -31,7 +31,7 @@ jobs:
           - job_name: Windows (Vulkan)
             platform: windows-latest
             whisper_features: whisper-vulkan
-            product_suffix: ' Vulkan'
+            product_suffix: ''
             bundle_targets: ''
             install_vulkan: true
             install_llvm: true
@@ -55,7 +55,7 @@ jobs:
           - job_name: Linux (Vulkan)
             platform: ubuntu-22.04
             whisper_features: whisper-vulkan
-            product_suffix: ' Vulkan'
+            product_suffix: ''
             bundle_targets: ''
             install_vulkan: false
             install_llvm: false
@@ -249,6 +249,77 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Prepare Tauri bundle config (Windows)
+        if: contains(matrix.platform, 'windows')
+        shell: pwsh
+        run: |
+          $bundleTargets = '${{ matrix.bundle_targets }}'
+          $productName = "OTerm${{ matrix.product_suffix }}"
+
+          if ('${{ matrix.install_cuda }}' -ne 'true') {
+            $config = "{`"productName`":`"$productName`",`"bundle`":{`"createUpdaterArtifacts`":false$bundleTargets}}"
+            Add-Content -Path $env:GITHUB_ENV -Value "TAURI_CONFIG_JSON<<EOF"
+            Add-Content -Path $env:GITHUB_ENV -Value $config
+            Add-Content -Path $env:GITHUB_ENV -Value "EOF"
+            exit 0
+          }
+
+          $dest = Join-Path $PWD 'src-tauri/cuda-runtime'
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          $binDirs = @(
+            Join-Path $env:CUDA_PATH 'bin\x64'
+            Join-Path $env:CUDA_PATH 'bin'
+          ) | Where-Object { Test-Path $_ }
+          if ($binDirs.Count -eq 0) {
+            throw "CUDA bin directory not found under $($env:CUDA_PATH)"
+          }
+
+          $patterns = @('cudart64_*.dll', 'cublas64_*.dll', 'cublasLt64_*.dll')
+          $copied = @()
+          foreach ($bin in $binDirs) {
+            foreach ($pattern in $patterns) {
+              Get-ChildItem -Path $bin -Filter $pattern -ErrorAction SilentlyContinue | ForEach-Object {
+                if ($copied -notcontains $_.Name) {
+                  Copy-Item $_.FullName -Destination $dest -Force
+                  $copied += $_.Name
+                }
+              }
+            }
+          }
+          if ($copied.Count -eq 0) {
+            throw "No CUDA runtime DLLs found in $($binDirs -join ', ')"
+          }
+          Write-Host "Staged CUDA runtime DLLs: $($copied -join ', ')"
+
+          $resources = [ordered]@{}
+          foreach ($name in $copied) {
+            $resources["cuda-runtime/$name"] = $name
+          }
+          $resources['icons/icon.ico'] = 'icons/icon.ico'
+
+          $configObj = [ordered]@{
+            productName = $productName
+            bundle = [ordered]@{
+              createUpdaterArtifacts = $false
+              resources = $resources
+            }
+          }
+
+          $config = ($configObj | ConvertTo-Json -Compress -Depth 6)
+          Add-Content -Path $env:GITHUB_ENV -Value "TAURI_CONFIG_JSON<<EOF"
+          Add-Content -Path $env:GITHUB_ENV -Value $config
+          Add-Content -Path $env:GITHUB_ENV -Value "EOF"
+
+      - name: Prepare Tauri bundle config (Unix)
+        if: "!contains(matrix.platform, 'windows')"
+        shell: bash
+        run: |
+          {
+            echo 'TAURI_CONFIG_JSON<<EOF'
+            echo '{"productName":"OTerm${{ matrix.product_suffix }}","bundle":{"createUpdaterArtifacts":false${{ matrix.bundle_targets }}}}'
+            echo 'EOF'
+          } >> "$GITHUB_ENV"
+
       - name: Build and upload Tauri bundle
         uses: tauri-apps/tauri-action@v0
         env:
@@ -260,4 +331,25 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: false
-          args: --features ${{ matrix.whisper_features }} -c '{"productName":"OTerm${{ matrix.product_suffix }}","bundle":{"createUpdaterArtifacts":false${{ matrix.bundle_targets }}}}'
+          args: --features ${{ matrix.whisper_features }} -c '${{ env.TAURI_CONFIG_JSON }}'
+
+      - name: Verify Windows CUDA runtime bundle
+        if: matrix.install_cuda && contains(matrix.platform, 'windows')
+        shell: pwsh
+        run: |
+          $releaseDir = 'C:/oterm-t/release'
+          $exePath = Join-Path $releaseDir 'oterm.exe'
+          if (-not (Test-Path $exePath)) {
+            $exe = Get-ChildItem -Path 'C:/oterm-t/release/bundle' -Recurse -Filter 'oterm.exe' -ErrorAction Stop |
+              Select-Object -First 1
+            $exePath = $exe.FullName
+          }
+          $dir = Split-Path $exePath -Parent
+          $staged = Get-ChildItem -Path 'src-tauri/cuda-runtime' -Filter '*.dll' -ErrorAction Stop
+          foreach ($dll in $staged) {
+            $installed = Join-Path $dir $dll.Name
+            if (-not (Test-Path $installed)) {
+              throw "Bundled CUDA DLL missing from install tree: $($dll.Name) (expected at $installed)"
+            }
+          }
+          Write-Host "Verified $($staged.Count) CUDA runtime DLL(s) beside oterm.exe in $dir"
