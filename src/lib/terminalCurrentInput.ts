@@ -1,4 +1,4 @@
-import type { Terminal } from "@xterm/xterm";
+import type { IBufferCell, IBufferLine, Terminal } from "@xterm/xterm";
 import { stripAnsiForPrompt } from "./terminalPrompt";
 
 const START_PROMPTS = [
@@ -8,6 +8,18 @@ const START_PROMPTS = [
   /^[\w.-]+@[\w.-]+:(?:\/[\w.-]+)+[$#]\s*/,
 ] as const;
 const MAX_PROMPT_PREFIX_LEN = 120;
+const MUTED_PALETTE_MIN = 238;
+const MUTED_PALETTE_MAX = 252;
+
+/** Shell inline suggestions (fish/zsh/PSReadLine) often use dim, italic, or muted palette fg. */
+export function isGhostSuggestionCell(cell: IBufferCell): boolean {
+  if (cell.isDim() || cell.isItalic()) return true;
+  if (cell.isFgPalette()) {
+    const fg = cell.getFgColor();
+    if (fg >= MUTED_PALETTE_MIN && fg <= MUTED_PALETTE_MAX) return true;
+  }
+  return false;
+}
 
 /** Text after the shell prompt on the cursor row (or wrapped block). */
 export function extractInputAfterPrompt(line: string): string {
@@ -33,9 +45,26 @@ export function extractInputAfterPrompt(line: string): string {
   return trimmed.trim();
 }
 
+function readLineToString(
+  line: IBufferLine,
+  endColumn: number,
+  stopAtGhost: boolean,
+  cell: IBufferCell,
+): string {
+  let raw = "";
+  for (let x = 0; x < endColumn; x++) {
+    const current = line.getCell(x, cell);
+    if (!current) break;
+    if (stopAtGhost && isGhostSuggestionCell(current)) break;
+    raw += current.getChars();
+  }
+  return raw;
+}
+
 export function readTerminalCurrentInput(terminal: Terminal): string {
   const buffer = terminal.buffer.active;
   const cursorY = buffer.baseY + buffer.cursorY;
+  const cell = {} as IBufferCell;
 
   let startY = cursorY;
   while (startY > 0) {
@@ -52,9 +81,9 @@ export function readTerminalCurrentInput(terminal: Terminal): string {
     if (!line) continue;
     const isCursorLine = y === cursorY;
     const endColumn = isCursorLine
-      ? Math.min(buffer.cursorX + 1, line.length + 1)
+      ? Math.min(buffer.cursorX + 1, line.length)
       : line.length;
-    raw += line.translateToString(false, 0, endColumn);
+    raw += readLineToString(line, endColumn, isCursorLine, cell);
   }
 
   return extractInputAfterPrompt(raw);
@@ -77,4 +106,14 @@ export function resolveTerminalDraftInput(
   const fromBuffer = terminal ? readTerminalCurrentInput(terminal).trim() : "";
   const fromDraft = draftFallback.trim();
   return mergeTerminalDraftSources(fromBuffer, fromDraft);
+}
+
+/** Typed input only — ignores shell ghost suggestions that may inflate the buffer read. */
+export function resolveTerminalAutocompleteInput(
+  terminal: Terminal | null,
+  draftFallback: string,
+): string {
+  const fromDraft = draftFallback.trim();
+  if (fromDraft) return fromDraft;
+  return terminal ? readTerminalCurrentInput(terminal).trim() : "";
 }

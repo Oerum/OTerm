@@ -31,7 +31,11 @@ import {
   isRecordableCommand,
   normalizeSubmittedCommand,
 } from "../lib/terminalInputDraft";
-import { resolveTerminalDraftInput, readTerminalCurrentInput } from "../lib/terminalCurrentInput";
+import {
+  resolveTerminalAutocompleteInput,
+  resolveTerminalDraftInput,
+  readTerminalCurrentInput,
+} from "../lib/terminalCurrentInput";
 import {
   appendPromptScanBuffer,
   isPlausiblePromptCwd,
@@ -718,6 +722,10 @@ function getActiveDraft(): string {
   return resolveTerminalDraftInput(terminal, draftInput.value);
 }
 
+function getAutocompleteDraft(): string {
+  return resolveTerminalAutocompleteInput(terminal, draftInput.value);
+}
+
 function resolveEnterCommandLine(isEnter: boolean): string {
   if (!isEnter) return "";
 
@@ -755,13 +763,13 @@ function scheduleSuggestion() {
     return;
   }
 
-  if (getActiveDraft().trim().length < 2) {
+  if (getAutocompleteDraft().trim().length < 2) {
     clearSuggestion();
     return;
   }
 
   suggestionTimer = window.setTimeout(() => {
-    const draft = getActiveDraft().trim();
+    const draft = getAutocompleteDraft().trim();
     if (draft.length < 2) {
       clearSuggestion();
       return;
@@ -781,7 +789,7 @@ async function requestSuggestion(draft: string) {
       draft,
       paneCwd.value,
     );
-    if (requestId !== suggestionRequestId || draft !== getActiveDraft().trim()) return;
+    if (requestId !== suggestionRequestId || draft !== getAutocompleteDraft().trim()) return;
     suggestion.value = result;
   } catch {
     if (requestId === suggestionRequestId) suggestion.value = null;
@@ -793,7 +801,7 @@ async function requestSuggestion(draft: string) {
 async function acceptSuggestion() {
   const line = suggestion.value;
   if (!line || !localSessionId.value) return;
-  const draft = getActiveDraft();
+  const draft = getAutocompleteDraft();
   const toWrite = line.startsWith(draft) ? line.slice(draft.length) : line;
   if (!toWrite) return;
   await writeSession(localSessionId.value, toWrite);
@@ -1716,13 +1724,13 @@ watch(agentComposerVisible, (visible) => {
 });
 
 const suggestionVisible = computed(
-  () => canSuggest() && Boolean(suggestion.value) && getActiveDraft().trim().length >= 2,
+  () => canSuggest() && Boolean(suggestion.value) && getAutocompleteDraft().trim().length >= 2,
 );
 
 const suggestionStripVisible = computed(
   () =>
     suggestionVisible.value ||
-    (suggestionLoading.value && canSuggest() && getActiveDraft().trim().length >= 2),
+    (suggestionLoading.value && canSuggest() && getAutocompleteDraft().trim().length >= 2),
 );
 
 watch(suggestionStripVisible, () => {
