@@ -16,21 +16,28 @@ if (-not $CudaPath) {
 
 $dest = Join-Path $repoRoot "src-tauri/cuda-runtime"
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
-$bin = Join-Path $CudaPath "bin"
-if (-not (Test-Path $bin)) {
-  throw "CUDA bin directory not found at $bin"
+$binDirs = @(
+  Join-Path $CudaPath "bin\x64"
+  Join-Path $CudaPath "bin"
+) | Where-Object { Test-Path $_ }
+if ($binDirs.Count -eq 0) {
+  throw "CUDA bin directory not found under $CudaPath"
 }
 
 $patterns = @("cudart64_*.dll", "cublas64_*.dll", "cublasLt64_*.dll")
 $copied = @()
-foreach ($pattern in $patterns) {
-  Get-ChildItem -Path $bin -Filter $pattern -ErrorAction SilentlyContinue | ForEach-Object {
-    Copy-Item $_.FullName -Destination $dest -Force
-    $copied += $_.Name
+foreach ($bin in $binDirs) {
+  foreach ($pattern in $patterns) {
+    Get-ChildItem -Path $bin -Filter $pattern -ErrorAction SilentlyContinue | ForEach-Object {
+      if ($copied -notcontains $_.Name) {
+        Copy-Item $_.FullName -Destination $dest -Force
+        $copied += $_.Name
+      }
+    }
   }
 }
 if ($copied.Count -eq 0) {
-  throw "No CUDA runtime DLLs found in $bin"
+  throw "No CUDA runtime DLLs found in $($binDirs -join ', ')"
 }
 Write-Host "Staged CUDA runtime DLLs: $($copied -join ', ')"
 
