@@ -68,3 +68,38 @@ describe("reorderTerminalTab", () => {
     expect(tabs[tabs.length - 1]?.id).toBe(settings.id);
   });
 });
+
+describe("terminal groups", () => {
+  function setup() {
+    return useWorkspace(() => "powershell");
+  }
+
+  it("moves tabs into groups and ungroups on delete", () => {
+    const ws = setup();
+    const t1 = ws.createTab("cmd", "C:\\one");
+    ws.createTab("cmd", "C:\\two");
+    ws.createTab("cmd", "C:\\three");
+    const group = ws.createGroup("Work");
+    ws.moveTabToGroup(t1.id, group.id);
+    const moved = ws.tabs.value.find((tab) => tab.id === t1.id);
+    expect(isTerminalTab(moved!) && moved.groupId).toBe(group.id);
+
+    ws.deleteGroup(group.id);
+    const ungrouped = ws.tabs.value.find((tab) => tab.id === t1.id);
+    expect(isTerminalTab(ungrouped!) && ungrouped.groupId).toBeNull();
+    expect(ws.terminalGroups.value).toHaveLength(0);
+  });
+
+  it("reorders terminal tabs after assigning a shared group", () => {
+    const ws = setup();
+    const t1 = ws.createTab("cmd", "C:\\one");
+    const t2 = ws.createTab("cmd", "C:\\two");
+    ws.createTab("cmd", "C:\\three");
+    const group = ws.createGroup("Work");
+    ws.setTabGroup(t1.id, group.id);
+    ws.setTabGroup(t2.id, group.id);
+
+    ws.reorderTerminalTab(t2.id, 0);
+    expect(terminalTabIds(ws)).toEqual([t2.id, t1.id, ws.tabs.value.filter(isTerminalTab)[2]!.id]);
+  });
+});

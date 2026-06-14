@@ -4,7 +4,7 @@ import {
   EMPTY_TERMINAL_WORKSPACE,
   savePersistedTerminalWorkspace,
 } from "../lib/workspaceStore";
-import type { PersistedTerminalWorkspaceV1, WorkspaceTab } from "../types/terminal";
+import type { PersistedTerminalWorkspaceV2, WorkspaceTab } from "../types/terminal";
 
 const DEBOUNCE_MS = 250;
 const FLUSH_TIMEOUT_MS = 2000;
@@ -18,7 +18,9 @@ export function useWorkspacePersistence(
   tabs: Ref<WorkspaceTab[]>,
   activeTabId: Ref<string | null>,
   activePaneId: Ref<string | null>,
-  getSnapshot: () => PersistedTerminalWorkspaceV1 | null,
+  terminalGroups: Ref<{ id: string; name: string; order: number }[]>,
+  collapsedGroupIds: Ref<string[]>,
+  getSnapshot: () => PersistedTerminalWorkspaceV2 | null,
   options: WorkspacePersistenceOptions = {},
 ) {
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -75,7 +77,9 @@ export function useWorkspacePersistence(
   }
 
   onMounted(() => {
-    watch([tabs, activeTabId, activePaneId], scheduleSave, { deep: true });
+    watch([tabs, activeTabId, activePaneId, terminalGroups, collapsedGroupIds], scheduleSave, {
+      deep: true,
+    });
 
     void getCurrentWindow()
       .onCloseRequested(async (event) => {

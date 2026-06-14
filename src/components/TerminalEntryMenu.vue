@@ -1,22 +1,50 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { ENTRY_COLORS } from "../lib/sidebarEntries";
-import type { TerminalEntryColor, TerminalMenuActionId, TerminalSidebarEntry } from "../types/terminal";
+import type { TerminalEntryColor, TerminalMenuActionId, TerminalSidebarEntry, TerminalTabGroup } from "../types/terminal";
 
 const props = defineProps<{
   entry: TerminalSidebarEntry;
   open: boolean;
   openUpward?: boolean;
+  groups?: TerminalTabGroup[];
 }>();
 
 const emit = defineEmits<{
   close: [];
   action: [actionId: TerminalMenuActionId];
   colorChange: [color: TerminalEntryColor];
+  moveToGroup: [groupId: string | null];
+  newGroupAndMove: [];
 }>();
 
 const menuRef = ref<HTMLElement | null>(null);
 const focusIndex = ref(0);
+
+const isCustomColor = computed(() => {
+  return props.entry.tabColor !== "none" && !ENTRY_COLORS.some(c => c.id === props.entry.tabColor);
+});
+
+const customColorHex = computed(() => {
+  if (isCustomColor.value && props.entry.tabColor.startsWith("#") && props.entry.tabColor.length === 7) {
+    return props.entry.tabColor;
+  }
+  return "#00e5ba";
+});
+
+function onColorPickerInput(event: Event) {
+  const value = (event.target as HTMLInputElement).value;
+  emit("colorChange", value);
+}
+
+function onCustomColorTextChange(event: Event) {
+  const value = (event.target as HTMLInputElement).value.trim();
+  if (!value) {
+    emit("colorChange", "none");
+  } else {
+    emit("colorChange", value);
+  }
+}
 
 interface MenuItem {
   id: TerminalMenuActionId;
@@ -61,6 +89,20 @@ const items = computed<MenuItem[]>(() => [
   },
   { id: "save-as-profile", label: "Save as profile", separatorBefore: true },
 ]);
+
+const groupMoveItems = computed(() => {
+  const items: { groupId: string | null; label: string }[] = [];
+  if (props.entry.groupId) {
+    items.push({ groupId: null, label: "Move to Ungrouped" });
+  }
+  for (const group of props.groups ?? []) {
+    if (group.id === props.entry.groupId) continue;
+    items.push({ groupId: group.id, label: `Move to ${group.name}` });
+  }
+  return items;
+});
+
+const showGroupSection = true;
 
 const enabledIndices = computed(() =>
   items.value.flatMap((item, i) => (item.disabled ? [] : [i])),
@@ -185,12 +227,36 @@ onUnmounted(() => {
       </div>
     </template>
 
+    <template v-if="showGroupSection">
+      <div role="separator" class="my-0.5 border-t border-[var(--oterm-border)]" />
+      <button
+        v-for="item in groupMoveItems"
+        :key="item.groupId ?? 'ungrouped'"
+        type="button"
+        role="menuitem"
+        data-menu-item="true"
+        class="flex w-full px-2 py-1 text-left text-[0.75rem] leading-[1.2] text-[var(--oterm-text)] transition hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)] focus-visible:ring-inset"
+        @click="emit('moveToGroup', item.groupId)"
+      >
+        {{ item.label }}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        data-menu-item="true"
+        class="flex w-full px-2 py-1 text-left text-[0.75rem] leading-[1.2] text-[var(--oterm-text)] transition hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)] focus-visible:ring-inset"
+        @click="emit('newGroupAndMove')"
+      >
+        New group and move
+      </button>
+    </template>
+
     <div role="separator" class="my-0.5 border-t border-[var(--oterm-border)]" />
 
     <div
       role="radiogroup"
       aria-label="Tab color"
-      class="flex flex-wrap items-center gap-1 px-2 py-1.5"
+      class="flex flex-wrap items-center gap-1.5 px-2 py-1.5"
     >
       <button
         v-for="color in ENTRY_COLORS"
@@ -204,6 +270,32 @@ onUnmounted(() => {
         :aria-label="color.label"
         :title="color.label"
         @click="emit('colorChange', color.id)"
+      />
+      <!-- Custom Color Spectrum Swatch -->
+      <label
+        class="term-color-swatch relative h-3 w-3 shrink-0 cursor-pointer rounded-full ring-1 ring-offset-1 ring-offset-[var(--oterm-elevated)] transition"
+        :class="isCustomColor ? 'ring-[var(--oterm-text)]' : 'ring-transparent'"
+        style="background: linear-gradient(135deg, #ff0055 0%, #00ffcc 50%, #9900ff 100%)"
+        title="Custom color..."
+      >
+        <input
+          type="color"
+          class="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+          :value="customColorHex"
+          @input="onColorPickerInput"
+        />
+      </label>
+    </div>
+
+    <!-- Custom RGBA Input -->
+    <div class="flex items-center gap-1 px-2 pb-1.5 pt-0.5">
+      <input
+        type="text"
+        class="w-full rounded border border-[var(--oterm-border-strong)] bg-[var(--oterm-bg)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--oterm-text)] outline-none focus:border-[var(--oterm-accent)]/60 focus:ring-1 focus:ring-[var(--oterm-accent)]/15"
+        placeholder="Custom hex/rgba..."
+        :value="entry.tabColor !== 'none' && !ENTRY_COLORS.some(c => c.id === entry.tabColor) ? entry.tabColor : ''"
+        @change="onCustomColorTextChange"
+        @keydown.stop
       />
     </div>
   </div>

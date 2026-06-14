@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useTerminalTabDragReorder } from "../composables/useTerminalTabDragReorder";
 import { getGitStatus } from "../lib/gitApi";
-import { buildFeatureEntries, buildTerminalEntries } from "../lib/sidebarEntries";
+import { buildFeatureEntries, buildTerminalEntries, buildTerminalSidebarSections } from "../lib/sidebarEntries";
 import { writeClipboardText } from "../lib/clipboard";
 import type {
   CreateMenuAction,
@@ -10,14 +10,19 @@ import type {
   ShellProfile,
   TerminalEntryColor,
   TerminalMenuActionId,
+  TerminalSidebarSection,
+  TerminalTabGroup,
   WorkspaceTab,
 } from "../types/terminal";
 import { isTerminalTab } from "../types/terminal";
 import TerminalCreateMenu from "./TerminalCreateMenu.vue";
+import TerminalGroupHeader from "./TerminalGroupHeader.vue";
 import TerminalSidebarEntry from "./TerminalSidebarEntry.vue";
 
 const props = defineProps<{
   tabs: WorkspaceTab[];
+  terminalGroups: TerminalTabGroup[];
+  collapsedGroupIds: string[];
   activeTabId: string | null;
   activePaneId: string | null;
   shells: ShellProfile[];
@@ -46,9 +51,16 @@ const emit = defineEmits<{
   setDefaultShell: [shellId: string];
   renameTab: [tabId: string, title: string];
   moveTab: [tabId: string, direction: "up" | "down"];
-  reorderTab: [tabId: string, toTerminalIndex: number];
+  reorderTab: [tabId: string, toTerminalIndex: number, groupId?: string | null];
   colorChange: [tabId: string, color: TerminalEntryColor];
+  groupColorChange: [groupId: string, color: TerminalEntryColor];
   saveProfile: [draft: SaveProfileDraft];
+  createGroup: [];
+  renameGroup: [groupId: string, name: string];
+  deleteGroup: [groupId: string];
+  toggleGroupCollapsed: [groupId: string];
+  moveTabToGroup: [tabId: string, groupId: string | null];
+  newGroupAndMove: [tabId: string];
 }>();
 
 const newMenuOpen = ref(false);
@@ -56,7 +68,10 @@ const newMenuRef = ref<HTMLElement | null>(null);
 const newButtonRef = ref<HTMLElement | null>(null);
 const terminalListRef = ref<HTMLElement | null>(null);
 const openMenuEntryId = ref<string | null>(null);
+const openMenuGroupId = ref<string | null>(null);
 const renamingEntryId = ref<string | null>(null);
+const renamingGroupId = ref<string | null>(null);
+const renamingGroupDraft = ref("");
 const toastMessage = ref<string | null>(null);
 const gitByPane = ref(
   new Map<
@@ -97,6 +112,12 @@ const terminalEntries = computed(() => {
     props.activePaneId,
     gitByPane.value,
   );
+  return applyGitOverride(entries);
+});
+
+function applyGitOverride<T extends { paneId: string; gitBranch: string | null; gitIsRepo: boolean; gitChangedFiles: number; gitAdditions: number; gitDeletions: number; gitRepoRoot: string | null }>(
+  entries: T[],
+): T[] {
   const override = props.activePaneGit;
   if (!override?.paneId) return entries;
   return entries.map((entry) =>
@@ -112,15 +133,45 @@ const terminalEntries = computed(() => {
           gitRepoRoot: override.repoRoot,
         },
   );
+}
+
+const terminalSections = computed((): TerminalSidebarSection[] => {
+  const sections = buildTerminalSidebarSections(
+    props.terminalGroups,
+    props.collapsedGroupIds,
+    props.tabs,
+    props.shells,
+    props.activeTabId,
+    props.activePaneId,
+    gitByPane.value,
+  );
+  const override = props.activePaneGit;
+  if (!override?.paneId) return sections;
+  return sections.map((section) => {
+    if (section.kind !== "entry" || section.entry.paneId !== override.paneId) return section;
+    return {
+      kind: "entry",
+      entry: {
+        ...section.entry,
+        gitBranch: override.branch,
+        gitIsRepo: override.isRepo,
+        gitChangedFiles: override.changedFiles,
+        gitAdditions: override.additions,
+        gitDeletions: override.deletions,
+        gitRepoRoot: override.repoRoot,
+      },
+    };
+  });
 });
 
 const {
   onDragPointerDown,
   isDropTarget,
   isDropTargetAfter,
+  isGroupDropTarget,
   isDraggingTab,
-} = useTerminalTabDragReorder(terminalEntries, (tabId, toTerminalIndex) => {
-  emit("reorderTab", tabId, toTerminalIndex);
+} = useTerminalTabDragReorder(terminalEntries, (tabId, toTerminalIndex, groupId) => {
+  emit("reorderTab", tabId, toTerminalIndex, groupId);
 });
 
 function showToast(message: string) {
@@ -385,6 +436,40 @@ async function onEntryAction(entryId: string, actionId: TerminalMenuActionId) {
   }
 }
 
+function onMoveToGroup(entryId: string, groupId: string | null) {
+  const entry = findEntry(entryId);
+  if (!entry) return;
+  emit("moveTabToGroup", entry.tabId, groupId);
+  openMenuEntryId.value = null;
+}
+
+function onNewGroupAndMove(entryId: string) {
+  const entry = findEntry(entryId);
+  if (!entry) return;
+  emit("newGroupAndMove", entry.tabId);
+  openMenuEntryId.value = null;
+}
+
+function startGroupRename(groupId: string, name: string) {
+  renamingGroupId.value = groupId;
+  renamingGroupDraft.value = name;
+}
+
+function commitGroupRename(groupId: string, name: string) {
+  renamingGroupId.value = null;
+  emit("renameGroup", groupId, name.trim() || "Group");
+}
+
+function cancelGroupRename() {
+  renamingGroupId.value = null;
+}
+
+function setGroupMenuOpen(groupId: string, open: boolean) {
+  openMenuGroupId.value = open ? groupId : null;
+  openMenuEntryId.value = null;
+  newMenuOpen.value = false;
+}
+
 function onEntryColorChange(entryId: string, color: TerminalEntryColor) {
   const entry = findEntry(entryId);
   if (!entry) return;
@@ -403,10 +488,15 @@ function onDocumentClick(event: MouseEvent) {
     const inMenu = (target as Element | null)?.closest("[data-terminal-entry-menu-root]");
     if (!inMenu) openMenuEntryId.value = null;
   }
+  if (openMenuGroupId.value) {
+    const inMenu = (target as Element | null)?.closest("[data-terminal-group-menu-root]");
+    if (!inMenu) openMenuGroupId.value = null;
+  }
 }
 
 function onSidebarScroll() {
   if (openMenuEntryId.value) openMenuEntryId.value = null;
+  if (openMenuGroupId.value) openMenuGroupId.value = null;
   if (renamingEntryId.value) renamingEntryId.value = null;
 }
 
@@ -441,22 +531,36 @@ onBeforeUnmount(() => {
           Terminals
         </span>
 
-        <button
-          ref="newButtonRef"
-          type="button"
-          class="no-drag flex h-7 w-7 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40"
-          :class="newMenuOpen ? 'bg-white/5 text-[var(--oterm-text)]' : ''"
-          title="New terminal"
-          aria-label="New terminal"
-          aria-haspopup="menu"
-          :aria-expanded="newMenuOpen"
-          :disabled="shells.length === 0"
-          @click.stop="toggleNewMenu"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor">
-            <path d="M6 2.5v7M2.5 6h7" stroke-width="1.5" stroke-linecap="round" />
-          </svg>
-        </button>
+        <div class="flex items-center gap-0.5">
+          <button
+            type="button"
+            class="no-drag flex h-7 w-7 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+            title="New group"
+            aria-label="New group"
+            @click.stop="emit('createGroup')"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M2 3.5h8M2 6.5h5M2 9.5h8" stroke-width="1.2" stroke-linecap="round" />
+            </svg>
+          </button>
+
+          <button
+            ref="newButtonRef"
+            type="button"
+            class="no-drag flex h-7 w-7 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40"
+            :class="newMenuOpen ? 'bg-white/5 text-[var(--oterm-text)]' : ''"
+            title="New terminal"
+            aria-label="New terminal"
+            aria-haspopup="menu"
+            :aria-expanded="newMenuOpen"
+            :disabled="shells.length === 0"
+            @click.stop="toggleNewMenu"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor">
+              <path d="M6 2.5v7M2.5 6h7" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div
@@ -520,33 +624,71 @@ onBeforeUnmount(() => {
       </div>
 
       <p
-        v-if="terminalEntries.length === 0 && featureEntries.length === 0"
+        v-if="terminalSections.length === 0 && featureEntries.length === 0"
         class="px-1.5 py-2 text-[0.75rem] text-[var(--oterm-faint)]"
       >
         No open terminals
       </p>
 
-      <TerminalSidebarEntry
-        v-for="entry in terminalEntries"
-        :key="entry.entryId"
-        data-terminal-entry-menu-root
-        :entry="entry"
-        :menu-open="openMenuEntryId === entry.entryId"
-        :renaming="renamingEntryId === entry.entryId"
-        :dragging="isDraggingTab(entry)"
-        :drop-target="isDropTarget(entry)"
-        :drop-target-after="isDropTargetAfter(entry)"
-        @select="(tabId, paneId) => emit('select', tabId, paneId)"
-        @menu-toggle="setMenuOpen"
-        @action="(actionId) => onEntryAction(entry.entryId, actionId)"
-        @color-change="(color) => onEntryColorChange(entry.entryId, color)"
-        @rename-commit="onRenameCommit"
-        @rename-cancel="onRenameCancel"
-        @drag-start="
-          (tabId, tabIndex, event) =>
-            onDragPointerDown(tabId, tabIndex, event, terminalListRef)
-        "
-      />
+      <template v-for="(section, sectionIndex) in terminalSections" :key="`${section.kind}-${sectionIndex}`">
+        <TerminalGroupHeader
+          v-if="section.kind === 'group-header'"
+          data-terminal-group-menu-root
+          :group-id="section.groupId"
+          :name="section.name"
+          :tab-count="section.tabCount"
+          :collapsed="section.collapsed"
+          :color="section.color"
+          :drop-target="isGroupDropTarget(section.groupId)"
+          :renaming="renamingGroupId === section.groupId"
+          :menu-open="openMenuGroupId === section.groupId"
+          v-model:rename-value="renamingGroupDraft"
+          @toggle-collapse="emit('toggleGroupCollapsed', section.groupId)"
+          @rename-commit="(name) => commitGroupRename(section.groupId, name)"
+          @rename-cancel="cancelGroupRename"
+          @delete-group="emit('deleteGroup', section.groupId)"
+          @color-change="(color) => emit('groupColorChange', section.groupId, color)"
+          @menu-toggle="(open) => setGroupMenuOpen(section.groupId, open)"
+          @start-rename="startGroupRename(section.groupId, section.name)"
+        />
+
+        <div
+          v-else-if="section.kind === 'ungrouped-header'"
+          class="no-drag flex w-full items-center gap-1 rounded-md px-1.5 py-1 text-left transition select-none mt-2.5"
+          :class="isGroupDropTarget(null) ? 'bg-[var(--oterm-accent)]/10 ring-1 ring-[var(--oterm-accent)]/40' : ''"
+          data-terminal-group-drop="ungrouped"
+          data-group-id="ungrouped"
+        >
+          <span class="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]">
+            Ungrouped
+          </span>
+          <span class="shrink-0 font-mono text-[10px] text-[var(--oterm-faint)]">({{ section.tabCount }})</span>
+        </div>
+
+        <TerminalSidebarEntry
+          v-else-if="section.kind === 'entry'"
+          data-terminal-entry-menu-root
+          :entry="section.entry"
+          :groups="terminalGroups"
+          :menu-open="openMenuEntryId === section.entry.entryId"
+          :renaming="renamingEntryId === section.entry.entryId"
+          :dragging="isDraggingTab(section.entry)"
+          :drop-target="isDropTarget(section.entry)"
+          :drop-target-after="isDropTargetAfter(section.entry)"
+          @select="(tabId, paneId) => emit('select', tabId, paneId)"
+          @menu-toggle="setMenuOpen"
+          @action="(actionId) => onEntryAction(section.entry.entryId, actionId)"
+          @move-to-group="(groupId) => onMoveToGroup(section.entry.entryId, groupId)"
+          @new-group-and-move="onNewGroupAndMove(section.entry.entryId)"
+          @color-change="(color) => onEntryColorChange(section.entry.entryId, color)"
+          @rename-commit="onRenameCommit"
+          @rename-cancel="onRenameCancel"
+          @drag-start="
+            (tabId, tabIndex, event) =>
+              onDragPointerDown(tabId, tabIndex, event, terminalListRef)
+          "
+        />
+      </template>
     </div>
 
 

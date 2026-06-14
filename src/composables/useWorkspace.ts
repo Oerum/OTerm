@@ -3,14 +3,16 @@ import { cwdForNewTerminal } from "../lib/newTerminalCwd";
 import type { CliAgentId } from "../lib/terminalAgentMode";
 import { normalizeOscTitle } from "../lib/terminalOscTitle";
 import type {
-  PersistedTerminalWorkspaceV1,
+  PersistedTerminalWorkspaceV2,
   ShellProfile,
   TerminalEntryColor,
+  TerminalTabGroup,
   WorkspacePane,
   WorkspaceTab,
   WorkspaceTerminalTab,
 } from "../types/terminal";
 import { isTerminalTab } from "../types/terminal";
+import { nextGroupOrder, sortGroups } from "../lib/terminalGroups";
 
 let nextId = 1;
 function uid(prefix: string) {
@@ -20,6 +22,8 @@ function uid(prefix: string) {
 export function useWorkspace(getDefaultShellId: () => string) {
   const shells = ref<ShellProfile[]>([]);
   const tabs = ref<WorkspaceTab[]>([]);
+  const terminalGroups = ref<TerminalTabGroup[]>([]);
+  const collapsedGroupIds = ref<string[]>([]);
   const activeTabId = ref<string | null>(null);
   const activePaneId = ref<string | null>(null);
   let lastActiveTerminalTabId: string | null = null;
@@ -60,7 +64,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     };
   }
 
-  function createTab(shellId?: string, cwd?: string) {
+  function createTab(shellId?: string, cwd?: string, groupId: string | null = null) {
     const pane = createPane(
       shellId,
       cwdForNewTerminal(activePane.value?.cwd, cwd),
@@ -70,6 +74,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
       id: uid("tab"),
       title: "Terminal",
       color: "none",
+      groupId,
       panes: [pane],
       split: "none",
     };
@@ -399,6 +404,85 @@ export function useWorkspace(getDefaultShellId: () => string) {
     if (tab && isTerminalTab(tab)) tab.color = color;
   }
 
+  function findTerminalTab(tabId: string) {
+    const tab = tabs.value.find((item) => item.id === tabId);
+    return tab && isTerminalTab(tab) ? tab : null;
+  }
+
+  function createGroup(name = "New group") {
+    const group: TerminalTabGroup = {
+      id: uid("group"),
+      name: name.trim() || "New group",
+      order: nextGroupOrder(terminalGroups.value),
+      color: "none",
+    };
+    terminalGroups.value.push(group);
+    return group;
+  }
+
+  function renameGroup(groupId: string, name: string) {
+    const group = terminalGroups.value.find((item) => item.id === groupId);
+    if (!group) return;
+    group.name = name.trim() || "Group";
+  }
+
+  function setGroupColor(groupId: string, color: TerminalEntryColor) {
+    const group = terminalGroups.value.find((item) => item.id === groupId);
+    if (group) group.color = color;
+  }
+
+  function deleteGroup(groupId: string) {
+    terminalGroups.value = terminalGroups.value.filter((group) => group.id !== groupId);
+    collapsedGroupIds.value = collapsedGroupIds.value.filter((id) => id !== groupId);
+    for (const tab of tabs.value) {
+      if (isTerminalTab(tab) && tab.groupId === groupId) {
+        tab.groupId = null;
+      }
+    }
+  }
+
+  function setTabGroup(tabId: string, groupId: string | null) {
+    const tab = findTerminalTab(tabId);
+    if (!tab) return;
+    if (groupId && !terminalGroups.value.some((group) => group.id === groupId)) return;
+    tab.groupId = groupId;
+  }
+
+  function toggleGroupCollapsed(groupId: string) {
+    if (collapsedGroupIds.value.includes(groupId)) {
+      collapsedGroupIds.value = collapsedGroupIds.value.filter((id) => id !== groupId);
+      return;
+    }
+    collapsedGroupIds.value = [...collapsedGroupIds.value, groupId];
+  }
+
+  function isGroupCollapsed(groupId: string) {
+    return collapsedGroupIds.value.includes(groupId);
+  }
+
+  function moveTabToGroup(tabId: string, groupId: string | null, toTerminalIndex?: number) {
+    const tab = findTerminalTab(tabId);
+    if (!tab) return;
+    if (groupId && !terminalGroups.value.some((group) => group.id === groupId)) return;
+    tab.groupId = groupId;
+
+    if (toTerminalIndex !== undefined) {
+      reorderTerminalTab(tabId, toTerminalIndex);
+      return;
+    }
+
+    const terminalTabs = tabs.value.filter(isTerminalTab);
+    const others = terminalTabs.filter((item) => item.id !== tabId);
+    let targetIndex = others.length;
+    for (let i = others.length - 1; i >= 0; i--) {
+      if (others[i]!.groupId === groupId) {
+        targetIndex = i + 1;
+        break;
+      }
+    }
+    reorderTerminalTab(tabId, Math.min(targetIndex, others.length));
+  }
+
   function reorderTerminalTab(tabId: string, toTerminalIndex: number) {
     const terminalTabs = tabs.value.filter(isTerminalTab);
     const fromIndex = terminalTabs.findIndex((tab) => tab.id === tabId);
@@ -453,7 +537,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     return tabs.value.slice(index + 1).map((tab) => tab.id);
   }
 
-  function serializeTerminalWorkspace(): PersistedTerminalWorkspaceV1 | null {
+  function serializeTerminalWorkspace(): PersistedTerminalWorkspaceV2 | null {
     const terminalTabs = tabs.value.filter(isTerminalTab);
     if (terminalTabs.length === 0) return null;
 
@@ -475,13 +559,21 @@ export function useWorkspace(getDefaultShellId: () => string) {
     if (activePaneIndex < 0) activePaneIndex = 0;
 
     return {
-      version: 1,
+      version: 2,
+      groups: sortGroups(terminalGroups.value).map((group) => ({
+        id: group.id,
+        name: group.name,
+        order: group.order,
+        color: group.color,
+      })),
+      collapsedGroupIds: [...collapsedGroupIds.value],
       activeTabIndex,
       activePaneIndex,
       tabs: terminalTabs.map((tab) => ({
         title: tab.title,
         color: tab.color,
         split: tab.split,
+        groupId: tab.groupId,
         panes: tab.panes.map((pane) => ({
           shellId: pane.shellId,
           cwd: pane.cwd,
@@ -493,9 +585,26 @@ export function useWorkspace(getDefaultShellId: () => string) {
   }
 
   function hydrateTerminalWorkspace(
-    snapshot: PersistedTerminalWorkspaceV1,
+    snapshot: PersistedTerminalWorkspaceV2,
     resolveShellId: (shellId: string) => string,
-  ): { tabs: WorkspaceTab[]; activeTabId: string; activePaneId: string | null } {
+  ): {
+    tabs: WorkspaceTab[];
+    terminalGroups: TerminalTabGroup[];
+    collapsedGroupIds: string[];
+    activeTabId: string;
+    activePaneId: string | null;
+  } {
+    terminalGroups.value = sortGroups(
+      snapshot.groups.map((group) => ({
+        id: group.id,
+        name: group.name,
+        order: group.order,
+        color: group.color || "none",
+      })),
+    );
+    collapsedGroupIds.value = [...snapshot.collapsedGroupIds];
+
+    const validGroupIds = new Set(terminalGroups.value.map((group) => group.id));
     const restoredTabs: WorkspaceTerminalTab[] = snapshot.tabs.map((saved) => {
       const panes = saved.panes.map((savedPane) => ({
         id: uid("pane"),
@@ -509,11 +618,14 @@ export function useWorkspace(getDefaultShellId: () => string) {
         hasUnseenNotification: false,
         sshEndpointId: savedPane.sshEndpointId ?? null,
       }));
+      const groupId =
+        saved.groupId && validGroupIds.has(saved.groupId) ? saved.groupId : null;
       return {
         kind: "terminal" as const,
         id: uid("tab"),
         title: saved.title,
         color: saved.color,
+        groupId,
         split: saved.split,
         panes,
       };
@@ -534,6 +646,8 @@ export function useWorkspace(getDefaultShellId: () => string) {
 
     return {
       tabs: restoredTabs,
+      terminalGroups: terminalGroups.value,
+      collapsedGroupIds: collapsedGroupIds.value,
       activeTabId: activeTab.id,
       activePaneId,
     };
@@ -542,6 +656,8 @@ export function useWorkspace(getDefaultShellId: () => string) {
   return {
     shells,
     tabs,
+    terminalGroups,
+    collapsedGroupIds,
     activeTabId,
     activePaneId,
     activeTab,
@@ -571,6 +687,14 @@ export function useWorkspace(getDefaultShellId: () => string) {
     setPaneShell,
     setTabTitle,
     setTabColor,
+    createGroup,
+    renameGroup,
+    deleteGroup,
+    setGroupColor,
+    setTabGroup,
+    toggleGroupCollapsed,
+    isGroupCollapsed,
+    moveTabToGroup,
     moveTab,
     reorderTerminalTab,
     closeOtherTabs,

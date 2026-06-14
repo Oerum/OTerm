@@ -287,6 +287,8 @@ function onSidebarResizePointerDown(event: PointerEvent) {
 const {
   shells,
   tabs,
+  terminalGroups,
+  collapsedGroupIds,
   activeTabId,
   activePaneId,
   activePane,
@@ -314,15 +316,52 @@ const {
   setPaneUnseenNotification,
   setTabTitle,
   setTabColor,
+  createGroup,
+  renameGroup,
+  deleteGroup,
+  setGroupColor,
+  toggleGroupCollapsed,
+  moveTabToGroup,
   moveTab,
-  reorderTerminalTab,
   serializeTerminalWorkspace,
   hydrateTerminalWorkspace,
 } = useWorkspace(() => defaultShellId.value);
 
-useWorkspacePersistence(tabs, activeTabId, activePaneId, serializeTerminalWorkspace, {
-  beforeDestroy: killAllTerminalSessionsForClose,
-});
+const mountedTerminalTabIds = ref(new Set<string>());
+
+function ensureTerminalMounted(tabId: string) {
+  if (mountedTerminalTabIds.value.has(tabId)) return;
+  mountedTerminalTabIds.value = new Set([...mountedTerminalTabIds.value, tabId]);
+}
+
+function unmountTerminalTab(tabId: string) {
+  if (!mountedTerminalTabIds.value.has(tabId)) return;
+  const next = new Set(mountedTerminalTabIds.value);
+  next.delete(tabId);
+  mountedTerminalTabIds.value = next;
+}
+
+watch(
+  activeTabId,
+  (tabId) => {
+    if (!tabId) return;
+    const tab = tabs.value.find((item) => item.id === tabId);
+    if (tab && isTerminalTab(tab)) ensureTerminalMounted(tabId);
+  },
+  { immediate: true },
+);
+
+useWorkspacePersistence(
+  tabs,
+  activeTabId,
+  activePaneId,
+  terminalGroups,
+  collapsedGroupIds,
+  serializeTerminalWorkspace,
+  {
+    beforeDestroy: killAllTerminalSessionsForClose,
+  },
+);
 
 watch(activePaneId, () => {
   syncActiveAgentComposerOpen();
@@ -937,6 +976,7 @@ async function closeTabs(tabIds: string[]) {
         }
       }
       removeTab(tabId);
+      unmountTerminalTab(tabId);
       await nextTick();
     } finally {
       closingTabIds.delete(tabId);
@@ -958,6 +998,37 @@ function onSaveProfile(draft: SaveProfileDraft) {
 function selectTerminal(tabId: string, paneId: string) {
   selectTab(tabId);
   if (paneId) selectPane(paneId);
+  ensureTerminalMounted(tabId);
+}
+
+function onCreateGroup() {
+  createGroup("New group");
+}
+
+function onRenameGroup(groupId: string, name: string) {
+  renameGroup(groupId, name);
+}
+
+function onNewGroupAndMove(tabId: string) {
+  const group = createGroup("New group");
+  moveTabToGroup(tabId, group.id);
+}
+
+function onMoveTabToGroup(tabId: string, groupId: string | null) {
+  moveTabToGroup(tabId, groupId);
+}
+
+function onReorderTerminalTab(tabId: string, toTerminalIndex: number, groupId?: string | null) {
+  if (groupId !== undefined) {
+    moveTabToGroup(tabId, groupId, toTerminalIndex);
+    return;
+  }
+  const terminalTabs = tabs.value.filter(isTerminalTab);
+  const inferredGroupId =
+    terminalTabs[toTerminalIndex]?.groupId ??
+    terminalTabs[Math.max(0, toTerminalIndex - 1)]?.groupId ??
+    null;
+  moveTabToGroup(tabId, inferredGroupId, toTerminalIndex);
 }
 
 function onSessionBootstrapping(paneId: string, sessionId: string) {
@@ -1257,6 +1328,8 @@ onUnmounted(() => {
       <SidebarRail
         v-if="terminalSidebarOpen"
         :tabs="tabs"
+        :terminal-groups="terminalGroups"
+        :collapsed-group-ids="collapsedGroupIds"
         :active-tab-id="activeTabId"
         :active-pane-id="activePaneId"
         :shells="shells"
@@ -1272,9 +1345,16 @@ onUnmounted(() => {
         @set-default-shell="setDefaultShell"
         @rename-tab="setTabTitle"
         @move-tab="moveTab"
-        @reorder-tab="reorderTerminalTab"
+        @reorder-tab="onReorderTerminalTab"
         @color-change="setTabColor"
         @save-profile="onSaveProfile"
+        @create-group="onCreateGroup"
+        @rename-group="onRenameGroup"
+        @delete-group="deleteGroup"
+        @group-color-change="setGroupColor"
+        @toggle-group-collapsed="toggleGroupCollapsed"
+        @move-tab-to-group="onMoveTabToGroup"
+        @new-group-and-move="onNewGroupAndMove"
         :git-refresh-token="gitRefreshToken"
         :active-pane-git="activePaneGit"
       />
@@ -1319,7 +1399,8 @@ onUnmounted(() => {
 
           <template v-for="tab in tabs" :key="tab.id">
             <section
-              v-if="tab.kind === 'terminal' && tab.id === activeTabId"
+              v-if="tab.kind === 'terminal' && mountedTerminalTabIds.has(tab.id)"
+              v-show="tab.id === activeTabId"
               class="flex min-h-0 flex-1 divide-[var(--oterm-border)]"
               :class="tab.split === 'horizontal' ? 'flex-row divide-x' : 'flex-col divide-y'"
             >

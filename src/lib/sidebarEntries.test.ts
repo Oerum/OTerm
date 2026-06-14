@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ShellProfile, WorkspaceTerminalTab } from "../types/terminal";
-import { buildTerminalEntries, paneDisplayTitle } from "./sidebarEntries";
+import { buildTerminalEntries, buildTerminalSidebarSections, paneDisplayTitle } from "./sidebarEntries";
 
 const shells: ShellProfile[] = [
   { id: "pwsh", label: "PowerShell", program: "pwsh.exe", args: [] },
@@ -13,6 +13,7 @@ function terminalTab(overrides: Partial<WorkspaceTerminalTab> = {}): WorkspaceTe
     title: "Terminal",
     color: "none",
     split: "none",
+    groupId: null,
     panes: [
       {
         id: "pane-1",
@@ -169,5 +170,35 @@ describe("buildTerminalEntries", () => {
     expect(entries[0]?.terminalTabIndex).toBe(0);
     expect(entries[0]?.canMoveUp).toBe(false);
     expect(entries[0]?.canMoveDown).toBe(false);
+  });
+});
+
+describe("buildTerminalSidebarSections", () => {
+  it("renders grouped sections with collapse and ungrouped header", () => {
+    const tabA = terminalTab({ id: "tab-a", title: "A", groupId: "g1" });
+    const tabB = terminalTab({ id: "tab-b", title: "B", groupId: null });
+    const sections = buildTerminalSidebarSections(
+      [{ id: "g1", name: "Work", order: 0, color: "none" }],
+      ["g1"],
+      [tabA, tabB],
+      shells,
+      tabA.id,
+      tabA.panes[0].id,
+      new Map(),
+    );
+
+    expect(sections.map((section) => section.kind)).toEqual([
+      "group-header",
+      "ungrouped-header",
+      "entry",
+    ]);
+    expect(sections[0]).toMatchObject({ kind: "group-header", collapsed: true, tabCount: 1 });
+    expect(sections[2]).toMatchObject({ kind: "entry", entry: { tabId: "tab-b" } });
+  });
+
+  it("shows flat entries when no groups exist", () => {
+    const tab = terminalTab({ id: "tab-a" });
+    const sections = buildTerminalSidebarSections([], [], [tab], shells, tab.id, tab.panes[0].id, new Map());
+    expect(sections).toEqual([{ kind: "entry", entry: expect.objectContaining({ tabId: "tab-a" }) }]);
   });
 });

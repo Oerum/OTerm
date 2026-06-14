@@ -2,11 +2,14 @@ import type {
   FeatureSidebarEntry,
   ShellProfile,
   TerminalSidebarEntry,
+  TerminalSidebarSection,
+  TerminalTabGroup,
   WorkspaceTab,
   WorkspaceTerminalTab,
 } from "../types/terminal";
 import { isTerminalTab } from "../types/terminal";
 import { getCliAgentDefinition } from "./terminalAgentMode";
+import { sortGroups, tabsInGroup, ungroupedTabs } from "./terminalGroups";
 
 export const ENTRY_COLORS = [
   { id: "none" as const, hex: "#5c5c5c", label: "None" },
@@ -19,7 +22,8 @@ export const ENTRY_COLORS = [
 
 export function entryAccentColor(color: WorkspaceTerminalTab["color"]) {
   const match = ENTRY_COLORS.find((item) => item.id === color);
-  return match?.hex ?? ENTRY_COLORS[0].hex;
+  if (match) return match.hex;
+  return color && color !== "none" ? color : ENTRY_COLORS[0].hex;
 }
 
 export function shellLabelFor(shells: ShellProfile[], shellId: string) {
@@ -116,9 +120,84 @@ export function buildTerminalEntries(
         canCloseOthers: terminalTabs.length > 1,
         terminalTabIndex: tabIndex,
         isFirstPaneOfTab: paneIndex === 0,
+        groupId: tab.groupId,
       };
     }),
   );
+}
+
+export function buildTerminalSidebarSections(
+  groups: TerminalTabGroup[],
+  collapsedGroupIds: string[],
+  tabs: WorkspaceTab[],
+  shells: ShellProfile[],
+  activeTabId: string | null,
+  activePaneId: string | null,
+  gitByPane: Map<
+    string,
+    {
+      branch: string | null;
+      isRepo: boolean;
+      changedFiles: number;
+      additions: number;
+      deletions: number;
+      repoRoot: string | null;
+      isWorktree: boolean;
+    }
+  >,
+): TerminalSidebarSection[] {
+  const entries = buildTerminalEntries(tabs, shells, activeTabId, activePaneId, gitByPane);
+  const entriesByTabId = new Map(entries.map((entry) => [entry.tabId, entry]));
+  const terminalTabs = tabs.filter(isTerminalTab);
+  const sections: TerminalSidebarSection[] = [];
+
+  for (const group of sortGroups(groups)) {
+    const groupTabs = tabsInGroup(terminalTabs, group.id);
+    sections.push({
+      kind: "group-header",
+      groupId: group.id,
+      name: group.name,
+      tabCount: groupTabs.length,
+      collapsed: collapsedGroupIds.includes(group.id),
+      color: group.color || "none",
+    });
+    if (collapsedGroupIds.includes(group.id)) continue;
+    for (const tab of groupTabs) {
+      const firstPane = tab.panes[0];
+      if (!firstPane) continue;
+      const entry = entries.find((item) => item.tabId === tab.id && item.paneId === firstPane.id);
+      if (!entry) continue;
+      sections.push({ kind: "entry", entry });
+      for (const pane of tab.panes.slice(1)) {
+        const splitEntry = entries.find((item) => item.tabId === tab.id && item.paneId === pane.id);
+        if (splitEntry) sections.push({ kind: "entry", entry: splitEntry });
+      }
+    }
+  }
+
+  const looseTabs = ungroupedTabs(terminalTabs);
+  if (looseTabs.length > 0) {
+    if (groups.length > 0) {
+      sections.push({
+        kind: "ungrouped-header",
+        tabCount: looseTabs.length,
+      });
+    }
+    for (const tab of looseTabs) {
+      const firstPane = tab.panes[0];
+      if (!firstPane) continue;
+      const entry = entriesByTabId.get(tab.id) ??
+        entries.find((item) => item.tabId === tab.id && item.paneId === firstPane.id);
+      if (!entry) continue;
+      sections.push({ kind: "entry", entry });
+      for (const pane of tab.panes.slice(1)) {
+        const splitEntry = entries.find((item) => item.tabId === tab.id && item.paneId === pane.id);
+        if (splitEntry) sections.push({ kind: "entry", entry: splitEntry });
+      }
+    }
+  }
+
+  return sections;
 }
 
 export function buildFeatureEntries(

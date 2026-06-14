@@ -34,7 +34,8 @@ export type TerminalEntryColor =
   | "blue"
   | "yellow"
   | "purple"
-  | "pink";
+  | "pink"
+  | (string & {});
 
 export interface WorkspacePane {
   id: string;
@@ -52,11 +53,19 @@ export interface WorkspacePane {
   sshEndpointId: string | null;
 }
 
+export interface TerminalTabGroup {
+  id: string;
+  name: string;
+  order: number;
+  color: TerminalEntryColor;
+}
+
 export interface WorkspaceTerminalTab {
   kind: "terminal";
   id: string;
   title: string;
   color: TerminalEntryColor;
+  groupId: string | null;
   panes: WorkspacePane[];
   split: "none" | "horizontal";
 }
@@ -129,6 +138,8 @@ export type TerminalMenuActionId =
   | "rename-tab"
   | "move-up"
   | "move-down"
+  | "move-to-group"
+  | "new-group-and-move"
   | "close-tab"
   | "close-other-tabs"
   | "close-tabs-below"
@@ -167,7 +178,26 @@ export interface TerminalSidebarEntry {
   canCloseOthers: boolean;
   terminalTabIndex: number;
   isFirstPaneOfTab: boolean;
+  groupId: string | null;
 }
+
+export type TerminalSidebarSection =
+  | {
+      kind: "group-header";
+      groupId: string;
+      name: string;
+      tabCount: number;
+      collapsed: boolean;
+      color: TerminalEntryColor;
+    }
+  | {
+      kind: "ungrouped-header";
+      tabCount: number;
+    }
+  | {
+      kind: "entry";
+      entry: TerminalSidebarEntry;
+    };
 
 export interface SaveProfileDraft {
   label: string;
@@ -199,7 +229,15 @@ export interface PersistedTerminalTab {
   title: string;
   color: TerminalEntryColor;
   split: "none" | "horizontal";
+  groupId?: string | null;
   panes: PersistedWorkspacePane[];
+}
+
+export interface PersistedTerminalTabGroup {
+  id: string;
+  name: string;
+  order: number;
+  color?: TerminalEntryColor;
 }
 
 export interface PersistedTerminalWorkspaceV1 {
@@ -208,3 +246,16 @@ export interface PersistedTerminalWorkspaceV1 {
   activeTabIndex: number;
   activePaneIndex: number;
 }
+
+export interface PersistedTerminalWorkspaceV2 {
+  version: 2;
+  groups: PersistedTerminalTabGroup[];
+  collapsedGroupIds: string[];
+  tabs: PersistedTerminalTab[];
+  activeTabIndex: number;
+  activePaneIndex: number;
+}
+
+export type PersistedTerminalWorkspace =
+  | PersistedTerminalWorkspaceV1
+  | PersistedTerminalWorkspaceV2;
