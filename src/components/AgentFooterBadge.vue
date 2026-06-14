@@ -24,7 +24,7 @@ const lightTile = computed(() => {
   return color === "#ffffff" || color === "#fff";
 });
 
-const cursorTile = computed(() => agent.value.id === "cursor");
+const whiteBgTile = computed(() => agent.value.id === "cursor" || agent.value.id === "codex");
 </script>
 
 <template>
@@ -39,7 +39,7 @@ const cursorTile = computed(() => agent.value.id === "cursor");
       :alt="agent.displayName"
       :class="[
         size === 'md' ? 'h-[18px] w-[18px]' : 'h-3.5 w-3.5',
-        cursorTile ? 'rounded-[4px] bg-white' : '',
+        whiteBgTile ? 'rounded-[4px] bg-white' : '',
       ]"
       class="shrink-0"
     />
