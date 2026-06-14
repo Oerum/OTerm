@@ -38,8 +38,16 @@ export function sshSftpRemovePath(sessionId: string, path: string, isDir: boolea
   return invoke("ssh_sftp_remove_path", { sessionId, path, isDir });
 }
 
-export async function sshSftpDownload(sessionId: string, path: string): Promise<Uint8Array> {
-  const data = await invoke<number[]>("ssh_sftp_download", { sessionId, path });
+export async function sshSftpDownload(
+  sessionId: string,
+  path: string,
+  maxTransferBytes: number,
+): Promise<Uint8Array> {
+  const data = await invoke<number[]>("ssh_sftp_download", {
+    sessionId,
+    path,
+    maxTransferBytes,
+  });
   return Uint8Array.from(data);
 }
 
@@ -47,6 +55,12 @@ export function sshSftpUpload(
   sessionId: string,
   path: string,
   data: Uint8Array,
+  maxTransferBytes: number,
 ): Promise<void> {
-  return invoke("ssh_sftp_upload", { sessionId, path, data: Array.from(data) });
+  return invoke("ssh_sftp_upload", {
+    sessionId,
+    path,
+    data: Array.from(data),
+    maxTransferBytes,
+  });
 }

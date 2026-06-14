@@ -5,12 +5,17 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { pushAppToast, setAppToastActivity } from "../lib/appToast";
 import { listDirectory, userHome } from "../lib/fsApi";
 import {
+  collectLocalUploadTree,
+  collectRemoteDownloadTree,
   createDir,
   joinPath,
+  mapWithConcurrency,
   parentPath,
   readFile,
   removePath,
+  transferLocalJobToRemote,
   transferLocalToRemote,
+  transferRemoteJobToLocal,
   transferRemoteToLocal,
   writeFile,
 } from "../lib/fsTransferApi";
@@ -56,6 +61,7 @@ import {
   newId,
   saveSshSftpLibrary,
 } from "../lib/sshSftpStore";
+import { useSftpTransferSettings } from "../lib/sshSftpSettings";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import PromptDialog from "./PromptDialog.vue";
 import SftpDualPane from "./ssh/SftpDualPane.vue";
@@ -97,6 +103,7 @@ type ActiveSession = {
 type SecretKind = "password" | "passphrase";
 
 const library = ref(loadSshSftpLibrary());
+const { settings: sftpTransferSettings } = useSftpTransferSettings();
 const selectedGroupId = ref<string | "all" | "uncategorized">("all");
 const selectedTagFilters = ref<string[]>([]);
 const selectedEndpointId = ref<string | null>(null);
@@ -533,6 +540,73 @@ async function runBusy<T>(action: () => Promise<T>): Promise<T | undefined> {
   }
 }
 
+function sftpDownloadFn(sessionId: string) {
+  const maxTransferBytes = sftpTransferSettings.value.maxFileSizeBytes;
+  return (path: string) => sshSftpDownload(sessionId, path, maxTransferBytes);
+}
+
+function sftpUploadFn(sessionId: string) {
+  const maxTransferBytes = sftpTransferSettings.value.maxFileSizeBytes;
+  return (remotePath: string, data: Uint8Array) =>
+    sshSftpUpload(sessionId, remotePath, data, maxTransferBytes);
+}
+
+async function uploadLocalTree(
+  sessionId: string,
+  localPath: string,
+  remoteParentDir: string,
+  folderName: string,
+): Promise<{ fileCount: number; failures: number }> {
+  const { remoteDirs, files } = await collectLocalUploadTree(
+    localPath,
+    remoteParentDir,
+    folderName,
+  );
+  for (const dir of remoteDirs) {
+    await sshSftpCreateDir(sessionId, dir);
+  }
+  const maxFileSizeBytes = sftpTransferSettings.value.maxFileSizeBytes;
+  const upload = sftpUploadFn(sessionId);
+  const { failures } = await mapWithConcurrency(
+    files,
+    sftpTransferSettings.value.parallelFiles,
+    (job) => transferLocalJobToRemote(job, upload, maxFileSizeBytes),
+  );
+  return { fileCount: files.length, failures };
+}
+
+async function downloadRemoteTree(
+  sessionId: string,
+  remotePath: string,
+  localParentDir: string,
+  folderName: string,
+): Promise<{ fileCount: number; failures: number }> {
+  const listRemoteDir = async (path: string) => {
+    const entries = await sshSftpListDir(sessionId, path);
+    return entries.map((entry) => ({
+      path: entry.path,
+      name: entry.name,
+      isDir: entry.isDir,
+    }));
+  };
+  const { localDirs, files } = await collectRemoteDownloadTree(
+    listRemoteDir,
+    remotePath,
+    localParentDir,
+    folderName,
+  );
+  for (const dir of localDirs) {
+    await createDir(dir);
+  }
+  const download = sftpDownloadFn(sessionId);
+  const { failures } = await mapWithConcurrency(
+    files,
+    sftpTransferSettings.value.parallelFiles,
+    (job) => transferRemoteJobToLocal(job, download),
+  );
+  return { fileCount: files.length, failures };
+}
+
 async function connectSftp(endpoint: SshEndpoint, acceptHostKey = false, secrets?: ConnectSecrets) {
   const hopError = networkHopIntegratedConnectError(endpoint, "sftp");
   if (hopError) {
@@ -670,7 +744,7 @@ async function onRemoteOpen(entry: FilePaneEntry) {
     await createDir(localTempDir);
 
     await transferRemoteToLocal(
-      (path) => sshSftpDownload(session.sessionId, path),
+      sftpDownloadFn(session.sessionId),
       entry.path,
       localTempDir,
       entry.name,
@@ -728,9 +802,10 @@ async function onRemoteOpen(entry: FilePaneEntry) {
               await runBusy(async () => {
                 await transferLocalToRemote(
                   localTempPath,
-                  (remotePath, data) => sshSftpUpload(session.sessionId, remotePath, data),
+                  sftpUploadFn(session.sessionId),
                   parentPath(entry.path),
                   entry.name,
+                  sftpTransferSettings.value.maxFileSizeBytes,
                 );
                 await loadRemoteDir(session.remotePath);
                 pushAppToast(`Uploaded changes for ${entry.name}`, "success");
@@ -763,52 +838,6 @@ function onRemoteDownload(entry: FilePaneEntry) {
   void transferRemote(entry);
 }
 
-async function uploadLocalDirRecursively(
-  sessionId: string,
-  localPath: string,
-  remoteParentDir: string,
-  folderName: string,
-) {
-  const remoteDirPath = joinPath(remoteParentDir === "." ? "" : remoteParentDir, folderName);
-  await sshSftpCreateDir(sessionId, remoteDirPath);
-  const localEntries = await listDirectory(localPath);
-  for (const entry of localEntries) {
-    if (entry.isDir) {
-      await uploadLocalDirRecursively(sessionId, entry.path, remoteDirPath, entry.name);
-    } else {
-      await transferLocalToRemote(
-        entry.path,
-        (remotePath, data) => sshSftpUpload(sessionId, remotePath, data),
-        remoteDirPath,
-        entry.name,
-      );
-    }
-  }
-}
-
-async function downloadRemoteDirRecursively(
-  sessionId: string,
-  remotePath: string,
-  localParentDir: string,
-  folderName: string,
-) {
-  const localDirPath = joinPath(localParentDir, folderName);
-  await createDir(localDirPath);
-  const remoteEntries = await sshSftpListDir(sessionId, remotePath);
-  for (const entry of remoteEntries) {
-    if (entry.isDir) {
-      await downloadRemoteDirRecursively(sessionId, entry.path, localDirPath, entry.name);
-    } else {
-      await transferRemoteToLocal(
-        (path) => sshSftpDownload(sessionId, path),
-        entry.path,
-        localDirPath,
-        entry.name,
-      );
-    }
-  }
-}
-
 async function isLocalPathDir(path: string): Promise<boolean> {
   try {
     await listDirectory(path);
@@ -823,22 +852,27 @@ async function transferRemote(entry: FilePaneEntry) {
   if (!session) return;
   await runBusy(async () => {
     if (entry.isDir) {
-      await downloadRemoteDirRecursively(
+      const { failures } = await downloadRemoteTree(
         session.sessionId,
         entry.path,
         localPath.value,
         entry.name,
       );
+      if (failures > 0) {
+        pushAppToast(`Downloaded ${entry.name} with ${failures} failed file(s)`, "error");
+      } else {
+        pushAppToast(`Downloaded ${entry.name}`, "success");
+      }
     } else {
       await transferRemoteToLocal(
-        (path) => sshSftpDownload(session.sessionId, path),
+        sftpDownloadFn(session.sessionId),
         entry.path,
         localPath.value,
         entry.name,
       );
+      pushAppToast(`Downloaded ${entry.name}`, "success");
     }
     await loadLocalDir(localPath.value);
-    pushAppToast(`Downloaded ${entry.name}`, "success");
   });
 }
 
@@ -846,35 +880,45 @@ async function transferLocalPaths(paths: string[]) {
   const session = activeSession.value;
   if (!session || !paths.length) return;
   let uploaded = 0;
-  for (const localFile of paths) {
-    const name = localFile.split(/[/\\]/).pop() ?? "upload.bin";
-    const isDir = await isLocalPathDir(localFile);
-    const ok = await runBusy(async () => {
-      if (isDir) {
-        await uploadLocalDirRecursively(
-          session.sessionId,
-          localFile,
-          session.remotePath,
-          name,
-        );
-      } else {
-        await transferLocalToRemote(
-          localFile,
-          (remotePath, data) => sshSftpUpload(session.sessionId, remotePath, data),
-          session.remotePath,
-          name,
-        );
+  let failed = 0;
+  await runBusy(async () => {
+    for (const localFile of paths) {
+      const name = localFile.split(/[/\\]/).pop() ?? "upload.bin";
+      const isDir = await isLocalPathDir(localFile);
+      try {
+        if (isDir) {
+          const { failures } = await uploadLocalTree(
+            session.sessionId,
+            localFile,
+            session.remotePath,
+            name,
+          );
+          if (failures > 0) failed += 1;
+          else uploaded += 1;
+        } else {
+          await transferLocalToRemote(
+            localFile,
+            sftpUploadFn(session.sessionId),
+            session.remotePath,
+            name,
+            sftpTransferSettings.value.maxFileSizeBytes,
+          );
+          uploaded += 1;
+        }
+      } catch {
+        failed += 1;
       }
-    });
-    if (ok !== undefined) {
-      uploaded += 1;
     }
-  }
-  if (!uploaded) {
+    await loadRemoteDir(session.remotePath);
+  });
+  if (!uploaded && failed > 0) {
     pushAppToast("Failed to upload items", "error");
     return;
   }
-  await loadRemoteDir(session.remotePath);
+  if (failed > 0) {
+    pushAppToast(`Uploaded ${uploaded} item(s), ${failed} failed`, "error");
+    return;
+  }
   pushAppToast(`Uploaded ${uploaded} item(s)`, "success");
 }
 
@@ -889,22 +933,28 @@ async function onDropLocalEntryOnRemote(entry: FilePaneEntry) {
   if (!session) return;
   await runBusy(async () => {
     if (entry.isDir) {
-      await uploadLocalDirRecursively(
+      const { failures } = await uploadLocalTree(
         session.sessionId,
         entry.path,
         session.remotePath,
         entry.name,
       );
+      if (failures > 0) {
+        pushAppToast(`Uploaded ${entry.name} with ${failures} failed file(s)`, "error");
+      } else {
+        pushAppToast(`Uploaded ${entry.name}`, "success");
+      }
     } else {
       await transferLocalToRemote(
         entry.path,
-        (remotePath, data) => sshSftpUpload(session.sessionId, remotePath, data),
+        sftpUploadFn(session.sessionId),
         session.remotePath,
         entry.name,
+        sftpTransferSettings.value.maxFileSizeBytes,
       );
+      pushAppToast(`Uploaded ${entry.name}`, "success");
     }
     await loadRemoteDir(session.remotePath);
-    pushAppToast(`Uploaded ${entry.name}`, "success");
   });
 }
 

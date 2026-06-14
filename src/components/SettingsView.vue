@@ -1,18 +1,24 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import SftpTransferSettingsPage from "./settings/SftpTransferSettingsPage.vue";
 import TerminalAutocompleteSettingsPage from "./settings/TerminalAutocompleteSettingsPage.vue";
 
 const emit = defineEmits<{
   close: [];
 }>();
 
-type SettingsSectionId = "terminal-autocomplete";
+type SettingsSectionId = "terminal-autocomplete" | "sftp-transfers";
 
 const sections: { id: SettingsSectionId; label: string; description: string }[] = [
   {
     id: "terminal-autocomplete",
     label: "Terminal autocomplete",
     description: "AI command suggestions in the terminal",
+  },
+  {
+    id: "sftp-transfers",
+    label: "SFTP transfers",
+    description: "Parallel file transfers and size limits",
   },
 ];
 
@@ -68,6 +74,7 @@ const activeMeta = computed(
       <div class="oterm-scroll min-h-0 min-w-0 flex-1 overflow-y-auto">
         <div class="mx-auto max-w-2xl px-6 py-6">
           <TerminalAutocompleteSettingsPage v-if="activeSection === 'terminal-autocomplete'" />
+          <SftpTransferSettingsPage v-else-if="activeSection === 'sftp-transfers'" />
         </div>
       </div>
     </div>

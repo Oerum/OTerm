@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useWindowDrag } from "../composables/useWindowDrag";
 import type { GitBranchList, GitStatus } from "../types/git";
@@ -8,8 +9,10 @@ import GitDiffBadge from "./GitDiffBadge.vue";
 import GitMenu from "./GitMenu.vue";
 import SshMenu from "./SshMenu.vue";
 import UserMenu from "./UserMenu.vue";
+import { formatPathFull, formatPathShort, formatTitleCompact, isShellExecutablePath } from "../lib/formatPath";
+import type { ShellProfile, WorkspacePane } from "../types/terminal";
 
-defineProps<{
+const props = defineProps<{
   terminalSidebarOpen: boolean;
   toolsOpen: boolean;
   sourceControlOpen: boolean;
@@ -20,6 +23,9 @@ defineProps<{
   canOpenGitFeatures: boolean;
   appVersion: string;
   sidebarWidthPx?: number;
+  pane?: WorkspacePane | null;
+  shells?: ShellProfile[];
+  tabTitle?: string;
 }>();
 
 const emit = defineEmits<{
@@ -45,6 +51,29 @@ function onDragMouseDown(event: MouseEvent) {
   }
   startDrag(event);
 }
+
+const shellLabel = computed(
+  () => (props.shells ?? []).find((shell) => shell.id === props.pane?.shellId)?.label ?? "Terminal",
+);
+
+const manualTabTitle = computed(() => props.tabTitle !== "Terminal");
+
+const oscTitle = computed(() => {
+  const title = props.pane?.oscTitle?.trim() ?? "";
+  if (!title || isShellExecutablePath(title)) return "";
+  return title;
+});
+
+const fullDisplayTitle = computed(() => {
+  const title = props.tabTitle ?? "Terminal";
+  return manualTabTitle.value ? title : (oscTitle.value || shellLabel.value);
+});
+
+const displayTitle = computed(() => formatTitleCompact(fullDisplayTitle.value));
+
+const shortCwd = computed(() => formatPathShort(props.pane?.cwd));
+
+const cwdTooltip = computed(() => formatPathFull(props.pane?.cwd));
 </script>
 
 <template>
@@ -108,10 +137,28 @@ function onDragMouseDown(event: MouseEvent) {
     </div>
 
     <div
-      class="drag-region min-w-0 flex-1 self-stretch"
+      class="drag-region min-w-0 flex-1 self-stretch flex items-center justify-center"
       data-tauri-drag-region
       @mousedown="onDragMouseDown"
-    />
+    >
+      <span
+        v-if="pane"
+        class="pointer-events-none flex min-w-0 max-w-full items-center gap-0 truncate text-xs text-[var(--oterm-muted)]"
+      >
+        <span
+          class="shrink-0 text-[var(--oterm-text)]"
+          :title="fullDisplayTitle !== displayTitle ? fullDisplayTitle : undefined"
+        > {{ displayTitle }}</span>
+        <template v-if="shortCwd">
+          <span class="shrink-0 text-[var(--oterm-faint)]"> / </span>
+          <span
+            class="min-w-0 truncate text-[var(--oterm-text)]"
+            data-oterm-tooltip-variant="path"
+            :title="cwdTooltip ?? undefined"
+          >{{ shortCwd }}</span>
+        </template>
+      </span>
+    </div>
 
     <div class="no-drag flex items-center gap-1">
       <SshMenu @open-ssh-sftp="emit('openSshSftp')" />

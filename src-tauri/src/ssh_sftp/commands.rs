@@ -51,8 +51,11 @@ pub async fn ssh_sftp_download(
     manager: State<'_, SftpManager>,
     session_id: String,
     path: String,
+    max_transfer_bytes: u64,
 ) -> Result<Vec<u8>, String> {
-    manager.download(&session_id, &path).await
+    manager
+        .download(&session_id, &path, max_transfer_bytes)
+        .await
 }
 
 #[tauri::command]
@@ -61,6 +64,9 @@ pub async fn ssh_sftp_upload(
     session_id: String,
     path: String,
     data: Vec<u8>,
+    max_transfer_bytes: u64,
 ) -> Result<(), String> {
-    manager.upload(&session_id, &path, data).await
+    manager
+        .upload(&session_id, &path, data, max_transfer_bytes)
+        .await
 }

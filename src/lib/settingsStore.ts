@@ -5,6 +5,7 @@ const MIGRATION_KEYS = [
   "oterm:commit-ai-settings",
   "oterm:lm-settings",
   "oterm:terminal-autocomplete-settings",
+  "oterm:sftp-transfer-settings",
   "oterm:source-control-width",
 ] as const;
 

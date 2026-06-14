@@ -2053,7 +2053,7 @@ watch(suggestionStripVisible, () => {
     :class="active ? 'terminal-pane--active' : ''"
     @mousedown="emit('focusPane')"
   >
-    <div class="flex-1 min-h-0 w-full px-4 py-3">
+    <div class="flex-1 min-h-0 w-full px-2 py-1">
       <div
         class="terminal-window-container flex flex-col h-full w-full rounded-lg overflow-hidden p-3"
         :class="active ? 'terminal-window-container--active' : ''"

@@ -9,7 +9,6 @@ import {
   type ComponentPublicInstance,
 } from "vue";
 import HistorySearch from "./components/HistorySearch.vue";
-import SessionHeader from "./components/SessionHeader.vue";
 import SidebarRail from "./components/SidebarRail.vue";
 import SourceControlPanel from "./components/SourceControlPanel.vue";
 import StatusBar from "./components/StatusBar.vue";
@@ -1316,6 +1315,9 @@ onUnmounted(() => {
       :can-open-git-features="canOpenGitFeatures"
       :app-version="appVersion"
       :sidebar-width-px="sidebarWidthPx"
+      :pane="activePane"
+      :shells="shells"
+      :tab-title="activeTerminalTab?.title"
       @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
       @toggle-tools="toolsOpen = !toolsOpen"
       @toggle-source-control="toggleSourceControl"
@@ -1383,14 +1385,6 @@ onUnmounted(() => {
         class="relative flex min-w-0 flex-1 flex-col"
         :class="toolsOpen ? 'border-l border-[var(--oterm-border)]' : ''"
       >
-        <SessionHeader
-          v-if="activePane && activeTerminalTab"
-          :pane="activePane"
-          :shells="shells"
-          :tab-title="activeTerminalTab.title"
-          :terminal-sidebar-open="terminalSidebarOpen"
-        />
-
         <main class="relative flex min-h-0 flex-1 flex-col">
           <HistorySearch
             v-if="activePane"
