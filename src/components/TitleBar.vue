@@ -137,7 +137,7 @@ const cwdTooltip = computed(() => formatPathFull(props.pane?.cwd));
     </div>
 
     <div
-      class="drag-region min-w-0 flex-1 self-stretch flex items-center justify-center"
+      class="drag-region min-w-0 flex-1 self-stretch flex items-center justify-start pl-4"
       data-tauri-drag-region
       @mousedown="onDragMouseDown"
     >
