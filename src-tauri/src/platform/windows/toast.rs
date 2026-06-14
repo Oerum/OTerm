@@ -63,12 +63,7 @@ pub fn should_fallback(error: &str) -> bool {
         || lower.contains("0x80040154")
 }
 
-fn send_with_app_id(
-    app_id: &str,
-    title: &str,
-    body: &str,
-    icon_path: &Path,
-) -> Result<(), String> {
+fn send_with_app_id(app_id: &str, title: &str, body: &str, icon_path: &Path) -> Result<(), String> {
     let image = if icon_path.is_file() {
         format!(
             r#"<image placement="appLogoOverride" src="{}" alt="OTerm" />"#,

@@ -124,7 +124,7 @@ fn format_modified(time: SystemTime) -> Option<String> {
         .map(|duration| duration.as_secs().to_string())
 }
 
-pub fn list_directory(path: &Path) -> Result<Vec<commands::FsEntry>, String> {
+pub fn list_directory(path: &Path, include_hidden: bool) -> Result<Vec<commands::FsEntry>, String> {
     if !path.is_dir() {
         return Err(format!("Not a directory: {}", path.display()));
     }
@@ -136,7 +136,7 @@ pub fn list_directory(path: &Path) -> Result<Vec<commands::FsEntry>, String> {
         let item = item.map_err(|err| err.to_string())?;
         let file_type = item.file_type().map_err(|err| err.to_string())?;
         let entry_path = item.path();
-        if is_hidden(&entry_path) {
+        if !include_hidden && is_hidden(&entry_path) {
             continue;
         }
         let metadata = item.metadata().map_err(|err| err.to_string())?;
@@ -215,6 +215,7 @@ const SKIP_DIR_NAMES: &[&str] = &[
 pub fn search_files(
     root: &Path,
     query: &str,
+    include_hidden: bool,
     is_cancelled: impl Fn() -> bool,
 ) -> Result<Vec<commands::FsEntry>, String> {
     let needle = query.trim().to_lowercase();
@@ -226,6 +227,7 @@ pub fn search_files(
     search_recursive(
         root,
         &needle,
+        include_hidden,
         SEARCH_RESULT_LIMIT,
         SEARCH_MAX_DEPTH,
         0,
@@ -243,6 +245,7 @@ fn should_skip_dir(name: &str) -> bool {
 fn search_recursive(
     current: &Path,
     needle: &str,
+    include_hidden: bool,
     limit: usize,
     max_depth: usize,
     depth: usize,
@@ -268,7 +271,7 @@ fn search_recursive(
             Err(_) => continue,
         };
         let path = item.path();
-        if is_hidden(&path) {
+        if !include_hidden && is_hidden(&path) {
             continue;
         }
 
@@ -295,6 +298,7 @@ fn search_recursive(
             search_recursive(
                 &path,
                 needle,
+                include_hidden,
                 limit,
                 max_depth,
                 depth + 1,
@@ -806,6 +810,25 @@ pub fn open_in_system_file_explorer(path: &Path) -> Result<(), String> {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn list_directory_respects_include_hidden_flag() {
+        let temp = std::env::temp_dir().join(format!("oterm_hidden_test_{}", std::process::id()));
+        fs::create_dir_all(&temp).expect("temp dir");
+        fs::write(temp.join(".hidden"), "secret").expect("write hidden");
+        fs::write(temp.join("visible.txt"), "ok").expect("write visible");
+
+        let hidden_off = list_directory(&temp, false).expect("list without hidden");
+        assert_eq!(hidden_off.len(), 1);
+        assert_eq!(hidden_off[0].name, "visible.txt");
+
+        let hidden_on = list_directory(&temp, true).expect("list with hidden");
+        assert_eq!(hidden_on.len(), 2);
+        assert!(hidden_on.iter().any(|entry| entry.name == ".hidden"));
+        assert!(hidden_on.iter().any(|entry| entry.name == "visible.txt"));
+
+        fs::remove_dir_all(&temp).expect("cleanup");
+    }
 
     #[test]
     fn expands_home_path() {

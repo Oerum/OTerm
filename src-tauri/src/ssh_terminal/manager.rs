@@ -131,7 +131,10 @@ impl SshTerminalManager {
     pub async fn kill_all(&self) {
         let sessions = {
             let mut guard = self.sessions.lock().await;
-            guard.drain().map(|(_, session)| session).collect::<Vec<_>>()
+            guard
+                .drain()
+                .map(|(_, session)| session)
+                .collect::<Vec<_>>()
         };
         for session in sessions {
             Self::teardown_session(session).await;

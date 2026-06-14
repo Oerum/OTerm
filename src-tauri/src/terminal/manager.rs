@@ -66,9 +66,7 @@ impl PtyManager {
         cwd: Option<String>,
     ) -> Result<String, String> {
         if cols < 2 || rows < 2 {
-            return Err(format!(
-                "PTY size too small: {cols}x{rows} (minimum 2x2)"
-            ));
+            return Err(format!("PTY size too small: {cols}x{rows} (minimum 2x2)"));
         }
         let profile =
             resolve_shell(&shell_id).ok_or_else(|| format!("Unknown shell: {shell_id}"))?;
@@ -231,7 +229,10 @@ impl PtyManager {
 
     pub fn kill_all(&self) {
         let sessions = match self.sessions.lock() {
-            Ok(mut guard) => guard.drain().map(|(_, session)| session).collect::<Vec<_>>(),
+            Ok(mut guard) => guard
+                .drain()
+                .map(|(_, session)| session)
+                .collect::<Vec<_>>(),
             Err(_) => return,
         };
         for session in sessions {

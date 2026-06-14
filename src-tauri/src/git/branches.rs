@@ -252,11 +252,7 @@ pub fn list_tag_refs(repo_root: String) -> Result<Vec<TagRefInfo>, String> {
     Ok(refs)
 }
 
-pub fn push_tag(
-    repo_root: String,
-    name: String,
-    remote: Option<String>,
-) -> Result<(), String> {
+pub fn push_tag(repo_root: String, name: String, remote: Option<String>) -> Result<(), String> {
     let root = PathBuf::from(repo_root);
     let name = name.trim();
     if name.is_empty() {
@@ -269,19 +265,16 @@ pub fn push_tag(
 }
 
 fn tag_commit_oid(root: &PathBuf, tag_name: &str) -> Option<String> {
-    git_output(
-        root,
-        &["rev-parse", &format!("{tag_name}^{{commit}}")],
-    )
-    .ok()
-    .map(|v| v.trim().to_string())
-    .filter(|v| !v.is_empty())
-    .or_else(|| {
-        git_output(root, &["rev-parse", tag_name])
-            .ok()
-            .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty())
-    })
+    git_output(root, &["rev-parse", &format!("{tag_name}^{{commit}}")])
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .or_else(|| {
+            git_output(root, &["rev-parse", tag_name])
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+        })
 }
 
 fn tag_on_origin(root: &PathBuf, tag_name: &str, _tag_object_oid: &str) -> bool {

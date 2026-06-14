@@ -61,12 +61,15 @@ impl FsSearchState {
 }
 
 #[tauri::command]
-pub fn fs_list_directory(path: Option<String>) -> Result<Vec<FsEntry>, String> {
+pub fn fs_list_directory(
+    path: Option<String>,
+    include_hidden: Option<bool>,
+) -> Result<Vec<FsEntry>, String> {
     let resolved = match path {
         Some(value) if !value.trim().is_empty() => expand_path(&value)?,
         _ => default_project_root()?,
     };
-    list_directory(&resolved)
+    list_directory(&resolved, include_hidden.unwrap_or(false))
 }
 
 #[tauri::command]
@@ -105,17 +108,21 @@ pub async fn fs_search_files(
     search_state: State<'_, Arc<FsSearchState>>,
     root: Option<String>,
     query: String,
+    include_hidden: Option<bool>,
 ) -> Result<Vec<FsEntry>, String> {
     let resolved = match root {
         Some(value) => expand_path(&value)?,
         None => default_project_root()?,
     };
+    let include_hidden = include_hidden.unwrap_or(false);
 
     let worker = Arc::clone(search_state.inner());
     let token = worker.begin_search();
 
     tauri::async_runtime::spawn_blocking(move || {
-        search_files(&resolved, &query, || worker.is_cancelled(token))
+        search_files(&resolved, &query, include_hidden, || {
+            worker.is_cancelled(token)
+        })
     })
     .await
     .map_err(|err| err.to_string())?

@@ -14,6 +14,7 @@ import {
   searchFiles,
   showShellContextMenu,
 } from "../lib/fsApi";
+import { getSetting, setSetting } from "../lib/settingsStore";
 import type { FsEntry, FsToolsDirectoryHints } from "../types/fs";
 import riderIcon from "../assets/editors/JetBrains_Rider.svg";
 import visualStudioIcon from "../assets/editors/VS2026.svg";
@@ -28,6 +29,15 @@ const openWithIconClass =
 const openWithIconImageClass = "h-5 w-5 object-contain";
 const SEARCH_DEBOUNCE_MS = 300;
 const shellMenuAvailable = navigator.userAgent.includes("Windows");
+const SHOW_HIDDEN_KEY = "oterm:tools-show-hidden";
+
+function loadShowHidden(): boolean {
+  const raw = getSetting(SHOW_HIDDEN_KEY);
+  if (raw === null) return true;
+  return raw === "1";
+}
+
+const showHidden = ref(loadShowHidden());
 
 const props = defineProps<{
   rootPath: string;
@@ -115,7 +125,7 @@ async function loadDirectory(path: string) {
   envImportStatus.value = null;
   try {
     explorerPath.value = path;
-    entries.value = await listDirectory(path);
+    entries.value = await listDirectory(path, showHidden.value);
     await refreshDirectoryHints(path);
   } catch {
     entries.value = [];
@@ -146,7 +156,7 @@ async function runSearch() {
   searchLoading.value = true;
 
   try {
-    const results = await searchFiles(query, searchRoot.value);
+    const results = await searchFiles(query, searchRoot.value, showHidden.value);
     if (requestId !== searchRequestId) return;
     searchResults.value = results;
   } catch {
@@ -338,6 +348,24 @@ function getFileType(name: string, isDir: boolean) {
   return "file";
 }
 
+function toggleShowHidden() {
+  showHidden.value = !showHidden.value;
+  void setSetting(SHOW_HIDDEN_KEY, showHidden.value ? "1" : "0");
+}
+
+function isDotHidden(name: string) {
+  return name.startsWith(".");
+}
+
+watch(showHidden, () => {
+  if (explorerPath.value) {
+    void loadDirectory(explorerPath.value);
+  }
+  if (searchQuery.value.trim()) {
+    void runSearch();
+  }
+});
+
 watch(
   () => props.rootPath,
   (path) => {
@@ -386,6 +414,25 @@ onBeforeUnmount(() => {
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
           Import .env
+        </button>
+
+        <button
+          type="button"
+          class="no-drag header-tool-icon-btn"
+          :class="showHidden ? 'bg-white/10 text-white border-white/20' : ''"
+          title="Show dot-prefixed hidden files and folders"
+          @click="toggleShowHidden"
+        >
+          <svg v-if="showHidden" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+            <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+            <path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+            <line x1="2" x2="22" y1="2" y2="22"/>
+          </svg>
         </button>
 
         <div class="relative">
@@ -578,7 +625,7 @@ onBeforeUnmount(() => {
             <polyline points="14 2 14 8 20 8"/>
           </svg>
         </span>
-        <span class="min-w-0 flex-1 truncate text-white/90 font-medium">{{ entry.name }}</span>
+        <span class="min-w-0 flex-1 truncate font-medium" :class="isDotHidden(entry.name) ? 'text-white/60' : 'text-white/90'">{{ entry.name }}</span>
       </button>
     </div>
 
@@ -642,7 +689,7 @@ onBeforeUnmount(() => {
               <polyline points="14 2 14 8 20 8"/>
             </svg>
           </span>
-          <span class="truncate text-white/90 font-medium">{{ entry.name }}</span>
+          <span class="truncate font-medium" :class="isDotHidden(entry.name) ? 'text-white/60' : 'text-white/90'">{{ entry.name }}</span>
         </button>
         
         <p v-if="entries.length === 0 && !loading" class="py-8 text-center text-xs text-[var(--oterm-muted)]">
@@ -682,6 +729,32 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: all 120ms ease;
   user-select: none;
+}
+
+.header-tool-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--oterm-muted);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--oterm-border);
+  cursor: pointer;
+  transition: all 120ms ease;
+  user-select: none;
+}
+
+.header-tool-icon-btn:hover:not(:disabled) {
+  color: var(--oterm-text);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--oterm-border-strong);
+}
+
+.header-tool-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .header-tool-btn:hover:not(:disabled) {
