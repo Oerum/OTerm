@@ -534,7 +534,7 @@ onBeforeUnmount(() => {
         <div class="flex items-center gap-0.5">
           <button
             type="button"
-            class="no-drag flex h-7 w-7 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+            class="no-drag flex h-7 w-7 items-center justify-center rounded-md text-[var(--oterm-muted)] btn-premium"
             title="New group"
             aria-label="New group"
             @click.stop="emit('createGroup')"
@@ -547,7 +547,7 @@ onBeforeUnmount(() => {
           <button
             ref="newButtonRef"
             type="button"
-            class="no-drag flex h-7 w-7 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40"
+            class="no-drag flex h-7 w-7 items-center justify-center rounded-md text-[var(--oterm-muted)] btn-premium disabled:opacity-40"
             :class="newMenuOpen ? 'bg-white/5 text-[var(--oterm-text)]' : ''"
             title="New terminal"
             aria-label="New terminal"
@@ -592,7 +592,7 @@ onBeforeUnmount(() => {
           v-for="entry in featureEntries"
           :key="entry.entryId"
           type="button"
-          class="no-drag group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition"
+          class="no-drag group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm btn-premium"
           :class="
             entry.isActive
               ? 'bg-white/[0.08] text-[var(--oterm-text)]'

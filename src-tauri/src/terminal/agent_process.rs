@@ -98,9 +98,7 @@ fn exe_stem(name: &str) -> String {
 fn hint_index_in_command(haystack: &str, hint: &str) -> Option<usize> {
     let mut start = 0;
     while start + hint.len() <= haystack.len() {
-        let Some(rel) = haystack[start..].find(hint) else {
-            return None;
-        };
+        let rel = haystack[start..].find(hint)?;
         let index = start + rel;
         let before_ok = index == 0
             || !haystack
@@ -131,7 +129,7 @@ fn match_agent_from_command_line(joined: &str) -> Option<&'static str> {
                 continue;
             };
             let hint_len = hint.len();
-            let is_better = best.map_or(true, |(best_idx, best_len, _)| {
+            let is_better = best.is_none_or(|(best_idx, best_len, _)| {
                 index < best_idx || (index == best_idx && hint_len > best_len)
             });
             if is_better {

@@ -51,6 +51,7 @@ const attachments = ref<string[]>([]);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const submitting = ref(false);
 const dragActive = ref(false);
+const isFocused = ref(false);
 
 type DictationUiState = "idle" | "downloading" | "recording" | "transcribing";
 
@@ -374,16 +375,22 @@ defineExpose({
     @mousedown.stop
   >
     <div
-      class="mx-auto flex w-full max-w-4xl flex-col gap-2 overflow-hidden rounded-xl border bg-[var(--oterm-bg)] px-3 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition-colors"
-      :class="dragActive ? 'border-[var(--oterm-accent)]' : 'border-[var(--oterm-border)]'"
-      :style="agent && !dragActive ? { borderColor: `${agent.brandColor}33` } : undefined"
+      class="mx-auto flex w-full max-w-4xl flex-col gap-2 overflow-hidden rounded-2xl border bg-[var(--oterm-bg)] px-3 py-2.5 transition-all duration-200"
+      :class="[
+        dragActive 
+          ? 'border-[var(--oterm-accent)] ring-1 ring-[var(--oterm-accent)]/20 shadow-[0_0_15px_rgba(0,229,186,0.15)]' 
+          : isFocused
+            ? 'border-[var(--oterm-accent)]/45 ring-1 ring-[var(--oterm-accent)]/15 shadow-[0_6px_28px_rgba(0,0,0,0.35),0_0_12px_rgba(0,0,0,0.08)]'
+            : 'border-[var(--oterm-border-strong)] shadow-[0_4px_20px_rgba(0,0,0,0.2)]'
+      ]"
+      :style="agent && !dragActive && !isFocused ? { borderColor: `${agent.brandColor}33` } : undefined"
     >
       <div class="flex shrink-0 items-center gap-2 text-xs text-[var(--oterm-faint)]">
         <AgentFooterBadge v-if="agentId" :agent-id="agentId" />
         <span class="font-medium text-[var(--oterm-text)]">{{ composerTitle }}</span>
         <button
           type="button"
-          class="ml-auto rounded px-2 py-0.5 text-[var(--oterm-faint)] transition-colors hover:bg-[var(--oterm-border)] hover:text-[var(--oterm-text)]"
+          class="ml-auto rounded px-2 py-0.5 text-[var(--oterm-faint)] btn-premium"
           title="Close composer (Escape)"
           @click="emit('close')"
         >
@@ -397,6 +404,8 @@ defineExpose({
         class="min-h-[2.25rem] max-h-40 w-full shrink-0 resize-none overflow-y-auto bg-transparent font-mono text-sm leading-relaxed text-[var(--oterm-text)] outline-none placeholder:text-[var(--oterm-faint)]"
         :placeholder="composerPlaceholder"
         :disabled="textareaDisabled"
+        @focus="isFocused = true"
+        @blur="isFocused = false"
         @keydown="onKeydown"
         @paste="onPaste"
       />
@@ -425,7 +434,7 @@ defineExpose({
           <div class="flex min-w-0 items-center gap-2">
             <button
               type="button"
-              class="shrink-0 rounded border border-[var(--oterm-border)] px-2.5 py-1 text-[var(--oterm-text)] transition-colors hover:bg-[var(--oterm-elevated)] disabled:opacity-40"
+              class="shrink-0 rounded-md border border-[var(--oterm-border)] px-2.5 py-1 text-[var(--oterm-text)] btn-premium disabled:opacity-40"
               :disabled="composerDisabled"
               title="Attach image or video"
               @click="pickAttachments"
@@ -435,7 +444,7 @@ defineExpose({
             <button
               v-if="dictationState === 'idle'"
               type="button"
-              class="shrink-0 rounded border border-[var(--oterm-border)] px-2 py-1 text-[var(--oterm-text)] transition-colors hover:bg-[var(--oterm-elevated)] disabled:opacity-40"
+              class="shrink-0 rounded-md border border-[var(--oterm-border)] px-2 py-1 text-[var(--oterm-text)] btn-premium disabled:opacity-40"
               :disabled="composerDisabled"
               title="Dictate with local Whisper (Ctrl+F)"
               aria-label="Dictate"
@@ -471,7 +480,7 @@ defineExpose({
               <span class="font-mono text-[var(--oterm-text)]">{{ recordingTimerLabel }}</span>
               <button
                 type="button"
-                class="rounded border border-red-500/40 px-2 py-0.5 text-red-300 transition-colors hover:bg-red-500/10"
+                class="rounded-md border border-red-500/40 px-2 py-0.5 text-red-300 btn-premium hover:bg-red-500/10"
                 title="Stop and transcribe (Ctrl+F)"
                 @click="toggleDictation"
               >
@@ -479,7 +488,7 @@ defineExpose({
               </button>
               <button
                 type="button"
-                class="rounded px-2 py-0.5 text-[var(--oterm-faint)] transition-colors hover:bg-[var(--oterm-elevated)] hover:text-[var(--oterm-text)]"
+                class="rounded-md px-2 py-0.5 text-[var(--oterm-faint)] btn-premium hover:text-[var(--oterm-text)]"
                 title="Cancel recording"
                 @click="cancelDictation"
               >
@@ -507,7 +516,7 @@ defineExpose({
           </div>
           <button
             type="button"
-            class="shrink-0 rounded bg-[var(--oterm-accent)] px-3 py-1.5 text-xs font-medium text-[var(--oterm-bg)] transition-opacity disabled:opacity-40"
+            class="shrink-0 rounded-md bg-[var(--oterm-accent)] px-3 py-1.5 text-xs font-medium text-[var(--oterm-bg)] btn-premium disabled:opacity-40"
             :disabled="!canSubmit || composerDisabled"
             @click="submitDraft"
           >

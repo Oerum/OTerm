@@ -8,6 +8,7 @@ const props = defineProps<{
   pane: WorkspacePane | null;
   shells: ShellProfile[];
   tabTitle: string;
+  terminalSidebarOpen?: boolean;
 }>();
 
 const { startDrag } = useWindowDrag();
@@ -37,7 +38,8 @@ const cwdTooltip = computed(() => formatPathFull(props.pane?.cwd));
 
 <template>
   <div
-    class="drag-region flex h-9 shrink-0 items-center border-b border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-4"
+    class="drag-region flex h-9 shrink-0 items-center border-b border-[var(--oterm-border)] bg-[var(--oterm-panel)] pr-4"
+    :class="terminalSidebarOpen ? 'pl-6' : 'pl-4'"
     data-tauri-drag-region
     @mousedown="startDrag"
   >

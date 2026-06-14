@@ -30,6 +30,10 @@ type PendingConfirm = {
   onConfirm: () => void;
 };
 
+const props = defineProps<{
+  active?: boolean;
+}>();
+
 const emit = defineEmits<{
   close: [];
   openContainerLogs: [container: DockerContainer];
@@ -381,6 +385,11 @@ watch(selectedContainer, (container) => {
 });
 
 onMounted(() => void load());
+watch(() => props.active, (isActive) => {
+  if (isActive) {
+    void load();
+  }
+});
 </script>
 
 <template>

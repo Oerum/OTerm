@@ -242,6 +242,7 @@ fn should_skip_dir(name: &str) -> bool {
     SKIP_DIR_NAMES.iter().any(|skip| lower == *skip)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn search_recursive(
     current: &Path,
     needle: &str,

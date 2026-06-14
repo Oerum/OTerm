@@ -64,6 +64,7 @@ import GitDiffViewer from "./GitDiffViewer.vue";
 
 const props = defineProps<{
   repoRoot: string;
+  active?: boolean;
   switchBranch: (
     branch: string,
     isRemote: boolean,
@@ -211,25 +212,44 @@ function applyDefaultCollapsedFolders() {
 async function load() {
   loading.value = true;
   error.value = null;
+
+  const branchRefsPromise = listBranchRefs(props.repoRoot)
+    .then((branchRows) => {
+      branches.value = branchRows;
+      applyDefaultCollapsedFolders();
+    });
+
+  const tagsPromise = listTagRefs(props.repoRoot)
+    .catch(() => [] as TagRefInfo[])
+    .then((tagRows) => {
+      tags.value = tagRows;
+    });
+
+  const branchListPromise = listGitBranches(props.repoRoot)
+    .catch(() => null)
+    .then((branchList) => {
+      if (branchList) {
+        gitBranchList.value = branchList;
+      }
+    });
+
+  const commitGraphPromise = getCommitGraph(props.repoRoot, { limit: 250, scope: "all" })
+    .then(async (graphPage) => {
+      graph.value = graphPage.commits;
+      if (!selectedHash.value && graphPage.commits.length > 0) {
+        selectedHash.value = graphPage.commits[0].hash;
+      }
+      await refreshSyncMarkers();
+      await loadDetails();
+    });
+
   try {
-    const [branchRows, graphPage, tagRows, branchList] = await Promise.all([
-      listBranchRefs(props.repoRoot),
-      getCommitGraph(props.repoRoot, { limit: 250, scope: "all" }),
-      listTagRefs(props.repoRoot).catch(() => [] as TagRefInfo[]),
-      listGitBranches(props.repoRoot).catch(() => null),
+    await Promise.all([
+      branchRefsPromise,
+      tagsPromise,
+      branchListPromise,
+      commitGraphPromise,
     ]);
-    branches.value = branchRows;
-    tags.value = tagRows;
-    if (branchList) {
-      gitBranchList.value = branchList;
-    }
-    applyDefaultCollapsedFolders();
-    graph.value = graphPage.commits;
-    if (!selectedHash.value && graphPage.commits.length > 0) {
-      selectedHash.value = graphPage.commits[0].hash;
-    }
-    await refreshSyncMarkers();
-    await loadDetails();
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
   } finally {
@@ -853,6 +873,11 @@ watch(selectedHash, () => {
   rightPanelTab.value = "details";
   void loadDetails();
 });
+watch(() => props.active, (isActive) => {
+  if (isActive) {
+    void load();
+  }
+});
 </script>
 
 <template>
@@ -862,7 +887,15 @@ watch(selectedHash, () => {
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" class="text-[var(--oterm-accent)] shrink-0">
           <path d="M5 4.5a2.5 2.5 0 100 5v2.5M11 11.5a2.5 2.5 0 100-5v-2.5M5 7h6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-        <h2 class="text-sm font-semibold tracking-wide">Branches</h2>
+        <h2 class="text-sm font-semibold tracking-wide flex items-center gap-1.5">
+          Branches
+          <span v-if="loading" class="flex h-3.5 w-3.5 items-center justify-center" aria-hidden="true">
+            <svg class="animate-spin text-[var(--oterm-accent)]" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+              <circle cx="8" cy="8" r="6" stroke-opacity="0.15" stroke-width="2" />
+              <path d="M14 8a6 6 0 0 0-6-6" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </span>
+        </h2>
         <span class="truncate text-xs text-[var(--oterm-faint)] font-mono max-w-[200px]" :title="repoRoot">{{ repoRoot }}</span>
       </div>
       
@@ -940,82 +973,117 @@ watch(selectedHash, () => {
           class="mb-2 w-full rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 px-2.5 py-1.5 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition"
         />
 
-        <div v-for="section in groupedBranches" :key="section.label" class="mb-3">
-          <div class="mb-1 px-1 text-[10px] font-medium uppercase tracking-wide text-[var(--oterm-faint)]">
-            {{ section.label }}
+        <div v-if="loading && branches.length === 0" class="space-y-4 p-1 animate-pulse">
+          <div v-for="i in 3" :key="i" class="space-y-2">
+            <div class="h-3 w-16 rounded bg-[var(--oterm-border)]/50" />
+            <div class="flex items-center gap-2 pl-2">
+              <div class="h-3 w-3 rounded bg-[var(--oterm-border)]/35 shrink-0" />
+              <div class="h-3 flex-1 rounded bg-[var(--oterm-border)]/35" />
+            </div>
+            <div class="flex items-center gap-2 pl-2">
+              <div class="h-3 w-3 rounded bg-[var(--oterm-border)]/35 shrink-0" />
+              <div class="h-3 w-3/4 rounded bg-[var(--oterm-border)]/35" />
+            </div>
+          </div>
+        </div>
+
+        <template v-else>
+          <div v-for="section in groupedBranches" :key="section.label" class="mb-3">
+            <div class="mb-1 px-1 text-[10px] font-medium uppercase tracking-wide text-[var(--oterm-faint)]">
+              {{ section.label }}
+            </div>
+
+            <template v-for="item in section.items" :key="isFolder(item) ? `${section.label}-${item.label}` : item.name">
+              <template v-if="isFolder(item)">
+                <button
+                  type="button"
+                  class="mb-0.5 flex w-full items-center gap-1 rounded px-2 py-1 text-left text-[11px] text-[var(--oterm-muted)] hover:bg-white/5"
+                  @click="toggleFolder(section.label, item.label)"
+                >
+                  <span class="w-3 text-[10px]">{{ isFolderCollapsed(section.label, item.label) ? "▸" : "▾" }}</span>
+                  <span class="truncate" :title="item.label">{{ item.label }}</span>
+                  <span class="text-[var(--oterm-faint)]">({{ item.branches.length }})</span>
+                </button>
+                <template v-if="!isFolderCollapsed(section.label, item.label)">
+                  <BranchListItem
+                    v-for="branch in item.branches"
+                    :key="branch.name"
+                    :branch="branch"
+                    :busy="busy"
+                    indented
+                    @switch="switchBranchItem(branch)"
+                    @create="openCreateDialog(branch.name)"
+                    @merge="openMergeDialog(branch)"
+                    @delete="openDeleteDialog(branch)"
+                    @contextmenu="openBranchContextMenu(branch, $event)"
+                  />
+                </template>
+              </template>
+
+              <BranchListItem
+                v-else
+                :branch="item"
+                :busy="busy"
+                @switch="switchBranchItem(item)"
+                @create="openCreateDialog(item.name)"
+                @merge="openMergeDialog(item)"
+                @delete="openDeleteDialog(item)"
+                @contextmenu="openBranchContextMenu(item, $event)"
+              />
+            </template>
           </div>
 
-          <template v-for="item in section.items" :key="isFolder(item) ? `${section.label}-${item.label}` : item.name">
-            <template v-if="isFolder(item)">
-              <button
-                type="button"
-                class="mb-0.5 flex w-full items-center gap-1 rounded px-2 py-1 text-left text-[11px] text-[var(--oterm-muted)] hover:bg-white/5"
-                @click="toggleFolder(section.label, item.label)"
-              >
-                <span class="w-3 text-[10px]">{{ isFolderCollapsed(section.label, item.label) ? "▸" : "▾" }}</span>
-                <span class="truncate" :title="item.label">{{ item.label }}</span>
-                <span class="text-[var(--oterm-faint)]">({{ item.branches.length }})</span>
-              </button>
-              <template v-if="!isFolderCollapsed(section.label, item.label)">
-                <BranchListItem
-                  v-for="branch in item.branches"
-                  :key="branch.name"
-                  :branch="branch"
-                  :busy="busy"
-                  indented
-                  @switch="switchBranchItem(branch)"
-                  @create="openCreateDialog(branch.name)"
-                  @merge="openMergeDialog(branch)"
-                  @delete="openDeleteDialog(branch)"
-                  @contextmenu="openBranchContextMenu(branch, $event)"
-                />
-              </template>
-            </template>
-
-            <BranchListItem
-              v-else
-              :branch="item"
-              :busy="busy"
-              @switch="switchBranchItem(item)"
-              @create="openCreateDialog(item.name)"
-              @merge="openMergeDialog(item)"
-              @delete="openDeleteDialog(item)"
-              @contextmenu="openBranchContextMenu(item, $event)"
-            />
-          </template>
-        </div>
-
-        <div class="mb-3 mt-1 border-t border-[var(--oterm-border)]/60 pt-2">
-          <button
-            type="button"
-            class="mb-1 flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] font-medium uppercase tracking-wide text-[var(--oterm-faint)] hover:bg-white/5"
-            @click="tagsSectionCollapsed = !tagsSectionCollapsed"
-          >
-            <span class="w-3 text-[10px]">{{ tagsSectionCollapsed ? "▸" : "▾" }}</span>
-            <span>Tags</span>
-            <span class="text-[var(--oterm-muted)]">({{ tags.length }})</span>
-          </button>
-          <template v-if="!tagsSectionCollapsed">
-            <p
-              v-if="filteredTags.length === 0"
-              class="px-2 py-1 text-[10px] text-[var(--oterm-faint)]"
+          <div class="mb-3 mt-1 border-t border-[var(--oterm-border)]/60 pt-2">
+            <button
+              type="button"
+              class="mb-1 flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px] font-medium uppercase tracking-wide text-[var(--oterm-faint)] hover:bg-white/5"
+              @click="tagsSectionCollapsed = !tagsSectionCollapsed"
             >
-              {{ tags.length === 0 ? "No tags" : "No tags match filter" }}
-            </p>
-            <TagListItem
-              v-for="tag in filteredTags"
-              :key="tag.name"
-              :tag="tag"
-              :selected="selectedHash === tag.hash"
-              @select="selectTag(tag)"
-              @contextmenu="openTagContextMenu(tag, $event)"
-            />
-          </template>
-        </div>
+              <span class="w-3 text-[10px]">{{ tagsSectionCollapsed ? "▸" : "▾" }}</span>
+              <span>Tags</span>
+              <span class="text-[var(--oterm-muted)]">({{ tags.length }})</span>
+            </button>
+            <template v-if="!tagsSectionCollapsed">
+              <p
+                v-if="filteredTags.length === 0"
+                class="px-2 py-1 text-[10px] text-[var(--oterm-faint)]"
+              >
+                {{ tags.length === 0 ? "No tags" : "No tags match filter" }}
+              </p>
+              <TagListItem
+                v-for="tag in filteredTags"
+                :key="tag.name"
+                :tag="tag"
+                :selected="selectedHash === tag.hash"
+                @select="selectTag(tag)"
+                @contextmenu="openTagContextMenu(tag, $event)"
+              />
+            </template>
+          </div>
+        </template>
       </aside>
 
       <section v-show="!isMaximized" class="flex min-w-0 flex-1 flex-col border-r border-[var(--oterm-border)]">
-        <div class="oterm-scroll min-h-0 flex-1 overflow-auto font-mono text-xs">
+        <div v-if="loading && graph.length === 0" class="flex-1 min-h-0 overflow-hidden p-4 space-y-4">
+          <div class="flex items-center gap-2 text-xs text-[var(--oterm-muted)] animate-pulse">
+            <svg class="animate-spin text-[var(--oterm-accent)] shrink-0" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+              <circle cx="8" cy="8" r="6" stroke-opacity="0.15" stroke-width="2" />
+              <path d="M14 8a6 6 0 0 0-6-6" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <span>Loading commit graph...</span>
+          </div>
+          <div class="space-y-3 opacity-60">
+            <div v-for="i in 10" :key="i" class="flex items-center gap-3 animate-pulse">
+              <div class="h-2.5 w-16 rounded bg-[var(--oterm-border)]/50 font-mono shrink-0" />
+              <div class="h-2.5 flex-1 rounded bg-[var(--oterm-border)]/40" />
+              <div class="h-2.5 w-20 rounded bg-[var(--oterm-border)]/30 shrink-0" />
+            </div>
+          </div>
+        </div>
+        <div v-else-if="filteredGraph.length === 0" class="flex flex-col items-center justify-center h-full text-xs text-[var(--oterm-faint)] gap-1">
+          <span>No commits found</span>
+        </div>
+        <div v-else class="oterm-scroll min-h-0 flex-1 overflow-auto font-mono text-xs">
           <button
             v-for="commit in filteredGraph"
             :key="commit.hash"

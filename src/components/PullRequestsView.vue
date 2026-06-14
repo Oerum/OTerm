@@ -33,6 +33,7 @@ import MarkdownContent from "./MarkdownContent.vue";
 
 const props = defineProps<{
   repoRoot: string;
+  active?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -444,6 +445,11 @@ watch(selectedNumber, (number) => {
   resetTabCaches();
   activeTab.value = "conversation";
   if (number) void ensureTabLoaded("conversation", number);
+});
+watch(() => props.active, (isActive) => {
+  if (isActive) {
+    void load();
+  }
 });
 
 function getInitials(name: string): string {

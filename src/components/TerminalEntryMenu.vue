@@ -256,14 +256,14 @@ onUnmounted(() => {
     <div
       role="radiogroup"
       aria-label="Tab color"
-      class="flex flex-wrap items-center gap-1.5 px-2 py-1.5"
+      class="flex items-center justify-between px-2 py-1.5"
     >
       <button
         v-for="color in ENTRY_COLORS"
         :key="color.id"
         type="button"
         role="radio"
-        class="term-color-swatch h-3 w-3 shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-[var(--oterm-elevated)] transition focus:outline-none focus-visible:ring-[var(--oterm-text)]"
+        class="term-color-swatch h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-[var(--oterm-elevated)] transition focus:outline-none focus-visible:ring-[var(--oterm-text)]"
         :class="entry.tabColor === color.id ? 'ring-[var(--oterm-text)]' : 'ring-transparent'"
         :style="{ backgroundColor: color.hex }"
         :aria-checked="entry.tabColor === color.id"
@@ -273,7 +273,7 @@ onUnmounted(() => {
       />
       <!-- Custom Color Spectrum Swatch -->
       <label
-        class="term-color-swatch relative h-3 w-3 shrink-0 cursor-pointer rounded-full ring-1 ring-offset-1 ring-offset-[var(--oterm-elevated)] transition"
+        class="term-color-swatch relative h-2.5 w-2.5 shrink-0 cursor-pointer rounded-full ring-1 ring-offset-1 ring-offset-[var(--oterm-elevated)] transition"
         :class="isCustomColor ? 'ring-[var(--oterm-text)]' : 'ring-transparent'"
         style="background: linear-gradient(135deg, #ff0055 0%, #00ffcc 50%, #9900ff 100%)"
         title="Custom color..."

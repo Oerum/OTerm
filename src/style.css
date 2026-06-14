@@ -6,49 +6,49 @@
 }
 
 :root {
-  --oterm-bg: #000000;
-  --oterm-panel: #07080a;
-  --oterm-elevated: #121316;
+  --oterm-bg: #090a0f;
+  --oterm-panel: #0e1017;
+  --oterm-elevated: #161822;
   --oterm-line: rgba(255, 255, 255, 0.05);
   --oterm-border: rgba(255, 255, 255, 0.045);
-  --oterm-border-strong: rgba(255, 255, 255, 0.09);
-  --oterm-text: #ececec;
-  --oterm-muted: #949da6;
-  --oterm-faint: #5f6672;
+  --oterm-border-strong: rgba(255, 255, 255, 0.095);
+  --oterm-text: #f1f5f9;
+  --oterm-muted: #94a3b8;
+  --oterm-faint: #475569;
   --oterm-accent: #00e5ba;
-  --oterm-accent-dim: rgba(0, 229, 186, 0.10);
-  --oterm-danger: #ff5f57;
-  --oterm-titlebar: #000000;
-  --oterm-sidebar: #000000;
+  --oterm-accent-dim: rgba(0, 229, 186, 0.08);
+  --oterm-danger: #ef4444;
+  --oterm-titlebar: #07080c;
+  --oterm-sidebar: #07080c;
   --oterm-font-ui: "Outfit", "Inter", system-ui, -apple-system, sans-serif;
   --oterm-font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, monospace;
 
-  --term-entry-text: #ccc;
-  --term-menu-width: 150px;
-  --term-transition: 120ms ease;
+  --term-entry-text: #cbd5e1;
+  --term-menu-width: 160px;
+  --term-transition: 200ms cubic-bezier(0.16, 1, 0.3, 1);
 
-  --term-create-bg: #1e1e1e;
-  --term-create-text: #ccc;
+  --term-create-bg: #111218;
+  --term-create-text: #e2e8f0;
   --term-create-text-muted: var(--oterm-muted);
   --term-create-accent: var(--oterm-accent);
-  --term-create-tooltip-bg: #2a2a2a;
-  --term-create-border: rgba(255, 255, 255, 0.1);
-  --term-create-radius: 4px;
+  --term-create-tooltip-bg: #1a1c24;
+  --term-create-border: rgba(255, 255, 255, 0.07);
+  --term-create-radius: 6px;
   --term-create-width: 220px;
   --term-create-font: 0.8125rem;
   --term-create-pad-y: 6px;
   --term-create-pad-x: 10px;
 
-  --diff-editor-bg: #1e1e1e;
-  --diff-gutter-bg: #1e1e1e;
-  --diff-hunk-header-bg: rgba(255, 255, 255, 0.03);
-  --diff-lnum: #858585;
-  --diff-insert-bg: rgba(46, 160, 67, 0.15);
-  --diff-insert-border: #3fb950;
-  --diff-insert-text: #7ee787;
-  --diff-remove-bg: rgba(248, 81, 73, 0.15);
-  --diff-remove-border: #f85149;
-  --diff-remove-text: #ff7b72;
+  --diff-editor-bg: #090a0f;
+  --diff-gutter-bg: #090a0f;
+  --diff-hunk-header-bg: rgba(255, 255, 255, 0.02);
+  --diff-lnum: #64748b;
+  --diff-insert-bg: rgba(16, 185, 129, 0.12);
+  --diff-insert-border: #10b981;
+  --diff-insert-text: #34d399;
+  --diff-remove-bg: rgba(239, 68, 68, 0.12);
+  --diff-remove-border: #ef4444;
+  --diff-remove-text: #f87171;
 }
 
 html,
@@ -59,16 +59,20 @@ body,
 }
 
 body {
-  background: var(--oterm-bg);
+  background: radial-gradient(circle at 10% 20%, #0e101a 0%, #06070a 90%);
   color: var(--oterm-text);
   font-family: var(--oterm-font-ui);
   -webkit-font-smoothing: antialiased;
 }
 
 .oterm-app {
-  background: var(--oterm-bg);
+  background: radial-gradient(circle at top right, #0f111a, #07080c);
   border-radius: 8px;
   overflow: hidden;
+  box-shadow: 
+    0 30px 70px rgba(0, 0, 0, 0.75), 
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 1px 1px 0 rgba(255, 255, 255, 0.1) inset;
 }
 
 .xterm,
@@ -142,6 +146,46 @@ body {
   background: transparent;
 }
 
+.xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.15);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb:active {
+  background-color: rgba(255, 255, 255, 0.35);
+}
+
+.xterm-viewport::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Hide native scrollbar arrow buttons in Chromium/WebView2 on Windows */
+::-webkit-scrollbar-button {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+}
+
 .terminal-pane--active {
   position: relative;
 }
@@ -158,8 +202,41 @@ body {
   z-index: 10;
 }
 
+.terminal-output {
+  overflow: hidden !important;
+}
+
 .terminal-output .xterm {
   height: 100%;
+}
+
+.terminal-window-container {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 
+    0 10px 30px -10px rgba(0, 0, 0, 0.5),
+    0 1px 1px 0 rgba(255, 255, 255, 0.05) inset;
+  transition: border-color var(--term-transition), box-shadow var(--term-transition);
+  clip-path: inset(0 round 8px);
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.terminal-window-container--active {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 
+    0 12px 35px -10px rgba(0, 0, 0, 0.6),
+    0 1px 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+/* Tactile micro-animation for the scroll-to-bottom button arrow */
+.terminal-window-container button svg {
+  transition: transform var(--term-transition);
+}
+
+.terminal-window-container button:hover svg {
+  transform: translateY(1.5px);
 }
 
 /* Always-visible underline bars for detected file paths in terminal output */
@@ -201,4 +278,141 @@ body {
 .oterm-input-number::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+/* ==========================================================================
+   OTerm Premium UI Additions
+   ========================================================================== */
+
+/* Glassmorphism utility for floating UI, modals, popovers */
+.glass-panel {
+  background: rgba(15, 17, 26, 0.75) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.065) !important;
+  box-shadow: 
+    0 10px 35px -8px rgba(0, 0, 0, 0.65), 
+    0 1px 1px 0 rgba(255, 255, 255, 0.05) inset !important;
+}
+
+/* Smooth, tactile transitions for interactive elements */
+.btn-premium {
+  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.btn-premium:hover {
+  transform: translateY(-0.5px);
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.btn-premium:active {
+  transform: translateY(0) scale(0.96);
+  transition-duration: 60ms !important;
+}
+
+/* Sidebar lists custom headers */
+.sidebar-header-tracking {
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Pulse glow animation for active agent task state */
+@keyframes accent-pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(0, 229, 186, 0.15);
+    border-color: rgba(0, 229, 186, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(0, 229, 186, 0.4);
+    border-color: rgba(0, 229, 186, 0.6);
+  }
+}
+
+.agent-active-glow {
+  animation: accent-pulse-glow 2s infinite ease-in-out;
+}
+
+/* Refinement to default form inputs */
+input[type="text"],
+input[type="password"],
+textarea {
+  transition: border-color var(--term-transition), box-shadow var(--term-transition);
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus {
+  border-color: rgba(0, 229, 186, 0.45) !important;
+  box-shadow: 0 0 8px rgba(0, 229, 186, 0.15) !important;
+}
+
+.agent-composer textarea,
+.agent-composer textarea:focus {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Glassmorphism sidebar & titlebar overrides */
+.oterm-app aside {
+  position: relative;
+  z-index: 30 !important;
+  background: rgba(8, 9, 13, 0.72) !important;
+  backdrop-filter: blur(24px) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.oterm-app header {
+  position: relative;
+  z-index: 40 !important;
+  background: rgba(8, 9, 13, 0.65) !important;
+  backdrop-filter: blur(24px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Session header below titlebar */
+.oterm-app .drag-region.bg-\[var\(--oterm-panel\)\] {
+  background: rgba(14, 16, 23, 0.5) !important;
+  backdrop-filter: blur(24px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Auto-elevate all menus, dialogs, tooltips and toast layers to premium glass panels */
+.oterm-tooltip,
+.app-toast-item,
+.term-entry-menu,
+.term-group-menu,
+[role="menu"],
+.absolute.border-\[var\(--oterm-border-strong\)\].bg-\[var\(--oterm-elevated\)\] {
+  background: rgba(15, 17, 26, 0.8) !important;
+  backdrop-filter: blur(20px) !important;
+  border-color: rgba(255, 255, 255, 0.075) !important;
+  box-shadow: 
+    0 15px 35px -8px rgba(0, 0, 0, 0.7), 
+    0 1px 1px 0 rgba(255, 255, 255, 0.05) inset !important;
+}
+
+/* Apply premium treatment to Dialogs / Modals */
+.fixed.inset-0.z-50 .bg-\[var\(--oterm-elevated\)\] {
+  background: rgba(15, 17, 26, 0.85) !important;
+  backdrop-filter: blur(24px) !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+  box-shadow: 
+    0 30px 60px -15px rgba(0, 0, 0, 0.85), 
+    0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 1px 1px 0 rgba(255, 255, 255, 0.08) inset !important;
+}
+
+/* Styling dropdown items for a high-end feel */
+[role="menuitem"],
+.term-entry-menu button:not(.term-color-swatch),
+.term-group-menu button:not(.term-color-swatch) {
+  transition: background-color 150ms cubic-bezier(0.16, 1, 0.3, 1), color 150ms ease !important;
+  border-radius: 6px !important;
+  margin: 2px 4px !important;
+  width: calc(100% - 8px) !important;
+}
+
+[role="menuitem"]:hover,
+.term-entry-menu button:not(.term-color-swatch):hover,
+.term-group-menu button:not(.term-color-swatch):hover {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+  color: #ffffff !important;
 }

@@ -82,7 +82,7 @@ onUnmounted(() => {
   <div v-if="gitStatus.isRepo" ref="rootRef" class="relative shrink-0">
     <button
       type="button"
-      class="no-drag flex shrink-0 items-center gap-1 rounded font-mono transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+      class="no-drag flex shrink-0 items-center gap-1 rounded font-mono btn-premium disabled:cursor-not-allowed disabled:opacity-40"
       :class="
         compact
           ? 'max-w-[7rem] px-1 py-0.5 text-[10px] text-[var(--oterm-muted)] hover:text-[var(--oterm-text)]'
@@ -127,7 +127,7 @@ onUnmounted(() => {
     <div
       v-if="open"
       role="menu"
-      class="oterm-scroll absolute right-0 z-50 max-h-72 min-w-[12rem] overflow-y-auto rounded-lg border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-1 shadow-xl"
+      class="oterm-scroll glass-panel absolute right-0 z-50 max-h-72 min-w-[12rem] overflow-y-auto rounded-lg py-1"
       :class="anchorUp ? 'bottom-full mb-1.5' : 'top-full mt-1.5'"
       @mousedown.stop
     >

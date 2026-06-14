@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::{git_diff_output, git_output, git_run, GitCommitEntry};
 
@@ -264,7 +264,7 @@ pub fn push_tag(repo_root: String, name: String, remote: Option<String>) -> Resu
     git_run(&root, &["push", &remote, name])
 }
 
-fn tag_commit_oid(root: &PathBuf, tag_name: &str) -> Option<String> {
+fn tag_commit_oid(root: &Path, tag_name: &str) -> Option<String> {
     git_output(root, &["rev-parse", &format!("{tag_name}^{{commit}}")])
         .ok()
         .map(|v| v.trim().to_string())
@@ -277,7 +277,7 @@ fn tag_commit_oid(root: &PathBuf, tag_name: &str) -> Option<String> {
         })
 }
 
-fn tag_on_origin(root: &PathBuf, tag_name: &str, _tag_object_oid: &str) -> bool {
+fn tag_on_origin(root: &Path, tag_name: &str, _tag_object_oid: &str) -> bool {
     let Some(local_commit) = tag_commit_oid(root, tag_name) else {
         return false;
     };
@@ -706,6 +706,7 @@ mod tests {
         let _ = fs::remove_dir_all(&bare);
 
         fs::create_dir_all(&dir).unwrap();
+        fs::create_dir_all(&bare).unwrap();
         git_run(&dir, &["init"]).unwrap();
         git_run(&dir, &["config", "user.email", "t@example.com"]).unwrap();
         git_run(&dir, &["config", "user.name", "test"]).unwrap();

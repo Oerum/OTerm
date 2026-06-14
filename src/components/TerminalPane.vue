@@ -378,6 +378,7 @@ function prepareTerminalOutput(data: string): string {
 }
 
 function maybeAugmentEnterPayload(data: string, commandLine: string): string {
+  if (activeAgentId.value) return data;
   if (!/[\r\n]/.test(data) || isSshSession.value) return data;
 
   const command = normalizeSubmittedCommand(commandLine);
@@ -1999,7 +2000,7 @@ const currentTheme = computed(() => resolveSshTerminalTheme(props.themeId));
 const terminalBgStyle = computed(() => {
   const bg = currentTheme.value.background;
   if (!bg || bg === "transparent") {
-    return { backgroundColor: "var(--oterm-bg)" };
+    return { backgroundColor: "#000000" };
   }
   return { backgroundColor: bg };
 });
@@ -2050,30 +2051,41 @@ watch(suggestionStripVisible, () => {
   <div
     class="terminal-pane relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     :class="active ? 'terminal-pane--active' : ''"
-    :style="terminalBgStyle"
     @mousedown="emit('focusPane')"
   >
-    <div ref="containerRef" class="terminal-output min-h-0 w-full flex-1 px-4 py-3" />
-    <button
-      v-if="showScrollToBottom"
-      type="button"
-      class="absolute bottom-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--oterm-border)] bg-[var(--oterm-elevated)] text-[var(--oterm-text)] shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition hover:bg-[var(--oterm-surface)]"
-      aria-label="Scroll to bottom"
-      @mousedown.stop
-      @click="scrollTerminalToBottom"
-    >
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 14 14"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.75"
-        aria-hidden="true"
+    <div class="flex-1 min-h-0 w-full px-4 py-3">
+      <div
+        class="terminal-window-container flex flex-col h-full w-full rounded-lg overflow-hidden p-3"
+        :class="active ? 'terminal-window-container--active' : ''"
+        :style="terminalBgStyle"
       >
-        <path d="M3 5.5 7 9.5 11 5.5" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
-    </button>
+        <div ref="containerRef" class="terminal-output min-h-0 w-full flex-1" />
+        <button
+          v-if="showScrollToBottom"
+          type="button"
+          class="absolute bottom-3 right-3 z-10 flex h-7 w-7 items-center justify-center rounded-md glass-panel btn-premium text-[var(--oterm-text)] shadow-lg"
+          aria-label="Scroll to bottom"
+          @mousedown.stop
+          @click="scrollTerminalToBottom"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="8" y1="2" x2="8" y2="11" />
+            <polyline points="4 7 8 11 12 7" />
+            <line x1="3" y1="14" x2="13" y2="14" />
+          </svg>
+        </button>
+      </div>
+    </div>
     <AgentComposer
       v-if="agentComposerVisible && localSessionId"
       ref="agentComposerRef"

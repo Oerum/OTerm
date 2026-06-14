@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { entryAccentColor } from "../lib/sidebarEntries";
+import { hideTooltip } from "../lib/tooltipController";
 import type { TerminalMenuActionId, TerminalSidebarEntry, TerminalTabGroup } from "../types/terminal";
 import AgentFooterBadge from "./AgentFooterBadge.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
@@ -168,10 +169,11 @@ const displayCwdContext = computed(() => {
     const normCwd = cwd.replace(/\\/g, "/");
     if (props.entry.gitIsRepo && props.entry.gitRepoRoot) {
       const normRoot = props.entry.gitRepoRoot.replace(/\\/g, "/");
+      const repoName = normRoot.split("/").pop() || "root";
       if (normCwd === normRoot) {
-        pathPart = "./";
+        pathPart = repoName;
       } else if (normCwd.startsWith(normRoot + "/")) {
-        pathPart = `./${normCwd.substring(normRoot.length + 1)}`;
+        pathPart = `${repoName}/${normCwd.substring(normRoot.length + 1)}`;
       } else {
         pathPart = normCwd;
       }
@@ -289,11 +291,11 @@ watch(
     />
 
     <div
-      class="no-drag group relative flex items-center gap-1 rounded-lg border px-1.5 transition-all duration-[150ms] select-none"
+      class="no-drag group relative flex items-start gap-1 rounded-lg border pr-1.5 transition-all duration-[150ms] select-none"
       :class="[
         entry.splitIndex != null && entry.splitIndex > 1
           ? 'w-[94%] ml-[6%] border-l border-white/[0.05] pl-2 py-0.5'
-          : 'w-full py-1',
+          : 'w-full py-1 pl-4',
         entry.isActive
           ? 'border-[var(--oterm-accent)]/20 bg-[var(--oterm-accent-dim)]/15 shadow-[0_2px_6px_rgba(0,0,0,0.1)]'
           : 'border-transparent bg-transparent hover:bg-white/[0.02] hover:border-[var(--oterm-border)]',
@@ -320,13 +322,13 @@ watch(
       <button
         v-if="entry.isFirstPaneOfTab && !renaming"
         type="button"
-        class="flex h-5 w-3 shrink-0 cursor-grab touch-none items-center justify-center rounded text-[var(--oterm-faint)] opacity-0 transition hover:bg-white/5 hover:text-[var(--oterm-muted)] active:cursor-grabbing group-hover:opacity-100"
+        class="absolute left-1 top-1/2 -translate-y-1/2 z-20 flex h-4 w-2.5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-[var(--oterm-faint)] opacity-0 transition hover:bg-white/5 hover:text-[var(--oterm-muted)] active:cursor-grabbing group-hover:opacity-100"
         title="Drag to reorder"
         aria-label="Drag to reorder tab"
         @pointerdown="onDragHandlePointerDown"
         @click.stop
       >
-        <svg width="6" height="8" viewBox="0 0 8 10" fill="currentColor" aria-hidden="true">
+        <svg width="4" height="6" viewBox="0 0 8 10" fill="currentColor" aria-hidden="true">
           <circle cx="2" cy="2" r="0.9" />
           <circle cx="6" cy="2" r="0.9" />
           <circle cx="2" cy="5" r="0.9" />
@@ -338,7 +340,7 @@ watch(
 
       <!-- Row Content body -->
       <div
-        class="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+        class="flex min-w-0 flex-1 items-start gap-1.5 text-left pr-11"
         :class="renaming ? '' : 'cursor-pointer'"
         @click="onRowClick"
       >
@@ -396,7 +398,7 @@ watch(
         </span>
 
         <!-- Title and Subtitle -->
-        <div class="min-w-0 flex-1 leading-[1.2]">
+        <div class="min-w-0 flex-1 leading-[1.2] pt-0.5">
           <input
             v-if="renaming"
             ref="renameInputRef"
@@ -488,27 +490,11 @@ watch(
               </div>
             </div>
 
-            <!-- Line 2: Shell Badge -->
-            <div class="flex items-center min-w-0 mt-0.5">
-              <!-- Shell Badge -->
-              <span
-                class="px-1 py-0.2 text-[8px] font-bold font-sans tracking-wide rounded border uppercase shrink-0 transition-colors"
-                :class="[
-                  entry.isActive
-                    ? 'text-[var(--oterm-accent)] bg-[var(--oterm-accent-dim)]/20 border-[var(--oterm-accent)]/20'
-                    : 'text-[var(--oterm-muted)] bg-white/5 border-white/5'
-                ]"
-              >
-                {{ entry.shellLabel }}
-              </span>
-            </div>
-
-            <!-- Line 3: CWD Path -->
+            <!-- Line 2: CWD Context -->
             <div
               v-if="displayCwdContext"
               class="flex items-center min-w-0 mt-0.5"
             >
-              <!-- Relative CWD or manual title -->
               <span
                 class="truncate font-mono text-[9px] min-w-0"
                 :class="[
@@ -521,26 +507,15 @@ watch(
               </span>
             </div>
 
-            <!-- Line 4: Git status Diff -->
+            <!-- Line 3: Git Info -->
             <div
               v-if="entry.gitIsRepo"
               class="flex items-center gap-1.5 min-w-0 mt-0.5"
             >
-              <!-- Git Diff Badge -->
-              <GitDiffBadge
-                :git-status="gitStatus"
-                readonly
-                compact
-              />
-            </div>
-
-            <!-- Line 5: Branch pill / badge -->
-            <div
-              v-if="showBranchFooter"
-              class="flex items-center min-w-0 mt-0.5"
-            >
+              <!-- Branch Badge -->
               <span
-                class="flex items-center gap-0.5 text-[8.5px] px-1 py-0.2 rounded border font-mono transition-colors"
+                v-if="showBranchFooter"
+                class="flex items-center gap-0.5 text-[8.5px] px-1 py-0.2 rounded border font-mono transition-colors shrink-0"
                 :class="[
                   gitContext?.isWorktree
                     ? 'text-teal-400 bg-teal-500/10 border-teal-400/20'
@@ -560,8 +535,15 @@ watch(
                   <circle cx="11.5" cy="11.5" r="1.5" stroke-width="1.2" />
                   <path d="M6 4.5h3.5a2 2 0 0 1 2 2V9" stroke-width="1.2" stroke-linecap="round" />
                 </svg>
-                <span class="max-w-[140px] truncate">{{ entry.gitBranch }}</span>
+                <span class="max-w-[120px] truncate">{{ entry.gitBranch }}</span>
               </span>
+
+              <!-- Git Diff Badge -->
+              <GitDiffBadge
+                :git-status="gitStatus"
+                readonly
+                compact
+              />
             </div>
           </div>
         </div>
@@ -570,7 +552,7 @@ watch(
       <!-- Notifications -->
       <svg
         v-if="showUnseenNotification"
-        class="h-3 w-3 shrink-0 text-[var(--oterm-accent)]"
+        class="h-3 w-3 shrink-0 text-[var(--oterm-accent)] absolute right-1.5 top-1/2 -translate-y-1/2"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -584,47 +566,70 @@ watch(
         <path d="M13.73 21a2 2 0 0 1-3.46 0" />
       </svg>
 
-      <!-- Action dot-menu -->
-      <div ref="dotMenuRef" class="relative shrink-0">
+      <!-- Action buttons & dot-menu -->
+      <div class="absolute top-1 right-1.5 flex items-center gap-0.5 z-10">
+        <!-- Close button -->
         <button
           v-if="!renaming"
           type="button"
           class="flex h-5 w-5 items-center justify-center rounded transition-opacity duration-[120ms]"
           :class="[
-            menuOpen || entry.isActive
+            entry.isActive
               ? 'opacity-100'
               : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
-            menuOpen
-              ? 'bg-white/5 text-[var(--oterm-text)]'
-              : 'text-[var(--oterm-faint)] hover:bg-white/10 hover:text-[var(--oterm-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]',
+            'text-[var(--oterm-faint)] hover:bg-red-500/10 hover:text-red-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/30',
           ]"
-          title="Terminal actions"
-          aria-label="Terminal actions"
-          aria-haspopup="menu"
-          :aria-expanded="menuOpen"
-          @click.stop="onMenuClick"
+          title="Close tab"
+          aria-label="Close tab"
+          @click.stop="hideTooltip(); emit('action', 'close-tab')"
         >
-          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-            <circle cx="5" cy="2" r="0.9" fill="currentColor" />
-            <circle cx="5" cy="5" r="0.9" fill="currentColor" />
-            <circle cx="5" cy="8" r="0.9" fill="currentColor" />
+          <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="m3 3 10 10M13 3 3 13" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </button>
 
-        <Transition name="term-menu">
-          <TerminalEntryMenu
-            v-if="menuOpen && !renaming"
-            :entry="entry"
-            :open="menuOpen"
-            :open-upward="openUpward"
-            :groups="groups"
-            @close="emit('menuToggle', entry.entryId, false)"
-            @action="(id) => emit('action', id)"
-            @color-change="(color) => emit('colorChange', color)"
-            @move-to-group="(groupId) => emit('moveToGroup', groupId)"
-            @new-group-and-move="emit('newGroupAndMove')"
-          />
-        </Transition>
+        <!-- Menu anchor -->
+        <div ref="dotMenuRef" class="relative">
+          <button
+            v-if="!renaming"
+            type="button"
+            class="flex h-5 w-5 items-center justify-center rounded transition-opacity duration-[120ms]"
+            :class="[
+              menuOpen || entry.isActive
+                ? 'opacity-100'
+                : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+              menuOpen
+                ? 'bg-white/5 text-[var(--oterm-text)]'
+                : 'text-[var(--oterm-faint)] hover:bg-white/10 hover:text-[var(--oterm-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]',
+            ]"
+            title="Terminal actions"
+            aria-label="Terminal actions"
+            aria-haspopup="menu"
+            :aria-expanded="menuOpen"
+            @click.stop="onMenuClick"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+              <circle cx="5" cy="2" r="0.9" fill="currentColor" />
+              <circle cx="5" cy="5" r="0.9" fill="currentColor" />
+              <circle cx="5" cy="8" r="0.9" fill="currentColor" />
+            </svg>
+          </button>
+
+          <Transition name="term-menu">
+            <TerminalEntryMenu
+              v-if="menuOpen && !renaming"
+              :entry="entry"
+              :open="menuOpen"
+              :open-upward="openUpward"
+              :groups="groups"
+              @close="emit('menuToggle', entry.entryId, false)"
+              @action="(id) => emit('action', id)"
+              @color-change="(color) => emit('colorChange', color)"
+              @move-to-group="(groupId) => emit('moveToGroup', groupId)"
+              @new-group-and-move="emit('newGroupAndMove')"
+            />
+          </Transition>
+        </div>
       </div>
     </div>
   </div>

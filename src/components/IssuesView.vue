@@ -14,6 +14,7 @@ import MarkdownContent from "./MarkdownContent.vue";
 
 const props = defineProps<{
   repoRoot: string;
+  active?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -210,6 +211,11 @@ watch(selectedNumber, (number) => {
 watch(filteredIssues, (rows) => {
   if (selectedNumber.value && !rows.some((issue) => issue.number === selectedNumber.value)) {
     selectedNumber.value = rows[0]?.number ?? null;
+  }
+});
+watch(() => props.active, (isActive) => {
+  if (isActive) {
+    void loadIssues();
   }
 });
 </script>

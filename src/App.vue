@@ -1299,6 +1299,10 @@ onUnmounted(() => {
 
 <template>
   <div class="oterm-app relative flex h-full flex-col overflow-hidden">
+    <!-- Ambient background glows for high-end feel -->
+    <div class="pointer-events-none absolute -top-40 -left-40 z-0 h-96 w-96 rounded-full bg-emerald-500/6 blur-[120px]" />
+    <div class="pointer-events-none absolute -bottom-40 -right-40 z-0 h-96 w-96 rounded-full bg-cyan-500/6 blur-[120px]" />
+
     <TooltipLayer />
     <AppToastLayer />
     <TitleBar
@@ -1384,6 +1388,7 @@ onUnmounted(() => {
           :pane="activePane"
           :shells="shells"
           :tab-title="activeTerminalTab.title"
+          :terminal-sidebar-open="terminalSidebarOpen"
         />
 
         <main class="relative flex min-h-0 flex-1 flex-col">
@@ -1403,6 +1408,7 @@ onUnmounted(() => {
               v-show="tab.id === activeTabId"
               class="flex min-h-0 flex-1 divide-[var(--oterm-border)]"
               :class="tab.split === 'horizontal' ? 'flex-row divide-x' : 'flex-col divide-y'"
+              style="margin-left: -3px;"
             >
               <TerminalPane
                 v-for="pane in tab.panes"
@@ -1436,6 +1442,7 @@ onUnmounted(() => {
               v-show="tab.id === activeTabId"
               class="flex min-h-0 flex-1"
               :repo-root="tab.repoRoot"
+              :active="tab.id === activeTabId"
               @refresh-git="refreshGitViews"
               @close="closeTab(tab.id)"
             />
@@ -1444,6 +1451,7 @@ onUnmounted(() => {
               v-show="tab.id === activeTabId"
               class="flex min-h-0 flex-1"
               :repo-root="tab.repoRoot"
+              :active="tab.id === activeTabId"
               :switch-branch="onSwitchBranch"
               @refresh-git="refreshGitViews"
               @close="closeTab(tab.id)"
@@ -1453,6 +1461,7 @@ onUnmounted(() => {
               v-show="tab.id === activeTabId"
               class="flex min-h-0 flex-1"
               :repo-root="tab.repoRoot"
+              :active="tab.id === activeTabId"
               @refresh-git="refreshGitViews"
               @close="closeTab(tab.id)"
             />
@@ -1460,6 +1469,7 @@ onUnmounted(() => {
               v-else-if="tab.kind === 'docker'"
               v-show="tab.id === activeTabId"
               class="flex min-h-0 flex-1"
+              :active="tab.id === activeTabId"
               @close="closeTab(tab.id)"
               @open-container-logs="openDockerContainerTerminal($event, 'logs')"
               @open-container-shell="openDockerContainerTerminal($event, 'shell')"

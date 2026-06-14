@@ -50,7 +50,8 @@ const prTitle = computed(() => {
 
 <template>
   <footer
-    class="flex h-9 shrink-0 items-center gap-3 border-t border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-3 text-[11px] text-[var(--oterm-faint)]"
+    class="flex h-9 shrink-0 items-center gap-3 border-t border-[var(--oterm-border)] bg-[var(--oterm-panel)] pr-3 text-[11px] text-[var(--oterm-faint)]"
+    :class="terminalSidebarOpen ? 'pl-6' : 'pl-3'"
   >
     <div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
       <AgentFooterBadge
