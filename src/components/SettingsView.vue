@@ -12,11 +12,6 @@ type SettingsSectionId = "application" | "terminal-autocomplete" | "sftp-transfe
 
 const sections: { id: SettingsSectionId; label: string; description: string }[] = [
   {
-    id: "application",
-    label: "Application",
-    description: "Version and automatic updates",
-  },
-  {
     id: "terminal-autocomplete",
     label: "Terminal autocomplete",
     description: "AI command suggestions in the terminal",
@@ -26,6 +21,11 @@ const sections: { id: SettingsSectionId; label: string; description: string }[] 
     label: "SFTP transfers",
     description: "Parallel file transfers and size limits",
   },
+  {
+    id: "application",
+    label: "About",
+    description: "Version, updates, and app info",
+  }
 ];
 
 const activeSection = ref<SettingsSectionId>("application");

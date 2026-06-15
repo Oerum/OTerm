@@ -14,25 +14,30 @@ export type AppUpdateCheckResult =
   | { status: "skipped"; reason: string }
   | { status: "error"; message: string };
 
-function createDownloadProgressLabel() {
+export type AppUpdateDownloadProgress = {
+  label: string;
+  percent?: number;
+};
+
+function createDownloadProgressTracker() {
   let contentLength: number | undefined;
   let downloadedBytes = 0;
 
-  return (event: DownloadEvent): string | null => {
+  return (event: DownloadEvent): AppUpdateDownloadProgress | null => {
     if (event.event === "Started") {
       contentLength = event.data.contentLength;
       downloadedBytes = 0;
-      return "Downloading update…";
+      return { label: "Downloading update…" };
     }
 
     if (event.event === "Progress") {
       downloadedBytes += event.data.chunkLength;
       if (!contentLength || contentLength <= 0) {
-        return "Downloading update…";
+        return { label: "Downloading update…" };
       }
 
       const percent = Math.min(100, Math.round((downloadedBytes / contentLength) * 100));
-      return `Downloading update… ${percent}%`;
+      return { label: `Downloading update… ${percent}%`, percent };
     }
 
     return null;
@@ -73,14 +78,18 @@ export async function checkForAppUpdate(options?: {
   }
 }
 
-export async function downloadAndInstallUpdate(update: PendingAppUpdate): Promise<boolean> {
+export async function downloadAndInstallUpdate(
+  update: PendingAppUpdate,
+  options?: { onProgress?: (progress: AppUpdateDownloadProgress) => void },
+): Promise<boolean> {
   setAppToastActivity("Downloading update…");
-  const progressLabel = createDownloadProgressLabel();
+  const trackProgress = createDownloadProgressTracker();
   try {
     await update.downloadAndInstall((event) => {
-      const progress = progressLabel(event);
+      const progress = trackProgress(event);
       if (progress) {
-        setAppToastActivity(progress);
+        setAppToastActivity(progress.label);
+        options?.onProgress?.(progress);
       }
     });
     pushAppToast("Update installed. Restarting…", "success");
@@ -106,7 +115,7 @@ export async function runStartupUpdateCheck(): Promise<void> {
   }
 
   pushAppToast(
-    `Update ${result.version} is available. Open Settings → Application to install.`,
+    `Update ${result.version} is available. Open Settings → About to install.`,
     "info",
     15_000,
   );
