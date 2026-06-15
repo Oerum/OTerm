@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import ApplicationSettingsPage from "./settings/ApplicationSettingsPage.vue";
 import SftpTransferSettingsPage from "./settings/SftpTransferSettingsPage.vue";
 import TerminalAutocompleteSettingsPage from "./settings/TerminalAutocompleteSettingsPage.vue";
 
@@ -7,9 +8,14 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-type SettingsSectionId = "terminal-autocomplete" | "sftp-transfers";
+type SettingsSectionId = "application" | "terminal-autocomplete" | "sftp-transfers";
 
 const sections: { id: SettingsSectionId; label: string; description: string }[] = [
+  {
+    id: "application",
+    label: "Application",
+    description: "Version and automatic updates",
+  },
   {
     id: "terminal-autocomplete",
     label: "Terminal autocomplete",
@@ -22,7 +28,7 @@ const sections: { id: SettingsSectionId; label: string; description: string }[] 
   },
 ];
 
-const activeSection = ref<SettingsSectionId>("terminal-autocomplete");
+const activeSection = ref<SettingsSectionId>("application");
 
 const activeMeta = computed(
   () => sections.find((section) => section.id === activeSection.value) ?? sections[0],
@@ -73,7 +79,8 @@ const activeMeta = computed(
 
       <div class="oterm-scroll min-h-0 min-w-0 flex-1 overflow-y-auto">
         <div class="mx-auto max-w-2xl px-6 py-6">
-          <TerminalAutocompleteSettingsPage v-if="activeSection === 'terminal-autocomplete'" />
+          <ApplicationSettingsPage v-if="activeSection === 'application'" />
+          <TerminalAutocompleteSettingsPage v-else-if="activeSection === 'terminal-autocomplete'" />
           <SftpTransferSettingsPage v-else-if="activeSection === 'sftp-transfers'" />
         </div>
       </div>

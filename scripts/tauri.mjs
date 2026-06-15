@@ -7,6 +7,7 @@ import {
   whisperBackendFromArgs,
   whisperCargoFeature,
 } from "./whisper-backend.mjs";
+import { updaterEndpointForBackend, usesAlternateUpdaterChannel } from "./updater-manifest.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -136,55 +137,67 @@ const env = { ...process.env };
 ensureWindowsNativeEnv(env, whisperBackend);
 args = injectWhisperFeature(args, whisperCargoFeature(whisperBackend));
 
-if (args.includes("build") && !env.TAURI_SIGNING_PRIVATE_KEY && !env.TAURI_PRIVATE_KEY) {
-  console.log("TAURI_SIGNING_PRIVATE_KEY not set. Disabling updater artifacts for this local build.");
-  let configIndex = -1;
-  let configValue = "";
-
+function readConfigArg(args) {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "-c" || args[i] === "--config") {
-      configIndex = i;
-      if (i + 1 < args.length) {
-        configValue = args[i + 1];
-      }
-      break;
-    } else if (args[i].startsWith("-c=")) {
-      configIndex = i;
-      configValue = args[i].slice(3);
-      break;
-    } else if (args[i].startsWith("--config=")) {
-      configIndex = i;
-      configValue = args[i].slice(9);
-      break;
+      return { index: i, value: args[i + 1] ?? "", inline: false };
+    }
+    if (args[i].startsWith("-c=")) {
+      return { index: i, value: args[i].slice(3), inline: true, flag: "-c=" };
+    }
+    if (args[i].startsWith("--config=")) {
+      return { index: i, value: args[i].slice(9), inline: true, flag: "--config=" };
     }
   }
+  return { index: -1, value: "", inline: false };
+}
 
-  let mergedConfig = { bundle: { createUpdaterArtifacts: false } };
-  if (configIndex !== -1 && configValue) {
+function writeConfigArg(args, configIndex, config, inline, flag) {
+  const serialized = JSON.stringify(config);
+  if (configIndex === -1) {
+    args.push("-c", serialized);
+    return;
+  }
+  if (inline) {
+    args[configIndex] = `${flag}${serialized}`;
+    return;
+  }
+  args[configIndex + 1] = serialized;
+}
+
+if (args.includes("build")) {
+  const hasSigningKey = Boolean(env.TAURI_SIGNING_PRIVATE_KEY || env.TAURI_PRIVATE_KEY);
+  const { index: configIndex, value: configValue, inline, flag } = readConfigArg(args);
+
+  let mergedConfig = {};
+  if (configValue) {
     try {
-      const existingConfig = JSON.parse(configValue);
-      mergedConfig = {
-        ...existingConfig,
-        bundle: {
-          ...existingConfig.bundle,
-          createUpdaterArtifacts: false
-        }
-      };
-    } catch (e) {
+      mergedConfig = JSON.parse(configValue);
+    } catch {
       console.warn("Failed to parse existing --config argument, overriding it.");
     }
   }
 
-  if (configIndex !== -1) {
-    if (args[configIndex].includes("=")) {
-      const flag = args[configIndex].startsWith("-c=") ? "-c=" : "--config=";
-      args[configIndex] = flag + JSON.stringify(mergedConfig);
-    } else {
-      args[configIndex + 1] = JSON.stringify(mergedConfig);
-    }
-  } else {
-    args.push("-c", JSON.stringify(mergedConfig));
+  mergedConfig.bundle = {
+    ...mergedConfig.bundle,
+    createUpdaterArtifacts: hasSigningKey,
+  };
+
+  if (usesAlternateUpdaterChannel(whisperBackend)) {
+    mergedConfig.plugins = {
+      ...mergedConfig.plugins,
+      updater: {
+        ...mergedConfig.plugins?.updater,
+        endpoints: [updaterEndpointForBackend(whisperBackend)],
+      },
+    };
   }
+
+  if (!hasSigningKey) {
+    console.log("TAURI_SIGNING_PRIVATE_KEY not set. Disabling updater artifacts for this local build.");
+  }
+
+  writeConfigArg(args, configIndex, mergedConfig, inline, flag);
 }
 
 const tauriJs = join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");

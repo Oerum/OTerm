@@ -97,6 +97,7 @@ import { resolveActiveWorktree, resolveGitMutationRoot, switchGitBranch } from "
 import type { GitWorktreeInfo } from "./types/git";
 
 import { getVersion } from "@tauri-apps/api/app";
+import { runStartupUpdateCheck } from "./lib/appUpdater";
 
 const appVersion = ref("0.1.1");
 
@@ -1258,6 +1259,7 @@ onMounted(() => {
   }).catch((err) => {
     console.error("Failed to load app version:", err);
   });
+  void runStartupUpdateCheck();
   window.addEventListener("keydown", onKeyDown, true);
   window.addEventListener("focus", onWindowFocus);
   void listenTerminalAgentChanged((event) => {

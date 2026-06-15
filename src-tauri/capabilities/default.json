@@ -19,6 +19,7 @@
     "notification:default",
     "dialog:allow-open",
     "updater:default",
+    "process:default",
     {
       "identifier": "opener:allow-open-path",
       "allow": [{ "path": "$HOME/**" }]

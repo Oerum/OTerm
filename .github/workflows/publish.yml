@@ -27,6 +27,8 @@ jobs:
             install_openblas: false
             install_vulkan_linux: false
             include_updater: true
+            updater_manifest: latest.json
+            updater_endpoint: ''
 
           - job_name: Windows (Vulkan)
             platform: windows-latest
@@ -39,6 +41,8 @@ jobs:
             install_openblas: false
             install_vulkan_linux: false
             include_updater: true
+            updater_manifest: latest.json
+            updater_endpoint: ''
 
           - job_name: Windows (CUDA)
             platform: windows-2022
@@ -50,7 +54,9 @@ jobs:
             install_cuda: true
             install_openblas: false
             install_vulkan_linux: false
-            include_updater: false
+            include_updater: true
+            updater_manifest: latest-cuda.json
+            updater_endpoint: https://github.com/Oerum/OTerm/releases/latest/download/latest-cuda.json
 
           - job_name: Linux (Vulkan)
             platform: ubuntu-22.04
@@ -63,6 +69,8 @@ jobs:
             install_openblas: false
             install_vulkan_linux: true
             include_updater: true
+            updater_manifest: latest.json
+            updater_endpoint: ''
 
           - job_name: Linux (CUDA)
             platform: ubuntu-22.04
@@ -75,7 +83,9 @@ jobs:
             install_cuda: true
             install_openblas: false
             install_vulkan_linux: false
-            include_updater: false
+            include_updater: true
+            updater_manifest: latest-cuda.json
+            updater_endpoint: https://github.com/Oerum/OTerm/releases/latest/download/latest-cuda.json
 
           - job_name: Linux (OpenBLAS)
             platform: ubuntu-22.04
@@ -87,7 +97,9 @@ jobs:
             install_cuda: false
             install_openblas: true
             install_vulkan_linux: false
-            include_updater: false
+            include_updater: true
+            updater_manifest: latest-openblas.json
+            updater_endpoint: https://github.com/Oerum/OTerm/releases/latest/download/latest-openblas.json
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -265,7 +277,13 @@ jobs:
           $productName = "OTerm${{ matrix.product_suffix }}"
 
           if ('${{ matrix.install_cuda }}' -ne 'true') {
-            $config = "{`"productName`":`"$productName`",`"bundle`":{`"createUpdaterArtifacts`":false$bundleTargets}}"
+            $includeUpdater = '${{ matrix.include_updater }}' -eq 'true'
+            $createUpdater = if ($includeUpdater) { 'true' } else { 'false' }
+            $pluginsJson = ''
+            if ('${{ matrix.updater_endpoint }}' -ne '') {
+              $pluginsJson = ',`"plugins`":{`"updater`":{`"endpoints`":[`"${{ matrix.updater_endpoint }}`"]}}'
+            }
+            $config = "{`"productName`":`"$productName`",`"bundle`":{`"createUpdaterArtifacts`":$createUpdater$bundleTargets}$pluginsJson}"
             Add-Content -Path $env:GITHUB_ENV -Value "TAURI_CONFIG_JSON<<EOF"
             Add-Content -Path $env:GITHUB_ENV -Value $config
             Add-Content -Path $env:GITHUB_ENV -Value "EOF"
@@ -305,11 +323,19 @@ jobs:
           }
           $resources['icons/icon.ico'] = 'icons/icon.ico'
 
+          $includeUpdater = '${{ matrix.include_updater }}' -eq 'true'
           $configObj = [ordered]@{
             productName = $productName
             bundle = [ordered]@{
-              createUpdaterArtifacts = $false
+              createUpdaterArtifacts = $includeUpdater
               resources = $resources
+            }
+          }
+          if ('${{ matrix.updater_endpoint }}' -ne '') {
+            $configObj.plugins = [ordered]@{
+              updater = [ordered]@{
+                endpoints = @('${{ matrix.updater_endpoint }}')
+              }
             }
           }
 
@@ -322,24 +348,49 @@ jobs:
         if: "!contains(matrix.platform, 'windows')"
         shell: bash
         run: |
+          if [ "${{ matrix.include_updater }}" = "true" ]; then
+            CREATE_UPDATER=true
+          else
+            CREATE_UPDATER=false
+          fi
+          PLUGINS_JSON=""
+          if [ -n "${{ matrix.updater_endpoint }}" ]; then
+            PLUGINS_JSON=',"plugins":{"updater":{"endpoints":["${{ matrix.updater_endpoint }}"]}}'
+          fi
           {
             echo 'TAURI_CONFIG_JSON<<EOF'
-            echo '{"productName":"OTerm${{ matrix.product_suffix }}","bundle":{"createUpdaterArtifacts":false${{ matrix.bundle_targets }}}}'
+            echo '{"productName":"OTerm${{ matrix.product_suffix }}","bundle":{"createUpdaterArtifacts":'$CREATE_UPDATER'${{ matrix.bundle_targets }}}'$PLUGINS_JSON'}'
             echo 'EOF'
           } >> "$GITHUB_ENV"
 
       - name: Build and upload Tauri bundle
-        uses: tauri-apps/tauri-action@v0
+        id: tauri
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || secrets.TAURI_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
           releaseName: 'OTerm v__VERSION__'
           releaseBody: 'Release generated automatically by CI/CD pipeline.'
           releaseDraft: true
           prerelease: false
-          includeUpdaterJson: false
+          includeUpdaterJson: ${{ matrix.include_updater && matrix.updater_manifest == 'latest.json' }}
+          retryAttempts: 10
           args: --features ${{ matrix.whisper_features }} -c '${{ env.TAURI_CONFIG_JSON }}'
+
+      - name: Upload alternate updater manifest
+        if: matrix.include_updater && matrix.updater_manifest != 'latest.json'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPDATER_MANIFEST: ${{ matrix.updater_manifest }}
+          RELEASE_ID: ${{ steps.tauri.outputs.releaseId }}
+          APP_VERSION: ${{ steps.tauri.outputs.appVersion }}
+          ARTIFACT_PATHS: ${{ steps.tauri.outputs.artifactPaths }}
+          TAG_NAME: ${{ github.ref_name }}
+          RELEASE_BODY: Release generated automatically by CI/CD pipeline.
+        run: node scripts/upload-updater-manifest.mjs
 
       - name: Verify Windows CUDA runtime bundle
         if: matrix.install_cuda && contains(matrix.platform, 'windows')
