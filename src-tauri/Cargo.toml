@@ -1,6 +1,6 @@
 [package]
 name = "oterm"
-version = "0.2.5"
+version = "0.2.6"
 description = "Advanced terminal emulator"
 authors = ["Oerum"]
 license = "AGPL-3.0-or-later"
