@@ -8,6 +8,7 @@ import {
   localBranchName,
   type BranchFolderGroup,
 } from "../lib/branchGrouping";
+import { sortTags } from "../lib/tagSorting";
 import { isGithubPrCapable } from "../lib/createPrFlow";
 import {
   fetchGitRepo,
@@ -58,6 +59,7 @@ import CreateBranchDialog from "./CreateBranchDialog.vue";
 import CreateTagDialog from "./CreateTagDialog.vue";
 import TagContextMenu from "./TagContextMenu.vue";
 import TagListItem from "./TagListItem.vue";
+import CommitContextMenu from "./CommitContextMenu.vue";
 import CreatePullRequestDialog from "./CreatePullRequestDialog.vue";
 import MergeBranchDialog from "./MergeBranchDialog.vue";
 import GitDiffViewer from "./GitDiffViewer.vue";
@@ -111,6 +113,10 @@ const tagContextMenuOpen = ref(false);
 const tagContextMenuX = ref(0);
 const tagContextMenuY = ref(0);
 const tagContextTarget = ref<TagRefInfo | null>(null);
+const commitContextMenuOpen = ref(false);
+const commitContextMenuX = ref(0);
+const commitContextMenuY = ref(0);
+const commitContextTarget = ref<GraphCommit | null>(null);
 const collapsedFolders = ref<Set<string>>(new Set());
 const collapsedDefaultsApplied = ref(false);
 const confirmOpen = ref(false);
@@ -222,7 +228,7 @@ async function load() {
   const tagsPromise = listTagRefs(props.repoRoot)
     .catch(() => [] as TagRefInfo[])
     .then((tagRows) => {
-      tags.value = tagRows;
+      tags.value = sortTags(tagRows);
     });
 
   const branchListPromise = listGitBranches(props.repoRoot)
@@ -553,6 +559,83 @@ function openTagContextMenu(tag: TagRefInfo, event: MouseEvent) {
   tagContextMenuX.value = event.clientX;
   tagContextMenuY.value = event.clientY;
   tagContextMenuOpen.value = true;
+}
+
+function closeCommitContextMenu() {
+  commitContextMenuOpen.value = false;
+  commitContextTarget.value = null;
+}
+
+function openCommitContextMenu(commit: GraphCommit, event: MouseEvent) {
+  commitContextTarget.value = commit;
+  selectedHash.value = commit.hash;
+  commitContextMenuX.value = event.clientX;
+  commitContextMenuY.value = event.clientY;
+  commitContextMenuOpen.value = true;
+}
+
+async function onCommitContextCopyHash() {
+  const commit = commitContextTarget.value;
+  if (!commit) return;
+  try {
+    await writeClipboardText(commit.hash);
+    pushAppToast("Copied commit hash to clipboard", "success");
+  } catch (err) {
+    pushAppToast("Failed to copy hash", "error");
+  } finally {
+    closeCommitContextMenu();
+  }
+}
+
+function onCommitContextSwitch() {
+  const hash = commitContextTarget.value?.hash;
+  if (!hash) return;
+  runAction(() => switchDetached(props.repoRoot, hash));
+  closeCommitContextMenu();
+}
+
+function onCommitContextOpenInBrowser() {
+  openCommitInBrowser();
+  closeCommitContextMenu();
+}
+
+function onCommitContextRevert() {
+  const hash = commitContextTarget.value?.hash;
+  if (!hash) return;
+  runAction(() => revertCommit(props.repoRoot, hash));
+  closeCommitContextMenu();
+}
+
+function onCommitContextCherryPick() {
+  const hash = commitContextTarget.value?.hash;
+  if (!hash) return;
+  runAction(() => cherryPickCommit(props.repoRoot, hash));
+  closeCommitContextMenu();
+}
+
+function onCommitContextResetMixed() {
+  runReset('mixed');
+  closeCommitContextMenu();
+}
+
+function onCommitContextResetHard() {
+  runReset('hard');
+  closeCommitContextMenu();
+}
+
+function onCommitContextCreateBranch() {
+  createBranchFromSelection();
+  closeCommitContextMenu();
+}
+
+function onCommitContextCreateTag() {
+  openCreateTagDialogFromSelection();
+  closeCommitContextMenu();
+}
+
+function onCommitContextSquash() {
+  runAction(squashFromSelection);
+  closeCommitContextMenu();
 }
 
 function selectTag(tag: TagRefInfo) {
@@ -1091,6 +1174,7 @@ watch(() => props.active, (isActive) => {
             class="block w-full border-b border-[var(--oterm-border)] px-3 py-1.5 text-left hover:bg-white/5"
             :class="selectedHash === commit.hash ? 'bg-white/5' : ''"
             @click="selectCommit(commit.hash)"
+            @contextmenu.prevent="openCommitContextMenu(commit, $event)"
           >
             <span class="text-[var(--oterm-accent)]">{{ commit.shortHash }}</span>
             <span class="ml-2">{{ commit.subject }}</span>
@@ -1396,6 +1480,25 @@ watch(() => props.active, (isActive) => {
       @close="closeTagContextMenu"
       @copy-name="onTagContextCopyName"
       @push="onTagContextPush"
+    />
+
+    <CommitContextMenu
+      :open="commitContextMenuOpen"
+      :x="commitContextMenuX"
+      :y="commitContextMenuY"
+      :hash="commitContextTarget ? commitContextTarget.hash : null"
+      :busy="busy"
+      @close="closeCommitContextMenu"
+      @copy-hash="onCommitContextCopyHash"
+      @switch="onCommitContextSwitch"
+      @open-in-browser="onCommitContextOpenInBrowser"
+      @revert="onCommitContextRevert"
+      @cherry-pick="onCommitContextCherryPick"
+      @reset-mixed="onCommitContextResetMixed"
+      @reset-hard="onCommitContextResetHard"
+      @create-branch="onCommitContextCreateBranch"
+      @create-tag="onCommitContextCreateTag"
+      @squash="onCommitContextSquash"
     />
   </div>
 </template>

@@ -12,7 +12,23 @@ import {
   parseDecorations,
   primaryBranchLabel,
 } from "../lib/gitGraphLayout";
-import { getCommitGraph, listIncomingOutgoing } from "../lib/branchManagerApi";
+import {
+  getCommitGraph,
+  listIncomingOutgoing,
+  switchDetached,
+  revertCommit,
+  cherryPickCommit,
+  resetCommit,
+  createBranch,
+  createTag,
+  squashCommits,
+} from "../lib/branchManagerApi";
+import { gitRemoteBrowserUrl } from "../lib/pullRequestApi";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { pushAppToast } from "../lib/appToast";
+import { formatGitOperationError } from "../lib/formatGitError";
+import { writeClipboardText } from "../lib/clipboard";
+import CommitContextMenu from "./CommitContextMenu.vue";
 
 const STORAGE_KEY = "oterm:sc-graph-collapsed";
 const HEIGHT_STORAGE_KEY = "oterm:sc-graph-height";
@@ -32,6 +48,12 @@ const emit = defineEmits<{
   selectCommit: [hash: string];
   expandPanel: [];
 }>();
+
+const commitContextMenuOpen = ref(false);
+const commitContextMenuX = ref(0);
+const commitContextMenuY = ref(0);
+const commitContextTarget = ref<string | null>(null);
+const busy = ref(false);
 
 const collapsed = ref(localStorage.getItem(STORAGE_KEY) === "1");
 const commits = ref<GraphCommit[]>([]);
@@ -194,6 +216,140 @@ async function loadGraph(reset: boolean) {
   }
 }
 
+function closeCommitContextMenu() {
+  commitContextMenuOpen.value = false;
+  commitContextTarget.value = null;
+}
+
+function openCommitContextMenu(hash: string, event: MouseEvent) {
+  commitContextTarget.value = hash;
+  onSelect(hash);
+  commitContextMenuX.value = event.clientX;
+  commitContextMenuY.value = event.clientY;
+  commitContextMenuOpen.value = true;
+}
+
+async function onCommitContextCopyHash() {
+  const hash = commitContextTarget.value;
+  if (!hash) return;
+  try {
+    await writeClipboardText(hash);
+    pushAppToast("Copied commit hash to clipboard", "success");
+  } catch (err) {
+    pushAppToast("Failed to copy hash", "error");
+  } finally {
+    closeCommitContextMenu();
+  }
+}
+
+async function runAction(action: () => Promise<void>) {
+  if (busy.value) return;
+  busy.value = true;
+  try {
+    await action();
+    await loadGraph(true);
+  } catch (err) {
+    const msg = formatGitOperationError(err);
+    pushAppToast(msg, "error");
+  } finally {
+    busy.value = false;
+  }
+}
+
+function onCommitContextSwitch() {
+  const hash = commitContextTarget.value;
+  if (!hash) return;
+  runAction(() => switchDetached(props.repoRoot, hash));
+  closeCommitContextMenu();
+}
+
+async function onCommitContextOpenInBrowser() {
+  const hash = commitContextTarget.value;
+  if (!hash) return;
+  try {
+    const url = await gitRemoteBrowserUrl(props.repoRoot, "commit", hash);
+    await openUrl(url);
+  } catch (err) {
+    pushAppToast("Failed to open browser: " + String(err), "error");
+  } finally {
+    closeCommitContextMenu();
+  }
+}
+
+function onCommitContextRevert() {
+  const hash = commitContextTarget.value;
+  if (!hash) return;
+  runAction(() => revertCommit(props.repoRoot, hash));
+  closeCommitContextMenu();
+}
+
+function onCommitContextCherryPick() {
+  const hash = commitContextTarget.value;
+  if (!hash) return;
+  runAction(() => cherryPickCommit(props.repoRoot, hash));
+  closeCommitContextMenu();
+}
+
+async function runReset(mode: "mixed" | "hard") {
+  const hash = commitContextTarget.value;
+  if (!hash) return;
+  if (mode === "hard" && !window.confirm("Hard reset will discard all uncommitted changes. Proceed?")) {
+    return;
+  }
+  runAction(() => resetCommit(props.repoRoot, hash, mode));
+}
+
+function onCommitContextResetMixed() {
+  runReset('mixed');
+  closeCommitContextMenu();
+}
+
+function onCommitContextResetHard() {
+  runReset('hard');
+  closeCommitContextMenu();
+}
+
+function onCommitContextCreateBranch() {
+  const hash = commitContextTarget.value;
+  if (!hash) return;
+  const name = window.prompt("Enter new branch name:");
+  if (!name || !name.trim()) return;
+  runAction(async () => {
+    await createBranch(props.repoRoot, name.trim(), hash);
+    pushAppToast(`Created branch ${name}`, "success");
+  });
+  closeCommitContextMenu();
+}
+
+function onCommitContextCreateTag() {
+  const hash = commitContextTarget.value;
+  if (!hash) return;
+  const name = window.prompt("Enter new tag name:");
+  if (!name || !name.trim()) return;
+  const message = window.prompt("Enter tag message (optional):");
+  runAction(async () => {
+    await createTag(props.repoRoot, name.trim(), hash, message?.trim() || undefined);
+    pushAppToast(`Created tag ${name}`, "success");
+  });
+  closeCommitContextMenu();
+}
+
+function onCommitContextSquash() {
+  const hash = commitContextTarget.value;
+  if (!hash) return;
+  const countStr = window.prompt("Squash how many commits?", "2");
+  if (!countStr) return;
+  const count = Number(countStr);
+  if (!Number.isFinite(count) || count < 2) return;
+  const message = window.prompt("Squash commit message:");
+  if (!message || !message.trim()) return;
+  runAction(async () => {
+    await squashCommits(props.repoRoot, count, message.trim());
+    pushAppToast("Squashed commits", "success");
+  });
+  closeCommitContextMenu();
+}
+
 function toggleCollapsed() {
   collapsed.value = !collapsed.value;
 }
@@ -309,6 +465,7 @@ function isSelected(hash: string): boolean {
             class="mt-1.5 block w-full rounded px-1 py-1.5 text-left hover:bg-white/[0.03]"
             :class="isSelected(entry.hash) ? 'bg-white/[0.05]' : ''"
             @click="onSelect(entry.hash)"
+            @contextmenu.prevent="openCommitContextMenu(entry.hash, $event)"
           >
             <p class="truncate text-xs leading-snug text-[var(--oterm-text)]">{{ entry.subject }}</p>
             <p class="mt-0.5 truncate text-[10px] leading-snug text-[var(--oterm-faint)]">{{ entry.shortHash }}</p>
@@ -332,6 +489,7 @@ function isSelected(hash: string): boolean {
             class="mt-1.5 block w-full rounded px-1 py-1.5 text-left hover:bg-white/[0.03]"
             :class="isSelected(entry.hash) ? 'bg-white/[0.05]' : ''"
             @click="onSelect(entry.hash)"
+            @contextmenu.prevent="openCommitContextMenu(entry.hash, $event)"
           >
             <p class="truncate text-xs leading-snug text-[var(--oterm-text)]">{{ entry.subject }}</p>
             <p class="mt-0.5 truncate text-[10px] leading-snug text-[var(--oterm-faint)]">{{ entry.shortHash }}</p>
@@ -433,6 +591,7 @@ function isSelected(hash: string): boolean {
             :class="isSelected(commit.hash) ? 'bg-white/[0.05]' : ''"
             :style="{ minHeight: `${GRAPH_ROW_HEIGHT}px` }"
             @click="onSelect(commit.hash)"
+            @contextmenu.prevent="openCommitContextMenu(commit.hash, $event)"
             @mouseenter="hoveredRowIndex = index"
             @mouseleave="hoveredRowIndex = null"
           >
@@ -505,6 +664,25 @@ function isSelected(hash: string): boolean {
         />
       </div>
     </div>
+
+    <CommitContextMenu
+      :open="commitContextMenuOpen"
+      :x="commitContextMenuX"
+      :y="commitContextMenuY"
+      :hash="commitContextTarget"
+      :busy="busy"
+      @close="closeCommitContextMenu"
+      @copy-hash="onCommitContextCopyHash"
+      @switch="onCommitContextSwitch"
+      @open-in-browser="onCommitContextOpenInBrowser"
+      @revert="onCommitContextRevert"
+      @cherry-pick="onCommitContextCherryPick"
+      @reset-mixed="onCommitContextResetMixed"
+      @reset-hard="onCommitContextResetHard"
+      @create-branch="onCommitContextCreateBranch"
+      @create-tag="onCommitContextCreateTag"
+      @squash="onCommitContextSquash"
+    />
   </section>
 </template>
 

@@ -217,6 +217,22 @@ pub fn list_tag_refs(repo_root: String) -> Result<Vec<TagRefInfo>, String> {
         ],
     )?;
 
+    let mut remote_tags = std::collections::HashSet::new();
+    if let Ok(remote_output) = git_output(&root, &["ls-remote", "--tags", "origin"]) {
+        for line in remote_output.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            if let Some((oid, refname)) = line.split_once('\t') {
+                if let Some(tag_name) = refname.strip_prefix("refs/tags/") {
+                    let tag_name = tag_name.strip_suffix("^{}").unwrap_or(tag_name);
+                    remote_tags.insert((tag_name.to_string(), oid.trim().to_string()));
+                }
+            }
+        }
+    }
+
     let mut refs = Vec::new();
     for line in output.lines() {
         let line = line.trim();
@@ -239,7 +255,8 @@ pub fn list_tag_refs(repo_root: String) -> Result<Vec<TagRefInfo>, String> {
         } else {
             short_hash
         };
-        let on_origin = tag_on_origin(&root, &name, &tag_object);
+        let on_origin = remote_tags.contains(&(name.clone(), tag_object.clone()))
+            || remote_tags.contains(&(name.clone(), hash.clone()));
         refs.push(TagRefInfo {
             name,
             hash,
@@ -275,43 +292,6 @@ fn tag_commit_oid(root: &Path, tag_name: &str) -> Option<String> {
                 .map(|v| v.trim().to_string())
                 .filter(|v| !v.is_empty())
         })
-}
-
-fn tag_on_origin(root: &Path, tag_name: &str, _tag_object_oid: &str) -> bool {
-    let Some(local_commit) = tag_commit_oid(root, tag_name) else {
-        return false;
-    };
-    let Ok(output) = git_output(
-        root,
-        &[
-            "ls-remote",
-            "--tags",
-            "origin",
-            &format!("refs/tags/{tag_name}"),
-        ],
-    ) else {
-        return false;
-    };
-    if output.trim().is_empty() {
-        return false;
-    }
-
-    for line in output.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let Some((oid, refname)) = line.split_once('\t') else {
-            continue;
-        };
-        if refname.ends_with("^{}") && oid == local_commit {
-            return true;
-        }
-        if !refname.ends_with("^{}") && oid == local_commit {
-            return true;
-        }
-    }
-    false
 }
 
 pub fn read_commit_graph(
