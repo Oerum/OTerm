@@ -10,9 +10,9 @@ use super::issues::{
 };
 use super::pr::{
     checkout_pull_request, comment_on_pull_request, create_pull_request, detect_provider,
-    list_pr_checks, list_pr_commits, list_pr_files, list_pull_requests, pull_request_diff,
-    remote_browser_url, view_pull_request, PrChangedFile, PrCheck, PrCommit, PrProviderInfo,
-    PullRequestDetail, PullRequestSummary,
+    fetch_github_user_profile, list_pr_checks, list_pr_commits, list_pr_files, list_pull_requests,
+    pull_request_diff, remote_browser_url, view_pull_request, GitHubUserProfile, PrChangedFile,
+    PrCheck, PrCommit, PrProviderInfo, PullRequestDetail, PullRequestSummary,
 };
 use super::{
     checkout_branch, commit_changes, fetch_changes, list_branches, pull_changes, push_changes,
@@ -181,6 +181,11 @@ pub async fn git_write_working_file(
 #[tauri::command]
 pub async fn pr_detect_provider(repo_root: String) -> Result<PrProviderInfo, String> {
     blocking_git(move || detect_provider(repo_root)).await
+}
+
+#[tauri::command]
+pub async fn github_user_profile() -> Result<Option<GitHubUserProfile>, String> {
+    blocking_git(fetch_github_user_profile).await
 }
 
 #[tauri::command]

@@ -656,6 +656,53 @@ fn parse_github_remote(url: &str) -> Result<(String, String), String> {
     Err("Unsupported GitHub remote URL format".into())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubUserProfile {
+    pub login: String,
+    pub name: Option<String>,
+    pub avatar_url: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GhApiUser {
+    login: String,
+    name: Option<String>,
+    avatar_url: String,
+}
+
+fn gh_installed() -> bool {
+    hidden_command(&gh_program())
+        .arg("--version")
+        .output()
+        .is_ok()
+}
+
+fn gh_authenticated() -> bool {
+    hidden_command(&gh_program())
+        .args(["auth", "status"])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+pub fn fetch_github_user_profile() -> Result<Option<GitHubUserProfile>, String> {
+    if !gh_installed() || !gh_authenticated() {
+        return Ok(None);
+    }
+
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let json = gh_output(&cwd, &["api", "user"])?;
+    let user: GhApiUser = serde_json::from_str(&json)
+        .map_err(|err| format!("Failed to parse GitHub user profile: {err}"))?;
+
+    Ok(Some(GitHubUserProfile {
+        login: user.login,
+        name: user.name.filter(|value| !value.trim().is_empty()),
+        avatar_url: user.avatar_url,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -741,5 +788,18 @@ mod tests {
         let row: GhFilesResponse = serde_json::from_str(json).unwrap();
         assert_eq!(row.files[0].path, "src/a.ts");
         assert_eq!(row.files[0].change_type, "MODIFIED");
+    }
+
+    #[test]
+    fn deserializes_github_api_user() {
+        let json = r#"{
+            "login": "alice",
+            "name": "Alice Example",
+            "avatar_url": "https://avatars.githubusercontent.com/u/1?v=4"
+        }"#;
+        let user: GhApiUser = serde_json::from_str(json).unwrap();
+        assert_eq!(user.login, "alice");
+        assert_eq!(user.name.as_deref(), Some("Alice Example"));
+        assert!(user.avatar_url.contains("avatars.githubusercontent.com"));
     }
 }

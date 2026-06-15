@@ -40,8 +40,9 @@ use git::commands::{
     git_revert_commit, git_revert_hunk, git_revert_tracked_paths, git_revert_untracked_paths,
     git_source_control_status, git_squash_commits, git_stage_hunk, git_stage_paths,
     git_staged_diff, git_status, git_sync, git_unstage_hunk, git_unstage_paths,
-    git_write_working_file, issue_create_branch, issue_list, issue_view, pr_checkout, pr_checks,
-    pr_comment, pr_commits, pr_create, pr_detect_provider, pr_diff, pr_files, pr_list, pr_view,
+    git_write_working_file, github_user_profile, issue_create_branch, issue_list, issue_view,
+    pr_checkout, pr_checks, pr_comment, pr_commits, pr_create, pr_detect_provider, pr_diff,
+    pr_files, pr_list, pr_view,
 };
 use launch::{launch_initial_cwd, LaunchState};
 use lm::commands::{
@@ -227,6 +228,7 @@ pub fn run() {
             lm_chat_completion,
             git_write_working_file,
             pr_detect_provider,
+            github_user_profile,
             pr_list,
             pr_create,
             pr_checkout,
