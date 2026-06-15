@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useWindowDrag } from "../composables/useWindowDrag";
 import type { GitBranchList, GitStatus } from "../types/git";
@@ -11,6 +11,7 @@ import SshMenu from "./SshMenu.vue";
 import UserMenu from "./UserMenu.vue";
 import { formatPathFull, formatPathShort, formatTitleCompact, isShellExecutablePath } from "../lib/formatPath";
 import type { ShellProfile, WorkspacePane } from "../types/terminal";
+import { getCliAgentDefinition } from "../lib/terminalAgentMode";
 
 const props = defineProps<{
   terminalSidebarOpen: boolean;
@@ -58,15 +59,25 @@ const shellLabel = computed(
 
 const manualTabTitle = computed(() => props.tabTitle !== "Terminal");
 
-const oscTitle = computed(() => {
-  const title = props.pane?.oscTitle?.trim() ?? "";
-  if (!title || isShellExecutablePath(title)) return "";
-  return title;
+const fullDisplayTitle = computed(() => {
+  if (props.pane) {
+    if (props.pane.customTitle?.trim()) return props.pane.customTitle.trim();
+    if (props.pane.activeAgentId) {
+      const osc = props.pane.oscTitle?.trim();
+      if (osc && !isShellExecutablePath(osc)) {
+        return osc;
+      }
+      return getCliAgentDefinition(props.pane.activeAgentId).displayName;
+    }
+  }
+  const title = props.tabTitle ?? "Terminal";
+  return manualTabTitle.value ? title : shellLabel.value;
 });
 
-const fullDisplayTitle = computed(() => {
-  const title = props.tabTitle ?? "Terminal";
-  return manualTabTitle.value ? title : (oscTitle.value || shellLabel.value);
+const isDefaultTitle = computed(() => {
+  if (manualTabTitle.value) return false;
+  if (props.pane?.activeAgentId) return false;
+  return true;
 });
 
 const displayTitle = computed(() => formatTitleCompact(fullDisplayTitle.value));
@@ -74,6 +85,33 @@ const displayTitle = computed(() => formatTitleCompact(fullDisplayTitle.value));
 const shortCwd = computed(() => formatPathShort(props.pane?.cwd));
 
 const cwdTooltip = computed(() => formatPathFull(props.pane?.cwd));
+
+const localActiveProcessCmd = ref<string | null>(null);
+let processCmdTimeout: number | undefined;
+
+watch(
+  () => props.pane?.activeProcessCmd,
+  (newCmd) => {
+    if (processCmdTimeout) {
+      window.clearTimeout(processCmdTimeout);
+      processCmdTimeout = undefined;
+    }
+    localActiveProcessCmd.value = newCmd ?? null;
+    if (newCmd) {
+      processCmdTimeout = window.setTimeout(() => {
+        localActiveProcessCmd.value = null;
+        processCmdTimeout = undefined;
+      }, 30000);
+    }
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(() => {
+  if (processCmdTimeout) {
+    window.clearTimeout(processCmdTimeout);
+  }
+});
 </script>
 
 <template>
@@ -137,16 +175,21 @@ const cwdTooltip = computed(() => formatPathFull(props.pane?.cwd));
     </div>
 
     <div
-      class="drag-region min-w-0 flex-1 self-stretch flex items-center justify-start pl-4"
+      class="drag-region min-w-0 flex-1 self-stretch flex items-center justify-start pl-4 gap-3"
       data-tauri-drag-region
       @mousedown="onDragMouseDown"
     >
       <span
         v-if="pane"
-        class="pointer-events-none flex min-w-0 max-w-full items-center gap-0 truncate text-xs text-[var(--oterm-muted)]"
+        class="pointer-events-auto group/title flex min-w-0 items-center gap-0 truncate text-xs text-[var(--oterm-muted)] cursor-default select-none"
       >
         <span
-          class="shrink-0 text-[var(--oterm-text)]"
+          class="shrink-0 text-[var(--oterm-text)] transition-all duration-300 ease-in-out"
+          :class="[
+            isDefaultTitle
+              ? 'max-w-0 opacity-0 overflow-hidden group-hover/title:max-w-[180px] group-hover/title:opacity-100 group-hover/title:pr-1.5'
+              : ''
+          ]"
           :title="fullDisplayTitle !== displayTitle ? fullDisplayTitle : undefined"
         > {{ displayTitle }}</span>
         <template v-if="shortCwd">
@@ -157,6 +200,16 @@ const cwdTooltip = computed(() => formatPathFull(props.pane?.cwd));
             :title="cwdTooltip ?? undefined"
           >{{ shortCwd }}</span>
         </template>
+      </span>
+
+      <!-- Running process badge -->
+      <span
+        v-if="localActiveProcessCmd"
+        class="no-drag flex items-center gap-1.5 text-[8.5px] px-2 py-0.5 rounded border font-mono text-emerald-400 bg-emerald-500/10 border-emerald-400/20 transition-colors shrink-0"
+        :title="localActiveProcessCmd"
+      >
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+        <span class="max-w-[200px] truncate font-medium">{{ localActiveProcessCmd }}</span>
       </span>
     </div>
 

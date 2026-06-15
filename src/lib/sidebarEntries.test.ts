@@ -46,8 +46,9 @@ describe("paneDisplayTitle", () => {
     expect(paneDisplayTitle(pane, "PowerShell", null)).toBe("My dev shell");
   });
 
-  it("uses OSC title when set", () => {
+  it("uses OSC title when agent is active and sets it", () => {
     const pane = terminalTab().panes[0];
+    pane.activeAgentId = "claude";
     pane.oscTitle = "Fix auth bug";
     expect(paneDisplayTitle(pane, "PowerShell", null)).toBe("Fix auth bug");
   });
@@ -90,15 +91,17 @@ describe("buildTerminalEntries", () => {
     expect(entries[0]?.title).toBe("Backend work");
   });
 
-  it("shows OSC title when set and tab is not renamed", () => {
+  it("shows OSC title when set, agent is active, and tab is not renamed", () => {
     const tab = terminalTab();
+    tab.panes[0].activeAgentId = "claude";
     tab.panes[0].oscTitle = "Refactor sidebar";
     const entries = buildTerminalEntries([tab], shells, tab.id, tab.panes[0].id, new Map());
     expect(entries[0]?.title).toBe("Refactor sidebar");
   });
 
-  it("hides OSC title when tab is manually renamed", () => {
+  it("hides OSC title when tab is manually renamed even if agent is active", () => {
     const tab = terminalTab({ title: "My tab" });
+    tab.panes[0].activeAgentId = "claude";
     tab.panes[0].oscTitle = "Agent working";
     const entries = buildTerminalEntries([tab], shells, tab.id, tab.panes[0].id, new Map());
     expect(entries[0]?.title).toBe("My tab");

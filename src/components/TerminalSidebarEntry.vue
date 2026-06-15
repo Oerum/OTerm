@@ -478,15 +478,7 @@ watch(
                   WT
                 </span>
 
-                <!-- Running process badge -->
-                <span
-                  v-if="entry.activeProcessCmd"
-                  class="flex items-center gap-1 text-[8.5px] px-1.5 py-0.2 rounded border font-mono text-emerald-400 bg-emerald-500/10 border-emerald-400/20 transition-colors"
-                  :title="entry.activeProcessCmd"
-                >
-                  <span class="w-1 h-1 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                  <span class="max-w-[85px] truncate font-medium">{{ entry.activeProcessCmd }}</span>
-                </span>
+
               </div>
             </div>
 

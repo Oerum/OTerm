@@ -12,11 +12,28 @@ export const tooltipY = ref(0);
 
 let showTimer: ReturnType<typeof setTimeout> | null = null;
 let activeTarget: HTMLElement | null = null;
+let connectionCheckInterval: ReturnType<typeof setTimeout> | null = null;
 
 function clearShowTimer() {
   if (showTimer !== null) {
     clearTimeout(showTimer);
     showTimer = null;
+  }
+}
+
+function startConnectionCheck() {
+  if (connectionCheckInterval !== null) return;
+  connectionCheckInterval = setInterval(() => {
+    if (activeTarget && !activeTarget.isConnected) {
+      hideTooltip();
+    }
+  }, 100);
+}
+
+function stopConnectionCheck() {
+  if (connectionCheckInterval !== null) {
+    clearInterval(connectionCheckInterval);
+    connectionCheckInterval = null;
   }
 }
 
@@ -38,8 +55,12 @@ function restoreNativeTitle(el: HTMLElement) {
 
 function positionForElement(el: HTMLElement) {
   const rect = el.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0 && rect.top === 0 && rect.left === 0) {
+    return false;
+  }
   tooltipX.value = rect.left + rect.width / 2;
   tooltipY.value = rect.bottom + 6;
+  return true;
 }
 
 function showTooltipForElement(el: HTMLElement, text: string) {
@@ -49,10 +70,19 @@ function showTooltipForElement(el: HTMLElement, text: string) {
   showTimer = setTimeout(() => {
     showTimer = null;
     if (activeTarget !== el) return;
+    if (!el.isConnected) {
+      resetTooltipState();
+      return;
+    }
+    const positioned = positionForElement(el);
+    if (!positioned) {
+      resetTooltipState();
+      return;
+    }
     tooltipText.value = text;
     tooltipVariant.value = readTooltipVariant(el);
-    positionForElement(el);
     tooltipVisible.value = true;
+    startConnectionCheck();
   }, SHOW_DELAY_MS);
 }
 
@@ -60,6 +90,7 @@ function resetTooltipState() {
   tooltipVisible.value = false;
   tooltipText.value = "";
   tooltipVariant.value = "default";
+  stopConnectionCheck();
 }
 
 function readTooltipVariant(el: HTMLElement): TooltipVariant {

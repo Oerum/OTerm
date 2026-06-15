@@ -20,6 +20,7 @@ import riderIcon from "../assets/editors/JetBrains_Rider.svg";
 import visualStudioIcon from "../assets/editors/VS2026.svg";
 import vscodeIcon from "../assets/editors/vscode.svg";
 import zedIcon from "../assets/editors/zed.svg";
+import { hideTooltip } from "../lib/tooltipController";
 
 const MIN_SEARCH_LENGTH = 2;
 const openWithItemClass =
@@ -64,6 +65,7 @@ const openWithButtonRef = ref<HTMLElement | null>(null);
 const directoryHints = ref<FsToolsDirectoryHints | null>(null);
 const envImportStatus = ref<string | null>(null);
 const envImportLoading = ref(false);
+let envImportStatusTimeout: number | undefined;
 
 function solutionMenuEntries(
   hints: FsToolsDirectoryHints | null,
@@ -303,8 +305,13 @@ async function importEnvFromAncestor() {
   const directory = currentDirectory.value;
   if (!directory || envImportLoading.value) return;
 
+  hideTooltip();
   envImportLoading.value = true;
   envImportStatus.value = null;
+  if (envImportStatusTimeout) {
+    window.clearTimeout(envImportStatusTimeout);
+    envImportStatusTimeout = undefined;
+  }
   try {
     await importEnvFile(directory);
     envImportStatus.value = "Imported .env";
@@ -318,6 +325,10 @@ async function importEnvFromAncestor() {
           : "Could not import .env";
   } finally {
     envImportLoading.value = false;
+    envImportStatusTimeout = window.setTimeout(() => {
+      envImportStatus.value = null;
+      envImportStatusTimeout = undefined;
+    }, 4000);
   }
 }
 
@@ -387,6 +398,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   searchRequestId += 1;
   window.clearTimeout(searchTimer);
+  if (envImportStatusTimeout) {
+    window.clearTimeout(envImportStatusTimeout);
+  }
   document.removeEventListener("mousedown", onDocumentClick);
 });
 </script>
@@ -405,15 +419,29 @@ onBeforeUnmount(() => {
         <button
           v-if="envImportHint"
           type="button"
-          class="no-drag header-tool-btn"
+          class="no-drag env-import-btn"
           :disabled="envImportLoading"
-          :title="`Copy from ${envImportHint.sourcePath}`"
+          :title="`Import .env file from ancestor:\n${envImportHint.sourcePath}`"
+          data-oterm-tooltip-variant="path"
           @click="importEnvFromAncestor"
         >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          Import .env
+          <span v-if="envImportLoading" class="flex items-center gap-1.5">
+            <svg class="animate-spin h-2.5 w-2.5 text-emerald-400" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Importing...
+          </span>
+          <span v-else class="flex items-center gap-1.5">
+            <span class="relative flex h-1.5 w-1.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+            </span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Import .env
+          </span>
         </button>
 
         <button
@@ -765,6 +793,35 @@ onBeforeUnmount(() => {
 
 .header-tool-btn:disabled {
   opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.env-import-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-family: var(--oterm-font-ui);
+  font-weight: 600;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  cursor: pointer;
+  transition: all 120ms ease;
+  user-select: none;
+}
+
+.env-import-btn:hover:not(:disabled) {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.1);
+}
+
+.env-import-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 </style>

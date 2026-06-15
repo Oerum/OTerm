@@ -37,13 +37,13 @@ describe("buildTerminalNotificationContent", () => {
     expect(content.body).toBe("Terminal ready · oterm");
   });
 
-  it("prefers osc title in the body detail", () => {
+  it("prefers osc title in the body detail when agent is active", () => {
     const content = buildTerminalNotificationContent(
-      { ...basePane, oscTitle: "Fix auth bug" },
+      { ...basePane, activeAgentId: "claude", oscTitle: "Fix auth bug" },
       "Windows PowerShell",
     );
     expect(content.title).toBe(APP_NOTIFICATION_TITLE);
-    expect(content.body).toBe("Terminal ready · Fix auth bug");
+    expect(content.body).toBe("Claude Code is ready · Fix auth bug");
   });
 
   it("uses completed agent identity after activeAgentId was cleared", () => {

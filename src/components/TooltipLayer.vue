@@ -34,6 +34,10 @@ function onScroll() {
   hideTooltip();
 }
 
+function onPointerDown() {
+  hideTooltip();
+}
+
 function onKeyDown(event: KeyboardEvent) {
   if (event.key === "Escape") hideTooltip();
 }
@@ -50,6 +54,7 @@ watch(tooltipVisible, (visible) => {
 onMounted(() => {
   document.addEventListener("pointerover", onPointerOver, true);
   document.addEventListener("pointerout", onPointerOut, true);
+  document.addEventListener("pointerdown", onPointerDown, true);
   document.addEventListener("scroll", onScroll, true);
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("blur", hideTooltip);
@@ -58,6 +63,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener("pointerover", onPointerOver, true);
   document.removeEventListener("pointerout", onPointerOut, true);
+  document.removeEventListener("pointerdown", onPointerDown, true);
   document.removeEventListener("scroll", onScroll, true);
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("blur", hideTooltip);

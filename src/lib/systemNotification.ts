@@ -26,8 +26,10 @@ function notificationDetail(
     "customTitle" | "oscTitle" | "activeAgentId" | "cwd"
   >,
 ): string | null {
-  if (pane.oscTitle?.trim()) return pane.oscTitle.trim();
   if (pane.customTitle?.trim()) return pane.customTitle.trim();
+  if (pane.activeAgentId) {
+    if (pane.oscTitle?.trim()) return pane.oscTitle.trim();
+  }
   const cwd = pane.cwd;
   if (cwd && cwd !== "~") {
     const parts = cwd.replace(/\\/g, "/").split("/").filter(Boolean);

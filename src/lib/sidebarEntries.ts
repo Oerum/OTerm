@@ -36,8 +36,8 @@ export function paneDisplayTitle(
   splitIndex: number | null,
 ) {
   if (pane.customTitle?.trim()) return pane.customTitle.trim();
-  if (pane.oscTitle?.trim()) return pane.oscTitle.trim();
   if (pane.activeAgentId) {
+    if (pane.oscTitle?.trim()) return pane.oscTitle.trim();
     return getCliAgentDefinition(pane.activeAgentId).displayName;
   }
   const cwd = pane.cwd;
