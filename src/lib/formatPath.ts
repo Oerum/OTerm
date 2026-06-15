@@ -1,4 +1,4 @@
-const EXECUTABLE_PATH_SUFFIX = /(\/|\\|^)(bash|zsh|sh|fish|nu|nushell|elvish|pwsh|powershell|cmd)(\.exe)?$/i;
+const EXECUTABLE_PATH_SUFFIX = /(\/|\\|^)(bash|zsh|sh|fish|nu|nushell|elvish|pwsh|powershell|cmd|dash)(\.exe)?$/i;
 
 export function isShellExecutablePath(path: string): boolean {
   return EXECUTABLE_PATH_SUFFIX.test(path.trim().replace(/[\/\\]+$/, ""));

@@ -48,6 +48,7 @@ describe("formatPathShort", () => {
       formatPathShort("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"),
     ).toBeNull();
     expect(formatPathShort("/bin/bash")).toBeNull();
+    expect(formatPathShort("/bin/dash")).toBeNull();
     expect(formatPathShort("/usr/bin/zsh")).toBeNull();
     expect(formatPathShort("/usr/local/bin/fish")).toBeNull();
   });
@@ -59,6 +60,7 @@ describe("isDisplayableWorkingDirectory", () => {
     expect(isDisplayableWorkingDirectory("~")).toBe(false);
     expect(isDisplayableWorkingDirectory("C:\\Windows\\System32\\cmd.exe")).toBe(false);
     expect(isDisplayableWorkingDirectory("/bin/bash")).toBe(false);
+    expect(isDisplayableWorkingDirectory("/bin/dash")).toBe(false);
   });
 
   it("accepts normal directories", () => {
