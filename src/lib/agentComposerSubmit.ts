@@ -20,15 +20,15 @@ const BRACKETED_PASTE_ENTER_DELAY_MS = 300;
 export function submitStrategyForAgent(agentId: CliAgentId): SubmitStrategy {
   switch (agentId) {
     case "codex":
-      return "bracketedPaste";
-    case "copilot":
-      return "bracketedPasteDelayedEnter";
     case "claude":
     case "gemini":
     case "opencode":
     case "auggie":
     case "cursor":
-      return "delayedEnter";
+    case "agy":
+      return "bracketedPaste";
+    case "copilot":
+      return "bracketedPasteDelayedEnter";
     default:
       return "inline";
   }

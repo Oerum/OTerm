@@ -1445,7 +1445,19 @@ async function handleAgentNativePaste(options?: ClipboardPasteOptions): Promise<
     return true;
   }
 
-  return pasteClipboardText();
+  try {
+    const text = await readClipboardText();
+    if (!text) return false;
+    await insertAgentPromptText(
+      localSessionId.value,
+      activeAgentId.value,
+      text,
+      writeSession,
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function handleClipboardPaste(

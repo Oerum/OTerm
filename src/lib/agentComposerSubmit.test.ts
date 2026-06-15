@@ -12,8 +12,8 @@ import {
 } from "./agentComposerSubmit";
 
 describe("submitStrategyForAgent", () => {
-  it("maps cursor to delayedEnter", () => {
-    expect(submitStrategyForAgent("cursor")).toBe("delayedEnter");
+  it("maps cursor to bracketedPaste", () => {
+    expect(submitStrategyForAgent("cursor")).toBe("bracketedPaste");
   });
 
   it("maps codex to bracketedPaste", () => {
@@ -22,6 +22,10 @@ describe("submitStrategyForAgent", () => {
 
   it("maps copilot to bracketedPasteDelayedEnter", () => {
     expect(submitStrategyForAgent("copilot")).toBe("bracketedPasteDelayedEnter");
+  });
+
+  it("maps agy to bracketedPaste", () => {
+    expect(submitStrategyForAgent("agy")).toBe("bracketedPaste");
   });
 
   it("defaults unknown agents to inline", () => {
@@ -36,17 +40,13 @@ describe("submitAgentComposerText", () => {
     expect(write).not.toHaveBeenCalled();
   });
 
-  it("uses delayedEnter for cursor", async () => {
-    vi.useFakeTimers();
+  it("uses bracketedPaste for cursor", async () => {
     const write = vi.fn().mockResolvedValue(undefined);
-    const promise = submitAgentComposerText("sess", "cursor", "hello", write);
-    await vi.runAllTimersAsync();
-    await promise;
+    await submitAgentComposerText("sess", "cursor", "hello", write);
 
     expect(write).toHaveBeenCalledTimes(2);
-    expect(write.mock.calls[0]).toEqual(["sess", "hello"]);
-    expect(write.mock.calls[1]).toEqual(["sess", "\r"]);
-    vi.useRealTimers();
+    expect(write.mock.calls[0][1]).toBe("\x1b[200~hello\x1b[201~");
+    expect(write.mock.calls[1][1]).toBe("\r");
   });
 
   it("uses bracketed paste for codex", async () => {
@@ -83,23 +83,19 @@ describe("submitAgentComposerText", () => {
     expect(write.mock.calls[1][1]).toBe("\r");
   });
 
-  it("submits multiline text with attachment paths using delayedEnter", async () => {
-    vi.useFakeTimers();
+  it("submits multiline text with attachment paths using bracketedPaste", async () => {
     const write = vi.fn().mockResolvedValue(undefined);
     const payload = formatAgentComposerMessage("fix this logo", [
       "C:\\Users\\Filip\\Pictures\\shot.png",
       "D:\\clips\\demo.mp4",
     ]);
-    const promise = submitAgentComposerText("sess", "cursor", payload, write);
-    await vi.runAllTimersAsync();
-    await promise;
+    await submitAgentComposerText("sess", "cursor", payload, write);
 
     expect(write).toHaveBeenCalledTimes(2);
     expect(write.mock.calls[0][1]).toBe(
-      "fix this logo\nC:\\Users\\Filip\\Pictures\\shot.png\nD:\\clips\\demo.mp4",
+      `${BRACKETED_PASTE_START}fix this logo\nC:\\Users\\Filip\\Pictures\\shot.png\nD:\\clips\\demo.mp4${BRACKETED_PASTE_END}`,
     );
     expect(write.mock.calls[1][1]).toBe("\r");
-    vi.useRealTimers();
   });
 });
 

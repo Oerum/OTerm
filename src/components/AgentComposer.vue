@@ -401,7 +401,7 @@ defineExpose({
         ref="textareaRef"
         v-model="draft"
         rows="1"
-        class="min-h-[2.25rem] max-h-40 w-full shrink-0 resize-none overflow-y-auto bg-transparent font-mono text-sm leading-relaxed text-[var(--oterm-text)] outline-none placeholder:text-[var(--oterm-faint)]"
+        class="min-h-[2.25rem] max-h-40 w-full shrink-0 resize-none overflow-y-auto oterm-scroll bg-transparent font-mono text-sm leading-relaxed text-[var(--oterm-text)] outline-none placeholder:text-[var(--oterm-faint)]"
         :placeholder="composerPlaceholder"
         :disabled="textareaDisabled"
         @focus="isFocused = true"
