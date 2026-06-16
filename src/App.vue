@@ -1227,6 +1227,17 @@ async function onSwitchBranch(
 }
 
 function cdFromExplorer(path: string, isDir: boolean) {
+  const pane = activePane.value;
+  if (!pane) return;
+
+  const paneRef = terminalPaneRefs.get(pane.id);
+  const isAgentActive = pane.activeAgentId || (paneRef && paneRef.isAgentComposerOpen());
+
+  if (isAgentActive && paneRef) {
+    void paneRef.insertText(path);
+    return;
+  }
+
   if (isDir) {
     void openPathInTerminal(path);
     return;

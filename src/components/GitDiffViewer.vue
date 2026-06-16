@@ -194,10 +194,20 @@ watch(
   },
 );
 
+let lastFilePath = props.selectedFile?.path;
+let lastFileStaged = props.selectedFile?.staged;
+
 watch(
   () => props.content,
   () => {
-    emit("update:activeHunkIndex", 0);
+    const currentPath = props.selectedFile?.path;
+    const currentStaged = props.selectedFile?.staged;
+
+    if (!currentPath || currentPath !== lastFilePath || currentStaged !== lastFileStaged) {
+      lastFilePath = currentPath;
+      lastFileStaged = currentStaged;
+      emit("update:activeHunkIndex", 0);
+    }
   },
 );
 

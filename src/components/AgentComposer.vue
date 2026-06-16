@@ -362,10 +362,16 @@ onBeforeUnmount(() => {
   }
 });
 
+function insertText(text: string) {
+  const prefix = draft.value.length > 0 && !draft.value.endsWith(" ") ? " " : "";
+  draft.value += prefix + text;
+}
+
 defineExpose({
   focusComposer,
   toggleDictation,
   addAttachmentPaths,
+  insertText,
 });
 </script>
 

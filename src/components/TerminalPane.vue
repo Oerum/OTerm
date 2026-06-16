@@ -1855,6 +1855,15 @@ function focusTerminal() {
   void scheduleTerminalFocus();
 }
 
+async function insertText(text: string) {
+  if (agentComposerOpen.value && agentComposerRef.value) {
+    agentComposerRef.value.insertText(text);
+    await agentComposerRef.value.focusComposer();
+  } else {
+    await appendToPrompt(text);
+  }
+}
+
 defineExpose({
   focusTerminal,
   toggleAgentComposer,
@@ -1863,6 +1872,7 @@ defineExpose({
   isAgentComposerOpen: () => agentComposerOpen.value,
   killSession,
   getBackendSessionId,
+  insertText,
 });
 
 onMounted(async () => {
