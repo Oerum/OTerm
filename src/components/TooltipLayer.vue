@@ -82,7 +82,7 @@ onUnmounted(() => {
         :class="
           tooltipVariant === 'path'
             ? 'max-w-[min(42rem,calc(100vw-1rem))] font-mono break-all'
-            : 'max-w-[min(16rem,calc(100vw-1rem))]'
+            : 'max-w-[min(28rem,calc(100vw-1rem))] whitespace-normal break-words'
         "
         :style="{ left: `${tooltipX}px`, top: `${tooltipY}px` }"
       >

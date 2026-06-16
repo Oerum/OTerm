@@ -679,12 +679,13 @@ pub fn find_vscode_launcher() -> Option<PathBuf> {
         if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
             let root = PathBuf::from(local_app_data)
                 .join("Programs")
-                .join("Microsoft VS Code")
-                .join("bin");
-            candidates.push(root.join("code.cmd"));
-            candidates.push(root.join("code.exe"));
+                .join("Microsoft VS Code");
+            candidates.push(root.join("Code.exe"));
+            let bin = root.join("bin");
+            candidates.push(bin.join("code.cmd"));
+            candidates.push(bin.join("code.exe"));
         }
-        first_existing_file(&candidates).or_else(|| which_on_path(&["code.cmd", "code.exe"]))
+        first_existing_file(&candidates).or_else(|| which_on_path(&["code.exe", "code.cmd"]))
     }
 
     #[cfg(target_os = "macos")]
@@ -716,11 +717,25 @@ pub fn open_in_vscode(path: &Path) -> Result<(), String> {
 
     let launcher = find_vscode_launcher().ok_or_else(|| "VS Code was not found".to_string())?;
 
-    Command::new(&launcher)
-        .arg(path)
-        .spawn()
-        .map(|_| ())
-        .map_err(|err| format!("Could not launch VS Code ({launcher:?}): {err}"))
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let mut cmd = Command::new(&launcher);
+        cmd.arg(path);
+        cmd.creation_flags(0x0800_0000);
+        cmd.spawn()
+            .map(|_| ())
+            .map_err(|err| format!("Could not launch VS Code ({launcher:?}): {err}"))
+    }
+
+    #[cfg(not(windows))]
+    {
+        Command::new(&launcher)
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|err| format!("Could not launch VS Code ({launcher:?}): {err}"))
+    }
 }
 
 pub fn find_zed_launcher() -> Option<PathBuf> {

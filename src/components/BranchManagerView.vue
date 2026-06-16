@@ -13,8 +13,10 @@ import { isGithubPrCapable } from "../lib/createPrFlow";
 import {
   fetchGitRepo,
   listGitBranches,
+  listGitWorktrees,
   pullGitRepo,
   pushGitRepo,
+  removeGitWorktree,
 } from "../lib/gitApi";
 import {
   cherryPickCommit,
@@ -791,6 +793,38 @@ async function runDeleteBranch(branch: BranchRefInfo, force: boolean) {
         onConfirm: () => runDeleteBranch(branch, true),
       });
       return;
+    }
+    if (!force && !branch.isRemote && /checked out at/i.test(message)) {
+      try {
+        const worktrees = await listGitWorktrees(props.repoRoot);
+        const wt = worktrees.find((w) => w.branch === branch.name && !w.isMain);
+        if (wt) {
+          requestConfirm({
+            title: "Remove worktree and delete branch?",
+            message: `The branch "${branch.name}" is checked out in a linked worktree at:\n\n${wt.path}\n\nRemove this worktree first and then delete the branch?`,
+            confirmLabel: "Remove & Delete",
+            dangerous: true,
+            onConfirm: async () => {
+              busy.value = true;
+              setAppToastActivity("Removing worktree…");
+              try {
+                await removeGitWorktree(props.repoRoot, wt.path, true);
+                await runDeleteBranch(branch, force);
+              } catch (wtErr) {
+                const wtMsg = formatGitOperationError(wtErr);
+                error.value = wtMsg;
+                pushAppToast(wtMsg, "error");
+              } finally {
+                setAppToastActivity(null);
+                busy.value = false;
+              }
+            },
+          });
+          return;
+        }
+      } catch (worktreeErr) {
+        // ignore and fallback to standard error handling
+      }
     }
     error.value = message;
     pushAppToast(message, "error");

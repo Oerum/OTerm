@@ -62,6 +62,14 @@ export function listGitWorktrees(repoRoot: string): Promise<GitWorktreeInfo[]> {
   return invoke<GitWorktreeInfo[]>("git_list_worktrees", { repoRoot });
 }
 
+export function removeGitWorktree(
+  repoRoot: string,
+  path: string,
+  force = false,
+): Promise<void> {
+  return invoke("git_remove_worktree", { repoRoot, path, force });
+}
+
 export function switchGitBranchApi(
   repoRoot: string,
   branch: string,

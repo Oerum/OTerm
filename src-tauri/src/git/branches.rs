@@ -649,6 +649,20 @@ fn parse_graph_line(line: &str) -> Option<GraphCommit> {
     })
 }
 
+pub fn remove_worktree(repo_root: String, path: String, force: bool) -> Result<(), String> {
+    let root = PathBuf::from(&repo_root);
+    let path = path.trim().to_string();
+    if path.is_empty() {
+        return Err("Worktree path is required".into());
+    }
+    let mut args = vec!["worktree", "remove"];
+    if force {
+        args.push("--force");
+    }
+    args.push(&path);
+    git_run(&root, &args)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
