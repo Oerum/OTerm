@@ -502,7 +502,7 @@ watch(
             <!-- Line 3: Git Info -->
             <div
               v-if="entry.gitIsRepo"
-              class="flex items-center gap-1.5 min-w-0 mt-0.5"
+              class="flex flex-wrap items-center gap-1.5 min-w-0 mt-0.5"
             >
               <!-- Branch Badge -->
               <span
