@@ -1,7 +1,7 @@
 # <p align="center"><img src="./public/app-icon.svg" alt="OTerm Logo" width="120" height="120"><br>OTerm</p>
 
 <p align center>
-  <strong>The AI-Powered Dev-Cockpit for Terminal-Native Developers & Vibe Coders.</strong>
+  <strong>The AI-Powered Developer Workspace for Terminal-Native Workflows.</strong>
 </p>
 
 <p align="center">
@@ -12,17 +12,17 @@
 
 ---
 
-### ⚠️ The Problem: Bouncing Between 10 Different Tools
-As developers and vibe coders, we spend our lives in the terminal. Yet, we are constantly forced to break our flow state and bounce back and forth between multiple heavy applications:
+### 🧩 The Problem: Context Switching Between Disparate Tools
+As terminal-native developers, we spend our lives in the command line. Yet, we are constantly forced to break our flow state by context-switching between multiple separate applications:
 - Switching to a browser to check GitHub Issues or stage Pull Requests.
 - Opening Docker Desktop or writing endless `docker ps -a` loops just to monitor container logs.
 - Launching FileZilla or Cyberduck to drag and drop files over SFTP.
 - Dragging windows around to view visual git diffs or commit graphs.
 
 ### 💡 The Solution: OTerm
-**OTerm** is a high-performance terminal emulator that bridges the gap between CLI speed and GUI convenience. Built on **Tauri 2**, **Vue 3**, and **Tailwind CSS v4**, OTerm embeds rich, visual, Rust-powered developer tools directly into your terminal workspace. 
+**OTerm** is a high-performance terminal emulator that bridges the gap between CLI efficiency and GUI convenience. Built on **Tauri 2**, **Vue 3**, and **Tailwind CSS v4**, OTerm embeds rich, visual, Rust-powered developer tools directly into your terminal workspace. 
 
-Stop switching tabs. Stage your lines, monitor your containers, browse your remote servers, and query local AI models—**all from a single, cohesive terminal dashboard.**
+Eliminate constant context switching. Stage files, monitor containers, browse remote servers, and query local AI models—**all from a single, unified terminal workspace.**
 
 ---
 
@@ -40,34 +40,34 @@ Compose prompts, write commit messages, or execute actions entirely with your vo
 - **GPU Accelerated**: Native acceleration via **Metal** (macOS), **Vulkan** (AMD/Intel on Windows & Linux), **CUDA** (NVIDIA on Windows & Linux), or **OpenBLAS** CPU fallback (Linux).
 
 ### 🤖 2. Integrated AI Assistant & Autocomplete
-OTerm features an integrated AI Agent Composer and autocomplete helper to turbocharge your "vibe coding" sessions. It's completely configurable with your favorite AI backend:
+OTerm features an integrated AI Agent Composer and autocomplete helper to accelerate your development workflows. It is fully configurable with your preferred AI backend:
 - **LM Studio**: Run local, completely free, and private models on `http://localhost:1234/v1` with zero API keys.
 - **GitHub Copilot**: Auto-loads your existing Copilot OAuth token straight from your disk configuration.
 - **BYOK (Bring Your Own Key)**: Compatible with any OpenAI-compliant API endpoint (including OpenAI, OpenRouter, Azure OpenAI, vLLM, etc.).
 
 ### 🐙 3. The Visual Git Suite
-No need for heavy Git GUIs or browser tabs. Manage your repositories natively:
-- **Interactive Commit Graph**: A visual branch tree (`git log --graph` reimagined) to easily trace history.
-- **Visual Diff Viewer**: Built-in side-by-side diffing and precise staging of specific lines or hunks.
-- **Branch Manager**: Worktree-aware branch switching and merging built directly into the title bar.
-- **GitHub Portal**: Open, view, and manage GitHub Issues and Pull Requests right from the sidebar.
-- **Commit message AI**: Let the AI automatically generate conventional, semantic commit messages based on your staged changes.
+Manage repositories natively without external GUI clients or browser interfaces:
+- **Interactive Commit Graph**: A visual branch tree (`git log --graph` reimagined) to trace repository history cleanly.
+- **Visual Diff Viewer**: Side-by-side diffing and precise staging of specific lines or hunks.
+- **Branch Manager**: Worktree-aware branch switching and merging integrated directly into the title bar.
+- **GitHub Integration**: Open, view, and manage GitHub Issues and Pull Requests right from the sidebar.
+- **Automated Commit Messages**: Generate conventional, semantic commit messages automatically based on staged changes.
 
 ### 🐳 4. Direct Docker Dashboard
-Keep an eye on your microservices without cluttering your shell:
-- Live container status monitoring (running, paused, stopped).
-- Instant logs streaming, container control (start, stop, restart), and image/volume exploration.
+Monitor and manage microservices directly from your workspace:
+- Real-time container status monitoring (running, paused, stopped).
+- Instant log streaming, container lifecycle control (start, stop, restart), and image/volume exploration.
 
 ### 🔌 5. SSH & SFTP Connection Hub
-Seamlessly connect to remote servers and manage files with our custom, Rust-backed SSH/SFTP client:
+Establish secure connections to remote servers and manage files using a native, Rust-backed SSH/SFTP client:
 - Multi-session SSH terminal panes.
-- Dual-panel graphical SFTP file browser with file uploads, downloads, and directory management.
+- Dual-panel graphical SFTP file browser with support for file uploads, downloads, and directory management.
 
 ---
 
 ## 🛠️ Tech Stack & Architecture
 
-OTerm uses a vertical-slice architecture to marry front-end flexibility with back-end safety:
+OTerm uses a vertical-slice architecture to combine front-end flexibility with back-end performance and type safety:
 - **Frontend**: Vue 3 + TypeScript + Vite + Tailwind CSS v4. Terminal rendering is powered by `@xterm/xterm` with the `@xterm/addon-fit` addon.
 - **Desktop Wrapper**: Tauri 2 provides the secure native bridge and system integrations.
 - **Backend (Rust)**: High-performance modules under `src-tauri/src/` for multi-threaded SSH, local Whisper audio processing, Docker socket communication, and Git IPC commands.
