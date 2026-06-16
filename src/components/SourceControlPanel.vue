@@ -466,26 +466,32 @@ function setPaneView(view: PaneView) {
   }
 }
 
-async function loadDiff(file: SelectedGitFile) {
+async function loadDiff(file: SelectedGitFile, options?: { silent?: boolean }) {
   const repoRoot = props.status.repoRoot;
   if (!repoRoot) return;
 
   const requestId = ++diffRequestId;
-  diffLoading.value = true;
-  diffError.value = null;
-  diffContent.value = "";
-  commitDetails.value = null;
-  activeHunkIndex.value = 0;
+  const silent = options?.silent ?? false;
+  if (!silent) {
+    diffLoading.value = true;
+    diffError.value = null;
+    diffContent.value = "";
+    commitDetails.value = null;
+    activeHunkIndex.value = 0;
+  }
 
   try {
     const result = await getGitFileDiff(repoRoot, file.path, file.staged, file.untracked);
     if (requestId !== diffRequestId) return;
-    diffContent.value = result.content;
+    if (diffContent.value !== result.content) {
+      diffContent.value = result.content;
+    }
+    diffError.value = null;
   } catch (err) {
     if (requestId !== diffRequestId) return;
     diffError.value = err instanceof Error ? err.message : String(err);
   } finally {
-    if (requestId === diffRequestId) {
+    if (requestId === diffRequestId && !silent) {
       diffLoading.value = false;
     }
   }
@@ -517,28 +523,36 @@ async function loadCommitDiff(hash: string) {
   }
 }
 
-async function loadEditContent(file: SelectedGitFile) {
+async function loadEditContent(file: SelectedGitFile, options?: { silent?: boolean }) {
   const repoRoot = props.status.repoRoot;
   if (!repoRoot) return;
 
   const requestId = ++editRequestId;
-  editLoading.value = true;
-  editError.value = null;
-  editContent.value = "";
-  editSavedContent.value = "";
-  editMissing.value = false;
+  const silent = options?.silent ?? false;
+  if (!silent) {
+    editLoading.value = true;
+    editError.value = null;
+    editContent.value = "";
+    editSavedContent.value = "";
+    editMissing.value = false;
+  }
 
   try {
     const result = await readGitWorkingFile(repoRoot, file.path);
     if (requestId !== editRequestId) return;
-    editContent.value = result.content;
-    editSavedContent.value = result.content;
-    editMissing.value = !result.exists;
+    if (editContent.value !== result.content) {
+      editContent.value = result.content;
+      editSavedContent.value = result.content;
+    }
+    if (editMissing.value !== !result.exists) {
+      editMissing.value = !result.exists;
+    }
+    editError.value = null;
   } catch (err) {
     if (requestId !== editRequestId) return;
     editError.value = err instanceof Error ? err.message : String(err);
   } finally {
-    if (requestId === editRequestId) {
+    if (requestId === editRequestId && !silent) {
       editLoading.value = false;
     }
   }
@@ -700,9 +714,9 @@ function syncSelectedFileWithStatus() {
     if (editDirty.value) {
       return;
     }
-    void loadEditContent(sel);
+    void loadEditContent(sel, { silent: true });
   } else {
-    void loadDiff(sel);
+    void loadDiff(sel, { silent: true });
   }
 }
 

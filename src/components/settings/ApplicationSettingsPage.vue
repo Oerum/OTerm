@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, shallowRef } from "vue";
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import MarkdownContent from "../MarkdownContent.vue";
@@ -25,7 +25,7 @@ const appName = ref("OTerm");
 const version = ref("");
 const updateState = ref<UpdateUiState>("idle");
 const statusMessage = ref<string | null>(null);
-const pendingUpdate = ref<PendingAppUpdate | null>(null);
+const pendingUpdate = shallowRef<PendingAppUpdate | null>(null);
 const releaseNotes = ref<string | null>(null);
 const availableVersion = ref<string | null>(null);
 const lastCheckedAt = ref<Date | null>(null);
