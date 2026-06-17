@@ -3,6 +3,7 @@ import type {
   ShellProfile,
   TerminalSidebarEntry,
   TerminalSidebarSection,
+  TerminalEntryColor,
   TerminalTabGroup,
   WorkspaceTab,
   WorkspaceTerminalTab,
@@ -198,6 +199,61 @@ export function buildTerminalSidebarSections(
   }
 
   return sections;
+}
+
+export type TerminalSidebarCategory =
+  | {
+      kind: "group";
+      groupId: string;
+      name: string;
+      tabCount: number;
+      collapsed: boolean;
+      color: TerminalEntryColor;
+      entries: TerminalSidebarEntry[];
+    }
+  | {
+      kind: "ungrouped";
+      showHeader: boolean;
+      tabCount?: number;
+      entries: TerminalSidebarEntry[];
+    };
+
+export function groupTerminalSidebarSections(
+  sections: TerminalSidebarSection[],
+): TerminalSidebarCategory[] {
+  const categories: TerminalSidebarCategory[] = [];
+  let current: TerminalSidebarCategory | null = null;
+
+  for (const section of sections) {
+    if (section.kind === "group-header") {
+      if (current) categories.push(current);
+      current = {
+        kind: "group",
+        groupId: section.groupId,
+        name: section.name,
+        tabCount: section.tabCount,
+        collapsed: section.collapsed,
+        color: section.color,
+        entries: [],
+      };
+    } else if (section.kind === "ungrouped-header") {
+      if (current) categories.push(current);
+      current = {
+        kind: "ungrouped",
+        showHeader: true,
+        tabCount: section.tabCount,
+        entries: [],
+      };
+    } else if (section.kind === "entry") {
+      if (!current) {
+        current = { kind: "ungrouped", showHeader: false, entries: [] };
+      }
+      current.entries.push(section.entry);
+    }
+  }
+
+  if (current) categories.push(current);
+  return categories;
 }
 
 export function buildFeatureEntries(

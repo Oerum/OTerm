@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import { isTerminalRowDragBlocked } from "../composables/useTerminalTabDragReorder";
 import { entryAccentColor } from "../lib/sidebarEntries";
 import { hideTooltip } from "../lib/tooltipController";
 import type { TerminalMenuActionId, TerminalSidebarEntry, TerminalTabGroup } from "../types/terminal";
@@ -26,7 +27,7 @@ const emit = defineEmits<{
   newGroupAndMove: [];
   renameCommit: [tabId: string, title: string];
   renameCancel: [];
-  dragStart: [tabId: string, terminalTabIndex: number, event: PointerEvent];
+  dragStart: [tabId: string, terminalTabIndex: number, event: PointerEvent, handleEl: HTMLElement];
 }>();
 
 const renameInputRef = ref<HTMLInputElement | null>(null);
@@ -241,8 +242,12 @@ function onRenameKeyDown(event: KeyboardEvent) {
   }
 }
 
-function onDragHandlePointerDown(event: PointerEvent) {
-  emit("dragStart", props.entry.tabId, props.entry.terminalTabIndex, event);
+function onRowPointerDown(event: PointerEvent) {
+  if (!props.entry.isFirstPaneOfTab || props.renaming || event.button !== 0) return;
+  const target = event.target as HTMLElement;
+  if (isTerminalRowDragBlocked(target)) return;
+  const handleEl = event.currentTarget as HTMLElement;
+  emit("dragStart", props.entry.tabId, props.entry.terminalTabIndex, event, handleEl);
 }
 
 const openUpward = ref(false);
@@ -295,18 +300,20 @@ watch(
       :class="[
         entry.splitIndex != null && entry.splitIndex > 1
           ? 'w-[94%] ml-[6%] border-l border-white/[0.05] pl-2 py-0.5'
-          : 'w-full py-1 pl-4',
+          : 'w-full py-1 pl-2',
         entry.isActive
           ? 'border-[var(--oterm-accent)]/20 bg-[var(--oterm-accent-dim)]/15 shadow-[0_2px_6px_rgba(0,0,0,0.1)]'
           : 'border-transparent bg-transparent hover:bg-white/[0.02] hover:border-[var(--oterm-border)]',
         renaming ? 'ring-1 ring-[var(--oterm-border-strong)]' : '',
         dragging ? 'opacity-50' : '',
+        entry.isFirstPaneOfTab && !renaming ? 'cursor-grab touch-none active:cursor-grabbing' : '',
       ]"
       :style="accentStyle"
       :data-terminal-tab-index="entry.terminalTabIndex"
       :data-terminal-tab-id="entry.tabId"
       :aria-current="entry.isActive ? 'true' : undefined"
       @keydown="onMenuKeyDown"
+      @pointerdown="onRowPointerDown"
     >
       <!-- Left edge indicator pill -->
       <span 
@@ -318,25 +325,6 @@ watch(
             : entryAccentColor(entry.tabColor)
         }"
       />
-
-      <button
-        v-if="entry.isFirstPaneOfTab && !renaming"
-        type="button"
-        class="absolute left-1 top-1/2 -translate-y-1/2 z-20 flex h-4 w-2.5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-[var(--oterm-faint)] opacity-0 transition hover:bg-white/5 hover:text-[var(--oterm-muted)] active:cursor-grabbing group-hover:opacity-100"
-        title="Drag to reorder"
-        aria-label="Drag to reorder tab"
-        @pointerdown="onDragHandlePointerDown"
-        @click.stop
-      >
-        <svg width="4" height="6" viewBox="0 0 8 10" fill="currentColor" aria-hidden="true">
-          <circle cx="2" cy="2" r="0.9" />
-          <circle cx="6" cy="2" r="0.9" />
-          <circle cx="2" cy="5" r="0.9" />
-          <circle cx="6" cy="5" r="0.9" />
-          <circle cx="2" cy="8" r="0.9" />
-          <circle cx="6" cy="8" r="0.9" />
-        </svg>
-      </button>
 
       <!-- Row Content body -->
       <div
@@ -563,7 +551,10 @@ watch(
       </svg>
 
       <!-- Action buttons & dot-menu -->
-      <div class="absolute top-1 right-1.5 flex items-center gap-0.5 z-10">
+      <div
+        data-terminal-entry-actions
+        class="absolute top-1 right-1.5 flex items-center gap-0.5 z-10"
+      >
         <!-- Close button -->
         <button
           v-if="!renaming"

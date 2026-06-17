@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ShellProfile, WorkspaceTerminalTab } from "../types/terminal";
-import { buildTerminalEntries, buildTerminalSidebarSections, paneDisplayTitle } from "./sidebarEntries";
+import { buildTerminalEntries, buildTerminalSidebarSections, groupTerminalSidebarSections, paneDisplayTitle } from "./sidebarEntries";
 
 const shells: ShellProfile[] = [
   { id: "pwsh", label: "PowerShell", program: "pwsh.exe", args: [] },
@@ -203,5 +203,79 @@ describe("buildTerminalSidebarSections", () => {
     const tab = terminalTab({ id: "tab-a" });
     const sections = buildTerminalSidebarSections([], [], [tab], shells, tab.id, tab.panes[0].id, new Map());
     expect(sections).toEqual([{ kind: "entry", entry: expect.objectContaining({ tabId: "tab-a" }) }]);
+  });
+});
+
+describe("groupTerminalSidebarSections", () => {
+  it("groups headers with their entries and ungrouped sections", () => {
+    const tabA = terminalTab({ id: "tab-a", title: "A", groupId: "g1" });
+    const tabB = terminalTab({ id: "tab-b", title: "B", groupId: null });
+    const sections = buildTerminalSidebarSections(
+      [{ id: "g1", name: "Work", order: 0, color: "none" }],
+      [],
+      [tabA, tabB],
+      shells,
+      tabA.id,
+      tabA.panes[0].id,
+      new Map(),
+    );
+
+    const categories = groupTerminalSidebarSections(sections);
+
+    expect(categories).toHaveLength(2);
+    expect(categories[0]).toMatchObject({
+      kind: "group",
+      groupId: "g1",
+      name: "Work",
+      collapsed: false,
+      entries: [expect.objectContaining({ tabId: "tab-a" })],
+    });
+    expect(categories[1]).toMatchObject({
+      kind: "ungrouped",
+      showHeader: true,
+      tabCount: 1,
+      entries: [expect.objectContaining({ tabId: "tab-b" })],
+    });
+  });
+
+  it("keeps collapsed groups as header-only categories", () => {
+    const tabA = terminalTab({ id: "tab-a", groupId: "g1" });
+    const sections = buildTerminalSidebarSections(
+      [{ id: "g1", name: "Work", order: 0, color: "none" }],
+      ["g1"],
+      [tabA],
+      shells,
+      tabA.id,
+      tabA.panes[0].id,
+      new Map(),
+    );
+
+    const categories = groupTerminalSidebarSections(sections);
+
+    expect(categories).toEqual([
+      {
+        kind: "group",
+        groupId: "g1",
+        name: "Work",
+        tabCount: 1,
+        collapsed: true,
+        color: "none",
+        entries: [],
+      },
+    ]);
+  });
+
+  it("wraps flat entries in a single ungrouped category without header", () => {
+    const tab = terminalTab({ id: "tab-a" });
+    const sections = buildTerminalSidebarSections([], [], [tab], shells, tab.id, tab.panes[0].id, new Map());
+    const categories = groupTerminalSidebarSections(sections);
+
+    expect(categories).toEqual([
+      {
+        kind: "ungrouped",
+        showHeader: false,
+        entries: [expect.objectContaining({ tabId: "tab-a" })],
+      },
+    ]);
   });
 });

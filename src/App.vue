@@ -89,6 +89,7 @@ import {
   buildTerminalNotificationContent,
   sendTerminalSystemNotification,
 } from "./lib/systemNotification";
+import { findNextCyclableTabId } from "./lib/terminalGroups";
 import { shellLabelFor } from "./lib/sidebarEntries";
 import { formatGitOperationError } from "./lib/formatGitError";
 import { pushAppToast } from "./lib/appToast";
@@ -1083,14 +1084,15 @@ function onKeyDown(event: KeyboardEvent) {
     return;
   }
   if (isTabCycleShortcut(event)) {
-    if (tabs.value.length <= 1) return;
+    const nextTabId = findNextCyclableTabId(
+      tabs.value,
+      activeTabId.value,
+      event.shiftKey ? -1 : 1,
+      collapsedGroupIds.value,
+    );
+    if (!nextTabId) return;
     consumeAppShortcut(event);
-    const currentIndex = tabs.value.findIndex((t) => t.id === activeTabId.value);
-    const startIndex = currentIndex === -1 ? 0 : currentIndex;
-    const nextIndex = event.shiftKey
-      ? (startIndex - 1 + tabs.value.length) % tabs.value.length
-      : (startIndex + 1) % tabs.value.length;
-    selectTab(tabs.value[nextIndex].id);
+    selectTab(nextTabId);
     return;
   }
   if (event.key === "Escape" && historyOpen.value) {

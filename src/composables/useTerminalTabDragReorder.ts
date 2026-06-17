@@ -1,6 +1,15 @@
 import { ref, type Ref } from "vue";
 import type { TerminalSidebarEntry } from "../types/terminal";
 
+const DRAG_THRESHOLD_PX = 4;
+
+const TERMINAL_ROW_DRAG_BLOCK_SELECTOR =
+  "button, input, textarea, [data-terminal-entry-actions], .term-entry-menu";
+
+export function isTerminalRowDragBlocked(target: Element): boolean {
+  return !!target.closest(TERMINAL_ROW_DRAG_BLOCK_SELECTOR);
+}
+
 function getTabGroupBounds(listEl: HTMLElement) {
   const groups = new Map<number, { top: number; bottom: number }>();
   const nodes = listEl.querySelectorAll<HTMLElement>("[data-terminal-tab-index]");
@@ -19,7 +28,7 @@ function getTabGroupBounds(listEl: HTMLElement) {
   return [...groups.entries()].sort((a, b) => a[0] - b[0]);
 }
 
-function resolveDropBeforeIndex(clientY: number, listEl: HTMLElement): number | null {
+export function resolveDropBeforeIndex(clientY: number, listEl: HTMLElement): number | null {
   const bounds = getTabGroupBounds(listEl);
   if (!bounds.length) return null;
   for (const [index, group] of bounds) {
@@ -29,16 +38,28 @@ function resolveDropBeforeIndex(clientY: number, listEl: HTMLElement): number | 
   return bounds[bounds.length - 1]![0] + 1;
 }
 
-function resolveGroupDrop(clientY: number, listEl: HTMLElement): string | null | undefined {
-  const nodes = listEl.querySelectorAll<HTMLElement>("[data-terminal-group-drop]");
+export function parseGroupSectionId(raw: string): string | null {
+  if (raw === "ungrouped" || raw === "null" || raw === "") return null;
+  return raw;
+}
+
+export function resolveGroupSection(clientY: number, listEl: HTMLElement): string | null | undefined {
+  const nodes = listEl.querySelectorAll<HTMLElement>("[data-terminal-group-section]");
   for (const node of nodes) {
     const rect = node.getBoundingClientRect();
     if (clientY < rect.top || clientY > rect.bottom) continue;
-    const raw = node.dataset.groupId ?? node.dataset.terminalGroupDrop ?? "";
-    if (raw === "ungrouped" || raw === "null") return null;
-    return raw;
+    return parseGroupSectionId(node.dataset.terminalGroupSection ?? "");
   }
   return undefined;
+}
+
+export function resolveGroupHeader(clientY: number, listEl: HTMLElement): boolean {
+  const nodes = listEl.querySelectorAll<HTMLElement>("[data-terminal-group-drop]");
+  for (const node of nodes) {
+    const rect = node.getBoundingClientRect();
+    if (clientY >= rect.top && clientY <= rect.bottom) return true;
+  }
+  return false;
 }
 
 function indexAfterGroup(
@@ -61,55 +82,88 @@ export function useTerminalTabDragReorder(
   const draggingTabId = ref<string | null>(null);
   const dropBeforeIndex = ref<number | null>(null);
   const dropGroupId = ref<string | null | undefined>(undefined);
-  const dropOnGroupHeader = ref(false);
+  const dropInGroupSection = ref(false);
+  const dropShowsInsertLine = ref(true);
 
   let draggedTerminalIndex = -1;
+
+  function updateDropState(clientY: number, listEl: HTMLElement, tabId: string) {
+    const beforeIndex = resolveDropBeforeIndex(clientY, listEl);
+    const sectionGroupId = resolveGroupSection(clientY, listEl);
+
+    if (sectionGroupId !== undefined) {
+      dropGroupId.value = sectionGroupId;
+      dropInGroupSection.value = true;
+      const overHeader = resolveGroupHeader(clientY, listEl);
+      if (beforeIndex == null || overHeader) {
+        dropBeforeIndex.value = indexAfterGroup(entriesRef.value, sectionGroupId, tabId);
+        dropShowsInsertLine.value = false;
+      } else {
+        dropBeforeIndex.value = beforeIndex;
+        dropShowsInsertLine.value = true;
+      }
+      return;
+    }
+
+    dropGroupId.value = undefined;
+    dropInGroupSection.value = false;
+    dropShowsInsertLine.value = true;
+    dropBeforeIndex.value = beforeIndex;
+  }
 
   function onDragPointerDown(
     tabId: string,
     terminalTabIndex: number,
     event: PointerEvent,
     listEl: HTMLElement | null,
+    handleEl: HTMLElement | null,
   ) {
-    if (event.button !== 0 || !listEl) return;
-    event.preventDefault();
-    event.stopPropagation();
+    if (event.button !== 0 || !listEl || !handleEl) return;
 
-    draggingTabId.value = tabId;
-    draggedTerminalIndex = terminalTabIndex;
-    dropBeforeIndex.value = terminalTabIndex;
-    dropGroupId.value = undefined;
-    dropOnGroupHeader.value = false;
-
-    const handle = event.currentTarget as HTMLElement;
-    handle.setPointerCapture(event.pointerId);
+    const handle = handleEl;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const pointerId = event.pointerId;
+    let active = false;
 
     const onMove = (e: PointerEvent) => {
-      const groupTarget = resolveGroupDrop(e.clientY, listEl);
-      if (groupTarget !== undefined) {
-        dropGroupId.value = groupTarget;
-        dropOnGroupHeader.value = true;
-        dropBeforeIndex.value = indexAfterGroup(entriesRef.value, groupTarget, tabId);
-        return;
+      if (!active) {
+        if (Math.hypot(e.clientX - startX, e.clientY - startY) < DRAG_THRESHOLD_PX) return;
+        active = true;
+        e.preventDefault();
+        e.stopPropagation();
+        handle.setPointerCapture(pointerId);
+        draggingTabId.value = tabId;
+        draggedTerminalIndex = terminalTabIndex;
+        dropBeforeIndex.value = terminalTabIndex;
+        dropGroupId.value = undefined;
+        dropInGroupSection.value = false;
+        dropShowsInsertLine.value = true;
       }
-      dropGroupId.value = undefined;
-      dropOnGroupHeader.value = false;
-      dropBeforeIndex.value = resolveDropBeforeIndex(e.clientY, listEl);
+      updateDropState(e.clientY, listEl, tabId);
     };
 
     const onEnd = (e: PointerEvent) => {
-      handle.releasePointerCapture(e.pointerId);
       handle.removeEventListener("pointermove", onMove);
       handle.removeEventListener("pointerup", onEnd);
       handle.removeEventListener("pointercancel", onEnd);
 
+      if (!active) {
+        draggedTerminalIndex = -1;
+        return;
+      }
+
+      if (handle.hasPointerCapture(pointerId)) {
+        handle.releasePointerCapture(pointerId);
+      }
+
       const beforeIndex = dropBeforeIndex.value;
       const explicitGroupId = dropGroupId.value;
-      const onGroupHeader = dropOnGroupHeader.value;
       draggingTabId.value = null;
       dropBeforeIndex.value = null;
       dropGroupId.value = undefined;
-      dropOnGroupHeader.value = false;
+      dropInGroupSection.value = false;
+      dropShowsInsertLine.value = true;
 
       if (beforeIndex == null || draggedTerminalIndex < 0) {
         draggedTerminalIndex = -1;
@@ -120,14 +174,17 @@ export function useTerminalTabDragReorder(
       let targetIndex = beforeIndex;
       if (targetIndex > draggedTerminalIndex) targetIndex -= 1;
 
-      if (onGroupHeader && explicitGroupId !== undefined) {
+      const moved =
+        targetIndex !== draggedTerminalIndex && targetIndex >= 0 && targetIndex < tabCount;
+      const currentGroupId =
+        entriesRef.value.find((entry) => entry.tabId === tabId && entry.isFirstPaneOfTab)?.groupId ??
+        null;
+      const groupChanged = explicitGroupId !== undefined && explicitGroupId !== currentGroupId;
+
+      if (explicitGroupId !== undefined && (moved || groupChanged)) {
         onDrop(tabId, Math.max(0, Math.min(targetIndex, tabCount)), explicitGroupId);
-      } else if (
-        targetIndex !== draggedTerminalIndex &&
-        targetIndex >= 0 &&
-        targetIndex < tabCount
-      ) {
-        onDrop(tabId, targetIndex, explicitGroupId);
+      } else if (moved) {
+        onDrop(tabId, targetIndex, undefined);
       }
       draggedTerminalIndex = -1;
     };
@@ -144,7 +201,7 @@ export function useTerminalTabDragReorder(
   function isDropTarget(entry: TerminalSidebarEntry) {
     return (
       dropBeforeIndex.value != null &&
-      !dropOnGroupHeader.value &&
+      dropShowsInsertLine.value &&
       entry.isFirstPaneOfTab &&
       entry.terminalTabIndex === dropBeforeIndex.value
     );
@@ -155,7 +212,7 @@ export function useTerminalTabDragReorder(
     const tabCount = terminalTabCount();
     return (
       beforeIndex != null &&
-      !dropOnGroupHeader.value &&
+      dropShowsInsertLine.value &&
       beforeIndex === tabCount &&
       entry.isFirstPaneOfTab &&
       entry.terminalTabIndex === tabCount - 1
@@ -163,7 +220,7 @@ export function useTerminalTabDragReorder(
   }
 
   function isGroupDropTarget(groupId: string | null) {
-    return dropOnGroupHeader.value && dropGroupId.value === groupId;
+    return dropInGroupSection.value && dropGroupId.value === groupId;
   }
 
   function isDraggingTab(entry: TerminalSidebarEntry) {

@@ -2,7 +2,13 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useTerminalTabDragReorder } from "../composables/useTerminalTabDragReorder";
 import { getGitStatus } from "../lib/gitApi";
-import { buildFeatureEntries, buildTerminalEntries, buildTerminalSidebarSections } from "../lib/sidebarEntries";
+import {
+  buildFeatureEntries,
+  buildTerminalEntries,
+  buildTerminalSidebarSections,
+  groupTerminalSidebarSections,
+  type TerminalSidebarCategory,
+} from "../lib/sidebarEntries";
 import { writeClipboardText } from "../lib/clipboard";
 import type {
   CreateMenuAction,
@@ -163,6 +169,12 @@ const terminalSections = computed((): TerminalSidebarSection[] => {
     };
   });
 });
+
+const terminalCategories = computed(() => groupTerminalSidebarSections(terminalSections.value));
+
+function categoryGroupId(category: TerminalSidebarCategory): string | null {
+  return category.kind === "group" ? category.groupId : null;
+}
 
 const {
   onDragPointerDown,
@@ -630,64 +642,73 @@ onBeforeUnmount(() => {
         No open terminals
       </p>
 
-      <template v-for="(section, sectionIndex) in terminalSections" :key="`${section.kind}-${sectionIndex}`">
-        <TerminalGroupHeader
-          v-if="section.kind === 'group-header'"
-          data-terminal-group-menu-root
-          :group-id="section.groupId"
-          :name="section.name"
-          :tab-count="section.tabCount"
-          :collapsed="section.collapsed"
-          :color="section.color"
-          :drop-target="isGroupDropTarget(section.groupId)"
-          :renaming="renamingGroupId === section.groupId"
-          :menu-open="openMenuGroupId === section.groupId"
-          v-model:rename-value="renamingGroupDraft"
-          @toggle-collapse="emit('toggleGroupCollapsed', section.groupId)"
-          @rename-commit="(name) => commitGroupRename(section.groupId, name)"
-          @rename-cancel="cancelGroupRename"
-          @delete-group="emit('deleteGroup', section.groupId)"
-          @color-change="(color) => emit('groupColorChange', section.groupId, color)"
-          @menu-toggle="(open) => setGroupMenuOpen(section.groupId, open)"
-          @start-rename="startGroupRename(section.groupId, section.name)"
-        />
-
+      <template v-for="(category, categoryIndex) in terminalCategories" :key="`${category.kind}-${categoryIndex}`">
         <div
-          v-else-if="section.kind === 'ungrouped-header'"
-          class="no-drag flex w-full items-center gap-1 rounded-md px-1.5 py-1 text-left transition select-none mt-2.5"
-          :class="isGroupDropTarget(null) ? 'bg-[var(--oterm-accent)]/10 ring-1 ring-[var(--oterm-accent)]/40' : ''"
-          data-terminal-group-drop="ungrouped"
-          data-group-id="ungrouped"
-        >
-          <span class="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]">
-            Ungrouped
-          </span>
-          <span class="shrink-0 font-mono text-[10px] text-[var(--oterm-faint)]">({{ section.tabCount }})</span>
-        </div>
-
-        <TerminalSidebarEntry
-          v-else-if="section.kind === 'entry'"
-          data-terminal-entry-menu-root
-          :entry="section.entry"
-          :groups="terminalGroups"
-          :menu-open="openMenuEntryId === section.entry.entryId"
-          :renaming="renamingEntryId === section.entry.entryId"
-          :dragging="isDraggingTab(section.entry)"
-          :drop-target="isDropTarget(section.entry)"
-          :drop-target-after="isDropTargetAfter(section.entry)"
-          @select="(tabId, paneId) => emit('select', tabId, paneId)"
-          @menu-toggle="setMenuOpen"
-          @action="(actionId) => onEntryAction(section.entry.entryId, actionId)"
-          @move-to-group="(groupId) => onMoveToGroup(section.entry.entryId, groupId)"
-          @new-group-and-move="onNewGroupAndMove(section.entry.entryId)"
-          @color-change="(color) => onEntryColorChange(section.entry.entryId, color)"
-          @rename-commit="onRenameCommit"
-          @rename-cancel="onRenameCancel"
-          @drag-start="
-            (tabId, tabIndex, event) =>
-              onDragPointerDown(tabId, tabIndex, event, terminalListRef)
+          class="rounded-lg transition-colors duration-[120ms]"
+          :class="
+            isGroupDropTarget(categoryGroupId(category))
+              ? 'bg-[var(--oterm-accent)]/5 ring-1 ring-[var(--oterm-accent)]/25'
+              : ''
           "
-        />
+          :data-terminal-group-section="category.kind === 'group' ? category.groupId : 'ungrouped'"
+        >
+          <TerminalGroupHeader
+            v-if="category.kind === 'group'"
+            data-terminal-group-menu-root
+            :group-id="category.groupId"
+            :name="category.name"
+            :tab-count="category.tabCount"
+            :collapsed="category.collapsed"
+            :color="category.color"
+            :renaming="renamingGroupId === category.groupId"
+            :menu-open="openMenuGroupId === category.groupId"
+            v-model:rename-value="renamingGroupDraft"
+            @toggle-collapse="emit('toggleGroupCollapsed', category.groupId)"
+            @rename-commit="(name) => commitGroupRename(category.groupId, name)"
+            @rename-cancel="cancelGroupRename"
+            @delete-group="emit('deleteGroup', category.groupId)"
+            @color-change="(color) => emit('groupColorChange', category.groupId, color)"
+            @menu-toggle="(open) => setGroupMenuOpen(category.groupId, open)"
+            @start-rename="startGroupRename(category.groupId, category.name)"
+          />
+
+          <div
+            v-else-if="category.showHeader"
+            class="no-drag flex w-full items-center gap-1 rounded-md px-1.5 py-1 text-left transition select-none mt-2.5"
+            data-terminal-group-drop="ungrouped"
+            data-group-id="ungrouped"
+          >
+            <span class="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)]">
+              Ungrouped
+            </span>
+            <span class="shrink-0 font-mono text-[10px] text-[var(--oterm-faint)]">({{ category.tabCount }})</span>
+          </div>
+
+          <TerminalSidebarEntry
+            v-for="entry in category.entries"
+            :key="entry.entryId"
+            data-terminal-entry-menu-root
+            :entry="entry"
+            :groups="terminalGroups"
+            :menu-open="openMenuEntryId === entry.entryId"
+            :renaming="renamingEntryId === entry.entryId"
+            :dragging="isDraggingTab(entry)"
+            :drop-target="isDropTarget(entry)"
+            :drop-target-after="isDropTargetAfter(entry)"
+            @select="(tabId, paneId) => emit('select', tabId, paneId)"
+            @menu-toggle="setMenuOpen"
+            @action="(actionId) => onEntryAction(entry.entryId, actionId)"
+            @move-to-group="(groupId) => onMoveToGroup(entry.entryId, groupId)"
+            @new-group-and-move="onNewGroupAndMove(entry.entryId)"
+            @color-change="(color) => onEntryColorChange(entry.entryId, color)"
+            @rename-commit="onRenameCommit"
+            @rename-cancel="onRenameCancel"
+            @drag-start="
+              (tabId, tabIndex, event, handleEl) =>
+                onDragPointerDown(tabId, tabIndex, event, terminalListRef, handleEl)
+            "
+          />
+        </div>
       </template>
     </div>
 
