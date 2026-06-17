@@ -1,5 +1,6 @@
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
+import { toRaw } from "vue";
 import { pushAppToast, setAppToastActivity } from "./appToast";
 
 export type PendingAppUpdate = {
@@ -85,7 +86,7 @@ export async function downloadAndInstallUpdate(
   setAppToastActivity("Downloading update…");
   const trackProgress = createDownloadProgressTracker();
   try {
-    await update.downloadAndInstall((event) => {
+    await toRaw(update).downloadAndInstall((event) => {
       const progress = trackProgress(event);
       if (progress) {
         setAppToastActivity(progress.label);
