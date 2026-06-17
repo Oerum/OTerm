@@ -143,7 +143,7 @@ export function useTerminalTabDragReorder(
       updateDropState(e.clientY, listEl, tabId);
     };
 
-    const onEnd = (e: PointerEvent) => {
+    const onEnd = () => {
       handle.removeEventListener("pointermove", onMove);
       handle.removeEventListener("pointerup", onEnd);
       handle.removeEventListener("pointercancel", onEnd);

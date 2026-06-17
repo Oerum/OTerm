@@ -68,7 +68,7 @@ describe("isTerminalRowDragBlocked", () => {
     const setParent = (p: HTMLElement | null) => {
       parent = p;
     };
-    (el as { setParent: (p: HTMLElement | null) => void }).setParent = setParent;
+    (el as any).setParent = setParent;
     return el;
   }
 
@@ -79,11 +79,11 @@ describe("isTerminalRowDragBlocked", () => {
     const actions = mockElement("div", { actions: "1" });
     const closeBtn = mockElement("button");
 
-    (root as { setParent: (p: HTMLElement | null) => void }).setParent(null);
-    (row as { setParent: (p: HTMLElement | null) => void }).setParent(root);
-    (content as { setParent: (p: HTMLElement | null) => void }).setParent(row);
-    (actions as { setParent: (p: HTMLElement | null) => void }).setParent(row);
-    (closeBtn as { setParent: (p: HTMLElement | null) => void }).setParent(actions);
+    (root as any).setParent(null);
+    (row as any).setParent(root);
+    (content as any).setParent(row);
+    (actions as any).setParent(row);
+    (closeBtn as any).setParent(actions);
 
     return { root, row, content, actions, closeBtn };
   }

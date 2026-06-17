@@ -53,14 +53,7 @@ const showBranchFooter = computed(
   () => props.entry.gitIsRepo && !!props.entry.gitBranch,
 );
 
-const parentGroup = computed(() => {
-  if (!props.entry.groupId || !props.groups) return null;
-  return props.groups.find((g) => g.id === props.entry.groupId) ?? null;
-});
 
-const parentGroupColor = computed(() => {
-  return parentGroup.value?.color ?? "none";
-});
 
 const accentStyle = computed(() => {
   const color = entryAccentColor(props.entry.tabColor);
@@ -268,22 +261,8 @@ watch(
 
 <template>
   <div
-    class="relative pb-1.5 mb-1.5 border-b last:border-b-0 last:pb-0 last:mb-0.5"
-    :class="[
-      entry.isActive ? 'border-transparent' : 'border-[var(--oterm-border-strong)]',
-      entry.groupId ? 'ml-4' : ''
-    ]"
+    class="relative"
   >
-    <!-- Group connection vertical guide line -->
-    <span
-      v-if="entry.groupId"
-      class="pointer-events-none absolute left-[-9px] top-[-8px] bottom-[-8px] w-[1.5px]"
-      :style="{
-        backgroundColor: parentGroupColor === 'none'
-          ? 'rgba(255, 255, 255, 0.07)'
-          : `${entryAccentColor(parentGroupColor)}25`
-      }"
-    />
     <div
       v-if="dropTarget"
       class="pointer-events-none absolute inset-x-0 -top-px z-10 h-0.5 rounded-full bg-[var(--oterm-accent)] shadow-[0_0_8px_rgba(0,229,186,0.5)]"
