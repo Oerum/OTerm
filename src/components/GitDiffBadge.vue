@@ -43,6 +43,12 @@ const badgeTitle = () => {
   }
   return parts.length ? parts.join(" · ") : props.active ? "Close source control" : "Open source control";
 };
+const formatStat = (n: number): string => {
+  if (n >= 1000) {
+    return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+  }
+  return n.toString();
+};
 </script>
 
 <template>
@@ -52,11 +58,11 @@ const badgeTitle = () => {
     :class="badgeClass"
   >
     <template v-if="hasSyncStats() || hasDiffStats()">
-      <span v-if="gitStatus.ahead > 0" class="text-[#58a6ff]">↑{{ gitStatus.ahead }}</span>
-      <span v-if="gitStatus.behind > 0" class="text-[#e3b341]">↓{{ gitStatus.behind }}</span>
-      <span v-if="gitStatus.changedFiles > 0" class="text-[var(--oterm-muted)]">{{ gitStatus.changedFiles }}</span>
-      <span v-if="gitStatus.additions > 0" class="text-[#3dd68c]">+{{ gitStatus.additions }}</span>
-      <span v-if="gitStatus.deletions > 0" class="text-[#ff7b72]">-{{ gitStatus.deletions }}</span>
+      <span v-if="gitStatus.ahead > 0" class="text-[#58a6ff]">↑{{ formatStat(gitStatus.ahead) }}</span>
+      <span v-if="gitStatus.behind > 0" class="text-[#e3b341]">↓{{ formatStat(gitStatus.behind) }}</span>
+      <span v-if="gitStatus.changedFiles > 0" class="text-[var(--oterm-muted)]">{{ formatStat(gitStatus.changedFiles) }}</span>
+      <span v-if="gitStatus.additions > 0" class="text-[#3dd68c]">+{{ formatStat(gitStatus.additions) }}</span>
+      <span v-if="gitStatus.deletions > 0" class="text-[#ff7b72]">-{{ formatStat(gitStatus.deletions) }}</span>
     </template>
   </span>
 
@@ -84,11 +90,11 @@ const badgeTitle = () => {
     </svg>
 
     <template v-if="hasSyncStats() || hasDiffStats()">
-      <span v-if="gitStatus.ahead > 0" class="text-[#58a6ff]">↑{{ gitStatus.ahead }}</span>
-      <span v-if="gitStatus.behind > 0" class="text-[#e3b341]">↓{{ gitStatus.behind }}</span>
-      <span v-if="gitStatus.changedFiles > 0" class="text-[var(--oterm-muted)]">{{ gitStatus.changedFiles }}</span>
-      <span v-if="gitStatus.additions > 0" class="text-[#3dd68c]">+{{ gitStatus.additions }}</span>
-      <span v-if="gitStatus.deletions > 0" class="text-[#ff7b72]">-{{ gitStatus.deletions }}</span>
+      <span v-if="gitStatus.ahead > 0" class="text-[#58a6ff]">↑{{ formatStat(gitStatus.ahead) }}</span>
+      <span v-if="gitStatus.behind > 0" class="text-[#e3b341]">↓{{ formatStat(gitStatus.behind) }}</span>
+      <span v-if="gitStatus.changedFiles > 0" class="text-[var(--oterm-muted)]">{{ formatStat(gitStatus.changedFiles) }}</span>
+      <span v-if="gitStatus.additions > 0" class="text-[#3dd68c]">+{{ formatStat(gitStatus.additions) }}</span>
+      <span v-if="gitStatus.deletions > 0" class="text-[#ff7b72]">-{{ formatStat(gitStatus.deletions) }}</span>
     </template>
     <span v-else-if="compact" class="text-[var(--oterm-faint)]">0</span>
   </button>

@@ -13,6 +13,7 @@ const props = defineProps<{
   dropTarget?: boolean;
   renaming?: boolean;
   menuOpen?: boolean;
+  isDraggingAny?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -55,6 +56,12 @@ function onRenameAction() {
   emit("startRename");
 }
 
+function onContextMenu() {
+  if (props.groupId) {
+    emit("menuToggle", true);
+  }
+}
+
 watch(
   () => props.menuOpen,
   (isOpen) => {
@@ -70,7 +77,7 @@ watch(
 
 <template>
   <div
-    class="no-drag group/header relative flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-all duration-[120ms] select-none mt-2.5 first:mt-0"
+    class="no-drag group/header relative flex w-full items-center gap-1 rounded-lg pl-0 pr-2 py-1.5 text-left transition-all duration-[120ms] select-none mt-2.5 first:mt-0"
     :class="[
       dropTarget
         ? 'bg-[var(--oterm-accent)]/10 ring-1 ring-[var(--oterm-accent)]/40'
@@ -81,23 +88,12 @@ watch(
     :data-group-id="groupId ?? 'ungrouped'"
     @click="onRowClick"
     @dblclick="onRenameAction"
+    @contextmenu.prevent.stop="onContextMenu"
   >
-    <!-- Left edge indicator pill -->
-    <span 
-      v-if="groupId"
-      class="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r transition-all duration-[150ms]"
-      :class="!collapsed ? 'h-3/5' : 'h-2/5'"
-      :style="{
-        backgroundColor: color === 'none' 
-          ? 'transparent' 
-          : entryAccentColor(color)
-      }"
-    />
-
     <!-- Chevron collapse button -->
     <button
       type="button"
-      class="flex h-5 w-4 shrink-0 items-center justify-center text-[var(--oterm-faint)] hover:text-[var(--oterm-text)] transition"
+      class="flex h-5 w-3 shrink-0 items-center justify-center text-[var(--oterm-faint)] hover:text-[var(--oterm-text)] transition"
       :aria-label="collapsed ? 'Expand group' : 'Collapse group'"
       @click.stop="emit('toggleCollapse')"
     >
@@ -180,7 +176,7 @@ watch(
       </span>
 
       <!-- Action dot-menu -->
-      <div v-if="groupId" ref="dotMenuRef" class="relative shrink-0" @click.stop>
+      <div v-if="groupId && !isDraggingAny" ref="dotMenuRef" class="relative shrink-0" @click.stop>
         <button
           type="button"
           class="flex h-5 w-5 items-center justify-center rounded transition-opacity duration-[120ms] text-[var(--oterm-faint)] hover:bg-white/10 hover:text-[var(--oterm-text)]"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   cancelDictationRecording,
@@ -49,6 +50,7 @@ const draftByPane = new Map<string, string>();
 const draft = ref(draftByPane.get(props.paneId) ?? "");
 const attachments = ref<string[]>([]);
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const composerRef = ref<HTMLElement | null>(null);
 const submitting = ref(false);
 const dragActive = ref(false);
 const isFocused = ref(false);
@@ -329,27 +331,37 @@ async function focusComposer() {
 
 onMounted(() => {
   void nextTick(resizeTextarea);
-  void getCurrentWebview()
-    .onDragDropEvent((event) => {
-      if (event.payload.type === "over") {
-        dragActive.value = true;
-        return;
-      }
-      if (event.payload.type === "leave") {
-        dragActive.value = false;
-        return;
-      }
-      if (event.payload.type === "drop") {
-        dragActive.value = false;
-        addAttachmentPaths(event.payload.paths);
-      }
-    })
-    .then((unlisten) => {
-      unlistenDragDrop = unlisten;
-    })
-    .catch(() => {
+  void (async () => {
+    try {
+      const scaleFactor = await getCurrentWindow().scaleFactor();
+      unlistenDragDrop = await getCurrentWebview().onDragDropEvent((event) => {
+        if (event.payload.type === "over") {
+          if (!composerRef.value) return;
+          const pos = event.payload.position.toLogical(scaleFactor);
+          const rect = composerRef.value.getBoundingClientRect();
+          const inBounds = rect.width > 0 && rect.height > 0 && pos.x >= rect.left && pos.x <= rect.right && pos.y >= rect.top && pos.y <= rect.bottom;
+          dragActive.value = inBounds;
+          return;
+        }
+        if (event.payload.type === "leave") {
+          dragActive.value = false;
+          return;
+        }
+        if (event.payload.type === "drop") {
+          dragActive.value = false;
+          if (!composerRef.value) return;
+          const pos = event.payload.position.toLogical(scaleFactor);
+          const rect = composerRef.value.getBoundingClientRect();
+          const inBounds = rect.width > 0 && rect.height > 0 && pos.x >= rect.left && pos.x <= rect.right && pos.y >= rect.top && pos.y <= rect.bottom;
+          if (inBounds && event.payload.paths.length > 0) {
+            addAttachmentPaths(event.payload.paths);
+          }
+        }
+      });
+    } catch {
       // Drag-drop is optional outside the Tauri webview.
-    });
+    }
+  })();
 });
 
 onBeforeUnmount(() => {
@@ -377,6 +389,7 @@ defineExpose({
 
 <template>
   <div
+    ref="composerRef"
     class="agent-composer shrink-0 border-t border-[var(--oterm-border)] bg-[var(--oterm-elevated)] px-4 py-3"
     @mousedown.stop
   >

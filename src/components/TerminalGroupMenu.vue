@@ -51,8 +51,8 @@ interface MenuItem {
 }
 
 const items = computed<MenuItem[]>(() => [
-  { id: "rename", label: "Rename group" },
-  { id: "delete", label: "Delete group", destructive: true },
+  { id: "rename", label: "Rename" },
+  { id: "delete", label: "Delete", destructive: true },
 ]);
 
 const enabledIndices = computed(() => [0, 1]);
@@ -130,9 +130,10 @@ onUnmounted(() => {
   <div
     ref="menuRef"
     role="menu"
-    class="no-drag term-group-menu absolute right-0 z-50 w-[150px] overflow-hidden rounded-md border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-0.5 shadow-xl"
+    class="no-drag term-group-menu absolute right-0 z-50 w-[150px] max-h-[min(300px,75vh)] overflow-y-auto oterm-scroll rounded-md border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-0.5 shadow-xl"
     :class="openUpward ? 'bottom-full mb-0.5' : 'top-full mt-0.5'"
     @mousedown.stop
+    @scroll.stop
   >
     <template v-for="item in items" :key="item.id">
       <button

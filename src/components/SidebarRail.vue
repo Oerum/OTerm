@@ -178,11 +178,13 @@ function categoryGroupId(category: TerminalSidebarCategory): string | null {
 }
 
 const {
+  draggingTabId,
   onDragPointerDown,
   isDropTarget,
   isDropTargetAfter,
   isGroupDropTarget,
   isDraggingTab,
+  getEntryDragStyle,
 } = useTerminalTabDragReorder(terminalEntries, (tabId, toTerminalIndex, groupId) => {
   emit("reorderTab", tabId, toTerminalIndex, groupId);
 });
@@ -477,6 +479,26 @@ function cancelGroupRename() {
   renamingGroupId.value = null;
 }
 
+function getCategoryDropStyle(category: TerminalSidebarCategory) {
+  const isTarget = isGroupDropTarget(categoryGroupId(category));
+  if (!isTarget) return undefined;
+
+  const colorId = category.kind === "group" ? category.color : "none";
+  if (colorId === "none") {
+    // Premium subtle steel-grey/white highlight for "none" groups and ungrouped section
+    return {
+      backgroundColor: "rgba(255, 255, 255, 0.03)",
+      borderColor: "rgba(255, 255, 255, 0.15)",
+    };
+  }
+
+  const hex = entryAccentColor(colorId);
+  return {
+    backgroundColor: `${hex}0d`, // ~5% opacity
+    borderColor: `${hex}40`,     // ~25% opacity
+  };
+}
+
 function setGroupMenuOpen(groupId: string, open: boolean) {
   openMenuGroupId.value = open ? groupId : null;
   openMenuEntryId.value = null;
@@ -537,6 +559,7 @@ onBeforeUnmount(() => {
   <aside
     class="relative z-10 flex shrink-0 flex-col bg-[var(--oterm-sidebar)]"
     :style="{ width: widthPx ? `${widthPx}px` : '224px' }"
+    @contextmenu.prevent
   >
     <div class="relative px-3 py-2.5">
       <div class="flex items-center justify-between">
@@ -594,9 +617,10 @@ onBeforeUnmount(() => {
 
     <div
       ref="terminalListRef"
-      class="oterm-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-2"
+      class="oterm-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden pl-0.5 pr-1 pb-2 sidebar-scroll-container"
       @scroll="onSidebarScroll"
     >
+      <div class="flex flex-col min-h-full w-full pointer-events-auto">
       <div v-if="featureEntries.length > 0" class="mb-2 space-y-0.5">
         <p class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--oterm-faint)]">
           Tools
@@ -645,15 +669,11 @@ onBeforeUnmount(() => {
 
       <template v-for="(category, categoryIndex) in terminalCategories" :key="`${category.kind}-${categoryIndex}`">
         <div
-          class="rounded-lg transition-colors duration-[120ms] group-category flex flex-col gap-1"
-          :class="
-            isGroupDropTarget(categoryGroupId(category))
-              ? 'bg-[var(--oterm-accent)]/5 ring-1 ring-[var(--oterm-accent)]/25'
-              : ''
-          "
+          class="rounded-lg border border-transparent transition-all duration-[120ms] group-category flex flex-col gap-1"
+          :style="getCategoryDropStyle(category)"
           :data-terminal-group-section="category.kind === 'group' ? category.groupId : 'ungrouped'"
         >
-          <TerminalGroupHeader
+           <TerminalGroupHeader
             v-if="category.kind === 'group'"
             data-terminal-group-menu-root
             :group-id="category.groupId"
@@ -664,6 +684,7 @@ onBeforeUnmount(() => {
             :renaming="renamingGroupId === category.groupId"
             :menu-open="openMenuGroupId === category.groupId"
             v-model:rename-value="renamingGroupDraft"
+            :is-dragging-any="draggingTabId !== null"
             @toggle-collapse="emit('toggleGroupCollapsed', category.groupId)"
             @rename-commit="(name) => commitGroupRename(category.groupId, name)"
             @rename-cancel="cancelGroupRename"
@@ -688,14 +709,14 @@ onBeforeUnmount(() => {
           <!-- Indented sub-container for group entries -->
           <div
             v-if="category.kind === 'group' && !category.collapsed && category.entries.length > 0"
-            class="group-guide-line mt-0.5 ml-4 pl-3.5 flex flex-col gap-1"
+            class="group-guide-line mt-0.5 ml-1.5 pl-1 flex flex-col gap-1"
             :style="{
               '--guide-color-base': category.color === 'none' 
-                ? 'rgba(255, 255, 255, 0.05)' 
-                : `${entryAccentColor(category.color)}20`,
+                ? 'rgba(255, 255, 255, 0.04)' 
+                : `${entryAccentColor(category.color)}12`,
               '--guide-color-hover': category.color === 'none' 
-                ? 'rgba(255, 255, 255, 0.16)' 
-                : `${entryAccentColor(category.color)}45`
+                ? 'rgba(255, 255, 255, 0.14)' 
+                : `${entryAccentColor(category.color)}28`
             }"
           >
             <TerminalSidebarEntry
@@ -709,6 +730,8 @@ onBeforeUnmount(() => {
               :dragging="isDraggingTab(entry)"
               :drop-target="isDropTarget(entry)"
               :drop-target-after="isDropTargetAfter(entry)"
+              :drag-style="getEntryDragStyle(entry)"
+              :is-dragging-any="draggingTabId !== null"
               @select="(tabId, paneId) => emit('select', tabId, paneId)"
               @menu-toggle="setMenuOpen"
               @action="(actionId) => onEntryAction(entry.entryId, actionId)"
@@ -735,6 +758,8 @@ onBeforeUnmount(() => {
               :dragging="isDraggingTab(entry)"
               :drop-target="isDropTarget(entry)"
               :drop-target-after="isDropTargetAfter(entry)"
+              :drag-style="getEntryDragStyle(entry)"
+              :is-dragging-any="draggingTabId !== null"
               @select="(tabId, paneId) => emit('select', tabId, paneId)"
               @menu-toggle="setMenuOpen"
               @action="(actionId) => onEntryAction(entry.entryId, actionId)"
@@ -751,6 +776,7 @@ onBeforeUnmount(() => {
           </template>
         </div>
       </template>
+      </div>
     </div>
 
 
@@ -767,6 +793,18 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.sidebar-scroll-container {
+  margin-right: -80px !important;
+  padding-right: 84px !important; /* 80px shift + 4px (px-1) original padding */
+  pointer-events: none;
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE/Edge */
+}
+
+.sidebar-scroll-container::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+}
+
 .sidebar-toast-enter-active,
 .sidebar-toast-leave-active {
   transition: opacity 0.15s ease, transform 0.15s ease;
@@ -779,11 +817,10 @@ onBeforeUnmount(() => {
 }
 
 .group-guide-line {
-  border-left: 1.5px solid var(--guide-color-base);
+  border-left: 1px solid var(--guide-color-base);
   transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Smooth transition when hovering over the category container or the entries block */
 .group-category:hover .group-guide-line {
   border-left-color: var(--guide-color-hover);
 }

@@ -3,6 +3,8 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   computed,
   nextTick,
@@ -280,6 +282,8 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
+const isDraggingOverThisPane = ref(false);
+let unlistenDragDrop: (() => void) | null = null;
 
 const localSessionId = ref<string | null>(null);
 const backendSessionId = ref<string | null>(null);
@@ -1890,6 +1894,46 @@ onMounted(async () => {
   await nextTick();
   window.addEventListener("keydown", onWindowKeyCapture, true);
   window.addEventListener("paste", onWindowPasteCapture, true);
+
+  void (async () => {
+    try {
+      const scaleFactor = await getCurrentWindow().scaleFactor();
+      unlistenDragDrop = await getCurrentWebview().onDragDropEvent((event) => {
+        if (!props.active || !props.tabActive) {
+          isDraggingOverThisPane.value = false;
+          return;
+        }
+        if (event.payload.type === "over") {
+          if (!containerRef.value) return;
+          const pos = event.payload.position.toLogical(scaleFactor);
+          const rect = containerRef.value.getBoundingClientRect();
+          const inBounds = rect.width > 0 && rect.height > 0 && pos.x >= rect.left && pos.x <= rect.right && pos.y >= rect.top && pos.y <= rect.bottom;
+          isDraggingOverThisPane.value = inBounds;
+          return;
+        }
+        if (event.payload.type === "leave") {
+          isDraggingOverThisPane.value = false;
+          return;
+        }
+        if (event.payload.type === "drop") {
+          isDraggingOverThisPane.value = false;
+          if (!containerRef.value) return;
+          const pos = event.payload.position.toLogical(scaleFactor);
+          const rect = containerRef.value.getBoundingClientRect();
+          const inBounds = rect.width > 0 && rect.height > 0 && pos.x >= rect.left && pos.x <= rect.right && pos.y >= rect.top && pos.y <= rect.bottom;
+          if (inBounds && event.payload.paths.length > 0) {
+            const textToInsert = event.payload.paths.map(p => {
+              return p.includes(" ") ? `"${p}"` : p;
+            }).join(" ");
+            void forwardTerminalInput(textToInsert);
+          }
+        }
+      });
+    } catch {
+      // Drag-drop is optional outside the Tauri webview.
+    }
+  })();
+
   await mountTerminalWithRetry();
 });
 
@@ -1982,6 +2026,7 @@ watch(
 
 onBeforeUnmount(async () => {
   disposed = true;
+  unlistenDragDrop?.();
   window.removeEventListener("keydown", onWindowKeyCapture, true);
   window.removeEventListener("paste", onWindowPasteCapture, true);
   window.clearTimeout(resizeTimer);
@@ -2077,8 +2122,11 @@ watch(suggestionStripVisible, () => {
   >
     <div class="flex-1 min-h-0 w-full px-2 py-1">
       <div
-        class="terminal-window-container flex flex-col h-full w-full rounded-lg overflow-hidden p-3"
-        :class="active ? 'terminal-window-container--active' : ''"
+        class="terminal-window-container flex flex-col h-full w-full rounded-lg overflow-hidden p-3 transition-all"
+        :class="[
+          active ? 'terminal-window-container--active' : '',
+          isDraggingOverThisPane ? '!border-[var(--oterm-accent)]/55 ring-1 ring-[var(--oterm-accent)]/20 bg-white/[0.01]' : ''
+        ]"
         :style="terminalBgStyle"
       >
         <div ref="containerRef" class="terminal-output min-h-0 w-full flex-1" />

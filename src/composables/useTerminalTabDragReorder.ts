@@ -74,6 +74,22 @@ function indexBeforeGroup(
   return tabs.length;
 }
 
+function getVisualTabs(listEl: HTMLElement) {
+  const nodes = listEl.querySelectorAll<HTMLElement>("[data-terminal-tab-id]");
+  const tabs: Array<{ tabId: string; rect: DOMRect }> = [];
+  const seenIds = new Set<string>();
+  for (const node of nodes) {
+    const tabId = node.dataset.terminalTabId;
+    if (!tabId || seenIds.has(tabId)) continue;
+    seenIds.add(tabId);
+    tabs.push({
+      tabId,
+      rect: node.getBoundingClientRect(),
+    });
+  }
+  return tabs.sort((a, b) => a.rect.top - b.rect.top);
+}
+
 export function useTerminalTabDragReorder(
   entriesRef: Ref<TerminalSidebarEntry[]>,
   onDrop: (tabId: string, toTerminalIndex: number, groupId?: string | null) => void,
@@ -84,16 +100,82 @@ export function useTerminalTabDragReorder(
   const dropInGroupSection = ref(false);
   const dropShowsInsertLine = ref(true);
 
-  let draggedTerminalIndex = -1;
+  // Smooth drag calculations
+  const draggedHeight = ref<number>(0);
+  const dragDisplacementX = ref<number>(0);
+  const dragDisplacementY = ref<number>(0);
+  const draggedTerminalIndex = ref<number>(-1);
+  const dropVisualTargetIndex = ref<number | null>(null);
 
-  function updateDropState(clientY: number, listEl: HTMLElement, tabId: string) {
-    const beforeIndex = resolveDropBeforeIndex(clientY, listEl);
-    const sectionGroupId = resolveGroupSection(clientY, listEl);
+  // Cached geometry data to prevent layout calculations during active dragging
+  interface CachedGroupSection {
+    groupId: string | null;
+    rect: DOMRect;
+  }
+
+  interface CachedVisualTab {
+    tabId: string;
+    top: number;
+    bottom: number;
+    height: number;
+  }
+
+  let cachedBounds: Array<[number, { top: number; bottom: number }]> = [];
+  let cachedGroupSections: CachedGroupSection[] = [];
+  let cachedGroupHeaders: DOMRect[] = [];
+  let cachedVisualTabs: CachedVisualTab[] = [];
+
+  function resolveVisualTargetIndex(adjustedClientY: number): number {
+    if (!cachedVisualTabs.length) return 0;
+    for (let i = 0; i < cachedVisualTabs.length; i++) {
+      const tab = cachedVisualTabs[i];
+      const mid = (tab.top + tab.bottom) / 2;
+      if (adjustedClientY < mid) {
+        return i;
+      }
+    }
+    return cachedVisualTabs.length;
+  }
+
+  function resolveDropBeforeIndexCached(adjustedClientY: number): number | null {
+    if (!cachedBounds.length) return null;
+    for (const [index, group] of cachedBounds) {
+      const mid = (group.top + group.bottom) / 2;
+      if (adjustedClientY < mid) return index;
+    }
+    return cachedBounds[cachedBounds.length - 1]![0] + 1;
+  }
+
+  function resolveGroupSectionCached(adjustedClientY: number): string | null | undefined {
+    for (const item of cachedGroupSections) {
+      if (adjustedClientY >= item.rect.top && adjustedClientY <= item.rect.bottom) {
+        return item.groupId;
+      }
+    }
+    return undefined;
+  }
+
+  function resolveGroupHeaderCached(adjustedClientY: number): boolean {
+    for (const rect of cachedGroupHeaders) {
+      if (adjustedClientY >= rect.top && adjustedClientY <= rect.bottom) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+
+  function updateDropStateCached(adjustedClientY: number, tabId: string) {
+    const beforeIndex = resolveDropBeforeIndexCached(adjustedClientY);
+    const sectionGroupId = resolveGroupSectionCached(adjustedClientY);
+
+    // Track visual target index in the visible list for anim shifting
+    dropVisualTargetIndex.value = resolveVisualTargetIndex(adjustedClientY);
 
     if (sectionGroupId !== undefined) {
       dropGroupId.value = sectionGroupId;
       dropInGroupSection.value = true;
-      const overHeader = resolveGroupHeader(clientY, listEl);
+      const overHeader = resolveGroupHeaderCached(adjustedClientY);
       if (beforeIndex == null || overHeader) {
         dropBeforeIndex.value = indexBeforeGroup(entriesRef.value, sectionGroupId, tabId);
         dropShowsInsertLine.value = false;
@@ -124,6 +206,7 @@ export function useTerminalTabDragReorder(
     const startY = event.clientY;
     const pointerId = event.pointerId;
     let active = false;
+    let startScrollTop = listEl.scrollTop;
 
     const onMove = (e: PointerEvent) => {
       if (!active) {
@@ -133,13 +216,56 @@ export function useTerminalTabDragReorder(
         e.stopPropagation();
         handle.setPointerCapture(pointerId);
         draggingTabId.value = tabId;
-        draggedTerminalIndex = terminalTabIndex;
+        draggedTerminalIndex.value = terminalTabIndex;
+
+        // Measure all split panes belonging to this tab for correct visual shift height
+        const paneNodes = listEl.querySelectorAll<HTMLElement>(`[data-terminal-tab-id="${tabId}"]`);
+        let totalHeight = 0;
+        for (const node of paneNodes) {
+          totalHeight += node.getBoundingClientRect().height + 4; // height + gap-1 (4px)
+        }
+        draggedHeight.value = totalHeight;
+
+        // Cache positions at drag start to eliminate layout calculations and jitter
+        startScrollTop = listEl.scrollTop;
+        cachedBounds = getTabGroupBounds(listEl);
+
+        cachedGroupSections = [];
+        const sectionNodes = listEl.querySelectorAll<HTMLElement>(`[data-terminal-group-section]`);
+        for (const node of sectionNodes) {
+          cachedGroupSections.push({
+            groupId: parseGroupSectionId(node.dataset.terminalGroupSection ?? ""),
+            rect: node.getBoundingClientRect(),
+          });
+        }
+
+        cachedGroupHeaders = [];
+        const headerNodes = listEl.querySelectorAll<HTMLElement>("[data-terminal-group-drop]");
+        for (const node of headerNodes) {
+          cachedGroupHeaders.push(node.getBoundingClientRect());
+        }
+
+        cachedVisualTabs = getVisualTabs(listEl).map((t) => ({
+          tabId: t.tabId,
+          top: t.rect.top,
+          bottom: t.rect.bottom,
+          height: t.rect.height,
+        }));
+
         dropBeforeIndex.value = terminalTabIndex;
         dropGroupId.value = undefined;
         dropInGroupSection.value = false;
         dropShowsInsertLine.value = true;
+        dropVisualTargetIndex.value = cachedVisualTabs.findIndex((t) => t.tabId === tabId);
       }
-      updateDropState(e.clientY, listEl, tabId);
+
+      const currentScrollDiff = listEl.scrollTop - startScrollTop;
+      const adjustedClientY = e.clientY + currentScrollDiff;
+
+      dragDisplacementX.value = e.clientX - startX;
+      dragDisplacementY.value = e.clientY - startY;
+
+      updateDropStateCached(adjustedClientY, tabId);
     };
 
     const onEnd = () => {
@@ -148,7 +274,7 @@ export function useTerminalTabDragReorder(
       handle.removeEventListener("pointercancel", onEnd);
 
       if (!active) {
-        draggedTerminalIndex = -1;
+        draggedTerminalIndex.value = -1;
         return;
       }
 
@@ -158,23 +284,33 @@ export function useTerminalTabDragReorder(
 
       const beforeIndex = dropBeforeIndex.value;
       const explicitGroupId = dropGroupId.value;
+      
       draggingTabId.value = null;
       dropBeforeIndex.value = null;
       dropGroupId.value = undefined;
       dropInGroupSection.value = false;
       dropShowsInsertLine.value = true;
+      draggedTerminalIndex.value = -1;
+      dragDisplacementX.value = 0;
+      dragDisplacementY.value = 0;
+      draggedHeight.value = 0;
+      dropVisualTargetIndex.value = null;
 
-      if (beforeIndex == null || draggedTerminalIndex < 0) {
-        draggedTerminalIndex = -1;
+      cachedBounds = [];
+      cachedGroupSections = [];
+      cachedGroupHeaders = [];
+      cachedVisualTabs = [];
+
+      if (beforeIndex == null || terminalTabIndex < 0) {
         return;
       }
 
       const tabCount = terminalTabCount();
       let targetIndex = beforeIndex;
-      if (targetIndex > draggedTerminalIndex) targetIndex -= 1;
+      if (targetIndex > terminalTabIndex) targetIndex -= 1;
 
       const moved =
-        targetIndex !== draggedTerminalIndex && targetIndex >= 0 && targetIndex < tabCount;
+        targetIndex !== terminalTabIndex && targetIndex >= 0 && targetIndex < tabCount;
       const currentGroupId =
         entriesRef.value.find((entry) => entry.tabId === tabId && entry.isFirstPaneOfTab)?.groupId ??
         null;
@@ -185,7 +321,6 @@ export function useTerminalTabDragReorder(
       } else if (moved) {
         onDrop(tabId, targetIndex, undefined);
       }
-      draggedTerminalIndex = -1;
     };
 
     handle.addEventListener("pointermove", onMove);
@@ -226,6 +361,63 @@ export function useTerminalTabDragReorder(
     return draggingTabId.value === entry.tabId;
   }
 
+  function getEntryDragStyle(entry: TerminalSidebarEntry) {
+    if (draggingTabId.value === null) return undefined;
+
+    // Dragged entry style: lifted, follow pointer with shadow, no transitions
+    if (entry.tabId === draggingTabId.value) {
+      return {
+        transform: `translate3d(${dragDisplacementX.value}px, ${dragDisplacementY.value}px, 0) scale(1.02)`,
+        zIndex: 50,
+        pointerEvents: "none" as const,
+        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4)",
+        transition: "none",
+      };
+    }
+
+    // Other entries style: shift up or down to make a gap
+    if (
+      dropBeforeIndex.value === null ||
+      draggedTerminalIndex.value === -1 ||
+      !cachedVisualTabs.length ||
+      dropVisualTargetIndex.value === null
+    ) {
+      return undefined;
+    }
+
+    const from = cachedVisualTabs.findIndex((t) => t.tabId === draggingTabId.value);
+    if (from === -1) return undefined;
+
+    const visualIndex = cachedVisualTabs.findIndex((t) => t.tabId === entry.tabId);
+    if (visualIndex === -1) return undefined;
+
+    const target = dropVisualTargetIndex.value;
+    const H = draggedHeight.value;
+
+    let shiftY = 0;
+    if (from < target) {
+      if (visualIndex > from && visualIndex < target) {
+        shiftY = -H;
+      }
+    } else if (from > target) {
+      if (visualIndex >= target && visualIndex < from) {
+        shiftY = H;
+      }
+    }
+
+    if (shiftY !== 0) {
+      return {
+        transform: `translate3d(0, ${shiftY}px, 0)`,
+        transition: "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)",
+      };
+    }
+
+    return {
+      transform: "translate3d(0, 0, 0)",
+      transition: "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)",
+    };
+  }
+
   return {
     draggingTabId,
     dropBeforeIndex,
@@ -234,5 +426,6 @@ export function useTerminalTabDragReorder(
     isDropTargetAfter,
     isGroupDropTarget,
     isDraggingTab,
+    getEntryDragStyle,
   };
 }

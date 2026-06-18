@@ -34,7 +34,7 @@ fn open_pwsh_pty() -> Option<(
     Box<dyn MasterPty + Send>,
     Box<dyn portable_pty::Child + Send + Sync>,
 )> {
-    open_pty_shell("pwsh", &["-NoLogo"])
+    open_pty_shell("pwsh", &["-NoLogo", "-NoProfile"])
 }
 
 fn open_cmd_pty() -> Option<(
@@ -74,7 +74,7 @@ fn pwsh_reads_and_writes_in_pty() {
     let mut reader = master.try_clone_reader().expect("reader");
 
     writer
-        .write_all(b"echo oterm-pty-test\r")
+        .write_all(b"echo oterm-pty-test\r\n")
         .expect("write command");
     writer.flush().expect("flush");
 

@@ -16,6 +16,8 @@ const props = defineProps<{
   dropTarget?: boolean;
   dropTargetAfter?: boolean;
   groups?: TerminalTabGroup[];
+  dragStyle?: any;
+  isDraggingAny?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -58,7 +60,7 @@ const showBranchFooter = computed(
 const accentStyle = computed(() => {
   const color = entryAccentColor(props.entry.tabColor);
   if (props.entry.tabColor === "none") {
-    return props.entry.isActive ? { borderColor: "rgba(0, 229, 186, 0.2)" } : undefined;
+    return props.entry.isActive ? { borderColor: "rgba(255, 255, 255, 0.12)" } : undefined;
   }
   if (color.startsWith("#") && color.length === 7) {
     return { borderColor: `${color}35` };
@@ -163,11 +165,10 @@ const displayCwdContext = computed(() => {
     const normCwd = cwd.replace(/\\/g, "/");
     if (props.entry.gitIsRepo && props.entry.gitRepoRoot) {
       const normRoot = props.entry.gitRepoRoot.replace(/\\/g, "/");
-      const repoName = normRoot.split("/").pop() || "root";
       if (normCwd === normRoot) {
-        pathPart = repoName;
+        pathPart = ""; // Clear path when at repository root to prevent redundancy
       } else if (normCwd.startsWith(normRoot + "/")) {
-        pathPart = `${repoName}/${normCwd.substring(normRoot.length + 1)}`;
+        pathPart = normCwd.substring(normRoot.length + 1); // Relative path inside repository without duplicating repo name
       } else {
         pathPart = normCwd;
       }
@@ -204,6 +205,10 @@ function onMenuKeyDown(event: KeyboardEvent) {
     event.preventDefault();
     emit("menuToggle", props.entry.entryId, true);
   }
+}
+
+function onContextMenu() {
+  emit("menuToggle", props.entry.entryId, true);
 }
 
 function commitRename() {
@@ -275,24 +280,25 @@ watch(
     />
 
     <div
-      class="no-drag group relative flex items-start gap-1 rounded-lg border pr-1.5 transition-all duration-[150ms] select-none"
+      class="no-drag group relative flex items-center gap-2.5 rounded-lg border py-1.5 px-1.5 transition-all duration-[150ms] select-none"
       :class="[
         entry.splitIndex != null && entry.splitIndex > 1
-          ? 'w-[94%] ml-[6%] border-l border-white/[0.05] pl-2 py-0.5'
-          : 'w-full py-1 pl-2',
+          ? 'w-[94%] ml-[6%] border-l border-white/[0.05] pl-2.5 py-1'
+          : 'w-full',
         entry.isActive
-          ? 'border-[var(--oterm-accent)]/20 bg-[var(--oterm-accent-dim)]/15 shadow-[0_2px_6px_rgba(0,0,0,0.1)]'
-          : 'border-transparent bg-transparent hover:bg-white/[0.02] hover:border-[var(--oterm-border)]',
+          ? 'border-white/12 bg-white/[0.04] shadow-[0_2px_8px_rgba(0,0,0,0.15)]'
+          : 'border-[var(--oterm-border)]/30 bg-white/[0.01] hover:bg-white/[0.03] hover:border-[var(--oterm-border)]/70 shadow-[0_1px_3px_rgba(0,0,0,0.05)]',
         renaming ? 'ring-1 ring-[var(--oterm-border-strong)]' : '',
         dragging ? 'opacity-50' : '',
         entry.isFirstPaneOfTab && !renaming ? 'cursor-grab touch-none active:cursor-grabbing' : '',
       ]"
-      :style="accentStyle"
+      :style="[accentStyle, dragStyle]"
       :data-terminal-tab-index="entry.terminalTabIndex"
       :data-terminal-tab-id="entry.tabId"
       :aria-current="entry.isActive ? 'true' : undefined"
       @keydown="onMenuKeyDown"
       @pointerdown="onRowPointerDown"
+      @contextmenu.prevent.stop="onContextMenu"
     >
       <!-- Left edge indicator pill -->
       <span 
@@ -300,216 +306,196 @@ watch(
         :class="entry.isActive ? 'h-3/5' : 'h-0 group-hover:h-2/5'"
         :style="{
           backgroundColor: entry.tabColor === 'none' 
-            ? 'var(--oterm-accent)' 
+            ? 'rgba(255, 255, 255, 0.45)' 
             : entryAccentColor(entry.tabColor)
         }"
       />
 
-      <!-- Row Content body -->
+      <!-- Icon block -->
+      <span
+        class="flex shrink-0 items-center justify-center rounded transition-colors"
+        :class="[
+          iconSizeClass,
+          entry.activeAgentId
+            ? entry.isActive
+              ? 'bg-white/8 text-white'
+              : 'bg-white/3 text-[var(--oterm-muted)]'
+            : entry.isActive
+              ? 'bg-white/8 text-white'
+              : 'bg-white/3 text-[var(--oterm-muted)]',
+        ]"
+      >
+        <AgentFooterBadge
+          v-if="entry.activeAgentId"
+          :agent-id="entry.activeAgentId"
+          :size="entry.splitIndex != null && entry.splitIndex > 1 ? 'sm' : 'md'"
+        />
+        <svg
+          v-else-if="entry.splitIndex != null && entry.splitIndex > 1"
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            d="M4 3.5h6.5a1.5 1.5 0 0 1 1.5 1.5V9M4 3.5 7 6.5 4 9.5M4 3.5v6"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <svg
+          v-else
+          width="13"
+          height="13"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            d="M3 4.5 6.5 8 3 11.5M8 11.5h5"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </span>
+
       <div
-        class="flex flex-col min-w-0 flex-1 text-left"
+        class="flex flex-col min-w-0 flex-1 text-left justify-center leading-tight"
         :class="renaming ? '' : 'cursor-pointer'"
         @click="onRowClick"
       >
-        <!-- Top Row: Icon & Name/Input -->
-        <div class="flex items-start gap-1.5 w-full">
-          <!-- Icon block -->
-          <span
-            class="flex shrink-0 items-center justify-center rounded transition-colors"
-            :class="[
-              iconSizeClass,
-              entry.activeAgentId
-                ? entry.isActive
-                  ? 'bg-emerald-500/10 text-emerald-400'
-                  : 'bg-white/3 text-[var(--oterm-muted)]'
-                : entry.isActive
-                  ? 'bg-[var(--oterm-accent-dim)]/20 text-[var(--oterm-text)]'
-                  : 'bg-white/3 text-[var(--oterm-muted)]',
-            ]"
-          >
-            <AgentFooterBadge
-              v-if="entry.activeAgentId"
-              :agent-id="entry.activeAgentId"
-              :size="entry.splitIndex != null && entry.splitIndex > 1 ? 'sm' : 'md'"
-            />
-            <svg
-              v-else-if="entry.splitIndex != null && entry.splitIndex > 1"
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                d="M4 3.5h6.5a1.5 1.5 0 0 1 1.5 1.5V9M4 3.5 7 6.5 4 9.5M4 3.5v6"
-                stroke-width="1.4"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            <svg
-              v-else
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                d="M3 4.5 6.5 8 3 11.5M8 11.5h5"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </span>
-
-          <!-- Title and Subtitle wrapper -->
-          <div class="min-w-0 flex-1 leading-[1.2] pt-0.5">
-            <input
-              v-if="renaming"
-              ref="renameInputRef"
-              v-model="renameDraft"
-              type="text"
-              class="block h-[18px] w-full truncate rounded border border-[var(--oterm-border-strong)] bg-[var(--oterm-bg)] px-1.5 text-[10px] font-semibold text-[var(--oterm-text)] outline-none focus:border-[var(--oterm-accent)]/40 focus:ring-1 focus:ring-[var(--oterm-accent)]/15"
-              aria-label="Tab name"
-              @click.stop
-              @keydown="onRenameKeyDown"
-              @blur="onRenameBlur"
-            />
-            <div v-else class="flex flex-col min-w-0 w-full">
-              <!-- Line 1: Repo/Worktree Context & Branch -->
-              <div class="flex items-center justify-between gap-1.5 min-w-0 pr-11">
-                <!-- Repo / Worktree / Workspace name -->
-                <span
-                  class="truncate font-semibold text-[10.5px] tracking-wide"
-                  :class="[
-                    entry.isActive 
-                      ? 'text-white' 
-                      : 'text-[var(--oterm-muted)]',
-                    gitContext?.isWorktree ? 'text-teal-400 font-medium' : ''
-                  ]"
-                >
-                  <!-- Show repo/worktree icon/emoji or text -->
-                  <span class="flex items-center gap-1.5 min-w-0">
-                    <!-- Worktree icon or Repo icon -->
-                    <svg
-                      v-if="gitContext?.isWorktree"
-                      width="10"
-                      height="10"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                      class="text-teal-400 shrink-0"
-                      aria-hidden="true"
-                    >
-                      <circle cx="4.5" cy="11.5" r="2.5" />
-                      <circle cx="11.5" cy="4.5" r="2.5" />
-                      <path d="M4.5 9V6a2 2 0 0 1 2-2h3" />
-                    </svg>
-                    <svg
-                      v-else-if="gitContext"
-                      width="10"
-                      height="10"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                      class="text-[var(--oterm-muted)] shrink-0"
-                      :class="entry.isActive ? 'text-[var(--oterm-accent)]' : ''"
-                      aria-hidden="true"
-                    >
-                      <path d="M1.75 3A1.75 1.75 0 0 0 0 4.75v6.5C0 12.21 1.75 13 1.75 13h12.5c.96 0 1.75-.79 1.75-1.75v-5.5A1.75 1.75 0 0 0 14.25 4H8.75L7.25 2.5H1.75z" />
-                    </svg>
-                    
-                    <span class="truncate">{{ displayTitleText }}</span>
-                    <span
-                      v-if="gitContext?.isWorktree && gitContext?.mainRepoName && !isCustom"
-                      class="text-[9px] text-teal-400/80 font-medium shrink truncate ml-0.5"
-                      :title="`Worktree: ${gitContext.worktreeName}`"
-                    >
-                      / {{ gitContext.worktreeName }}
-                    </span>
-                  </span>
-                </span>
-
-                <!-- Right aligned badges: WT & process -->
-                <div class="flex items-center gap-1 shrink-0">
-                  <!-- WT indicator tag -->
-                  <span
-                    v-if="gitContext?.isWorktree && !isCustom"
-                    class="px-1 py-0.2 text-[7.5px] font-extrabold tracking-wide uppercase text-teal-400 bg-teal-500/10 border border-teal-400/20 rounded-sm"
-                    title="Git Worktree"
-                  >
-                    WT
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Lines under the logo: Line 2 (CWD Context) & Line 3 (Git Info) -->
-        <div v-if="!renaming" class="flex flex-col min-w-0 w-full mt-0.5">
-          <!-- Line 2: CWD Context -->
-          <div
-            v-if="displayCwdContext"
-            class="flex items-center min-w-0"
-          >
-            <span
-              class="truncate font-mono text-[9px] min-w-0"
+        <input
+          v-if="renaming"
+          ref="renameInputRef"
+          v-model="renameDraft"
+          type="text"
+          class="block h-[18px] w-full truncate rounded border border-[var(--oterm-border-strong)] bg-[var(--oterm-bg)] px-1.5 text-[10px] font-semibold text-[var(--oterm-text)] outline-none focus:border-[var(--oterm-accent)]/40 focus:ring-1 focus:ring-[var(--oterm-accent)]/15"
+          aria-label="Tab name"
+          @click.stop
+          @keydown="onRenameKeyDown"
+          @blur="onRenameBlur"
+        />
+        <template v-else>
+          <!-- Line 1: Title and Status Info -->
+          <div class="flex items-center justify-between gap-2 w-full min-w-0 pr-4">
+            <div
+              class="min-w-0 flex-1 flex items-center gap-1.5 font-semibold text-[10.5px] tracking-wide"
               :class="[
                 entry.isActive 
-                  ? 'text-[var(--oterm-text)] font-semibold' 
-                  : 'text-[var(--oterm-faint)]'
+                  ? 'text-white' 
+                  : 'text-[var(--oterm-muted)]'
               ]"
             >
-              {{ displayCwdContext }}
-            </span>
-          </div>
-
-          <!-- Line 3: Git Info -->
-          <div
-            v-if="entry.gitIsRepo"
-            class="flex flex-wrap items-center gap-1.5 min-w-0 mt-0.5"
-          >
-            <!-- Branch Badge -->
-            <span
-              v-if="showBranchFooter"
-              class="flex items-center gap-0.5 text-[8.5px] px-1 py-0.2 rounded border font-mono transition-colors shrink-0"
-              :class="[
-                gitContext?.isWorktree
-                  ? 'text-teal-400 bg-teal-500/10 border-teal-400/20'
-                  : 'text-sky-400 bg-sky-500/10 border-sky-400/20'
-              ]"
-            >
+              <!-- Worktree icon or Repo icon -->
               <svg
-                width="7"
-                height="7"
+                v-if="gitContext?.isWorktree"
+                width="10"
+                height="10"
                 viewBox="0 0 16 16"
                 fill="none"
                 stroke="currentColor"
+                stroke-width="1.5"
+                class="text-[var(--oterm-muted)] shrink-0"
+                aria-hidden="true"
+              >
+                <circle cx="4.5" cy="11.5" r="2.5" />
+                <circle cx="11.5" cy="4.5" r="2.5" />
+                <path d="M4.5 9V6a2 2 0 0 1 2-2h3" />
+              </svg>
+              <svg
+                v-else-if="gitContext"
+                width="10"
+                height="10"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                class="text-[var(--oterm-muted)] shrink-0"
+                aria-hidden="true"
+              >
+                <path d="M1.75 3A1.75 1.75 0 0 0 0 4.75v6.5C0 12.21 1.75 13 1.75 13h12.5c.96 0 1.75-.79 1.75-1.75v-5.5A1.75 1.75 0 0 0 14.25 4H8.75L7.25 2.5H1.75z" />
+              </svg>
+              
+              <span class="truncate flex-1">{{ displayTitleText }}</span>
+
+            </div>
+
+            <!-- Right side badges/stats (inline right) -->
+            <div class="flex items-center gap-1.5 shrink-0">
+              <!-- WT tag -->
+              <span
+                v-if="gitContext?.isWorktree && !isCustom"
+                class="px-1 py-0.2 text-[7px] font-extrabold tracking-wide uppercase text-[var(--oterm-muted)] bg-white/5 border border-white/10 rounded-sm select-none"
+                title="Git Worktree"
+              >
+                WT
+              </span>
+              <!-- Active command/process -->
+              <span
+                v-if="entry.activeProcessName"
+                class="px-1 py-0.2 text-[8px] font-mono font-medium text-[var(--oterm-muted)] bg-white/5 border border-white/5 rounded-sm select-none truncate max-w-[65px]"
+                :title="entry.activeProcessCmd || entry.activeProcessName"
+              >
+                {{ entry.activeProcessName }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Line 2: Path, Branch & Git Diff inline -->
+          <div class="flex items-center gap-1.5 w-full min-w-0 mt-0.5 text-[9.5px]">
+            <!-- CWD Path Context -->
+            <span
+              v-if="displayCwdContext"
+              class="truncate font-mono text-[9px] min-w-0 flex-1"
+              :class="entry.isActive ? 'text-[var(--oterm-text)] font-medium' : 'text-[var(--oterm-faint)]'"
+            >
+              {{ displayCwdContext }}
+            </span>
+
+            <!-- Separator dot -->
+            <span v-if="displayCwdContext && (showBranchFooter || entry.gitIsRepo)" class="text-[var(--oterm-faint)]/50 select-none shrink-0">·</span>
+
+            <!-- Branch Badge (Clean inline style) -->
+            <span
+              v-if="showBranchFooter"
+              class="flex items-center gap-0.5 font-mono text-[9px] text-[var(--oterm-muted)] hover:text-[var(--oterm-text)] transition-colors min-w-0 shrink"
+              :class="gitContext?.isWorktree ? 'text-teal-400/90' : 'text-sky-400/90'"
+            >
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
                 class="shrink-0"
                 aria-hidden="true"
               >
-                <circle cx="4.5" cy="4.5" r="1.5" stroke-width="1.2" />
-                <circle cx="11.5" cy="11.5" r="1.5" stroke-width="1.2" />
-                <path d="M6 4.5h3.5a2 2 0 0 1 2-2V9" stroke-width="1.2" stroke-linecap="round" />
+                <circle cx="4.5" cy="4.5" r="1.5" />
+                <circle cx="11.5" cy="11.5" r="1.5" />
+                <path d="M6 4.5h3.5a2 2 0 0 1 2-2V9" stroke-linecap="round" />
               </svg>
-              <span class="max-w-[120px] truncate">{{ entry.gitBranch }}</span>
+              <span class="truncate flex-1">{{ entry.gitBranch }}</span>
             </span>
 
-            <!-- Git Diff Badge -->
+            <!-- Separator dot -->
+            <span v-if="showBranchFooter && entry.gitIsRepo && (gitStatus.changedFiles > 0 || gitStatus.additions > 0 || gitStatus.deletions > 0)" class="text-[var(--oterm-faint)]/50 select-none shrink-0">·</span>
+
+            <!-- Git Diff Stats inline -->
             <GitDiffBadge
+              v-if="entry.gitIsRepo"
               :git-status="gitStatus"
               readonly
               compact
+              class="font-mono text-[9px] shrink-0"
             />
           </div>
-        </div>
+        </template>
       </div>
 
       <!-- Notifications -->
@@ -529,72 +515,66 @@ watch(
         <path d="M13.73 21a2 2 0 0 1-3.46 0" />
       </svg>
 
-      <!-- Action buttons & dot-menu -->
+      <!-- Action buttons & dot-menu (Floating on the right, overlapping the entry card) -->
       <div
+        v-if="!isDraggingAny"
         data-terminal-entry-actions
-        class="absolute top-1 right-1.5 flex items-center gap-0.5 z-10"
+        class="absolute left-[calc(100%-20px)] top-0 flex items-center z-20 transition-all duration-[150ms] ease-out origin-left"
+        :class="menuOpen ? 'opacity-100 scale-100 translate-x-0 -translate-y-1/2' : 'opacity-0 scale-95 -translate-x-1.5 -translate-y-1/2 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 group-focus-within:opacity-100 group-focus-within:scale-100 group-focus-within:translate-x-0'"
       >
-        <!-- Close button -->
-        <button
-          v-if="!renaming"
-          type="button"
-          class="flex h-5 w-5 items-center justify-center rounded transition-opacity duration-[120ms]"
-          :class="[
-            entry.isActive
-              ? 'opacity-100'
-              : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
-            'text-[var(--oterm-faint)] hover:bg-red-500/10 hover:text-red-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-500/30',
-          ]"
-          title="Close tab"
-          aria-label="Close tab"
-          @click.stop="hideTooltip(); emit('action', 'close-tab')"
-        >
-          <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-            <path d="m3 3 10 10M13 3 3 13" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </button>
-
-        <!-- Menu anchor -->
-        <div ref="dotMenuRef" class="relative">
+        <!-- A small unified pill background -->
+        <div class="flex items-center gap-0.5 bg-[var(--oterm-elevated)] border border-[var(--oterm-border-strong)] rounded-md px-1 py-0.5 shadow-lg">
+          <!-- Close button -->
           <button
             v-if="!renaming"
             type="button"
-            class="flex h-5 w-5 items-center justify-center rounded transition-opacity duration-[120ms]"
-            :class="[
-              menuOpen || entry.isActive
-                ? 'opacity-100'
-                : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
-              menuOpen
-                ? 'bg-white/5 text-[var(--oterm-text)]'
-                : 'text-[var(--oterm-faint)] hover:bg-white/10 hover:text-[var(--oterm-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]',
-            ]"
-            title="Terminal actions"
-            aria-label="Terminal actions"
-            aria-haspopup="menu"
-            :aria-expanded="menuOpen"
-            @click.stop="onMenuClick"
+            class="flex h-4.5 w-4.5 items-center justify-center rounded text-[var(--oterm-faint)] hover:bg-red-500/10 hover:text-red-400 transition-colors"
+            title="Close tab"
+            aria-label="Close tab"
+            @click.stop="hideTooltip(); emit('action', 'close-tab')"
           >
-            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-              <circle cx="5" cy="2" r="0.9" fill="currentColor" />
-              <circle cx="5" cy="5" r="0.9" fill="currentColor" />
-              <circle cx="5" cy="8" r="0.9" fill="currentColor" />
+            <svg width="7" height="7" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="m3 3 10 10M13 3 3 13" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </button>
 
-          <Transition name="term-menu">
-            <TerminalEntryMenu
-              v-if="menuOpen && !renaming"
-              :entry="entry"
-              :open="menuOpen"
-              :open-upward="openUpward"
-              :groups="groups"
-              @close="emit('menuToggle', entry.entryId, false)"
-              @action="(id) => emit('action', id)"
-              @color-change="(color) => emit('colorChange', color)"
-              @move-to-group="(groupId) => emit('moveToGroup', groupId)"
-              @new-group-and-move="emit('newGroupAndMove')"
-            />
-          </Transition>
+          <!-- Separator line -->
+          <span class="w-[1px] h-3 bg-[var(--oterm-border)] mx-0.5" />
+
+          <!-- Menu anchor -->
+          <div ref="dotMenuRef" class="relative">
+            <button
+              v-if="!renaming"
+              type="button"
+              class="flex h-4.5 w-4.5 items-center justify-center rounded text-[var(--oterm-faint)] hover:bg-white/10 hover:text-[var(--oterm-text)] transition-colors"
+              title="Terminal actions"
+              aria-label="Terminal actions"
+              aria-haspopup="menu"
+              :aria-expanded="menuOpen"
+              @click.stop="onMenuClick"
+            >
+              <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+                <circle cx="5" cy="2" r="0.9" fill="currentColor" />
+                <circle cx="5" cy="5" r="0.9" fill="currentColor" />
+                <circle cx="5" cy="8" r="0.9" fill="currentColor" />
+              </svg>
+            </button>
+
+            <Transition name="term-menu">
+              <TerminalEntryMenu
+                v-if="menuOpen && !renaming"
+                :entry="entry"
+                :open="menuOpen"
+                :open-upward="openUpward"
+                :groups="groups"
+                @close="emit('menuToggle', entry.entryId, false)"
+                @action="(id) => emit('action', id)"
+                @color-change="(color) => emit('colorChange', color)"
+                @move-to-group="(groupId) => emit('moveToGroup', groupId)"
+                @new-group-and-move="emit('newGroupAndMove')"
+              />
+            </Transition>
+          </div>
         </div>
       </div>
     </div>

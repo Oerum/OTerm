@@ -194,9 +194,10 @@ onUnmounted(() => {
   <div
     ref="menuRef"
     role="menu"
-    class="no-drag term-entry-menu absolute right-0 z-50 w-[var(--term-menu-width)] overflow-hidden rounded-md border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-0.5 shadow-xl"
+    class="no-drag term-entry-menu absolute right-0 z-50 w-[var(--term-menu-width)] max-h-[min(300px,75vh)] overflow-y-auto oterm-scroll rounded-md border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-0.5 shadow-xl"
     :class="openUpward ? 'bottom-full mb-0.5' : 'top-full mt-0.5'"
     @mousedown.stop
+    @scroll.stop
   >
     <template v-for="item in items" :key="item.id">
       <div
