@@ -148,4 +148,26 @@ describe("resolveDropBeforeIndex", () => {
     expect(resolveDropBeforeIndex(250, listEl)).toBe(1);
     expect(resolveDropBeforeIndex(310, listEl)).toBe(2);
   });
+
+  it("handles out-of-order visual tabs correctly using visual top sorting", () => {
+    // Visually, entry with index 1 is at the top (top: 40, bottom: 90)
+    // and entry with index 0 is at the bottom (top: 240, bottom: 300)
+    const topEntry = mockNode({ terminalTabIndex: "1" }, 40, 90);
+    const bottomEntry = mockNode({ terminalTabIndex: "0" }, 240, 300);
+    const listEl = {
+      querySelectorAll(selector: string) {
+        if (selector === "[data-terminal-tab-index]") {
+          return [topEntry, bottomEntry] as unknown as NodeListOf<HTMLElement>;
+        }
+        return [] as unknown as NodeListOf<HTMLElement>;
+      },
+    } as HTMLElement;
+
+    // Hovering above topEntry (Y = 50) should return 1 (the index of topEntry)
+    expect(resolveDropBeforeIndex(50, listEl)).toBe(1);
+    // Hovering between topEntry and bottomEntry (Y = 150) should return 0 (the index of bottomEntry)
+    expect(resolveDropBeforeIndex(150, listEl)).toBe(0);
+    // Hovering below bottomEntry (Y = 320) should return 1 (index of the bottom-most entry plus 1, which visually is bottomEntry (index 0) + 1 = 1)
+    expect(resolveDropBeforeIndex(320, listEl)).toBe(1);
+  });
 });

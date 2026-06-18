@@ -25,7 +25,7 @@ function getTabGroupBounds(listEl: HTMLElement) {
       groups.set(idx, { top: rect.top, bottom: rect.bottom });
     }
   }
-  return [...groups.entries()].sort((a, b) => a[0] - b[0]);
+  return [...groups.entries()].sort((a, b) => a[1].top - b[1].top);
 }
 
 export function resolveDropBeforeIndex(clientY: number, listEl: HTMLElement): number | null {
@@ -62,17 +62,16 @@ export function resolveGroupHeader(clientY: number, listEl: HTMLElement): boolea
   return false;
 }
 
-function indexAfterGroup(
+function indexBeforeGroup(
   entries: TerminalSidebarEntry[],
   groupId: string | null,
   excludeTabId: string,
 ): number {
   const tabs = entries.filter((entry) => entry.isFirstPaneOfTab && entry.tabId !== excludeTabId);
-  let last = -1;
   for (let i = 0; i < tabs.length; i++) {
-    if (tabs[i]!.groupId === groupId) last = i;
+    if (tabs[i]!.groupId === groupId) return i;
   }
-  return last + 1;
+  return tabs.length;
 }
 
 export function useTerminalTabDragReorder(
@@ -96,7 +95,7 @@ export function useTerminalTabDragReorder(
       dropInGroupSection.value = true;
       const overHeader = resolveGroupHeader(clientY, listEl);
       if (beforeIndex == null || overHeader) {
-        dropBeforeIndex.value = indexAfterGroup(entriesRef.value, sectionGroupId, tabId);
+        dropBeforeIndex.value = indexBeforeGroup(entriesRef.value, sectionGroupId, tabId);
         dropShowsInsertLine.value = false;
       } else {
         dropBeforeIndex.value = beforeIndex;
