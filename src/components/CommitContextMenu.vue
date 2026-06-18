@@ -21,6 +21,7 @@ const emit = defineEmits<{
   createBranch: [];
   createTag: [];
   squash: [];
+  view: [];
 }>();
 
 const menuItemClass =
@@ -50,6 +51,13 @@ onUnmounted(() => window.removeEventListener("keydown", onKeyDown));
         @mousedown.stop
         @contextmenu.stop.prevent
       >
+        <button
+          type="button"
+          :class="[menuItemClass, 'text-[var(--oterm-text)] font-semibold']"
+          @click="emit('view')"
+        >
+          View
+        </button>
         <button
           type="button"
           :class="[menuItemClass, 'text-[var(--oterm-text)]']"

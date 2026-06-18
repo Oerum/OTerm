@@ -375,7 +375,6 @@ input[type="password"]:focus {
 }
 
 /* Auto-elevate all menus, dialogs, tooltips and toast layers to premium glass panels */
-.oterm-tooltip,
 .app-toast-item,
 .term-entry-menu,
 .term-group-menu,
@@ -383,6 +382,14 @@ input[type="password"]:focus {
 .absolute.border-\[var\(--oterm-border-strong\)\].bg-\[var\(--oterm-elevated\)\] {
   background: rgba(15, 17, 26, 0.8) !important;
   backdrop-filter: blur(20px) !important;
+  border-color: rgba(255, 255, 255, 0.075) !important;
+  box-shadow: 
+    0 15px 35px -8px rgba(0, 0, 0, 0.7), 
+    0 1px 1px 0 rgba(255, 255, 255, 0.05) inset !important;
+}
+
+.oterm-tooltip {
+  background: rgb(15, 17, 26) !important;
   border-color: rgba(255, 255, 255, 0.075) !important;
   box-shadow: 
     0 15px 35px -8px rgba(0, 0, 0, 0.7), 
@@ -426,7 +433,7 @@ input[type="password"]:focus {
   transform: translateX(-50%) rotate(45deg);
   width: 8px;
   height: 8px;
-  background: rgb(20, 22, 33);
+  background: rgb(15, 17, 26) !important;
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   pointer-events: none;

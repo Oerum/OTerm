@@ -45,8 +45,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  selectCommit: [hash: string];
-  expandPanel: [];
+  selectCommit: [hash: string, expand?: boolean];
 }>();
 
 const commitContextMenuOpen = ref(false);
@@ -256,6 +255,13 @@ async function runAction(action: () => Promise<void>) {
   }
 }
 
+function onCommitContextView() {
+  const hash = commitContextTarget.value;
+  if (!hash) return;
+  emit("selectCommit", hash, true);
+  closeCommitContextMenu();
+}
+
 function onCommitContextSwitch() {
   const hash = commitContextTarget.value;
   if (!hash) return;
@@ -355,8 +361,11 @@ function toggleCollapsed() {
 }
 
 function onSelect(hash: string) {
-  emit("selectCommit", hash);
-  emit("expandPanel");
+  emit("selectCommit", hash, false);
+}
+
+function onDblClick(hash: string) {
+  emit("selectCommit", hash, true);
 }
 
 function onScroll() {
@@ -465,6 +474,7 @@ function isSelected(hash: string): boolean {
             class="mt-1.5 block w-full rounded px-1 py-1.5 text-left hover:bg-white/[0.03]"
             :class="isSelected(entry.hash) ? 'bg-white/[0.05]' : ''"
             @click="onSelect(entry.hash)"
+            @dblclick="onDblClick(entry.hash)"
             @contextmenu.prevent="openCommitContextMenu(entry.hash, $event)"
           >
             <p class="truncate text-xs leading-snug text-[var(--oterm-text)]">{{ entry.subject }}</p>
@@ -489,6 +499,7 @@ function isSelected(hash: string): boolean {
             class="mt-1.5 block w-full rounded px-1 py-1.5 text-left hover:bg-white/[0.03]"
             :class="isSelected(entry.hash) ? 'bg-white/[0.05]' : ''"
             @click="onSelect(entry.hash)"
+            @dblclick="onDblClick(entry.hash)"
             @contextmenu.prevent="openCommitContextMenu(entry.hash, $event)"
           >
             <p class="truncate text-xs leading-snug text-[var(--oterm-text)]">{{ entry.subject }}</p>
@@ -591,6 +602,7 @@ function isSelected(hash: string): boolean {
             :class="isSelected(commit.hash) ? 'bg-white/[0.05]' : ''"
             :style="{ minHeight: `${GRAPH_ROW_HEIGHT}px` }"
             @click="onSelect(commit.hash)"
+            @dblclick="onDblClick(commit.hash)"
             @contextmenu.prevent="openCommitContextMenu(commit.hash, $event)"
             @mouseenter="hoveredRowIndex = index"
             @mouseleave="hoveredRowIndex = null"
@@ -673,6 +685,7 @@ function isSelected(hash: string): boolean {
       :busy="busy"
       @close="closeCommitContextMenu"
       @copy-hash="onCommitContextCopyHash"
+      @view="onCommitContextView"
       @switch="onCommitContextSwitch"
       @open-in-browser="onCommitContextOpenInBrowser"
       @revert="onCommitContextRevert"

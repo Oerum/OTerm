@@ -400,16 +400,26 @@ function confirmDiscardEdits(): boolean {
   return window.confirm("Discard unsaved changes?");
 }
 
-function selectCommit(hash: string) {
-  if (selectedCommitHash.value === hash) return;
+function selectCommit(hash: string, expand = false) {
+  if (selectedCommitHash.value === hash) {
+    if (expand) {
+      diffPanelMode.value = "all";
+      setDiffExpanded(true);
+    }
+    return;
+  }
   if (!confirmDiscardEdits()) return;
   selectedCommitHash.value = hash;
   selectedFile.value = null;
   paneView.value = "diff";
   activeHunkIndex.value = 0;
-  diffPanelMode.value = "all";
-  setDiffExpanded(true);
-  void loadCommitDiff(hash);
+  if (expand) {
+    diffPanelMode.value = "all";
+    setDiffExpanded(true);
+  }
+  if (expand || showDiffPane.value) {
+    void loadCommitDiff(hash);
+  }
 }
 
 function openAllDiffs() {
@@ -1322,7 +1332,6 @@ function authorInitials(author: string): string {
             :selected-hash="selectedCommitHash"
             :refresh-token="graphRefreshToken"
             @select-commit="selectCommit"
-            @expand-panel="openAllDiffs"
           />
 
           <section v-if="history.length" class="py-2">
@@ -1356,7 +1365,8 @@ function authorInitials(author: string): string {
                 type="button"
                 class="flex w-full items-start gap-2.5 px-3 py-1.5 hover:bg-white/[0.03] text-left transition"
                 :class="selectedCommitHash === entry.hash ? 'bg-white/[0.05] border-l-2 border-l-[var(--oterm-accent)] pl-2.5' : 'border-l-2 border-l-transparent'"
-                @click="selectCommit(entry.hash)"
+                @click="selectCommit(entry.hash, false)"
+                @dblclick="selectCommit(entry.hash, true)"
               >
                 <!-- Initials Badge acting as Avatar -->
                 <div
