@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { renderMarkdown } from "../lib/markdown";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 const props = withDefaults(
   defineProps<{
@@ -14,11 +15,23 @@ const props = withDefaults(
 
 const html = computed(() => renderMarkdown(props.source));
 const isEmpty = computed(() => !props.source.trim());
+
+function handleLinkClick(event: MouseEvent) {
+  const target = event.target as HTMLElement;
+  const anchor = target.closest("a");
+  if (anchor) {
+    const href = anchor.getAttribute("href");
+    if (href) {
+      event.preventDefault();
+      void openUrl(href);
+    }
+  }
+}
 </script>
 
 <template>
   <p v-if="isEmpty" class="text-sm text-[var(--oterm-muted)]">{{ emptyText }}</p>
-  <div v-else class="markdown-content text-sm leading-relaxed" v-html="html" />
+  <div v-else class="markdown-content text-sm leading-relaxed" v-html="html" @click="handleLinkClick" />
 </template>
 
 <style scoped>
