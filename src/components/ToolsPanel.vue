@@ -407,7 +407,7 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
-    class="relative z-10 flex w-72 shrink-0 flex-col bg-(--oterm-sidebar) border-r border-(--oterm-border)"
+    class="tools-sidebar relative z-10 flex w-72 shrink-0 flex-col bg-(--oterm-sidebar) border-r border-(--oterm-border)"
   >
     <!-- Header -->
     <div class="relative flex items-center justify-between gap-2 border-b border-(--oterm-border) px-4 py-3 bg-[var(--oterm-panel)]/30 shrink-0">

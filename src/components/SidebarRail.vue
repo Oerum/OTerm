@@ -557,7 +557,7 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
-    class="relative z-10 flex shrink-0 flex-col bg-[var(--oterm-sidebar)]"
+    class="terminal-sidebar relative z-20 flex shrink-0 flex-col bg-[var(--oterm-sidebar)]"
     :style="{ width: widthPx ? `${widthPx}px` : '224px' }"
     @contextmenu.prevent
   >
