@@ -392,6 +392,11 @@ input[type="password"]:focus {
     0 1px 1px 0 rgba(255, 255, 255, 0.05) inset !important;
 }
 
+.oterm-app [role="menu"].branch-switcher-menu {
+  background: var(--oterm-elevated) !important;
+  backdrop-filter: none !important;
+}
+
 .oterm-tooltip {
   background: rgb(15, 17, 26) !important;
   border-color: rgba(255, 255, 255, 0.075) !important;

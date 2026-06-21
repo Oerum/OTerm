@@ -127,7 +127,7 @@ onUnmounted(() => {
     <div
       v-if="open"
       role="menu"
-      class="oterm-scroll glass-panel absolute right-0 z-50 max-h-72 min-w-[12rem] overflow-y-auto rounded-lg py-1"
+      class="branch-switcher-menu oterm-scroll border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] shadow-xl absolute right-0 z-50 max-h-72 min-w-[12rem] overflow-y-auto rounded-lg py-1"
       :class="anchorUp ? 'bottom-full mb-1.5' : 'top-full mt-1.5'"
       @mousedown.stop
     >
