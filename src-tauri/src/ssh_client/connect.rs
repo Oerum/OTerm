@@ -135,8 +135,16 @@ async fn connect_and_auth_inner(request: &ConnectRequest) -> Result<SshHandle, S
             let key_file = expand_key_path(key_path);
             let key = load_secret_key(&key_file, request.key_passphrase.as_deref())
                 .map_err(|err| format!("Could not load key: {err}"))?;
+            let rsa_hash = handle
+                .best_supported_rsa_hash()
+                .await
+                .map_err(|err| format!("RSA hash negotiation failed: {err}"))?
+                .flatten();
             handle
-                .authenticate_publickey(username, PrivateKeyWithHashAlg::new(Arc::new(key), None))
+                .authenticate_publickey(
+                    username,
+                    PrivateKeyWithHashAlg::new(Arc::new(key), rsa_hash),
+                )
                 .await
                 .map_err(|err| format!("Key authentication failed: {err}"))?
         }
