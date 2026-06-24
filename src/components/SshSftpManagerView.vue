@@ -153,6 +153,7 @@ const draft = ref<SshEndpoint>(defaultSshEndpoint({ id: newId("ssh") }));
 const draftPassword = ref("");
 const draftHasStoredPassword = ref(false);
 const savingDraft = ref(false);
+const testingConnection = ref(false);
 
 const selectedEndpoint = computed(
   () => library.value.endpoints.find((e) => e.id === selectedEndpointId.value) ?? null,
@@ -335,6 +336,135 @@ async function saveEndpointDraft() {
     pushAppToast(`Could not save host: ${message}`, "error");
   } finally {
     savingDraft.value = false;
+    setAppToastActivity(null);
+  }
+}
+
+async function testConnection() {
+  if (testingConnection.value) return;
+
+  const endpoint = draft.value;
+  if (!endpoint) return;
+
+  const hopError = networkHopIntegratedConnectError(endpoint, "sftp");
+  if (hopError) {
+    error.value = hopError;
+    pushAppToast(hopError, "error");
+    return;
+  }
+
+  testingConnection.value = true;
+  setAppToastActivity("Testing connection…");
+  error.value = null;
+
+  try {
+    let inputPassword: string | undefined = draftPassword.value;
+    if (inputPassword === "" && draftHasStoredPassword.value) {
+      inputPassword = undefined;
+    }
+
+    const resolved = await resolveConnectSecrets(
+      endpoint,
+      library.value,
+      {
+        askSecret: ({ kind, endpoint: ep, title, label, defaultSave }) =>
+          askSecret(kind, ep, title, label, defaultSave),
+        toast: (message, kind) => pushAppToast(message, kind),
+        agentUnsupported: () => {
+          error.value = "SFTP does not support SSH agent auth. Use a key file or password for SFTP.";
+        },
+      },
+      { password: inputPassword },
+      { context: "sftp" },
+    );
+    if (!resolved) {
+      testingConnection.value = false;
+      setAppToastActivity(null);
+      return;
+    }
+
+    const auth = endpointAuthMethod(endpoint);
+    const keyPath = endpointKeyPath(endpoint, library.value.identities);
+
+    const result = await sshSftpConnect({
+      host: endpoint.host,
+      port: endpoint.port,
+      username: endpoint.username,
+      authMethod: auth,
+      password: resolved.password ?? null,
+      keyPath,
+      keyPassphrase: resolved.keyPassphrase || null,
+      acceptHostKey: false,
+    });
+
+    await sshSftpDisconnect(result.sessionId);
+    pushAppToast("Connection successful!", "success");
+  } catch (err) {
+    const hostKeyError = parseSshConnectError(err instanceof Error ? err.message : String(err));
+    if (hostKeyError?.code === "HOST_KEY_UNKNOWN") {
+      askConfirm({
+        title: "Trust this host?",
+        message: `The server ${endpoint.host}:${endpoint.port} is not in your known_hosts file.\n\n${hostKeyError.algorithm}\n${hostKeyError.fingerprint}\n\nTrust this host and test connection?`,
+        confirmLabel: "Trust and test",
+        onConfirm: async () => {
+          testingConnection.value = true;
+          setAppToastActivity("Testing connection…");
+          try {
+            let inputPassword: string | undefined = draftPassword.value;
+            if (inputPassword === "" && draftHasStoredPassword.value) {
+              inputPassword = undefined;
+            }
+            const resolved = await resolveConnectSecrets(
+              endpoint,
+              library.value,
+              {
+                askSecret: ({ kind, endpoint: ep, title, label, defaultSave }) =>
+                  askSecret(kind, ep, title, label, defaultSave),
+                toast: (message, kind) => pushAppToast(message, kind),
+                agentUnsupported: () => {
+                  error.value = "SFTP does not support SSH agent auth.";
+                },
+              },
+              { password: inputPassword },
+              { context: "sftp" },
+            );
+            if (resolved) {
+              const auth = endpointAuthMethod(endpoint);
+              const keyPath = endpointKeyPath(endpoint, library.value.identities);
+              const result = await sshSftpConnect({
+                host: endpoint.host,
+                port: endpoint.port,
+                username: endpoint.username,
+                authMethod: auth,
+                password: resolved.password ?? null,
+                keyPath,
+                keyPassphrase: resolved.keyPassphrase || null,
+                acceptHostKey: true,
+              });
+              await sshSftpDisconnect(result.sessionId);
+              pushAppToast("Connection successful!", "success");
+            }
+          } catch (innerErr) {
+            const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
+            error.value = msg;
+            pushAppToast(`Connection failed: ${msg}`, "error");
+          } finally {
+            testingConnection.value = false;
+            setAppToastActivity(null);
+          }
+        },
+        onCancel: () => {
+          testingConnection.value = false;
+          setAppToastActivity(null);
+        }
+      });
+      return;
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    error.value = msg;
+    pushAppToast(`Connection failed: ${msg}`, "error");
+  } finally {
+    testingConnection.value = false;
     setAppToastActivity(null);
   }
 }
@@ -1194,7 +1324,7 @@ onUnmounted(() => {
               <button
                 type="button"
                 class="rounded-md border border-[var(--oterm-accent)]/40 px-3 py-1.5 text-xs text-[var(--oterm-accent)] hover:bg-[var(--oterm-accent)]/10 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="savingDraft"
+                :disabled="savingDraft || testingConnection"
                 @click="void saveEndpointDraft()"
               >
                 {{ savingDraft ? "Saving…" : "Save host" }}
@@ -1202,7 +1332,15 @@ onUnmounted(() => {
               <button
                 type="button"
                 class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="savingDraft"
+                :disabled="savingDraft || testingConnection"
+                @click="void testConnection()"
+              >
+                {{ testingConnection ? "Testing…" : "Test connection" }}
+              </button>
+              <button
+                type="button"
+                class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="savingDraft || testingConnection"
                 @click="cancelEdit"
               >
                 Cancel
