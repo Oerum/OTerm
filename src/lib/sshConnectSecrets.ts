@@ -168,7 +168,7 @@ export function authMethodLabel(auth: SshAuthMethod): string {
     case "password":
       return "password";
     case "publicKey":
-      return "public key";
+      return "private key";
     case "certificate":
       return "certificate";
     case "agent":

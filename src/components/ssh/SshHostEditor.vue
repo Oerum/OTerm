@@ -245,7 +245,7 @@ const tabs = [
           @change="patchAuth({ method: ($event.target as HTMLSelectElement).value as SshEndpoint['auth']['method'] })"
         >
           <option value="password">Password</option>
-          <option value="publicKey">Public key</option>
+          <option value="publicKey">Private key</option>
           <option value="certificate">Certificate (path)</option>
           <option value="agent">SSH agent</option>
           <option value="fido2">FIDO2 / security key file</option>
