@@ -246,6 +246,10 @@ const MAX_SIDEBAR_WIDTH = 480;
 const sidebarWidthPx = ref(DEFAULT_SIDEBAR_WIDTH);
 const sidebarResizing = ref(false);
 
+const sidebarOffset = computed(() => {
+  return terminalSidebarOpen.value ? sidebarWidthPx.value + 1 : 0;
+});
+
 function loadSidebarWidth(): number {
   const raw = getSetting(SIDEBAR_WIDTH_KEY);
   if (!raw) return DEFAULT_SIDEBAR_WIDTH;
@@ -1558,6 +1562,7 @@ onUnmounted(() => {
         />
         <SourceControlPanel
           ref="sourceControlPanelRef"
+          :sidebar-offset="sidebarOffset"
           :status="sourceControlStatus"
           :history="gitHistory"
           :loading="sourceControlLoading"

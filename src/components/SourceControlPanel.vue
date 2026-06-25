@@ -45,6 +45,7 @@ const props = defineProps<{
   fileListWidth: number;
   onFileListResizePointerDown: (event: PointerEvent) => void;
   graphRefreshToken: number;
+  sidebarOffset?: number;
 }>();
 
 const emit = defineEmits<{
@@ -789,6 +790,7 @@ function authorInitials(author: string): string {
   <aside
     class="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--oterm-sidebar)]"
     :class="diffPanelMode !== 'list' ? 'diff-panel-overlay' : ''"
+    :style="diffPanelMode !== 'list' ? { left: `${sidebarOffset ?? 0}px` } : {}"
   >
   <div class="flex min-h-0 flex-1 flex-col" :class="showDiffPane ? 'flex-row' : 'flex-col'">
     <div
@@ -1601,7 +1603,10 @@ function authorInitials(author: string): string {
 <style scoped>
 .diff-panel-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 200;
   background: var(--oterm-bg);
 }
