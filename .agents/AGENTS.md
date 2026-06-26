@@ -61,6 +61,7 @@ AI commits should include:
 ```
 Co-Authored-By: <Agent Name> <noreply@anthropic.com>
 ```
+To allow the user to review/verify the attribution in the command/PR approval phase, do not print or output the `Co-Authored-By` line in any chat responses, summaries, or explanations. It should only be included in the git commit message itself.
 
 ## Full project verification (must all pass)
 
