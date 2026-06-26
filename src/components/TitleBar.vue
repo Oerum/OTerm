@@ -27,12 +27,14 @@ const props = defineProps<{
   pane?: WorkspacePane | null;
   shells?: ShellProfile[];
   tabTitle?: string;
+  chatViewOpen: boolean;
 }>();
 
 const emit = defineEmits<{
   toggleTerminalSidebar: [];
   toggleTools: [];
   toggleSourceControl: [];
+  toggleChatView: [];
   switchBranch: [branch: string, isRemote: boolean];
   openSshSftp: [];
   openDockerManager: [];
@@ -169,6 +171,27 @@ onBeforeUnmount(() => {
             <rect x="9" y="2.5" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
             <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
             <rect x="9" y="9" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="flex h-6 w-6 items-center justify-center rounded-full border transition"
+          :class="
+            chatViewOpen
+              ? 'border-[var(--oterm-accent)]/40 bg-[var(--oterm-accent-dim)] text-[var(--oterm-accent)]'
+              : 'border-white/10 text-[var(--oterm-muted)] hover:border-white/20 hover:text-[#F5F5F7]'
+          "
+          title="Toggle Chat View"
+          aria-label="Toggle Chat View"
+          @click="emit('toggleChatView')"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+            <path
+              d="M2.5 3.5h11a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1H5.2L2.5 13V4.5a1 1 0 0 1 1-1Z"
+              stroke-width="1.2"
+              stroke-linejoin="round"
+            />
+            <path d="M5 6.5h6M5 9h4" stroke-width="1.2" stroke-linecap="round" />
           </svg>
         </button>
       </div>

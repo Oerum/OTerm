@@ -274,20 +274,6 @@ function chunkClass(chunk: WordDiffChunk) {
   return "";
 }
 
-function onPaneScroll(event: Event) {
-  const target = event.target as HTMLElement;
-  const scrollLeft = target.scrollLeft;
-  
-  if (!viewerRootRef.value) return;
-  const allCodeEls = viewerRootRef.value.querySelectorAll(".diff-code");
-  
-  allCodeEls.forEach((el) => {
-    const codeEl = el as HTMLElement;
-    if (codeEl.scrollLeft !== scrollLeft) {
-      codeEl.scrollLeft = scrollLeft;
-    }
-  });
-}
 </script>
 
 <template>
@@ -416,7 +402,7 @@ function onPaneScroll(event: Event) {
                 </template>
               </div>
               <div class="diff-lnum">{{ row.left.lineNumber ?? "" }}</div>
-              <div class="diff-code" @scroll="onPaneScroll">
+              <div class="diff-code">
                 <span v-if="row.left.kind === 'remove'" class="diff-prefix">−</span>
                 <span v-else-if="row.left.kind === 'context'" class="diff-prefix">&nbsp;</span>
                 <span v-else class="diff-prefix">&nbsp;</span>
@@ -495,7 +481,7 @@ function onPaneScroll(event: Event) {
                 </template>
               </div>
               <div class="diff-lnum">{{ row.right.lineNumber ?? "" }}</div>
-              <div class="diff-code" @scroll="onPaneScroll">
+              <div class="diff-code">
                 <span v-if="row.right.kind === 'add'" class="diff-prefix">+</span>
                 <span v-else-if="row.right.kind === 'context'" class="diff-prefix">&nbsp;</span>
                 <span v-else class="diff-prefix">&nbsp;</span>
@@ -594,7 +580,7 @@ function onPaneScroll(event: Event) {
             </div>
             <div class="diff-lnum diff-lnum--old">{{ line.oldLine ?? "" }}</div>
             <div class="diff-lnum diff-lnum--new">{{ line.newLine ?? "" }}</div>
-            <div class="diff-code" @scroll="onPaneScroll">
+            <div class="diff-code">
               <span v-if="line.kind === 'add'" class="diff-prefix">+</span>
               <span v-else-if="line.kind === 'remove'" class="diff-prefix">−</span>
               <span v-else class="diff-prefix">&nbsp;</span>
@@ -681,6 +667,7 @@ function onPaneScroll(event: Event) {
 .diff-hunk-header {
   position: sticky;
   top: 0;
+  left: 0;
   z-index: 5;
   padding: 6px 12px 6px 52px;
   color: var(--oterm-muted);
@@ -690,12 +677,15 @@ function onPaneScroll(event: Event) {
   user-select: none;
   font-weight: 500;
   letter-spacing: 0.02em;
+  width: 100%;
 }
 
 .diff-row {
   display: grid;
-  grid-template-columns: 40px 44px 44px minmax(0, 1fr);
+  grid-template-columns: 40px 44px 44px minmax(max-content, 1fr);
   min-height: 22px;
+  width: max-content;
+  min-width: 100%;
 }
 
 .diff-row:hover,
@@ -736,18 +726,23 @@ function onPaneScroll(event: Event) {
 
 .diff-split-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+  grid-template-columns: minmax(50%, 1fr) 1px minmax(50%, 1fr);
   min-height: 22px;
+  width: max-content;
+  min-width: 100%;
 }
 
 .diff-split-pane {
   display: grid;
-  grid-template-columns: 40px 44px minmax(0, 1fr);
+  grid-template-columns: 40px 44px minmax(max-content, 1fr);
   min-width: 0;
 }
 
 .diff-split-divider {
   background: var(--oterm-border);
+  position: sticky;
+  left: 50%;
+  z-index: 10;
 }
 
 .diff-gutter {
@@ -758,12 +753,34 @@ function onPaneScroll(event: Event) {
   border-right: 1px solid var(--oterm-border);
 }
 
+.diff-row .diff-gutter {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+.diff-split-pane:first-child .diff-gutter {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+.diff-split-pane:last-child .diff-gutter {
+  position: sticky;
+  left: calc(50% + 1px);
+  z-index: 10;
+}
+
 .diff-line--add .diff-gutter {
-  background: color-mix(in srgb, var(--diff-insert-bg) 50%, var(--diff-gutter-bg));
+  background: color-mix(in srgb, var(--diff-insert-bg) 50%, var(--diff-gutter-bg)) !important;
 }
 
 .diff-line--remove .diff-gutter {
-  background: color-mix(in srgb, var(--diff-remove-bg) 50%, var(--diff-gutter-bg));
+  background: color-mix(in srgb, var(--diff-remove-bg) 50%, var(--diff-gutter-bg)) !important;
+}
+
+.diff-line--empty .diff-gutter {
+  background: color-mix(in srgb, var(--diff-editor-bg) 92%, rgba(255, 255, 255, 0.04)) !important;
 }
 
 .diff-gutter-actions {
@@ -852,12 +869,46 @@ function onPaneScroll(event: Event) {
   border-right: 1px solid var(--oterm-border);
 }
 
+.diff-row .diff-lnum--old {
+  position: sticky;
+  left: 40px;
+  z-index: 10;
+  background: var(--diff-editor-bg);
+}
+
+.diff-row .diff-lnum--new {
+  position: sticky;
+  left: 84px;
+  z-index: 10;
+  background: var(--diff-editor-bg);
+}
+
+.diff-split-pane:first-child .diff-lnum {
+  position: sticky;
+  left: 40px;
+  z-index: 10;
+  background: var(--diff-editor-bg);
+}
+
+.diff-split-pane:last-child .diff-lnum {
+  position: sticky;
+  left: calc(50% + 41px);
+  z-index: 10;
+  background: var(--diff-editor-bg);
+}
+
 .diff-line--add .diff-lnum {
-  color: color-mix(in srgb, var(--diff-insert-border) 60%, var(--diff-lnum));
+  color: color-mix(in srgb, var(--diff-insert-border) 60%, var(--diff-lnum)) !important;
+  background: var(--diff-insert-bg) !important;
 }
 
 .diff-line--remove .diff-lnum {
-  color: color-mix(in srgb, var(--diff-remove-border) 60%, var(--diff-lnum));
+  color: color-mix(in srgb, var(--diff-remove-border) 60%, var(--diff-lnum)) !important;
+  background: var(--diff-remove-bg) !important;
+}
+
+.diff-line--empty .diff-lnum {
+  background: color-mix(in srgb, var(--diff-editor-bg) 92%, rgba(255, 255, 255, 0.04)) !important;
 }
 
 .diff-code {
@@ -865,7 +916,7 @@ function onPaneScroll(event: Event) {
   min-width: 0;
   padding-right: 12px;
   white-space: pre;
-  overflow-x: auto;
+  overflow-x: visible; /* Prevent scrollbar on each line */
   font-size: 13px;
   line-height: 22px;
 }
@@ -909,22 +960,5 @@ function onPaneScroll(event: Event) {
   font-weight: 500;
   text-decoration: line-through;
   opacity: 0.85;
-}
-
-.diff-code::-webkit-scrollbar {
-  height: 3px;
-}
-
-.diff-code::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.diff-code::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-}
-
-.diff-code::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
 }
 </style>

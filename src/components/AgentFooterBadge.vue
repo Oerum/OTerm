@@ -24,7 +24,10 @@ const lightTile = computed(() => {
   return color === "#ffffff" || color === "#fff";
 });
 
-const whiteBgTile = computed(() => agent.value.id === "cursor" || agent.value.id === "codex");
+const whiteBgTile = computed(() => {
+  const ids = ["cursor", "codex", "goose", "auggie", "droid", "opencode"];
+  return ids.includes(agent.value.id);
+});
 </script>
 
 <template>

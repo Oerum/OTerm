@@ -23,6 +23,8 @@ import PullRequestsView from "./components/PullRequestsView.vue";
 import IssuesView from "./components/IssuesView.vue";
 import SettingsView from "./components/SettingsView.vue";
 import TitleBar from "./components/TitleBar.vue";
+import AgentsView from "./components/AgentsView.vue";
+import { getCliAgentDefinition } from "./lib/terminalAgentMode";
 import TooltipLayer from "./components/TooltipLayer.vue";
 import AppToastLayer from "./components/AppToastLayer.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
@@ -217,6 +219,8 @@ function toggleActiveAgentComposer() {
 
 const terminalSidebarOpen = ref(true);
 const toolsOpen = ref(false);
+const agentsViewOpen = ref(false);
+const chatViewOpen = ref(false);
 const sourceControlOpen = ref(false);
 const gitRefreshToken = ref(0);
 
@@ -1036,6 +1040,22 @@ function onReorderTerminalTab(tabId: string, toTerminalIndex: number, groupId?: 
   moveTabToGroup(tabId, inferredGroupId, toTerminalIndex);
 }
 
+function launchAgent(agentId: CliAgentId) {
+  const agent = getCliAgentDefinition(agentId);
+  const shellId = resolveDefaultShellId();
+  const tab = createTab(shellId);
+  const pane = tab.panes[0];
+  if (!pane) return;
+
+  setTabTitle(tab.id, agent.displayName);
+  const command = agent.commandPrefixes[0] || agent.id;
+  pendingTerminalCommands.set(pane.id, `${command}\r`);
+
+  agentsViewOpen.value = false;
+  selectTab(tab.id);
+  selectPane(pane.id);
+}
+
 function onSessionBootstrapping(paneId: string, sessionId: string) {
   if (!sessionId) return;
   setPaneBootstrappingSession(paneId, sessionId);
@@ -1326,6 +1346,7 @@ onUnmounted(() => {
     <TitleBar
       :terminal-sidebar-open="terminalSidebarOpen"
       :tools-open="toolsOpen"
+      :chat-view-open="chatViewOpen"
       :source-control-open="sourceControlOpen"
       :git-status="gitBadgeStatus"
       :git-branches="gitBranches"
@@ -1339,6 +1360,7 @@ onUnmounted(() => {
       :tab-title="activeTerminalTab?.title"
       @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
       @toggle-tools="toolsOpen = !toolsOpen"
+      @toggle-chat-view="chatViewOpen = !chatViewOpen"
       @toggle-source-control="toggleSourceControl"
       @switch-branch="onSwitchBranch"
       @open-ssh-sftp="openSshSftp"
@@ -1351,7 +1373,7 @@ onUnmounted(() => {
 
     <div class="flex min-h-0 flex-1 overflow-hidden">
       <SidebarRail
-        v-if="terminalSidebarOpen"
+        v-if="terminalSidebarOpen && !agentsViewOpen && !chatViewOpen"
         :tabs="tabs"
         :terminal-groups="terminalGroups"
         :collapsed-group-ids="collapsedGroupIds"
@@ -1385,7 +1407,7 @@ onUnmounted(() => {
       />
 
       <div
-        v-if="terminalSidebarOpen"
+        v-if="terminalSidebarOpen && !agentsViewOpen && !chatViewOpen"
         class="no-drag relative z-20 w-[1px] shrink-0 cursor-col-resize bg-[var(--oterm-border)] hover:bg-[var(--oterm-accent)]/40 transition-colors"
         :class="sidebarResizing ? 'bg-[var(--oterm-accent)]' : ''"
         title="Drag to resize sidebar"
@@ -1405,101 +1427,112 @@ onUnmounted(() => {
         :class="toolsOpen ? 'border-l border-[var(--oterm-border)]' : ''"
       >
         <main class="relative flex min-h-0 flex-1 flex-col">
-          <HistorySearch
-            v-if="activePane"
-            :open="historyOpen"
-            :query="historyQuery"
-            :entries="filteredHistory"
-            @update:query="(value) => (historyQuery = value)"
-            @close="closeSearch"
-            @select="insertHistoryEntry"
+          <AgentsView
+            v-if="agentsViewOpen"
+            :tabs="tabs"
+            :active="agentsViewOpen"
+            @close="agentsViewOpen = false"
+            @launch-agent="launchAgent"
+            @select-tab="selectTab"
           />
+          <template v-else>
+            <HistorySearch
+              v-if="activePane"
+              :open="historyOpen"
+              :query="historyQuery"
+              :entries="filteredHistory"
+              @update:query="(value) => (historyQuery = value)"
+              @close="closeSearch"
+              @select="insertHistoryEntry"
+            />
 
-          <template v-for="tab in tabs" :key="tab.id">
-            <section
-              v-if="tab.kind === 'terminal' && mountedTerminalTabIds.has(tab.id)"
-              v-show="tab.id === activeTabId"
-              class="flex min-h-0 flex-1 divide-[var(--oterm-border)]"
-              :class="tab.split === 'horizontal' ? 'flex-row divide-x' : 'flex-col divide-y'"
-              style="margin-left: -3px;"
-            >
-              <TerminalPane
-                v-for="pane in tab.panes"
-                :key="pane.id"
-                :ref="bindTerminalPaneRef(pane.id)"
-                :pane-id="pane.id"
-                :session-id="pane.sessionId"
-                :shell-id="pane.shellId"
-                :initial-cwd="pane.cwd"
-                :active="pane.id === activePaneId"
-                :tab-active="tab.id === activeTabId"
-                :active-agent-id="pane.activeAgentId"
-                :theme-id="terminalPaneThemes[pane.id] ?? null"
-                :ssh-endpoint-id="pane.sshEndpointId"
-                @session-created="onSessionCreated"
-                @session-bootstrapping="onSessionBootstrapping"
-                @session-ended="onSessionEnded"
-                @session-released="onSessionReleased"
-                @cwd-changed="setPaneCwd"
-                @prompt-ready="onPromptReady"
-                @command-submitted="onCommandSubmitted"
-                @agent-mode-changed="onAgentModeChanged"
-                @osc-title-changed="onOscTitleChanged"
-                @notification-received="onNotificationReceived"
-                @composer-open-changed="onComposerOpenChanged"
-                @focus-pane="selectPane(pane.id)"
+            <template v-for="tab in tabs" :key="tab.id">
+              <section
+                v-if="tab.kind === 'terminal' && mountedTerminalTabIds.has(tab.id)"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1 divide-[var(--oterm-border)]"
+                :class="tab.split === 'horizontal' ? 'flex-row divide-x' : 'flex-col divide-y'"
+                style="margin-left: -3px;"
+              >
+                <TerminalPane
+                  v-for="pane in tab.panes"
+                  :key="pane.id"
+                  :ref="bindTerminalPaneRef(pane.id)"
+                  :pane-id="pane.id"
+                  :session-id="pane.sessionId"
+                  :shell-id="pane.shellId"
+                  :initial-cwd="pane.cwd"
+                  :active="pane.id === activePaneId"
+                  :tab-active="tab.id === activeTabId"
+                  :active-agent-id="pane.activeAgentId"
+                  :theme-id="terminalPaneThemes[pane.id] ?? null"
+                  :ssh-endpoint-id="pane.sshEndpointId"
+                  :chat-view-open="chatViewOpen"
+                  @session-created="onSessionCreated"
+                  @session-bootstrapping="onSessionBootstrapping"
+                  @session-ended="onSessionEnded"
+                  @session-released="onSessionReleased"
+                  @cwd-changed="setPaneCwd"
+                  @prompt-ready="onPromptReady"
+                  @command-submitted="onCommandSubmitted"
+                  @agent-mode-changed="onAgentModeChanged"
+                  @osc-title-changed="onOscTitleChanged"
+                  @notification-received="onNotificationReceived"
+                  @composer-open-changed="onComposerOpenChanged"
+                  @focus-pane="selectPane(pane.id)"
+                />
+              </section>
+              <PullRequestsView
+                v-else-if="tab.kind === 'pullRequests'"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1"
+                :repo-root="tab.repoRoot"
+                :active="tab.id === activeTabId"
+                @refresh-git="refreshGitViews"
+                @close="closeTab(tab.id)"
               />
-            </section>
-            <PullRequestsView
-              v-else-if="tab.kind === 'pullRequests'"
-              v-show="tab.id === activeTabId"
-              class="flex min-h-0 flex-1"
-              :repo-root="tab.repoRoot"
-              :active="tab.id === activeTabId"
-              @refresh-git="refreshGitViews"
-              @close="closeTab(tab.id)"
-            />
-            <BranchManagerView
-              v-else-if="tab.kind === 'branchManager'"
-              v-show="tab.id === activeTabId"
-              class="flex min-h-0 flex-1"
-              :repo-root="tab.repoRoot"
-              :active="tab.id === activeTabId"
-              :switch-branch="onSwitchBranch"
-              @refresh-git="refreshGitViews"
-              @close="closeTab(tab.id)"
-            />
-            <IssuesView
-              v-else-if="tab.kind === 'issues'"
-              v-show="tab.id === activeTabId"
-              class="flex min-h-0 flex-1"
-              :repo-root="tab.repoRoot"
-              :active="tab.id === activeTabId"
-              @refresh-git="refreshGitViews"
-              @close="closeTab(tab.id)"
-            />
-            <DockerManagerView
-              v-else-if="tab.kind === 'docker'"
-              v-show="tab.id === activeTabId"
-              class="flex min-h-0 flex-1"
-              :active="tab.id === activeTabId"
-              @close="closeTab(tab.id)"
-              @open-container-logs="openDockerContainerTerminal($event, 'logs')"
-              @open-container-shell="openDockerContainerTerminal($event, 'shell')"
-            />
-            <SshSftpManagerView
-              v-else-if="tab.kind === 'sshSftp'"
-              v-show="tab.id === activeTabId"
-              class="flex min-h-0 flex-1"
-              @close="closeTab(tab.id)"
-              @open-ssh-terminal="openSshTerminal"
-            />
-            <SettingsView
-              v-else-if="tab.kind === 'settings'"
-              v-show="tab.id === activeTabId"
-              class="flex min-h-0 flex-1"
-              @close="closeTab(tab.id)"
-            />
+              <BranchManagerView
+                v-else-if="tab.kind === 'branchManager'"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1"
+                :repo-root="tab.repoRoot"
+                :active="tab.id === activeTabId"
+                :switch-branch="onSwitchBranch"
+                @refresh-git="refreshGitViews"
+                @close="closeTab(tab.id)"
+              />
+              <IssuesView
+                v-else-if="tab.kind === 'issues'"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1"
+                :repo-root="tab.repoRoot"
+                :active="tab.id === activeTabId"
+                @refresh-git="refreshGitViews"
+                @close="closeTab(tab.id)"
+              />
+              <DockerManagerView
+                v-else-if="tab.kind === 'docker'"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1"
+                :active="tab.id === activeTabId"
+                @close="closeTab(tab.id)"
+                @open-container-logs="openDockerContainerTerminal($event, 'logs')"
+                @open-container-shell="openDockerContainerTerminal($event, 'shell')"
+              />
+              <SshSftpManagerView
+                v-else-if="tab.kind === 'sshSftp'"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1"
+                @close="closeTab(tab.id)"
+                @open-ssh-terminal="openSshTerminal"
+              />
+              <SettingsView
+                v-else-if="tab.kind === 'settings'"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1"
+                @close="closeTab(tab.id)"
+              />
+            </template>
           </template>
         </main>
 
@@ -1513,17 +1546,30 @@ onUnmounted(() => {
           :active-pr="activePr"
           :pr-loading="activePrLoading"
           :agent-composer-open="activeAgentComposerOpen"
+          :agents-view-open="agentsViewOpen"
           @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
           @toggle-tools="toolsOpen = !toolsOpen"
           @toggle-source-control="toggleSourceControl"
           @toggle-agent-composer="toggleActiveAgentComposer"
+          @toggle-agents-view="agentsViewOpen = !agentsViewOpen"
           @open-pull-requests="openPullRequests"
         />
       </div>
 
       <div
         v-if="sourceControlOpen"
-        class="flex shrink-0 flex-col overflow-hidden border-l border-[var(--oterm-border)]"
+        class="no-drag relative w-[1px] shrink-0 cursor-col-resize bg-[var(--oterm-border)] hover:bg-[var(--oterm-accent)]/40 transition-colors"
+        :class="sourceControlResizing ? 'bg-[var(--oterm-accent)]' : ''"
+        style="z-index: 35 !important;"
+        title="Drag to resize"
+        @pointerdown="onResizeHandlePointerDown"
+      >
+        <div class="absolute -inset-x-1.5 top-0 bottom-0 z-40 cursor-col-resize" />
+      </div>
+
+      <div
+        v-if="sourceControlOpen"
+        class="flex shrink-0 flex-col overflow-hidden"
         :style="{ width: `${sourceControlWidth}px` }"
       >
         <div
@@ -1554,12 +1600,6 @@ onUnmounted(() => {
           </button>
         </div>
         <div class="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        <div
-          class="absolute inset-y-0 left-0 z-20 w-2 cursor-col-resize"
-          :class="sourceControlResizing ? 'bg-[var(--oterm-accent)]/30' : 'hover:bg-white/5'"
-          title="Drag to resize"
-          @pointerdown="onResizeHandlePointerDown"
-        />
         <SourceControlPanel
           ref="sourceControlPanelRef"
           :sidebar-offset="sidebarOffset"

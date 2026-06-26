@@ -17,6 +17,7 @@ const props = defineProps<{
   activePr?: PullRequestSummary | null;
   prLoading?: boolean;
   agentComposerOpen?: boolean;
+  agentsViewOpen?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -25,6 +26,7 @@ const emit = defineEmits<{
   toggleSourceControl: [];
   openPullRequests: [];
   toggleAgentComposer: [];
+  toggleAgentsView: [];
 }>();
 
 const displayPath = computed(() => formatPath(props.pane?.cwd));
@@ -77,6 +79,31 @@ const prTitle = computed(() => {
           <path d="M5 6.5h6M5 9h4" stroke-width="1.2" stroke-linecap="round" />
         </svg>
         <span class="hidden md:inline">Message</span>
+      </button>
+
+      <button
+        type="button"
+        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+        :class="agentsViewOpen ? 'text-[var(--oterm-accent)]' : ''"
+        title="Toggle Agents View"
+        aria-label="Toggle Agents View"
+        @click="emit('toggleAgentsView')"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+          <path
+            d="M8 1.5a5.5 5.5 0 00-5.5 5.5c0 1.63.7 3.09 1.83 4.1a1 1 0 01.37.77v.88c0 .41.34.75.75.75h5.1c.41 0 .75-.34.75-.75v-.88a1 1 0 01.37-.77A5.5 5.5 0 008 1.5z"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M5.5 14h5M6.5 15.5h3"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <span class="hidden md:inline">Agents</span>
       </button>
 
       <span

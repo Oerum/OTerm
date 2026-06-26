@@ -55,6 +55,14 @@ export const CLI_AGENTS: readonly CliAgentDefinition[] = [
     packageHints: ["gemini"],
   },
   {
+    id: "agy",
+    commandPrefixes: ["agy"],
+    displayName: "Agy",
+    brandColor: "#00D4AA",
+    logoFile: agyLogo,
+    packageHints: ["agy"],
+  },
+  {
     id: "codex",
     commandPrefixes: ["codex"],
     displayName: "Codex",
@@ -141,14 +149,6 @@ export const CLI_AGENTS: readonly CliAgentDefinition[] = [
     brandColor: "#FA520F",
     logoFile: null,
     packageHints: ["vibe"],
-  },
-  {
-    id: "agy",
-    commandPrefixes: ["agy"],
-    displayName: "Agy",
-    brandColor: "#00D4AA",
-    logoFile: agyLogo,
-    packageHints: ["agy"],
   },
 ] as const;
 

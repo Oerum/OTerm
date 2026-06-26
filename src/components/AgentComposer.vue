@@ -35,6 +35,8 @@ const props = defineProps<{
   paneId: string;
   agentId?: CliAgentId | null;
   sessionId: string;
+  hideCloseButton?: boolean;
+  transparent?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -390,7 +392,12 @@ defineExpose({
 <template>
   <div
     ref="composerRef"
-    class="agent-composer shrink-0 border-t border-[var(--oterm-border)] bg-[var(--oterm-elevated)] px-4 py-3"
+    class="agent-composer shrink-0 px-4 py-3"
+    :class="[
+      transparent 
+        ? 'bg-transparent border-t-0' 
+        : 'border-t border-[var(--oterm-border)] bg-[var(--oterm-elevated)]'
+    ]"
     @mousedown.stop
   >
     <div
@@ -408,6 +415,7 @@ defineExpose({
         <AgentFooterBadge v-if="agentId" :agent-id="agentId" />
         <span class="font-medium text-[var(--oterm-text)]">{{ composerTitle }}</span>
         <button
+          v-if="!hideCloseButton"
           type="button"
           class="ml-auto rounded px-2 py-0.5 text-[var(--oterm-faint)] btn-premium"
           title="Close composer (Escape)"
