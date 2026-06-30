@@ -6,6 +6,7 @@ import {
   onUnmounted,
   ref,
   watch,
+  provide,
   type ComponentPublicInstance,
 } from "vue";
 import HistorySearch from "./components/HistorySearch.vue";
@@ -16,6 +17,7 @@ import TerminalPane from "./components/TerminalPane.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
 import SshSecretPrompt from "./components/ssh/SshSecretPrompt.vue";
 import BranchManagerView from "./components/BranchManagerView.vue";
+import WorktreeManagerView from "./components/WorktreeManagerView.vue";
 import DockerManagerView from "./components/DockerManagerView.vue";
 import SshSftpManagerView from "./components/SshSftpManagerView.vue";
 import CreatePullRequestDialog from "./components/CreatePullRequestDialog.vue";
@@ -24,6 +26,7 @@ import IssuesView from "./components/IssuesView.vue";
 import SettingsView from "./components/SettingsView.vue";
 import TitleBar from "./components/TitleBar.vue";
 import AgentsView from "./components/AgentsView.vue";
+import AgentWorktreeLaunchDialog from "./components/AgentWorktreeLaunchDialog.vue";
 import { getCliAgentDefinition } from "./lib/terminalAgentMode";
 import TooltipLayer from "./components/TooltipLayer.vue";
 import AppToastLayer from "./components/AppToastLayer.vue";
@@ -34,6 +37,7 @@ import { useSourceControl } from "./composables/useSourceControl";
 import { useTerminalHistory } from "./composables/useTerminalHistory";
 import { useWorkspace } from "./composables/useWorkspace";
 import { useWorkspacePersistence } from "./composables/useWorkspacePersistence";
+import { isActionKeybind } from "./lib/keybindSettings";
 import type {
   ClosedTerminalSession,
   SaveProfileDraft,
@@ -95,7 +99,17 @@ import { findNextCyclableTabId } from "./lib/terminalGroups";
 import { shellLabelFor } from "./lib/sidebarEntries";
 import { formatGitOperationError } from "./lib/formatGitError";
 import { pushAppToast } from "./lib/appToast";
-import { listGitWorktrees } from "./lib/gitApi";
+import { listGitWorktrees, createGitWorktree, getGitStatus } from "./lib/gitApi";
+import { listBranchRefs } from "./lib/branchManagerApi";
+import {
+  defaultWorktreeBasePath,
+  resolveWorktreeTargetPath,
+  suggestWorktreeName,
+  ensureOtermInGitignore,
+  UNGROUPED_WORKTREE_BASE_KEY,
+  type AgentWorktreeLaunchConfirm,
+} from "./lib/agentWorktreeLaunch";
+import type { BranchRefInfo } from "./types/branchManager";
 import { resolveActiveWorktree, resolveGitMutationRoot, switchGitBranch } from "./lib/switchGitBranch";
 import type { GitWorktreeInfo } from "./types/git";
 
@@ -130,6 +144,10 @@ const terminalPaneThemes = ref<Record<string, string | null>>({});
 const canReopenClosed = computed(() => closedSessions.value.length > 0);
 const activeAgentComposerOpen = ref(false);
 const terminalPaneRefs = new Map<string, InstanceType<typeof TerminalPane>>();
+provide("getTerminalPreview", (paneId: string) => {
+  const pane = terminalPaneRefs.get(paneId);
+  return pane ? pane.getTerminalPreviewText() : null;
+});
 const closingTabIds = new Set<string>();
 
 const SESSION_KILL_TIMEOUT_MS = 2500;
@@ -305,6 +323,7 @@ const {
   createTab,
   openPullRequestsTab,
   openBranchManagerTab,
+  openWorktreeManagerTab,
   openIssuesTab,
   openDockerManagerTab,
   openSshSftpTab,
@@ -329,6 +348,7 @@ const {
   renameGroup,
   deleteGroup,
   setGroupColor,
+  setGroupWorktreeBasePath,
   toggleGroupCollapsed,
   moveTabToGroup,
   moveTab,
@@ -387,7 +407,17 @@ const {
 } = history;
 const filteredHistory = computed(() => filteredEntries());
 
-const activeCwd = computed(() => activePane.value?.cwd);
+const activeWorkspaceTab = computed(
+  () => tabs.value.find((tab) => tab.id === activeTabId.value) ?? null,
+);
+
+const activeCwd = computed(() => {
+  const tab = activeWorkspaceTab.value;
+  if (tab && "repoRoot" in tab) {
+    return tab.repoRoot;
+  }
+  return activePane.value?.cwd;
+});
 const {
   status: sourceControlStatus,
   branches: gitBranches,
@@ -443,6 +473,13 @@ let promptGitRefreshTimer: number | undefined;
 const sourceControlPanelRef = ref<InstanceType<typeof SourceControlPanel> | null>(null);
 const gitBranchSwitchBusy = ref(false);
 const gitWorktrees = ref<GitWorktreeInfo[]>([]);
+const worktreeDialogOpen = ref(false);
+const worktreeRepoRoot = ref<string | null>(null);
+const worktreeDialogBusy = ref(false);
+const worktreeDialogError = ref<string | null>(null);
+const worktreeBranchRefs = ref<BranchRefInfo[]>([]);
+const worktreeLauncherAvailable = ref(false);
+let worktreeDialogSuppressUntil = 0;
 
 watch(
   [() => sourceControlStatus.value.repoRoot, activeCwd],
@@ -455,6 +492,30 @@ watch(
       gitWorktrees.value = await listGitWorktrees(root);
     } catch {
       gitWorktrees.value = [];
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  [activeWorkspaceTab, activePaneId, activeCwd],
+  async () => {
+    const tab = activeWorkspaceTab.value;
+    const pane = activePane.value;
+    const cwd = activeCwd.value;
+    const isLocalTerminal = pane && !pane.sshEndpointId;
+    const isGitManagerTab = tab && "repoRoot" in tab;
+
+    if (!(isLocalTerminal || isGitManagerTab) || !cwd || cwd === "~") {
+      worktreeLauncherAvailable.value = false;
+      return;
+    }
+    try {
+      const status = await getGitStatus(cwd);
+      worktreeLauncherAvailable.value =
+        status.isRepo && !status.isWorktree && Boolean(status.repoRoot);
+    } catch {
+      worktreeLauncherAvailable.value = false;
     }
   },
   { immediate: true },
@@ -642,9 +703,7 @@ const projectRoot = computed(() => {
 
 const gitRepoRoot = computed(() => sourceControlStatus.value.repoRoot ?? null);
 const activeBranch = computed(() => sourceControlStatus.value.branch);
-const activeWorkspaceTab = computed(
-  () => tabs.value.find((tab) => tab.id === activeTabId.value) ?? null,
-);
+
 const { activePr, loading: activePrLoading } = useActiveBranchPr(
   gitRepoRoot,
   activeBranch,
@@ -696,6 +755,18 @@ function openBranchManager() {
   openBranchManagerTab(
     resolveGitMutationRoot(root, activeCwd.value, gitWorktrees.value),
   );
+}
+
+function openWorktreeManager() {
+  const root = gitRepoRoot.value;
+  if (!root) return;
+  openWorktreeManagerTab(
+    resolveGitMutationRoot(root, activeCwd.value, gitWorktrees.value),
+  );
+}
+
+function openWorktreeTerminal(cwd: string) {
+  createTab(resolveDefaultShellId(), cwd);
 }
 
 function openIssues() {
@@ -1040,6 +1111,58 @@ function onReorderTerminalTab(tabId: string, toTerminalIndex: number, groupId?: 
   moveTabToGroup(tabId, inferredGroupId, toTerminalIndex);
 }
 
+function savedWorktreeBasePathForGroup(groupId: string | null | undefined): string | null {
+  if (groupId) {
+    return terminalGroups.value.find((group) => group.id === groupId)?.worktreeBasePath ?? null;
+  }
+  return getSetting(UNGROUPED_WORKTREE_BASE_KEY);
+}
+
+function defaultWorktreeName(): string {
+  const paths = gitWorktrees.value.map((wt) => wt.path);
+  const branches = worktreeBranchRefs.value.map((branch) => branch.name);
+  return suggestWorktreeName(paths, branches);
+}
+
+async function openWorktreeDialog() {
+  if (worktreeDialogOpen.value) return;
+  if (Date.now() < worktreeDialogSuppressUntil) return;
+
+  const tab = activeWorkspaceTab.value;
+  if (!(tab && "repoRoot" in tab)) {
+    const pane = activePane.value;
+    const cwd = pane?.cwd;
+    if (!pane || !cwd || cwd === "~" || pane.sshEndpointId) {
+      pushAppToast("Open a local terminal in a git repository first.", "error");
+      return;
+    }
+  }
+
+  if (!worktreeLauncherAvailable.value) {
+    pushAppToast("Worktrees are only available from the main repository checkout.", "error");
+    return;
+  }
+
+  const root = gitRepoRoot.value;
+  if (!root) {
+    pushAppToast("Could not determine repository root.", "error");
+    return;
+  }
+
+  worktreeRepoRoot.value = root;
+  worktreeDialogError.value = null;
+  worktreeDialogOpen.value = true;
+  
+  worktreeDialogBusy.value = true;
+  try {
+    worktreeBranchRefs.value = await listBranchRefs(root);
+  } catch {
+    worktreeBranchRefs.value = [];
+  } finally {
+    worktreeDialogBusy.value = false;
+  }
+}
+
 function launchAgent(agentId: CliAgentId) {
   const agent = getCliAgentDefinition(agentId);
   const shellId = resolveDefaultShellId();
@@ -1054,6 +1177,82 @@ function launchAgent(agentId: CliAgentId) {
   agentsViewOpen.value = false;
   selectTab(tab.id);
   selectPane(pane.id);
+}
+
+function closeWorktreeDialog() {
+  worktreeDialogOpen.value = false;
+  worktreeRepoRoot.value = null;
+  worktreeDialogError.value = null;
+  worktreeDialogSuppressUntil = Date.now() + 500;
+}
+
+function onAddTerminal(shellId?: string, groupId?: string | null) {
+  closeWorktreeDialog();
+  createTab(shellId, undefined, groupId);
+}
+
+async function persistWorktreeBasePath(groupId: string | null, basePath: string) {
+  const trimmed = basePath.trim();
+  if (!trimmed) return;
+  if (groupId) {
+    setGroupWorktreeBasePath(groupId, trimmed);
+    return;
+  }
+  await setSetting(UNGROUPED_WORKTREE_BASE_KEY, trimmed);
+}
+
+function openTerminalInWorktree(cwd: string, groupId: string | null) {
+  const tab = createTab(resolveDefaultShellId(), cwd, groupId);
+  selectTab(tab.id);
+  selectPane(tab.panes[0]?.id ?? null);
+}
+
+async function confirmWorktreeLaunch(payload: AgentWorktreeLaunchConfirm) {
+  const root = worktreeRepoRoot.value ?? gitRepoRoot.value;
+  if (payload.mode === "new" && !root) {
+    worktreeDialogError.value = "Could not resolve repository root.";
+    return;
+  }
+
+  worktreeDialogBusy.value = true;
+  worktreeDialogError.value = null;
+  const groupId = activeTerminalTab.value?.groupId ?? null;
+
+  try {
+    let cwd: string | undefined;
+    if (payload.mode === "current") {
+      cwd = activePane.value?.cwd;
+      if (!cwd || cwd === "~") {
+        worktreeDialogError.value = "Current terminal has no working directory.";
+        return;
+      }
+    } else {
+      const branchName = payload.worktreeName.trim() || defaultWorktreeName();
+      const basePath =
+        payload.basePath.trim() ||
+        defaultWorktreeBasePath(root!, savedWorktreeBasePathForGroup(groupId));
+      const targetPath = resolveWorktreeTargetPath(basePath, branchName);
+      const worktree = await createGitWorktree(
+        root!,
+        targetPath,
+        branchName,
+        payload.startPoint,
+      );
+      cwd = worktree.path;
+      if (basePath.replace(/\\/g, "/").includes("/.oterm")) {
+        ensureOtermInGitignore(root!).catch(console.error);
+      }
+      await persistWorktreeBasePath(groupId, basePath);
+      gitWorktrees.value = await listGitWorktrees(root!);
+    }
+
+    closeWorktreeDialog();
+    openTerminalInWorktree(cwd, groupId);
+  } catch (err) {
+    worktreeDialogError.value = formatGitOperationError(err);
+  } finally {
+    worktreeDialogBusy.value = false;
+  }
 }
 
 function onSessionBootstrapping(paneId: string, sessionId: string) {
@@ -1092,17 +1291,22 @@ function onSessionEnded(paneId: string) {
 }
 
 function onKeyDown(event: KeyboardEvent) {
-  if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "t") {
+  if (isActionKeybind(event, "terminal-new")) {
     consumeAppShortcut(event);
-    createTab(resolveDefaultShellId());
+    onAddTerminal(resolveDefaultShellId(), activeTerminalTab.value?.groupId ?? null);
     return;
   }
-  if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "t") {
+  if (isActionKeybind(event, "terminal-new-ungrouped")) {
+    consumeAppShortcut(event);
+    onAddTerminal(resolveDefaultShellId(), null);
+    return;
+  }
+  if (isActionKeybind(event, "terminal-reopen")) {
     consumeAppShortcut(event);
     reopenClosedSession();
     return;
   }
-  if (event.ctrlKey && event.key.toLowerCase() === "r") {
+  if (isActionKeybind(event, "reload-window")) {
     consumeAppShortcut(event);
     openSearch();
     return;
@@ -1368,6 +1572,7 @@ onUnmounted(() => {
       @open-pull-requests="openPullRequests"
       @open-issues="openIssues"
       @open-branch-manager="openBranchManager"
+      @open-worktree-manager="openWorktreeManager"
       @open-settings="openSettings"
     />
 
@@ -1386,7 +1591,7 @@ onUnmounted(() => {
         @select="selectTerminal"
         @close="closeTab"
         @close-many="closeTabs"
-        @add="createTab"
+        @add="onAddTerminal"
         @split="splitActiveTabHorizontal"
         @reopen-closed="reopenClosedSession"
         @set-default-shell="setDefaultShell"
@@ -1404,6 +1609,8 @@ onUnmounted(() => {
         @new-group-and-move="onNewGroupAndMove"
         :git-refresh-token="gitRefreshToken"
         :active-pane-git="activePaneGit"
+        :worktree-available="worktreeLauncherAvailable"
+        @open-worktree-manager="openWorktreeManager"
       />
 
       <div
@@ -1500,6 +1707,16 @@ onUnmounted(() => {
                 :switch-branch="onSwitchBranch"
                 @refresh-git="refreshGitViews"
                 @close="closeTab(tab.id)"
+              />
+              <WorktreeManagerView
+                v-else-if="tab.kind === 'worktreeManager'"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1"
+                :repo-root="tab.repoRoot"
+                :active="tab.id === activeTabId"
+                @close="closeTab(tab.id)"
+                @create-worktree="openWorktreeDialog"
+                @open-terminal="openWorktreeTerminal"
               />
               <IssuesView
                 v-else-if="tab.kind === 'issues'"
@@ -1670,6 +1887,18 @@ onUnmounted(() => {
       @update:draft="createPrDraft = $event"
       @confirm="submitCreatePr"
       @cancel="closeCreatePrDialog"
+    />
+    <AgentWorktreeLaunchDialog
+      :open="worktreeDialogOpen"
+      :repo-root="worktreeRepoRoot ?? gitRepoRoot ?? ''"
+      :current-branch="sourceControlStatus.branch"
+      :branches="worktreeBranchRefs"
+      :default-worktree-name="defaultWorktreeName()"
+      :saved-base-path="savedWorktreeBasePathForGroup(activeTerminalTab?.groupId)"
+      :busy="worktreeDialogBusy"
+      :error="worktreeDialogError"
+      @confirm="confirmWorktreeLaunch"
+      @cancel="closeWorktreeDialog"
     />
   </div>
 </template>

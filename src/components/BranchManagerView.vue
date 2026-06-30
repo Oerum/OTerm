@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { isActionKeybind } from "../lib/keybindSettings";
 import {
   canMergeBranchLocally,
   filterBranchSections,
@@ -955,18 +956,17 @@ function onKeyDown(event: KeyboardEvent) {
   const active = document.activeElement;
   const isInput = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA");
 
-  if (event.key === "/" && !isInput) {
+  if (isActionKeybind(event, "focus-branch-filter") && !isInput) {
     event.preventDefault();
     branchFilterInput.value?.focus();
     return;
   }
 
-  if (!event.altKey) return;
-  if (event.key === "PageUp") {
+  if (isActionKeybind(event, "navigate-parent-commit")) {
     event.preventDefault();
     navigateParent();
   }
-  if (event.key === "PageDown") {
+  if (isActionKeybind(event, "navigate-child-commit")) {
     event.preventDefault();
     navigateChild();
   }

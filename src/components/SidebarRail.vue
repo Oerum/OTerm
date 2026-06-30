@@ -46,13 +46,14 @@ const props = defineProps<{
     repoRoot: string | null;
   };
   widthPx?: number;
+  worktreeAvailable?: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [tabId: string, paneId: string];
   close: [tabId: string];
   closeMany: [tabIds: string[]];
-  add: [shellId: string];
+  add: [shellId?: string, groupId?: string | null];
   split: [shellId: string];
   reopenClosed: [];
   setDefaultShell: [shellId: string];
@@ -68,6 +69,7 @@ const emit = defineEmits<{
   toggleGroupCollapsed: [groupId: string];
   moveTabToGroup: [tabId: string, groupId: string | null];
   newGroupAndMove: [tabId: string];
+  openWorktreeManager: [];
 }>();
 
 const newMenuOpen = ref(false);
@@ -101,10 +103,11 @@ const featureEntries = computed(() =>
 );
 
 function featureEntryBadge(
-  kind: "pullRequests" | "branchManager" | "issues" | "docker" | "sshSftp" | "settings",
+  kind: "pullRequests" | "branchManager" | "issues" | "docker" | "sshSftp" | "settings" | "worktreeManager",
 ) {
   if (kind === "pullRequests") return "PR";
   if (kind === "branchManager") return "Br";
+  if (kind === "worktreeManager") return "Wt";
   if (kind === "issues") return "Is";
   if (kind === "sshSftp") return "SF";
   if (kind === "settings") return "⚙";
@@ -343,11 +346,15 @@ function toggleNewMenu() {
 function onCreateSelect(action: CreateMenuAction) {
   newMenuOpen.value = false;
   if (action.kind === "default-terminal") {
-    emit("add", props.defaultShellId);
+    emit("add", props.defaultShellId, undefined);
+    return;
+  }
+  if (action.kind === "ungrouped-terminal") {
+    emit("add", props.defaultShellId, null);
     return;
   }
   if (action.kind === "shell") {
-    emit("add", action.shellId);
+    emit("add", action.shellId, undefined);
     return;
   }
   if (action.kind === "reopen-closed") {
@@ -779,7 +786,25 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-
+    <div class="shrink-0 border-t border-[var(--oterm-border)] h-9 flex items-center px-2 bg-[var(--oterm-panel)]">
+      <button
+        type="button"
+        class="no-drag flex w-full h-6 items-center justify-center gap-1.5 rounded border border-[var(--oterm-border)] bg-white/[0.02] text-[10px] font-medium text-[var(--oterm-text)] transition hover:border-[var(--oterm-border-strong)] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+        :disabled="!worktreeAvailable"
+        title="Manage git worktrees"
+        aria-label="Manage worktrees"
+        @click.stop="emit('openWorktreeManager')"
+      >
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
+          <path
+            d="M4 2.5h5.5a1.5 1.5 0 0 1 1.5 1.5v2M4 13.5h5.5a1.5 1.5 0 0 0 1.5-1.5v-2M2.5 8h11"
+            stroke-width="1.2"
+            stroke-linecap="round"
+          />
+        </svg>
+        <span>Git Worktree</span>
+      </button>
+    </div>
 
     <Transition name="sidebar-toast">
       <p

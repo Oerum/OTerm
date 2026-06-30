@@ -2,7 +2,7 @@ import { ref } from "vue";
 
 const SHOW_DELAY_MS = 450;
 
-export type TooltipVariant = "default" | "path";
+export type TooltipVariant = "default" | "path" | "terminal-preview";
 
 export const tooltipVisible = ref(false);
 export const tooltipText = ref("");

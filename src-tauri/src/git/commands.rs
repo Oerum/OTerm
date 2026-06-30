@@ -1,7 +1,8 @@
 use super::branches::{
     checkout_detached, cherry_pick_commit, compare_commits, create_branch, create_tag,
-    delete_branch, list_branch_refs, list_incoming_outgoing, list_tag_refs, list_worktrees,
-    merge_branch, push_tag, read_commit_details, read_commit_graph, remove_worktree, reset_commit,
+    create_worktree, delete_branch, list_branch_refs, list_incoming_outgoing, list_tag_refs,
+    list_worktrees, merge_branch, push_tag, read_commit_details, read_commit_graph,
+    remove_worktree, reset_commit,
     revert_commit, squash_commits, BranchRefInfo, CommitDetails, CommitGraphPage, CompareResult,
     GitWorktreeInfo, TagRefInfo,
 };
@@ -398,4 +399,14 @@ pub async fn git_remove_worktree(
     force: bool,
 ) -> Result<(), String> {
     blocking_git(move || remove_worktree(repo_root, path, force)).await
+}
+
+#[tauri::command]
+pub async fn git_create_worktree(
+    repo_root: String,
+    path: String,
+    branch_name: String,
+    start_point: String,
+) -> Result<GitWorktreeInfo, String> {
+    blocking_git(move || create_worktree(repo_root, path, branch_name, start_point)).await
 }

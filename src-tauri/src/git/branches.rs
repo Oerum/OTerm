@@ -649,6 +649,58 @@ fn parse_graph_line(line: &str) -> Option<GraphCommit> {
     })
 }
 
+fn normalize_worktree_path(path: &str) -> String {
+    path.replace('\\', "/")
+        .trim_end_matches('/')
+        .to_lowercase()
+}
+
+pub fn create_worktree(
+    repo_root: String,
+    target_path: String,
+    branch_name: String,
+    start_point: String,
+) -> Result<GitWorktreeInfo, String> {
+    let root = PathBuf::from(&repo_root);
+    if !root.is_dir() {
+        return Err("Repository root does not exist".into());
+    }
+
+    let branch = branch_name.trim();
+    if branch.is_empty() {
+        return Err("Branch name is required".into());
+    }
+
+    let start = start_point.trim();
+    if start.is_empty() {
+        return Err("Start point is required".into());
+    }
+
+    let path = crate::fs::expand_path(&target_path)?;
+    if path.exists() {
+        return Err(format!("Path already exists: {}", path.display()));
+    }
+
+    if let Some(parent) = path.parent() {
+        crate::fs::create_directory(parent)?;
+    }
+
+    let path_arg = path
+        .to_str()
+        .ok_or_else(|| "Invalid worktree path".to_string())?;
+
+    git_run(
+        &root,
+        &["worktree", "add", "-b", branch, path_arg, start],
+    )?;
+
+    let target_norm = normalize_worktree_path(path_arg);
+    list_worktrees(repo_root)?
+        .into_iter()
+        .find(|wt| normalize_worktree_path(&wt.path) == target_norm)
+        .ok_or_else(|| "Worktree created but could not be resolved".into())
+}
+
 pub fn remove_worktree(repo_root: String, path: String, force: bool) -> Result<(), String> {
     let root = PathBuf::from(&repo_root);
     let path = path.trim().to_string();
@@ -687,6 +739,68 @@ mod tests {
         assert_eq!(deduped.len(), 2);
         assert_eq!(deduped[0].hash, "aaa");
         assert_eq!(deduped[1].hash, "bbb");
+    }
+
+    #[test]
+    fn rejects_create_worktree_when_path_exists() {
+        use std::fs;
+
+        let pid = std::process::id();
+        let dir = std::env::temp_dir().join(format!("oterm-wt-create-{pid}"));
+        let target = dir.join("linked");
+        let _ = fs::remove_dir_all(&dir);
+
+        fs::create_dir_all(&dir).unwrap();
+        git_run(&dir, &["init"]).unwrap();
+        git_run(&dir, &["config", "user.email", "t@example.com"]).unwrap();
+        git_run(&dir, &["config", "user.name", "test"]).unwrap();
+        fs::write(dir.join("a.txt"), "hello").unwrap();
+        git_run(&dir, &["add", "a.txt"]).unwrap();
+        git_run(&dir, &["commit", "-m", "init"]).unwrap();
+
+        let root = dir.to_string_lossy().into_owned();
+        let err = create_worktree(
+            root.clone(),
+            target.to_string_lossy().into_owned(),
+            "feature-a".into(),
+            "HEAD".into(),
+        )
+        .unwrap_err();
+        assert!(err.contains("Path already exists"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn create_worktree_adds_linked_checkout() {
+        use std::fs;
+
+        let pid = std::process::id();
+        let dir = std::env::temp_dir().join(format!("oterm-wt-create-ok-{pid}"));
+        let target = dir.join(".oterm").join("feature-a");
+        let _ = fs::remove_dir_all(&dir);
+
+        fs::create_dir_all(&dir).unwrap();
+        git_run(&dir, &["init"]).unwrap();
+        git_run(&dir, &["config", "user.email", "t@example.com"]).unwrap();
+        git_run(&dir, &["config", "user.name", "test"]).unwrap();
+        fs::write(dir.join("a.txt"), "hello").unwrap();
+        git_run(&dir, &["add", "a.txt"]).unwrap();
+        git_run(&dir, &["commit", "-m", "init"]).unwrap();
+
+        let root = dir.to_string_lossy().into_owned();
+        let wt = create_worktree(
+            root.clone(),
+            target.to_string_lossy().into_owned(),
+            "feature-a".into(),
+            "HEAD".into(),
+        )
+        .unwrap();
+        assert_eq!(wt.branch.as_deref(), Some("feature-a"));
+        assert!(!wt.is_main);
+        assert!(target.join("a.txt").is_file());
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

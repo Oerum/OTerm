@@ -4,6 +4,7 @@ import type { GitStatus } from "../types/git";
 import type { PullRequestSummary } from "../types/pullRequest";
 import type { ShellProfile, WorkspacePane } from "../types/terminal";
 import { formatPath } from "../lib/formatPath";
+import { formatKeybind, getKeybind } from "../lib/keybindSettings";
 import AgentFooterBadge from "./AgentFooterBadge.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
 
@@ -45,8 +46,11 @@ const prLabel = computed(() => {
 const prTitle = computed(() => {
   const pr = props.activePr;
   if (!pr) return "";
-  const draft = pr.isDraft ? " (draft)" : "";
-  return `${pr.title}${draft} · ${pr.headRef} → ${pr.baseRef}`;
+  return `${pr.title}${pr.isDraft ? " (draft)" : ""} · ${pr.headRef} → ${pr.baseRef}`;
+});
+
+const composerTooltip = computed(() => {
+  return `Open composer (${formatKeybind(getKeybind("composer-toggle"))})`;
 });
 </script>
 
@@ -66,7 +70,7 @@ const prTitle = computed(() => {
         type="button"
         class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
         :class="agentComposerOpen ? 'text-[var(--oterm-accent)]' : ''"
-        title="Open composer (Ctrl+Shift+Enter)"
+        :title="composerTooltip"
         aria-label="Open composer"
         @click="emit('toggleAgentComposer')"
       >

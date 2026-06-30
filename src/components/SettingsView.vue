@@ -3,12 +3,13 @@ import { computed, ref } from "vue";
 import ApplicationSettingsPage from "./settings/ApplicationSettingsPage.vue";
 import SftpTransferSettingsPage from "./settings/SftpTransferSettingsPage.vue";
 import TerminalAutocompleteSettingsPage from "./settings/TerminalAutocompleteSettingsPage.vue";
+import KeyMappingSettingsPage from "./settings/KeyMappingSettingsPage.vue";
 
 const emit = defineEmits<{
   close: [];
 }>();
 
-type SettingsSectionId = "application" | "terminal-autocomplete" | "sftp-transfers";
+type SettingsSectionId = "application" | "terminal-autocomplete" | "sftp-transfers" | "key-mapping";
 
 const sections: { id: SettingsSectionId; label: string; description: string }[] = [
   {
@@ -20,6 +21,11 @@ const sections: { id: SettingsSectionId; label: string; description: string }[] 
     id: "sftp-transfers",
     label: "SFTP transfers",
     description: "Parallel file transfers and size limits",
+  },
+  {
+    id: "key-mapping",
+    label: "Key mapping",
+    description: "Custom application shortcuts",
   },
   {
     id: "application",
@@ -82,6 +88,7 @@ const activeMeta = computed(
           <ApplicationSettingsPage v-if="activeSection === 'application'" />
           <TerminalAutocompleteSettingsPage v-else-if="activeSection === 'terminal-autocomplete'" />
           <SftpTransferSettingsPage v-else-if="activeSection === 'sftp-transfers'" />
+          <KeyMappingSettingsPage v-else-if="activeSection === 'key-mapping'" />
         </div>
       </div>
     </div>

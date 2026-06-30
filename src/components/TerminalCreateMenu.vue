@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { CreateMenuAction, ShellProfile } from "../types/terminal";
+import { formatKeybind, getKeybind, isActionKeybind } from "../lib/keybindSettings";
 
 const props = defineProps<{
   shells: ShellProfile[];
@@ -42,8 +43,15 @@ const rows = computed<MenuRow[]>(() => {
     {
       id: "default-terminal",
       label: "Terminal",
-      shortcut: "Ctrl+Shift+T",
+      shortcut: formatKeybind(getKeybind("terminal-new")),
       action: { kind: "default-terminal" },
+      section: "launchers",
+    },
+    {
+      id: "ungrouped-terminal",
+      label: "Ungrouped Terminal",
+      shortcut: formatKeybind(getKeybind("terminal-new-ungrouped")),
+      action: { kind: "ungrouped-terminal" },
       section: "launchers",
     },
     ...systemShells.value.map((shell) => ({
@@ -63,7 +71,7 @@ const rows = computed<MenuRow[]>(() => {
     {
       id: "reopen-closed",
       label: "Reopen closed session",
-      shortcut: "Ctrl+Alt+T",
+      shortcut: formatKeybind(getKeybind("terminal-reopen")),
       disabled: !props.canReopenClosed,
       disabledReason: "No closed sessions",
       action: { kind: "reopen-closed" },
@@ -111,7 +119,7 @@ function onKeyDown(event: KeyboardEvent) {
 
   const row = rows.value[focusIndex.value];
 
-  if (event.ctrlKey && event.key.toLowerCase() === "d" && row?.shellId) {
+  if (isActionKeybind(event, "terminal-set-default") && row?.shellId) {
     event.preventDefault();
     emit("set-default", row.shellId);
     return;
@@ -264,7 +272,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .term-create-menu {
   width: 100%;
-  background: var(--term-create-bg);
+  background: #16161e; /* Solid background instead of var(--term-create-bg) */
   border: 1px solid var(--term-create-border);
   border-radius: var(--term-create-radius);
   padding: 4px 0;

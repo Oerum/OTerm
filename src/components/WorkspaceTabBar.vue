@@ -15,7 +15,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [tabId: string];
   close: [tabId: string];
-  add: [shellId: string];
+  add: [shellId?: string, groupId?: string | null];
   split: [shellId: string];
   reopenClosed: [];
   setDefaultShell: [shellId: string];
@@ -56,11 +56,15 @@ function toggleNewMenu() {
 function onCreateSelect(action: CreateMenuAction) {
   newMenuOpen.value = false;
   if (action.kind === "default-terminal") {
-    emit("add", props.defaultShellId);
+    emit("add", props.defaultShellId, undefined);
+    return;
+  }
+  if (action.kind === "ungrouped-terminal") {
+    emit("add", props.defaultShellId, null);
     return;
   }
   if (action.kind === "shell") {
-    emit("add", action.shellId);
+    emit("add", action.shellId, undefined);
     return;
   }
   if (action.kind === "reopen-closed") {

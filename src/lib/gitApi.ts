@@ -70,6 +70,20 @@ export function removeGitWorktree(
   return invoke("git_remove_worktree", { repoRoot, path, force });
 }
 
+export function createGitWorktree(
+  repoRoot: string,
+  path: string,
+  branchName: string,
+  startPoint: string,
+): Promise<GitWorktreeInfo> {
+  return invoke<GitWorktreeInfo>("git_create_worktree", {
+    repoRoot,
+    path,
+    branchName,
+    startPoint,
+  });
+}
+
 export function switchGitBranchApi(
   repoRoot: string,
   branch: string,

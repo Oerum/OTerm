@@ -81,8 +81,8 @@ onUnmounted(() => {
         class="oterm-tooltip pointer-events-none fixed z-[10000] -translate-x-1/2 rounded-md border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] px-2.5 py-1 text-[11px] leading-snug text-[var(--oterm-text)] shadow-xl"
         :class="
           tooltipVariant === 'path'
-            ? 'max-w-[min(42rem,calc(100vw-1rem))] font-mono break-all'
-            : 'max-w-[min(28rem,calc(100vw-1rem))] whitespace-normal break-words'
+            ? 'max-w-[min(64rem,calc(100vw-1rem))] font-mono break-all'
+            : 'max-w-[min(48rem,calc(100vw-1rem))] whitespace-normal break-words'
         "
         :style="{ left: `${tooltipX}px`, top: `${tooltipY}px` }"
       >

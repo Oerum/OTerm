@@ -1,15 +1,23 @@
+import { getKeybind, isActionKeybind } from "./keybindSettings";
+
 export function isTabCycleShortcut(event: KeyboardEvent): boolean {
-  return (event.ctrlKey || event.metaKey) && event.key === "Tab";
+  const bind = getKeybind("tab-cycle");
+  const evKey = event.key.toLowerCase();
+  const bKey = bind.key.toLowerCase();
+  if (evKey !== bKey) return false;
+
+  const matchesCtrl = event.ctrlKey && bind.ctrl;
+  const matchesMeta = event.metaKey && bind.meta;
+  const matchesAlt = event.altKey && bind.alt;
+
+  const isDefaultCtrl = bind.ctrl && !bind.meta && !bind.alt;
+  const matchesFallback = isDefaultCtrl && (event.ctrlKey || event.metaKey) && !event.altKey;
+
+  return Boolean(matchesCtrl || matchesMeta || matchesAlt || matchesFallback);
 }
 
 export function isDictationShortcut(event: KeyboardEvent): boolean {
-  return (
-    event.ctrlKey &&
-    !event.shiftKey &&
-    !event.altKey &&
-    !event.metaKey &&
-    event.key.toLowerCase() === "f"
-  );
+  return isActionKeybind(event, "dictation");
 }
 
 export function consumeAppShortcut(event: KeyboardEvent): void {

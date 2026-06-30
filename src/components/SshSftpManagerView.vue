@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
+import { isActionKeybind } from "../lib/keybindSettings";
 import { pushAppToast, setAppToastActivity } from "../lib/appToast";
 import { listDirectory, userHome } from "../lib/fsApi";
 import {
@@ -1205,13 +1206,13 @@ async function importLibraryFile() {
 
 function onKeydown(event: KeyboardEvent) {
   if (!activeSession.value) return;
-  if (event.key === "F5") {
+  if (isActionKeybind(event, "refresh")) {
     event.preventDefault();
     void loadLocalDir(localPath.value);
     void loadRemoteDir(activeSession.value.remotePath);
     return;
   }
-  if (event.key === "Delete") {
+  if (isActionKeybind(event, "delete-item")) {
     const target = focusedPane.value === "local" ? selectedLocalEntry.value : selectedRemoteEntry.value;
     if (!target) return;
     event.preventDefault();

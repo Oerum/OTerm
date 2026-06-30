@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { isActionKeybind } from "../lib/keybindSettings";
+
 const model = defineModel<string>({ required: true });
 
 defineProps<{
@@ -12,7 +14,7 @@ const emit = defineEmits<{
 }>();
 
 function onKeydown(event: KeyboardEvent) {
-  if ((event.ctrlKey || event.metaKey) && event.key === "s") {
+  if (isActionKeybind(event, "file-save")) {
     event.preventDefault();
     emit("save");
   }

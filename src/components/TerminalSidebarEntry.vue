@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { inject, ref, computed, watch, onUnmounted, nextTick } from "vue";
+import { hideTooltip } from "../lib/tooltipController";
 import { isTerminalRowDragBlocked } from "../composables/useTerminalTabDragReorder";
 import { entryAccentColor } from "../lib/sidebarEntries";
-import { hideTooltip } from "../lib/tooltipController";
 import type { TerminalMenuActionId, TerminalSidebarEntry, TerminalTabGroup } from "../types/terminal";
 import AgentFooterBadge from "./AgentFooterBadge.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
@@ -248,6 +248,71 @@ function onRowPointerDown(event: PointerEvent) {
   emit("dragStart", props.entry.tabId, props.entry.terminalTabIndex, event, handleEl);
 }
 
+const getTerminalPreview = inject<(paneId: string) => string | null>("getTerminalPreview");
+let hoverTimer: number | null = null;
+let streamTimer: number | null = null;
+
+function onMouseEnter(event: MouseEvent) {
+  if (hoverTimer) window.clearTimeout(hoverTimer);
+  hoverTimer = window.setTimeout(() => {
+    startStreamingPreview(event);
+  }, 1500);
+}
+
+const previewVisible = ref(false);
+const previewText = ref("");
+const previewX = ref(0);
+const previewY = ref(0);
+
+function startStreamingPreview(event: MouseEvent) {
+  if (!getTerminalPreview) return;
+  
+  const updatePreview = () => {
+    const rawText = getTerminalPreview(props.entry.paneId);
+    
+    if (rawText === null || rawText === undefined) {
+      previewVisible.value = false;
+      return;
+    }
+    
+    const text = rawText.trimEnd();
+    if (!text) {
+      previewVisible.value = false;
+      return;
+    }
+    
+    previewText.value = text;
+    
+    // Position to the right of the cursor, clamped slightly
+    previewX.value = event.clientX + 30;
+    previewY.value = Math.max(20, event.clientY - 60);
+    previewVisible.value = true;
+  };
+  
+  updatePreview();
+  streamTimer = window.setInterval(updatePreview, 500);
+}
+
+function hideTooltipPreview() {
+  previewVisible.value = false;
+}
+
+function onMouseLeave() {
+  if (hoverTimer) {
+    window.clearTimeout(hoverTimer);
+    hoverTimer = null;
+  }
+  if (streamTimer) {
+    window.clearInterval(streamTimer);
+    streamTimer = null;
+  }
+  hideTooltipPreview();
+}
+
+onUnmounted(() => {
+  onMouseLeave();
+});
+
 const openUpward = ref(false);
 const dotMenuRef = ref<HTMLElement | null>(null);
 
@@ -299,6 +364,8 @@ watch(
       @keydown="onMenuKeyDown"
       @pointerdown="onRowPointerDown"
       @contextmenu.prevent.stop="onContextMenu"
+      @mouseenter="onMouseEnter"
+      @mouseleave="onMouseLeave"
     >
       <!-- Left edge indicator pill -->
       <span 
@@ -579,6 +646,30 @@ watch(
       </div>
     </div>
   </div>
+
+  <!-- Screen Popover for Terminal Preview -->
+  <Teleport to="body">
+    <Transition name="oterm-popover">
+      <div
+        v-if="previewVisible"
+        class="fixed z-[10000] bg-[#1a1b26] border border-[#2f354a] rounded-lg shadow-2xl flex flex-col overflow-hidden pointer-events-none"
+        :style="{ 
+          left: `${previewX}px`, 
+          top: `${previewY}px`, 
+          width: '500px', 
+          maxHeight: '350px' 
+        }"
+      >
+        <div class="h-8 bg-[#16161e] border-b border-[#2f354a] flex items-center px-4 shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.5)]">
+          <span class="text-xs font-semibold text-white/70 truncate flex-1 flex justify-center">{{ entry.title }}</span>
+          <span class="text-[10px] text-[var(--oterm-accent)] font-medium uppercase tracking-wider bg-[var(--oterm-accent)]/10 px-1.5 py-0.5 rounded ml-2">Live</span>
+        </div>
+        <div class="flex-1 overflow-hidden p-3 bg-[#1a1b26]">
+          <pre class="font-mono text-[11px] text-[#a9b1d6] whitespace-pre-wrap break-words leading-tight">{{ previewText }}</pre>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -590,7 +681,18 @@ watch(
 .term-menu-enter-from,
 .term-menu-leave-to {
   opacity: 0;
-  transform: translateY(-2px);
+  transform: scale(0.95);
+}
+
+.oterm-popover-enter-active,
+.oterm-popover-leave-active {
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.oterm-popover-enter-from,
+.oterm-popover-leave-to {
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
 }
 
 @media (prefers-reduced-motion: reduce) {

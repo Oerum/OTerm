@@ -54,7 +54,19 @@ function parseGroup(value: unknown): PersistedTerminalTabGroup | null {
     typeof group.color === "string" && isTerminalColor(group.color)
       ? group.color
       : "none";
-  return { id: group.id, name, order, color };
+  const worktreeBasePath =
+    typeof group.worktreeBasePath === "string"
+      ? group.worktreeBasePath.trim() || null
+      : group.worktreeBasePath === null
+        ? null
+        : undefined;
+  return {
+    id: group.id,
+    name,
+    order,
+    color,
+    ...(worktreeBasePath !== undefined ? { worktreeBasePath } : {}),
+  };
 }
 
 function parseTab(value: unknown): PersistedTerminalTab | null {

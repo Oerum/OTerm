@@ -58,6 +58,7 @@ export interface TerminalTabGroup {
   name: string;
   order: number;
   color: TerminalEntryColor;
+  worktreeBasePath?: string | null;
 }
 
 export interface WorkspaceTerminalTab {
@@ -109,6 +110,13 @@ export interface WorkspaceSettingsTab {
   title: string;
 }
 
+export interface WorkspaceWorktreeManagerTab {
+  kind: "worktreeManager";
+  id: string;
+  title: string;
+  repoRoot: string;
+}
+
 export type WorkspaceTab =
   | WorkspaceTerminalTab
   | WorkspacePullRequestsTab
@@ -116,7 +124,8 @@ export type WorkspaceTab =
   | WorkspaceIssuesTab
   | WorkspaceDockerManagerTab
   | WorkspaceSshSftpTab
-  | WorkspaceSettingsTab;
+  | WorkspaceSettingsTab
+  | WorkspaceWorktreeManagerTab;
 
 export function isTerminalTab(tab: WorkspaceTab): tab is WorkspaceTerminalTab {
   return tab.kind === "terminal";
@@ -125,7 +134,7 @@ export function isTerminalTab(tab: WorkspaceTab): tab is WorkspaceTerminalTab {
 export interface FeatureSidebarEntry {
   entryId: string;
   tabId: string;
-  kind: "pullRequests" | "branchManager" | "issues" | "docker" | "sshSftp" | "settings";
+  kind: "pullRequests" | "branchManager" | "issues" | "docker" | "sshSftp" | "settings" | "worktreeManager";
   title: string;
   isActive: boolean;
 }
@@ -208,6 +217,7 @@ export interface SaveProfileDraft {
 
 export type CreateMenuAction =
   | { kind: "default-terminal" }
+  | { kind: "ungrouped-terminal" }
   | { kind: "shell"; shellId: string }
   | { kind: "reopen-closed" };
 
@@ -238,6 +248,7 @@ export interface PersistedTerminalTabGroup {
   name: string;
   order: number;
   color?: TerminalEntryColor;
+  worktreeBasePath?: string | null;
 }
 
 export interface PersistedTerminalWorkspaceV1 {

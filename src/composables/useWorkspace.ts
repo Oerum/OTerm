@@ -117,11 +117,32 @@ export function useWorkspace(getDefaultShellId: () => string) {
     }
     const tab: WorkspaceTab = {
       kind: "branchManager",
-      id: uid("branch-tab"),
+      id: crypto.randomUUID(),
       title: "Branches",
       repoRoot,
     };
-    tabs.value.push(tab);
+    tabs.value = [...tabs.value, tab];
+    activeTabId.value = tab.id;
+    activePaneId.value = null;
+    return tab;
+  }
+
+  function openWorktreeManagerTab(repoRoot: string) {
+    const existing = tabs.value.find(
+      (tab) => tab.kind === "worktreeManager" && tab.repoRoot === repoRoot,
+    );
+    if (existing) {
+      activeTabId.value = existing.id;
+      activePaneId.value = null;
+      return existing;
+    }
+    const tab: WorkspaceTab = {
+      kind: "worktreeManager",
+      id: crypto.randomUUID(),
+      title: "Worktrees",
+      repoRoot,
+    };
+    tabs.value = [...tabs.value, tab];
     activeTabId.value = tab.id;
     activePaneId.value = null;
     return tab;
@@ -415,6 +436,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
       name: name.trim() || "New group",
       order: nextGroupOrder(terminalGroups.value),
       color: "none",
+      worktreeBasePath: null,
     };
     terminalGroups.value.push(group);
     return group;
@@ -429,6 +451,13 @@ export function useWorkspace(getDefaultShellId: () => string) {
   function setGroupColor(groupId: string, color: TerminalEntryColor) {
     const group = terminalGroups.value.find((item) => item.id === groupId);
     if (group) group.color = color;
+  }
+
+  function setGroupWorktreeBasePath(groupId: string, path: string) {
+    const group = terminalGroups.value.find((item) => item.id === groupId);
+    if (!group) return;
+    const trimmed = path.trim();
+    group.worktreeBasePath = trimmed || null;
   }
 
   function deleteGroup(groupId: string) {
@@ -565,6 +594,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
         name: group.name,
         order: group.order,
         color: group.color,
+        ...(group.worktreeBasePath ? { worktreeBasePath: group.worktreeBasePath } : {}),
       })),
       collapsedGroupIds: [...collapsedGroupIds.value],
       activeTabIndex,
@@ -600,6 +630,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
         name: group.name,
         order: group.order,
         color: group.color || "none",
+        worktreeBasePath: group.worktreeBasePath ?? null,
       })),
     );
     collapsedGroupIds.value = [...snapshot.collapsedGroupIds];
@@ -666,6 +697,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     createTab,
     openPullRequestsTab,
     openBranchManagerTab,
+    openWorktreeManagerTab,
     openIssuesTab,
     openDockerManagerTab,
     openSshSftpTab,
@@ -691,6 +723,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     renameGroup,
     deleteGroup,
     setGroupColor,
+    setGroupWorktreeBasePath,
     setTabGroup,
     toggleGroupCollapsed,
     isGroupCollapsed,

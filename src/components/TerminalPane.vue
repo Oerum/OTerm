@@ -54,6 +54,7 @@ import {
   shouldEnableTerminalPathInteractions,
 } from "../lib/terminalLinkInteraction";
 import { isDictationShortcut } from "../lib/appKeyboardShortcuts";
+import { isActionKeybind } from "../lib/keybindSettings";
 import {
   getCtrlBackspaceWordDeletePayload,
   getCtrlDEofPayload,
@@ -469,14 +470,7 @@ function scheduleAgentResyncAfterClear() {
 }
 
 function isComposerToggleShortcut(event: KeyboardEvent): boolean {
-  return (
-    event.type === "keydown" &&
-    event.key === "Enter" &&
-    event.ctrlKey &&
-    event.shiftKey &&
-    !event.altKey &&
-    !event.metaKey
-  );
+  return event.type === "keydown" && isActionKeybind(event, "composer-toggle");
 }
 
 function openAgentComposer() {
@@ -916,6 +910,23 @@ function isTerminalBufferEmpty(): boolean {
     }
   }
   return true;
+}
+
+function getTerminalPreviewText(lines = 24): string | null {
+  if (!terminal || !bootstrapComplete.value) return null;
+  const buffer = terminal.buffer.active;
+  
+  // Show up to the last `lines` from the bottom of the screen (cursorY)
+  // Or just the last N lines of the buffer
+  const endLine = buffer.length;
+  const startLine = Math.max(0, endLine - lines);
+  
+  const out = [];
+  for (let i = startLine; i < endLine; i++) {
+    const line = buffer.getLine(i);
+    if (line) out.push(line.translateToString(true));
+  }
+  return out.join("\n").replace(/\s+$/, "");
 }
 
 function cancelPromptKick() {
@@ -1362,6 +1373,16 @@ function isAgentComposerEventTarget(target: EventTarget | null): boolean {
   return Boolean(target.closest(".agent-composer"));
 }
 
+function isInputLikeEventTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    (target instanceof HTMLElement && target.isContentEditable) ||
+    target.closest("input, textarea, [contenteditable='true']") !== null
+  );
+}
+
 let clipboardPasteInFlight = false;
 let consumeTerminalPaste = false;
 
@@ -1471,7 +1492,7 @@ async function handleClipboardPaste(
   options?: ClipboardPasteOptions,
 ): Promise<boolean> {
   if (!props.active) return false;
-  if (event?.target && isAgentComposerEventTarget(event.target)) return false;
+  if (event?.target && (isAgentComposerEventTarget(event.target) || isInputLikeEventTarget(event.target))) return false;
 
   const agentNativePaste = shouldUseAgentNativePaste();
   const shouldConsume =
@@ -1555,7 +1576,7 @@ function isGeminiImagePasteShortcut(event: KeyboardEvent): boolean {
 
 async function onWindowPasteCapture(event: ClipboardEvent) {
   if (!props.active) return;
-  if (isAgentComposerEventTarget(event.target)) return;
+  if (isAgentComposerEventTarget(event.target) || isInputLikeEventTarget(event.target)) return;
   if (consumeTerminalPaste || shouldUseAgentNativePaste()) {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -1876,6 +1897,7 @@ defineExpose({
   openAgentComposer,
   closeAgentComposer,
   isAgentComposerOpen: () => agentComposerOpen.value,
+  getTerminalPreviewText,
   killSession,
   getBackendSessionId,
   insertText,
