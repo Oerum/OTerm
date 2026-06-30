@@ -640,7 +640,7 @@ watch(selectedFile, (file) => {
       void loadDiff(file);
     }
   } else if (!selectedCommitHash.value) {
-    setDiffExpanded(false);
+    closeDiffPane();
     diffRequestId += 1;
     editRequestId += 1;
     diffContent.value = "";
@@ -717,6 +717,28 @@ function syncSelectedFileWithStatus() {
     if (paneView.value === "edit" && editDirty.value) {
       return;
     }
+    // Try to find the same file with a different staged/untracked status
+    const matchingPath = allChangedFiles.value.find((f) => f.path === sel.path);
+    if (matchingPath) {
+      selectedFile.value = {
+        path: matchingPath.path,
+        staged: matchingPath.staged,
+        untracked: matchingPath.untracked,
+      };
+      return;
+    }
+    
+    // If not, and we are in "all" mode, try to select the first changed file
+    if (diffPanelMode.value === "all" && allChangedFiles.value.length > 0) {
+      const first = allChangedFiles.value[0];
+      selectedFile.value = {
+        path: first.path,
+        staged: first.staged,
+        untracked: first.untracked,
+      };
+      return;
+    }
+
     selectedFile.value = null;
     return;
   }
@@ -749,6 +771,17 @@ watch(
     syncSelectedFileWithStatus();
   },
   { deep: true },
+);
+
+watch(
+  () => props.status.repoRoot,
+  (newRoot, oldRoot) => {
+    if (newRoot !== oldRoot) {
+      selectedFile.value = null;
+      selectedCommitHash.value = null;
+      closeDiffPane();
+    }
+  }
 );
 
 function parseFilePath(path: string) {
@@ -1530,30 +1563,30 @@ function authorInitials(author: string): string {
           >
             {{ saving ? "Saving…" : "Save" }}
           </button>
-          <button
-            v-if="diffExpanded"
-            type="button"
-            class="flex h-7 w-7 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
-            title="Close expanded diff (Esc)"
-            aria-label="Close expanded diff"
-            @click="closeDiffPane"
-          >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                d="M4 4l8 8M12 4l-8 8"
-                stroke-width="1.5"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
         </div>
+        <button
+          v-if="diffExpanded"
+          type="button"
+          class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+          title="Close expanded diff (Esc)"
+          aria-label="Close expanded diff"
+          @click="closeDiffPane"
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 4l8 8M12 4l-8 8"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
       </div>
       <GitDiffViewer
         v-if="paneView === 'diff'"
