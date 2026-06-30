@@ -100,8 +100,9 @@ If you are pair-programming with or utilizing an AI agent (such as Claude, Antig
 > To preserve the integrity of code reviews, do not print or output the `Co-Authored-By` line in pull request descriptions or chat transcripts. Place it strictly in the Git commit metadata.
 
 ```text
-Co-Authored-By: <Agent Name> <noreply@anthropic.com>
+Co-Authored-By: <Agent Name> <noreply@<domain>>
 ```
+(Replace `<Agent Name>` with the active agent's name, and `<domain>` with its creator's domain—for example, `google.com` for Antigravity, or `anthropic.com` for Claude.)
 
 ### 💬 Code Style & Architecture
 - Keep UI components clean, reusable, and structured as vertical slices.

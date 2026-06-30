@@ -57,10 +57,12 @@ When the user asks to bump or release a version:
 - Git IPC: `src/lib/gitApi.ts` → Tauri commands in `src-tauri/src/git/`.
 
 ## Commit attribution
-AI commits should include:
+AI commits should include the appropriate `Co-Authored-By` metadata line matching the active agent:
 ```
-Co-Authored-By: <Agent Name> <noreply@anthropic.com>
+Co-Authored-By: <Agent Name> <noreply@<domain>>
 ```
+Where `<Agent Name>` is replaced with the name of the active AI agent, and `<domain>` is replaced with the domain of its creator (e.g., `google.com` for Antigravity, `anthropic.com` for Claude).
+
 To allow the user to review/verify the attribution in the command/PR approval phase, do not print or output the `Co-Authored-By` line in any chat responses, summaries, or explanations. It should only be included in the git commit message itself.
 
 ## Full project verification (must all pass)
