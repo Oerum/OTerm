@@ -1,163 +1,86 @@
 # <p align="center"><img src="./public/app-icon.svg" alt="OTerm Logo" width="120" height="120"><br>OTerm</p>
 
-<p align center>
+<p align="center">
   <strong>The AI-Powered Developer Workspace for Terminal-Native Workflows.</strong>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/License-AGPL%20v3-blue.svg" alt="License: AGPL v3">
-  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen.svg" alt="Platforms">
+  <a href="https://github.com/Oerum/OTerm/releases/latest"><img src="https://img.shields.io/github/v/release/Oerum/OTerm?color=brightgreen&label=release" alt="Latest Release"></a>
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg" alt="Platforms">
   <img src="https://img.shields.io/badge/Framework-Tauri%202%20%2B%20Vue%203-orange.svg" alt="Framework">
+  <a href="https://github.com/Oerum/OTerm/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPL%20v3-red.svg" alt="License: AGPL v3"></a>
 </p>
 
 ---
 
-### 🧩 The Problem: Context Switching Between Disparate Tools
-As terminal-native developers, we spend our lives in the command line. Yet, we are constantly forced to break our flow state by context-switching between multiple separate applications:
-- Switching to a browser to check GitHub Issues or stage Pull Requests.
-- Opening Docker Desktop or writing endless `docker ps -a` loops just to monitor container logs.
-- Launching FileZilla or Cyberduck to drag and drop files over SFTP.
-- Dragging windows around to view visual git diffs or commit graphs.
+OTerm is a high-performance terminal emulator that bridges the gap between CLI efficiency and GUI convenience. Built on **Tauri 2** and **Vue 3**, it embeds rich, visual, Rust-powered developer tools directly into your terminal workspace. 
 
-### 💡 The Solution: OTerm
-**OTerm** is a high-performance terminal emulator that bridges the gap between CLI efficiency and GUI convenience. Built on **Tauri 2**, **Vue 3**, and **Tailwind CSS v4**, OTerm embeds rich, visual, Rust-powered developer tools directly into your terminal workspace. 
-
-Eliminate constant context switching. Stage files, monitor containers, browse remote servers, and query local AI models—**all from a single, unified terminal workspace.**
+No more breaking your flow state by context-switching between separate applications. Stage files, monitor containers, browse remote servers, and query local AI models—**all from a single, unified terminal workspace.**
 
 ---
 
-## 📸 Overview & Dashboard
+## 📸 Demo & Overview
 
 ![OTerm Dashboard](./public/oterm.png)
+
+*To see OTerm in action, check out our [Visual Walkthrough](#key-features).*
+
+---
+
+## 🎯 Table of Contents
+- [🚀 Key Features](#-key-features)
+- [📦 Installation](#-installation)
+- [🛠️ Tech Stack Overview](#️-tech-stack-overview)
+- [🤝 Contributing & Development](#-contributing--development)
+- [📄 License](#-license)
 
 ---
 
 ## 🚀 Key Features
 
-### 🎙️ 1. Hardware-Accelerated Local Dictation (Whisper)
-Compose prompts, write commit messages, or execute actions entirely with your voice. OTerm features a fully local, offline speech-to-text dictation system powered by `whisper-rs`, `cpal`, and `hound`.
-- **Offline & Private**: Default model `ggml-tiny.bin` is cached locally under `~/.oterm/whisper-models/`.
-- **GPU Accelerated**: Native acceleration via **Metal** (macOS), **Vulkan** (AMD/Intel on Windows & Linux), **CUDA** (NVIDIA on Windows & Linux), or **OpenBLAS** CPU fallback (Linux).
+OTerm consolidates your development utility belt directly into your terminal panes:
 
-### 🤖 2. Integrated AI Assistant & Autocomplete
-OTerm features an integrated AI Agent Composer and autocomplete helper to accelerate your development workflows. It is fully configurable with your preferred AI backend:
-- **LM Studio**: Run local, completely free, and private models on `http://localhost:1234/v1` with zero API keys.
-- **GitHub Copilot**: Auto-loads your existing Copilot OAuth token straight from your disk configuration.
-- **BYOK (Bring Your Own Key)**: Compatible with any OpenAI-compliant API endpoint (including OpenAI, OpenRouter, Azure OpenAI, vLLM, etc.).
-
-### 🐙 3. The Visual Git Suite
-Manage repositories natively without external GUI clients or browser interfaces:
-- **Interactive Commit Graph**: A visual branch tree (`git log --graph` reimagined) to trace repository history cleanly.
-- **Visual Diff Viewer**: Side-by-side diffing and precise staging of specific lines or hunks.
-- **Branch Manager**: Worktree-aware branch switching and merging integrated directly into the title bar.
-- **GitHub Integration**: Open, view, and manage GitHub Issues and Pull Requests right from the sidebar.
-- **Automated Commit Messages**: Generate conventional, semantic commit messages automatically based on staged changes.
-
-### 🐳 4. Direct Docker Dashboard
-Monitor and manage microservices directly from your workspace:
-- Real-time container status monitoring (running, paused, stopped).
-- Instant log streaming, container lifecycle control (start, stop, restart), and image/volume exploration.
-
-### 🔌 5. SSH & SFTP Connection Hub
-Establish secure connections to remote servers and manage files using a native, Rust-backed SSH/SFTP client:
-- Multi-session SSH terminal panes.
-- Dual-panel graphical SFTP file browser with support for file uploads, downloads, and directory management.
+| **🎙️ Local Dictation (Whisper)** | **🤖 Integrated AI Assistant** |
+| :--- | :--- |
+| Compose prompts or commit messages with your voice using fully offline, local speech-to-text powered by `whisper-rs`. Native GPU acceleration supports Metal (macOS), Vulkan, and CUDA. | Zero-config LM Studio integration, Copilot OAuth token auto-loading, and compatibility with any OpenAI-compliant API endpoint for autocomplete and conversational agents. |
+| **🐙 The Visual Git Suite** | **🐳 Direct Docker Dashboard** |
+| Ditch separate Git clients. Visualize history with an interactive commit graph, view side-by-side diffs, stage specific lines/hunks, and manage branches directly from the workspace. | Monitor container status, stream logs in real-time, trigger container lifecycle events, and inspect volumes/images without leaving your current workspace. |
+| **🔌 Secure SSH & SFTP Connection Hub** | **⚡ High Performance** |
+| Connect to remote servers with multi-session SSH terminal panes alongside a dual-panel graphical SFTP file browser featuring drag-and-drop file transfers. | Built on Rust and Tauri 2 with a vertical-slice architecture to ensure rapid startup times and low resource consumption. |
 
 ---
 
-## 🛠️ Tech Stack & Architecture
+## 📦 Installation
 
-OTerm uses a vertical-slice architecture to combine front-end flexibility with back-end performance and type safety:
-- **Frontend**: Vue 3 + TypeScript + Vite + Tailwind CSS v4. Terminal rendering is powered by `@xterm/xterm` with the `@xterm/addon-fit` addon.
-- **Desktop Wrapper**: Tauri 2 provides the secure native bridge and system integrations.
-- **Backend (Rust)**: High-performance modules under `src-tauri/src/` for multi-threaded SSH, local Whisper audio processing, Docker socket communication, and Git IPC commands.
+OTerm runs natively on **Windows**, **macOS**, and **Linux**.
 
----
+### Desktop Installers
+Download the latest installer or executable for your platform from the [Releases Page](https://github.com/Oerum/OTerm/releases/latest):
 
-## ⚡ Getting Started (For Developers)
-
-### 📋 Prerequisites
-
-To compile the native Whisper and Tauri modules, your machine needs:
-- **Node.js** `>= 22`
-- **Rust Toolchain** (stable) with `rustfmt` + `clippy` components.
-- **CMake** & a **C++ Toolchain** (e.g., Build Tools for Visual Studio on Windows, Xcode on macOS).
-- **Whisper backend (compile-time)**: OTerm ships multiple release builds per platform. Pick one backend when building locally:
-  - **macOS**: `whisper-metal` (default via `npm run tauri`)
-  - **Windows**: `whisper-vulkan` (default) or `whisper-cuda` for NVIDIA
-  - **Linux**: `whisper-vulkan` (default), `whisper-cuda` (NVIDIA), or `whisper-openblas` (CPU)
-  - Override with `OTERM_WHISPER_BACKEND=cuda|vulkan|openblas|metal` or pass `--features whisper-<backend>` to Cargo/Tauri.
-- **GPU / native build dependencies**:
-  - **Windows (Vulkan)**: [Vulkan SDK](https://vulkan.lunarg.com/) + LLVM/libclang (auto-detected by `scripts/tauri.mjs`).
-  - **Windows (CUDA)**: NVIDIA CUDA toolkit + LLVM/libclang for local builds. Published **OTerm CUDA** Windows installers bundle the required CUDA runtime DLLs; end users do not need the CUDA toolkit installed.
-  - **macOS**: Xcode Command Line Tools (Metal).
-  - **Linux (Vulkan)**: `libvulkan-dev`, `glslang-tools`, and a C++ toolchain.
-  - **Linux (CUDA)**: NVIDIA CUDA toolkit.
-  - **Linux (OpenBLAS)**: `libopenblas-dev`.
-
-### 📦 Installation & Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/username/oterm.git
-   cd oterm
-   ```
-
-2. **Install Node dependencies**:
-   ```bash
-   npm ci
-   ```
-
-3. **Run the desktop app in development mode**:
-   ```bash
-   npm run tauri dev
-   ```
-   *Note: The first build compiles the `whisper.cpp` C++ bindings, which can take several minutes. Subsequent builds are near-instantaneous.*
+*   **macOS**: `.dmg` (Universal, Apple Silicon, and Intel)
+*   **Windows**: `.msi` (Bundled GPU-accelerated dependencies)
+*   **Linux**: `.AppImage` / `.deb`
 
 ---
 
-## 🧪 Testing & Verification
+## 🛠️ Tech Stack Overview
 
-We enforce a strict quality gate to ensure OTerm builds cleanly and works flawlessly across Windows, macOS, and Linux.
-
-Run the following commands from the repository root to verify code correctness:
-
-```bash
-# 1. Frontend Typecheck
-npx vue-tsc --noEmit
-
-# 2. Frontend Unit Tests (Vitest)
-npm test
-
-# 3. Production Frontend Build
-npm run build
-
-# 4. Rust Backend Linting (Clippy & Fmt)
-# Windows: use a short target dir to avoid MAX_PATH failures in the Vulkan Whisper build.
-# PowerShell: $env:CARGO_TARGET_DIR = "C:\oterm-t"
-cd src-tauri
-WHISPER_FEATURE=$(node ../scripts/whisper-backend.mjs)
-cargo fmt --all -- --check
-cargo clippy --all-targets --features "$WHISPER_FEATURE" -- -D warnings
-
-# 5. Rust Unit & Integration Tests
-cargo test --lib --features "$WHISPER_FEATURE"
-cargo test --features "$WHISPER_FEATURE"  # pty integration tests (requires pwsh on Windows)
-cd ..
-
-# 6. Full Desktop Build
-npm run tauri build
-```
+OTerm combines front-end design flexibility with native Rust performance:
+-   **Frontend**: Vue 3 + TypeScript + Vite + Tailwind CSS v4. Terminal rendering is powered by `@xterm/xterm` with the `@xterm/addon-fit` addon.
+-   **Desktop Wrapper**: Tauri 2 provides the secure native bridge, window management, and native system APIs.
+-   **Backend (Rust)**: High-performance Rust modules handle multi-threaded SSH sessions, local audio capture for dictation, direct Docker socket communication, and Git IPC.
 
 ---
 
-## 🤝 Contribution & AI Commits
+## 🤝 Contributing & Development
 
-We welcome contributions from the community! If you are using an AI assistant to make code contributions, please ensure your commits include proper attribution. Note: To allow the user to review/verify the attribution in the command/PR approval phase, do not print or output the `Co-Authored-By` line in any chat responses, summaries, or explanations. It should only be included in the git commit message itself.
+We welcome contributions from the developer community! 
 
-```text
-Co-Authored-By: <Agent Name> <noreply@anthropic.com>
-```
+If you are looking to build OTerm from source, run local tests, or contribute code, please refer to our [Contributing Guide](CONTRIBUTING.md).
+
+*Note: For AI-assisted code contributions, please include the `Co-Authored-By` metadata in your commits as detailed in [CONTRIBUTING.md](CONTRIBUTING.md).*
+
+---
 
 ## 📄 License
 
