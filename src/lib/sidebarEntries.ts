@@ -115,6 +115,8 @@ export function buildTerminalEntries(
         gitIsWorktree: git?.isWorktree ?? false,
         isActive: tab.id === activeTabId && pane.id === activePaneId,
         hasUnseenNotification: pane.hasUnseenNotification,
+        agentStatus: pane.agentStatus,
+        agentStatusSeen: pane.agentStatusSeen,
         canMoveUp: tabIndex > 0,
         canMoveDown: tabIndex < terminalTabs.length - 1,
         entriesBelowCount: terminalTabs.length - tabIndex - 1,

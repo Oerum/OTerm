@@ -3,6 +3,12 @@ import { inject, ref, computed, watch, onUnmounted, nextTick } from "vue";
 import { hideTooltip } from "../lib/tooltipController";
 import { isTerminalRowDragBlocked } from "../composables/useTerminalTabDragReorder";
 import { entryAccentColor } from "../lib/sidebarEntries";
+import {
+  agentStatusDotClass,
+  agentStatusLabel,
+  agentStatusTextClass,
+  displayAgentStatus,
+} from "../lib/agentStatus";
 import type { TerminalMenuActionId, TerminalSidebarEntry, TerminalTabGroup } from "../types/terminal";
 import AgentFooterBadge from "./AgentFooterBadge.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
@@ -50,6 +56,19 @@ const gitStatus = computed(() => ({
 const showUnseenNotification = computed(
   () => props.entry.hasUnseenNotification && !props.entry.isActive,
 );
+
+const agentDisplayStatus = computed(() => {
+  if (props.entry.agentStatus === "unknown") return null;
+  if (!props.entry.activeAgentId && props.entry.agentStatus !== "idle") return null;
+  return displayAgentStatus(props.entry.agentStatus, props.entry.agentStatusSeen);
+});
+
+const showAgentStatus = computed(() => {
+  const status = agentDisplayStatus.value;
+  if (!status) return false;
+  if (!props.entry.isActive) return true;
+  return status === "working" || status === "blocked";
+});
 
 const showBranchFooter = computed(
   () => props.entry.gitIsRepo && !!props.entry.gitBranch,
@@ -494,6 +513,17 @@ watch(
 
             <!-- Right side badges/stats (inline right) -->
             <div class="flex items-center gap-1.5 shrink-0">
+              <span
+                v-if="showAgentStatus && agentDisplayStatus"
+                class="flex items-center gap-1 rounded px-1 py-0.5 text-[8px] font-semibold"
+                :class="agentStatusTextClass(agentDisplayStatus)"
+              >
+                <span
+                  class="h-1.5 w-1.5 rounded-full"
+                  :class="agentStatusDotClass(agentDisplayStatus)"
+                />
+                {{ agentStatusLabel(agentDisplayStatus) }}
+              </span>
               <!-- WT tag -->
               <span
                 v-if="gitContext?.isWorktree && !isCustom"

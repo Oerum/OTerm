@@ -28,6 +28,8 @@ function tab(id: string, groupId: string | null = null): WorkspaceTerminalTab {
         activeAgentId: null,
         oscTitle: null,
         hasUnseenNotification: false,
+        agentStatus: "unknown",
+        agentStatusSeen: true,
         sshEndpointId: null,
       },
     ],

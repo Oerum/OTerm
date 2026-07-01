@@ -5,6 +5,11 @@ import type { PullRequestSummary } from "../types/pullRequest";
 import type { ShellProfile, WorkspacePane } from "../types/terminal";
 import { formatPath } from "../lib/formatPath";
 import { formatKeybind, getKeybind } from "../lib/keybindSettings";
+import {
+  agentStatusLabel,
+  agentStatusTextClass,
+  displayAgentStatus,
+} from "../lib/agentStatus";
 import AgentFooterBadge from "./AgentFooterBadge.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
 
@@ -52,6 +57,17 @@ const prTitle = computed(() => {
 const composerTooltip = computed(() => {
   return `Open composer (${formatKeybind(getKeybind("composer-toggle"))})`;
 });
+
+const agentDisplayStatus = computed(() => {
+  const pane = props.pane;
+  if (!pane || pane.agentStatus === "unknown") return null;
+  if (!pane.activeAgentId && pane.agentStatus !== "idle") return null;
+  return displayAgentStatus(pane.agentStatus, pane.agentStatusSeen);
+});
+
+const agentStatusText = computed(() =>
+  agentDisplayStatus.value ? agentStatusLabel(agentDisplayStatus.value) : "",
+);
 </script>
 
 <template>
@@ -63,7 +79,16 @@ const composerTooltip = computed(() => {
       <AgentFooterBadge
         v-if="pane?.activeAgentId"
         :agent-id="pane.activeAgentId"
+        :status="pane.agentStatus"
+        :status-seen="pane.agentStatusSeen"
       />
+      <span
+        v-if="agentDisplayStatus"
+        class="hidden shrink-0 sm:inline"
+        :class="agentStatusTextClass(agentDisplayStatus)"
+      >
+        {{ agentStatusText }}
+      </span>
 
       <button
         v-if="pane"

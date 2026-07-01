@@ -3,6 +3,7 @@ import { cwdForNewTerminal } from "../lib/newTerminalCwd";
 import type { CliAgentId } from "../lib/terminalAgentMode";
 import { normalizeOscTitle } from "../lib/terminalOscTitle";
 import type {
+  AgentSemanticStatus,
   PersistedTerminalWorkspaceV2,
   ShellProfile,
   TerminalEntryColor,
@@ -60,6 +61,8 @@ export function useWorkspace(getDefaultShellId: () => string) {
       activeAgentId: null,
       oscTitle: null,
       hasUnseenNotification: false,
+      agentStatus: "unknown",
+      agentStatusSeen: true,
       sshEndpointId: null,
     };
   }
@@ -266,6 +269,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
   function selectPane(paneId: string) {
     activePaneId.value = paneId;
     setPaneUnseenNotification(paneId, false);
+    markPaneAgentStatusSeen(paneId);
     for (const tab of tabs.value) {
       if (!isTerminalTab(tab)) continue;
       if (tab.panes.some((pane) => pane.id === paneId)) {
@@ -281,6 +285,33 @@ export function useWorkspace(getDefaultShellId: () => string) {
       const pane = tab.panes.find((item) => item.id === paneId);
       if (pane) {
         pane.hasUnseenNotification = value;
+        return;
+      }
+    }
+  }
+
+  function setPaneAgentStatus(
+    paneId: string,
+    status: AgentSemanticStatus,
+    seen?: boolean,
+  ) {
+    for (const tab of tabs.value) {
+      if (!isTerminalTab(tab)) continue;
+      const pane = tab.panes.find((item) => item.id === paneId);
+      if (pane) {
+        pane.agentStatus = status;
+        if (seen !== undefined) pane.agentStatusSeen = seen;
+        return;
+      }
+    }
+  }
+
+  function markPaneAgentStatusSeen(paneId: string) {
+    for (const tab of tabs.value) {
+      if (!isTerminalTab(tab)) continue;
+      const pane = tab.panes.find((item) => item.id === paneId);
+      if (pane) {
+        pane.agentStatusSeen = true;
         return;
       }
     }
@@ -336,6 +367,8 @@ export function useWorkspace(getDefaultShellId: () => string) {
         pane.activeProcessCmd = null;
         pane.oscTitle = null;
         pane.hasUnseenNotification = false;
+        pane.agentStatus = "unknown";
+        pane.agentStatusSeen = true;
         pane.sshEndpointId = null;
         return;
       }
@@ -647,6 +680,8 @@ export function useWorkspace(getDefaultShellId: () => string) {
         activeAgentId: null,
         oscTitle: null,
         hasUnseenNotification: false,
+        agentStatus: "unknown" as const,
+        agentStatusSeen: true,
         sshEndpointId: savedPane.sshEndpointId ?? null,
       }));
       const groupId =
@@ -716,6 +751,8 @@ export function useWorkspace(getDefaultShellId: () => string) {
     setPaneProcess,
     setPaneOscTitle,
     setPaneUnseenNotification,
+    setPaneAgentStatus,
+    markPaneAgentStatusSeen,
     setPaneShell,
     setTabTitle,
     setTabColor,

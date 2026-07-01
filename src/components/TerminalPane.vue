@@ -118,6 +118,11 @@ import {
 } from "../lib/terminalAgentReconcile";
 import { shouldShowScrollToBottom } from "../lib/terminalScroll";
 import {
+  appendOutputTail,
+  classifyAgentStatus,
+} from "../lib/agentStatus";
+import type { AgentSemanticStatus } from "../types/terminal";
+import {
   isValidPtySize,
   MOUNT_CONTAINER_WAIT_MAX_FRAMES,
   PTY_LAYOUT_WAIT_MAX_FRAMES,
@@ -233,6 +238,7 @@ async function replayPendingOutput(sessionId: string) {
     const output = prepareTerminalOutput(drained);
     terminal.write(output);
     handleOutputNotification(output);
+    noteOutputActivity(output);
     trackCwd(output);
     schedulePathDecorations();
     updateScrollToBottomVisibility();
@@ -278,6 +284,7 @@ const emit = defineEmits<{
   promptReady: [paneId: string];
   commandSubmitted: [command: string];
   agentModeChanged: [paneId: string, agentId: CliAgentId | null];
+  agentStatusChanged: [paneId: string, status: AgentSemanticStatus];
   oscTitleChanged: [paneId: string, title: string | null];
   notificationReceived: [paneId: string, completedAgentId?: CliAgentId | null];
   focusPane: [];
@@ -317,6 +324,13 @@ const bootstrapComplete = ref(false);
 const agentCleanExitPending = ref(false);
 const pendingAgentExitMarkerId = ref<CliAgentId | null>(null);
 const showScrollToBottom = ref(false);
+const localOscTitle = ref<string | null>(null);
+const lastKnownAgentId = ref<CliAgentId | null>(props.activeAgentId ?? null);
+let outputTail = "";
+let hasRecentOutput = false;
+let lastEmittedAgentStatus: AgentSemanticStatus | null = null;
+let recentOutputTimer: number | undefined;
+const RECENT_OUTPUT_MS = 2500;
 let agentCleanExitTimer: number | undefined;
 let agentResyncTimer: number | undefined;
 let agentResyncRequestId = 0;
@@ -413,6 +427,45 @@ function notificationContext() {
   };
 }
 
+function noteOutputActivity(data: string) {
+  outputTail = appendOutputTail(outputTail, data);
+  hasRecentOutput = true;
+  window.clearTimeout(recentOutputTimer);
+  recentOutputTimer = window.setTimeout(() => {
+    hasRecentOutput = false;
+    updateAgentStatus();
+  }, RECENT_OUTPUT_MS);
+  updateAgentStatus();
+}
+
+function resolveAgentSemanticStatus(): AgentSemanticStatus {
+  if (activeAgentId.value) {
+    return classifyAgentStatus({
+      activeAgentId: activeAgentId.value,
+      outputTail,
+      oscTitle: localOscTitle.value,
+      hasRecentOutput,
+    });
+  }
+  return lastKnownAgentId.value ? "idle" : "unknown";
+}
+
+function updateAgentStatus() {
+  const status = resolveAgentSemanticStatus();
+  if (status === lastEmittedAgentStatus) return;
+  lastEmittedAgentStatus = status;
+  emit("agentStatusChanged", props.paneId, status);
+}
+
+function resetAgentStatusTracking() {
+  outputTail = "";
+  hasRecentOutput = false;
+  localOscTitle.value = null;
+  lastKnownAgentId.value = null;
+  lastEmittedAgentStatus = null;
+  window.clearTimeout(recentOutputTimer);
+}
+
 function emitNotificationIfNeeded(
   check: (ctx: ReturnType<typeof notificationContext>) => boolean,
   completedAgentId?: CliAgentId | null,
@@ -439,8 +492,10 @@ function setActiveAgent(agentId: CliAgentId | null, emitChange = true) {
     agentComposerOpen.value = false;
   } else {
     markAgentLaunchState();
+    lastKnownAgentId.value = agentId;
   }
   if (emitChange) emit("agentModeChanged", props.paneId, agentId);
+  updateAgentStatus();
 }
 
 async function syncActiveAgentFromProcess() {
@@ -1236,6 +1291,7 @@ function trackCwd(data: string) {
     awaitingOutputSinceFocus.value = false;
   }
   emit("promptReady", props.paneId);
+  updateAgentStatus();
   scheduleSuggestion();
 }
 
@@ -1657,7 +1713,9 @@ async function mountTerminal() {
 
   terminal.onTitleChange((title) => {
     const normalized = title.trim() || null;
+    localOscTitle.value = normalized;
     emit("oscTitleChanged", props.paneId, normalized);
+    updateAgentStatus();
   });
 
   terminal.onBell(() => {
@@ -1751,6 +1809,7 @@ async function setupTerminalEventListeners() {
         const output = prepareTerminalOutput(event.payload.data);
         terminal!.write(output);
         handleOutputNotification(output);
+        noteOutputActivity(output);
         trackCwd(output);
         schedulePathDecorations();
         updateScrollToBottomVisibility();
@@ -1777,6 +1836,7 @@ async function setupTerminalEventListeners() {
             exitCode: event.payload.exitCode,
           });
         }
+        resetAgentStatusTracking();
         setActiveAgent(null);
         agentExitConfirmPending.value = false;
         promptClearSuppressUntil.value = 0;
@@ -2056,6 +2116,7 @@ onBeforeUnmount(async () => {
   window.clearTimeout(resizeTimer);
   window.clearTimeout(suggestionTimer);
   window.clearTimeout(outputNotifyTimer);
+  window.clearTimeout(recentOutputTimer);
   window.clearTimeout(pathDecorationTimer);
   window.clearTimeout(pathCopiedTimer);
   window.clearTimeout(agentCleanExitTimer);

@@ -39,6 +39,7 @@ import { useWorkspace } from "./composables/useWorkspace";
 import { useWorkspacePersistence } from "./composables/useWorkspacePersistence";
 import { isActionKeybind } from "./lib/keybindSettings";
 import type {
+  AgentSemanticStatus,
   ClosedTerminalSession,
   SaveProfileDraft,
   WorkspacePane,
@@ -342,6 +343,7 @@ const {
   setPaneProcess,
   setPaneOscTitle,
   setPaneUnseenNotification,
+  setPaneAgentStatus,
   setTabTitle,
   setTabColor,
   createGroup,
@@ -1355,6 +1357,22 @@ function onAgentModeChanged(paneId: string, agentId: CliAgentId | null) {
   setPaneAgent(paneId, agentId);
 }
 
+function terminalTabForPane(paneId: string) {
+  for (const tab of tabs.value) {
+    if (!isTerminalTab(tab)) continue;
+    if (tab.panes.some((pane) => pane.id === paneId)) return tab;
+  }
+  return null;
+}
+
+function onAgentStatusChanged(paneId: string, status: AgentSemanticStatus) {
+  const tab = terminalTabForPane(paneId);
+  const focused =
+    paneId === activePaneId.value && tab?.id === activeTabId.value;
+  const seen = status === "idle" ? focused : undefined;
+  setPaneAgentStatus(paneId, status, seen);
+}
+
 function onOscTitleChanged(paneId: string, title: string | null) {
   setPaneOscTitle(paneId, title);
 }
@@ -1683,6 +1701,7 @@ onUnmounted(() => {
                   @prompt-ready="onPromptReady"
                   @command-submitted="onCommandSubmitted"
                   @agent-mode-changed="onAgentModeChanged"
+                  @agent-status-changed="onAgentStatusChanged"
                   @osc-title-changed="onOscTitleChanged"
                   @notification-received="onNotificationReceived"
                   @composer-open-changed="onComposerOpenChanged"

@@ -37,6 +37,8 @@ export type TerminalEntryColor =
   | "pink"
   | (string & {});
 
+export type AgentSemanticStatus = "idle" | "working" | "blocked" | "unknown";
+
 export interface WorkspacePane {
   id: string;
   sessionId: string | null;
@@ -49,6 +51,8 @@ export interface WorkspacePane {
   activeProcessCmd?: string | null;
   oscTitle: string | null;
   hasUnseenNotification: boolean;
+  agentStatus: AgentSemanticStatus;
+  agentStatusSeen: boolean;
   /** When set, the pane uses the native russh SSH terminal instead of a local shell. */
   sshEndpointId: string | null;
 }
@@ -181,6 +185,8 @@ export interface TerminalSidebarEntry {
   activeProcessName?: string | null;
   activeProcessCmd?: string | null;
   hasUnseenNotification: boolean;
+  agentStatus: AgentSemanticStatus;
+  agentStatusSeen: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
   entriesBelowCount: number;

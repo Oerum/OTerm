@@ -4,7 +4,14 @@ import {
   CLI_AGENTS,
   type CliAgentId,
 } from "../lib/terminalAgentMode";
-import type { WorkspaceTab } from "../types/terminal";
+import {
+  agentStatusDotClass,
+  agentStatusLabel,
+  agentStatusTextClass,
+  displayAgentStatus,
+  type AgentDisplayStatus,
+} from "../lib/agentStatus";
+import type { AgentSemanticStatus, WorkspaceTab } from "../types/terminal";
 import AgentFooterBadge from "./AgentFooterBadge.vue";
 
 const props = defineProps<{
@@ -216,6 +223,25 @@ interface ActiveSession {
   paneId: string;
   title: string;
   cwd: string;
+  agentStatus: AgentSemanticStatus;
+  agentStatusSeen: boolean;
+}
+
+function sessionDisplayStatus(session: ActiveSession): AgentDisplayStatus | null {
+  if (session.agentStatus === "unknown") return null;
+  return displayAgentStatus(session.agentStatus, session.agentStatusSeen);
+}
+
+function aggregateAgentStatus(sessions: ActiveSession[]): AgentDisplayStatus {
+  if (sessions.length === 0) return "idle";
+  const statuses = sessions
+    .map((session) => sessionDisplayStatus(session))
+    .filter(Boolean) as AgentDisplayStatus[];
+  if (statuses.some((status) => status === "blocked")) return "blocked";
+  if (statuses.some((status) => status === "working")) return "working";
+  if (statuses.some((status) => status === "done")) return "done";
+  if (statuses.some((status) => status === "idle")) return "idle";
+  return "idle";
 }
 
 const activeSessionsByAgent = computed(() => {
@@ -232,6 +258,8 @@ const activeSessionsByAgent = computed(() => {
             paneId: pane.id,
             title: tab.title || "Terminal",
             cwd: pane.cwd,
+            agentStatus: pane.agentStatus,
+            agentStatusSeen: pane.agentStatusSeen,
           });
         }
       }
@@ -389,10 +417,13 @@ function copyLaunchCommand(cmd: string) {
                   <span class="flex items-center gap-1">
                     <span
                       class="h-1.5 w-1.5 rounded-full"
-                      :class="getActiveSessions(selectedAgent.id).length > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-[var(--oterm-muted)]'"
+                      :class="agentStatusDotClass(aggregateAgentStatus(getActiveSessions(selectedAgent.id)))"
                     />
-                    <span class="text-xs font-semibold" :class="getActiveSessions(selectedAgent.id).length > 0 ? 'text-emerald-400' : 'text-[var(--oterm-muted)]'">
-                      {{ getActiveSessions(selectedAgent.id).length > 0 ? 'Running' : 'Idle' }}
+                    <span
+                      class="text-xs font-semibold"
+                      :class="agentStatusTextClass(aggregateAgentStatus(getActiveSessions(selectedAgent.id)))"
+                    >
+                      {{ agentStatusLabel(aggregateAgentStatus(getActiveSessions(selectedAgent.id))) }}
                     </span>
                   </span>
                 </div>
@@ -463,7 +494,20 @@ function copyLaunchCommand(cmd: string) {
                 class="flex items-center justify-between rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/35 p-3 hover:bg-[var(--oterm-bg)]/50 transition"
               >
                 <div class="min-w-0">
-                  <div class="text-xs font-semibold">{{ session.title }}</div>
+                  <div class="flex items-center gap-2">
+                    <div class="text-xs font-semibold">{{ session.title }}</div>
+                    <span
+                      v-if="sessionDisplayStatus(session)"
+                      class="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold"
+                      :class="agentStatusTextClass(sessionDisplayStatus(session)!)"
+                    >
+                      <span
+                        class="h-1.5 w-1.5 rounded-full"
+                        :class="agentStatusDotClass(sessionDisplayStatus(session)!)"
+                      />
+                      {{ agentStatusLabel(sessionDisplayStatus(session)!) }}
+                    </span>
+                  </div>
                   <div class="truncate font-mono text-[9px] text-[var(--oterm-muted)] mt-0.5" :title="session.cwd">
                     {{ session.cwd }}
                   </div>
