@@ -15,6 +15,7 @@ import SourceControlPanel from "./components/SourceControlPanel.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TerminalPane from "./components/TerminalPane.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
+import PushDefaultBranchDialog from "./components/PushDefaultBranchDialog.vue";
 import SshSecretPrompt from "./components/ssh/SshSecretPrompt.vue";
 import BranchManagerView from "./components/BranchManagerView.vue";
 import WorktreeManagerView from "./components/WorktreeManagerView.vue";
@@ -141,6 +142,11 @@ const sshConfirmTitle = ref("");
 const sshConfirmMessage = ref("");
 const sshConfirmLabel = ref("Confirm");
 let sshConfirmResolve: ((value: boolean) => void) | null = null;
+
+const pushDefaultBranchDialogOpen = ref(false);
+const pushDefaultBranchBranchName = ref("");
+let pushDefaultBranchResolve: ((action: "createBranch" | "pushAnyway" | "cancel") => void) | null = null;
+
 const terminalPaneThemes = ref<Record<string, string | null>>({});
 const canReopenClosed = computed(() => closedSessions.value.length > 0);
 const activeAgentComposerOpen = ref(false);
@@ -647,7 +653,43 @@ async function maybeOfferCreatePrAfterPush() {
   }
 }
 
+async function checkDefaultBranchSafety(): Promise<boolean> {
+  const isEnabled = getSetting("oterm.promptDefaultBranchPush") !== "false";
+  if (!isEnabled) {
+    return true;
+  }
+
+  const branch = sourceControlStatus.value.branch;
+  if (branch !== "main" && branch !== "master") {
+    return true;
+  }
+
+  pushDefaultBranchBranchName.value = branch;
+  pushDefaultBranchDialogOpen.value = true;
+
+  const decision = await new Promise<"createBranch" | "pushAnyway" | "cancel">((resolve) => {
+    pushDefaultBranchResolve = resolve;
+  });
+
+  pushDefaultBranchDialogOpen.value = false;
+  pushDefaultBranchResolve = null;
+
+  if (decision === "createBranch") {
+    openBranchManager();
+    return false;
+  }
+
+  return decision === "pushAnyway";
+}
+
+function handlePushDefaultBranchDecision(decision: "createBranch" | "pushAnyway" | "cancel") {
+  pushDefaultBranchResolve?.(decision);
+}
+
 async function onPushGit() {
+  if (!(await checkDefaultBranchSafety())) {
+    return;
+  }
   try {
     await runGitActionWithFeedback(pushGitRepo);
     await maybeOfferCreatePrAfterPush();
@@ -657,6 +699,9 @@ async function onPushGit() {
 }
 
 async function onSyncGit() {
+  if (!(await checkDefaultBranchSafety())) {
+    return;
+  }
   const hadCommitsToPush = sourceControlStatus.value.ahead > 0;
   try {
     await runGitActionWithFeedback(syncGitRepo);
@@ -1888,6 +1933,13 @@ onUnmounted(() => {
       :confirm-label="sshConfirmLabel"
       @confirm="resolveSshConfirm(true)"
       @cancel="resolveSshConfirm(false)"
+    />
+    <PushDefaultBranchDialog
+      :open="pushDefaultBranchDialogOpen"
+      :branch="pushDefaultBranchBranchName"
+      @createBranch="handlePushDefaultBranchDecision('createBranch')"
+      @pushAnyway="handlePushDefaultBranchDecision('pushAnyway')"
+      @cancel="handlePushDefaultBranchDecision('cancel')"
     />
     <CreatePullRequestDialog
       :open="createPrOpen"

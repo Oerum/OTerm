@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef } from "vue";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import MarkdownContent from "../MarkdownContent.vue";
@@ -8,6 +8,7 @@ import {
   downloadAndInstallUpdate,
   type PendingAppUpdate,
 } from "../../lib/appUpdater";
+import { getSetting, setSetting } from "../../lib/settingsStore";
 
 const GITHUB_REPO_URL = "https://github.com/Oerum/OTerm";
 const RELEASES_URL = "https://github.com/Oerum/OTerm/releases";
@@ -31,6 +32,12 @@ const availableVersion = ref<string | null>(null);
 const lastCheckedAt = ref<Date | null>(null);
 const downloadPercent = ref<number | null>(null);
 const isDevBuild = import.meta.env.DEV;
+
+const promptDefaultBranchPush = ref(getSetting("oterm.promptDefaultBranchPush") !== "false");
+
+watch(promptDefaultBranchPush, (val) => {
+  void setSetting("oterm.promptDefaultBranchPush", val ? "true" : "false");
+});
 
 const statusTone = computed(() => {
   if (updateState.value === "available") return "accent";
@@ -284,6 +291,27 @@ async function openExternal(url: string) {
             No release notes were published for this version.
           </p>
         </div>
+      </div>
+    </div>
+
+    <div class="space-y-4 rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-sidebar)] p-4">
+      <div>
+        <p class="text-xs font-medium text-[var(--oterm-text)]">Source Control</p>
+        <p class="mt-1 text-[10px] text-[var(--oterm-faint)]">
+          Configure safety warnings for git actions.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <input
+          id="prompt-default-branch"
+          v-model="promptDefaultBranchPush"
+          type="checkbox"
+          class="h-4 w-4 rounded border-[var(--oterm-border)] bg-transparent text-[var(--oterm-accent)] focus:ring-[var(--oterm-accent)]"
+        />
+        <label for="prompt-default-branch" class="text-xs text-[var(--oterm-text)]">
+          Prompt before pushing to default branches (main, master)
+        </label>
       </div>
     </div>
 
