@@ -19,7 +19,7 @@ No more breaking your flow state by context-switching between separate applicati
 
 ---
 
-## 📸 Demo & Overview
+## Demo & Overview
 
 ![OTerm Dashboard](./public/oterm.png)
 
@@ -27,30 +27,30 @@ No more breaking your flow state by context-switching between separate applicati
 
 ---
 
-## 🎯 Table of Contents
-- [🚀 Key Features](#-key-features)
-- [📦 Installation](#-installation)
-- [🛠️ Tech Stack Overview](#️-tech-stack-overview)
-- [🤝 Contributing & Development](#-contributing--development)
-- [📄 License](#-license)
+## Table of Contents
+- [Key Features](#key-features)
+- [Installation](#installation)
+- [Tech Stack Overview](#tech-stack-overview)
+- [Contributing & Development](#contributing--development)
+- [License](#license)
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 OTerm consolidates your development utility belt directly into your terminal panes:
 
-| **🎙️ Local Dictation (Whisper)** | **🤖 Integrated AI Assistant** |
+| **Local Dictation (Whisper)** | **Integrated AI Assistant** |
 | :--- | :--- |
 | Compose prompts or commit messages with your voice using fully offline, local speech-to-text powered by `whisper-rs`. Native GPU acceleration supports Metal (macOS), Vulkan, and CUDA. | Zero-config LM Studio integration, Copilot OAuth token auto-loading, and compatibility with any OpenAI-compliant API endpoint for autocomplete and conversational agents. |
-| **🐙 The Visual Git Suite** | **🐳 Direct Docker Dashboard** |
+| **The Visual Git Suite** | **Direct Docker Dashboard** |
 | Ditch separate Git clients. Visualize history with an interactive commit graph, view side-by-side diffs, stage specific lines/hunks, and manage branches directly from the workspace. | Monitor container status, stream logs in real-time, trigger container lifecycle events, and inspect volumes/images without leaving your current workspace. |
-| **🔌 Secure SSH & SFTP Connection Hub** | **⚡ High Performance** |
+| **Secure SSH & SFTP Connection Hub** | **High Performance** |
 | Connect to remote servers with multi-session SSH terminal panes alongside a dual-panel graphical SFTP file browser featuring drag-and-drop file transfers. | Built on Rust and Tauri 2 with a vertical-slice architecture to ensure rapid startup times and low resource consumption. |
 
 ---
 
-## 📦 Installation
+## Installation
 
 OTerm runs natively on **Windows**, **macOS**, and **Linux**.
 
@@ -63,7 +63,7 @@ Download the latest installer or executable for your platform from the [Releases
 
 ---
 
-## 🛠️ Tech Stack Overview
+## Tech Stack Overview
 
 OTerm combines front-end design flexibility with native Rust performance:
 -   **Frontend**: Vue 3 + TypeScript + Vite + Tailwind CSS v4. Terminal rendering is powered by `@xterm/xterm` with the `@xterm/addon-fit` addon.
@@ -72,7 +72,7 @@ OTerm combines front-end design flexibility with native Rust performance:
 
 ---
 
-## 🤝 Contributing & Development
+## Contributing & Development
 
 We welcome contributions from the developer community! 
 
@@ -82,6 +82,6 @@ If you are looking to build OTerm from source, run local tests, or contribute co
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0).
