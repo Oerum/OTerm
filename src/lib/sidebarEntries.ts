@@ -269,6 +269,7 @@ export function buildFeatureEntries(
         tab.kind === "branchManager" ||
         tab.kind === "issues" ||
         tab.kind === "docker" ||
+        tab.kind === "processManager" ||
         tab.kind === "sshSftp" ||
         tab.kind === "settings",
     )

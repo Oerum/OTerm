@@ -16,6 +16,7 @@ export interface FsToolsDirectoryHints {
   riderAvailable: boolean;
   vscodeAvailable: boolean;
   zedAvailable: boolean;
+  antigravityAvailable: boolean;
   fileExplorerLabel: string;
   solutionFiles: string[];
   envImport: FsEnvImportHint | null;

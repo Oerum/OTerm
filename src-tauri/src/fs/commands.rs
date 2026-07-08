@@ -1,9 +1,9 @@
 use super::{
     clipboard_paste_dir, composer_attachments_dir, context_menu, create_directory,
-    default_project_root, expand_path, find_devenv_launcher, find_env_import_hint,
+    default_project_root, expand_path,     find_devenv_launcher, find_env_import_hint, find_antigravity_launcher,
     find_rider_launcher, find_vscode_launcher, find_zed_launcher, import_env_file, list_directory,
-    list_solution_files, open_in_rider, open_in_system_file_explorer, open_in_visual_studio,
-    open_in_vscode, open_in_zed, read_file_bytes, remove_path, search_files,
+    list_solution_files, open_in_antigravity, open_in_rider, open_in_system_file_explorer,
+    open_in_visual_studio, open_in_vscode, open_in_zed, read_file_bytes, remove_path, search_files,
     system_file_explorer_label, user_home, write_file_bytes, write_temp_image_bytes,
 };
 use serde::Serialize;
@@ -35,6 +35,7 @@ pub struct FsToolsDirectoryHints {
     pub rider_available: bool,
     pub vscode_available: bool,
     pub zed_available: bool,
+    pub antigravity_available: bool,
     pub file_explorer_label: String,
     pub solution_files: Vec<String>,
     pub env_import: Option<FsEnvImportHint>,
@@ -139,6 +140,7 @@ pub fn fs_tools_directory_hints(directory: String) -> Result<FsToolsDirectoryHin
     let rider_available = find_rider_launcher().is_some();
     let vscode_available = find_vscode_launcher().is_some();
     let zed_available = find_zed_launcher().is_some();
+    let antigravity_available = find_antigravity_launcher().is_some();
     let solution_files = list_solution_files(&resolved)?
         .into_iter()
         .map(|path| path.to_string_lossy().into_owned())
@@ -154,6 +156,7 @@ pub fn fs_tools_directory_hints(directory: String) -> Result<FsToolsDirectoryHin
         rider_available,
         vscode_available,
         zed_available,
+        antigravity_available,
         file_explorer_label: system_file_explorer_label().to_string(),
         solution_files,
         env_import,
@@ -209,6 +212,18 @@ pub async fn fs_open_in_zed(path: String) -> Result<(), String> {
     }
 
     tauri::async_runtime::spawn_blocking(move || open_in_zed(&resolved))
+        .await
+        .map_err(|err| err.to_string())?
+}
+
+#[tauri::command]
+pub async fn fs_open_in_antigravity(path: String) -> Result<(), String> {
+    let resolved = expand_path(&path)?;
+    if !resolved.is_dir() {
+        return Err(format!("Not a directory: {}", resolved.display()));
+    }
+
+    tauri::async_runtime::spawn_blocking(move || open_in_antigravity(&resolved))
         .await
         .map_err(|err| err.to_string())?
 }

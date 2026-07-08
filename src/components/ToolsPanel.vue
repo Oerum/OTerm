@@ -6,6 +6,7 @@ import {
   getToolsDirectoryHints,
   importEnvFile,
   listDirectory,
+  openInAntigravity,
   openInFileExplorer,
   openInRider,
   openInVisualStudio,
@@ -20,6 +21,7 @@ import riderIcon from "../assets/editors/JetBrains_Rider.svg";
 import visualStudioIcon from "../assets/editors/VS2026.svg";
 import vscodeIcon from "../assets/editors/vscode.svg";
 import zedIcon from "../assets/editors/zed.svg";
+import antigravityIcon from "../assets/cli-agents/agy.svg";
 import { hideTooltip } from "../lib/tooltipController";
 
 const MIN_SEARCH_LENGTH = 2;
@@ -92,6 +94,7 @@ const riderSolutionEntries = computed(() =>
 const envImportHint = computed(() => directoryHints.value?.envImport ?? null);
 const vscodeAvailable = computed(() => directoryHints.value?.vscodeAvailable ?? false);
 const zedAvailable = computed(() => directoryHints.value?.zedAvailable ?? false);
+const antigravityAvailable = computed(() => directoryHints.value?.antigravityAvailable ?? false);
 const fileExplorerLabel = computed(
   () => directoryHints.value?.fileExplorerLabel ?? "File manager",
 );
@@ -263,7 +266,7 @@ function toggleOpenWithMenu() {
   openWithMenuOpen.value = !openWithMenuOpen.value;
 }
 
-async function openCurrentDirectoryWith(app: "code" | "zed" | "explorer") {
+async function openCurrentDirectoryWith(app: "code" | "zed" | "antigravity" | "explorer") {
   openWithMenuOpen.value = false;
   const directory = currentDirectory.value;
   if (!directory) return;
@@ -275,6 +278,10 @@ async function openCurrentDirectoryWith(app: "code" | "zed" | "explorer") {
     }
     if (app === "zed") {
       await openInZed(directory);
+      return;
+    }
+    if (app === "antigravity") {
+      await openInAntigravity(directory);
       return;
     }
     await openInFileExplorer(directory);
@@ -530,6 +537,19 @@ onBeforeUnmount(() => {
                 <img :src="zedIcon" alt="" :class="openWithIconImageClass" />
               </span>
               <span class="min-w-0 truncate">Zed</span>
+            </button>
+
+            <button
+              v-if="antigravityAvailable"
+              type="button"
+              :class="openWithItemClass"
+              role="menuitem"
+              @click="openCurrentDirectoryWith('antigravity')"
+            >
+              <span :class="openWithIconClass">
+                <img :src="antigravityIcon" alt="" :class="openWithIconImageClass" />
+              </span>
+              <span class="min-w-0 truncate">Antigravity IDE</span>
             </button>
 
             <button

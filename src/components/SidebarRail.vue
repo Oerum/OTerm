@@ -103,12 +103,13 @@ const featureEntries = computed(() =>
 );
 
 function featureEntryBadge(
-  kind: "pullRequests" | "branchManager" | "issues" | "docker" | "sshSftp" | "settings" | "worktreeManager",
+  kind: "pullRequests" | "branchManager" | "issues" | "docker" | "processManager" | "sshSftp" | "settings" | "worktreeManager",
 ) {
   if (kind === "pullRequests") return "PR";
   if (kind === "branchManager") return "Br";
   if (kind === "worktreeManager") return "Wt";
   if (kind === "issues") return "Is";
+  if (kind === "processManager") return "Pm";
   if (kind === "sshSftp") return "SF";
   if (kind === "settings") return "⚙";
   return "Dk";

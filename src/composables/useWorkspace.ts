@@ -190,6 +190,24 @@ export function useWorkspace(getDefaultShellId: () => string) {
     return tab;
   }
 
+  function openProcessManagerTab() {
+    const existing = tabs.value.find((tab) => tab.kind === "processManager");
+    if (existing) {
+      activeTabId.value = existing.id;
+      activePaneId.value = null;
+      return existing;
+    }
+    const tab: WorkspaceTab = {
+      kind: "processManager",
+      id: uid("process-manager-tab"),
+      title: "Processes",
+    };
+    tabs.value.push(tab);
+    activeTabId.value = tab.id;
+    activePaneId.value = null;
+    return tab;
+  }
+
   function openSshSftpTab() {
     const existing = tabs.value.find((tab) => tab.kind === "sshSftp");
     if (existing) {
@@ -735,6 +753,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     openWorktreeManagerTab,
     openIssuesTab,
     openDockerManagerTab,
+    openProcessManagerTab,
     openSshSftpTab,
     openSettingsTab,
     closeTab,

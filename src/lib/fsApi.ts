@@ -28,6 +28,10 @@ export function openInZed(path: string): Promise<void> {
   return invoke<void>("fs_open_in_zed", { path });
 }
 
+export function openInAntigravity(path: string): Promise<void> {
+  return invoke<void>("fs_open_in_antigravity", { path });
+}
+
 export function openInFileExplorer(path: string): Promise<void> {
   return invoke<void>("fs_open_in_file_explorer", { path });
 }

@@ -20,6 +20,7 @@ import SshSecretPrompt from "./components/ssh/SshSecretPrompt.vue";
 import BranchManagerView from "./components/BranchManagerView.vue";
 import WorktreeManagerView from "./components/WorktreeManagerView.vue";
 import DockerManagerView from "./components/DockerManagerView.vue";
+import ProcessManagerView from "./components/ProcessManagerView.vue";
 import SshSftpManagerView from "./components/SshSftpManagerView.vue";
 import CreatePullRequestDialog from "./components/CreatePullRequestDialog.vue";
 import PullRequestsView from "./components/PullRequestsView.vue";
@@ -333,6 +334,7 @@ const {
   openWorktreeManagerTab,
   openIssuesTab,
   openDockerManagerTab,
+  openProcessManagerTab,
   openSshSftpTab,
   openSettingsTab,
   closeTab: removeTab,
@@ -824,6 +826,10 @@ function openIssues() {
 
 function openDockerManager() {
   openDockerManagerTab();
+}
+
+function openProcessManager() {
+  openProcessManagerTab();
 }
 
 function openSshSftp() {
@@ -1632,6 +1638,7 @@ onUnmounted(() => {
       @switch-branch="onSwitchBranch"
       @open-ssh-sftp="openSshSftp"
       @open-docker-manager="openDockerManager"
+      @open-process-manager="openProcessManager"
       @open-pull-requests="openPullRequests"
       @open-issues="openIssues"
       @open-branch-manager="openBranchManager"
@@ -1799,6 +1806,13 @@ onUnmounted(() => {
                 @close="closeTab(tab.id)"
                 @open-container-logs="openDockerContainerTerminal($event, 'logs')"
                 @open-container-shell="openDockerContainerTerminal($event, 'shell')"
+              />
+              <ProcessManagerView
+                v-else-if="tab.kind === 'processManager'"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1"
+                :active="tab.id === activeTabId"
+                @close="closeTab(tab.id)"
               />
               <SshSftpManagerView
                 v-else-if="tab.kind === 'sshSftp'"

@@ -779,6 +779,55 @@ pub fn open_in_zed(path: &Path) -> Result<(), String> {
         .map_err(|err| format!("Could not launch Zed ({launcher:?}): {err}"))
 }
 
+pub fn find_antigravity_launcher() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        let mut candidates = Vec::new();
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            let root = PathBuf::from(local).join("Programs").join("Antigravity IDE");
+            candidates.push(root.join("bin").join("antigravity-ide.cmd"));
+            candidates.push(root.join("bin").join("antigravity-ide"));
+            candidates.push(root.join("Antigravity IDE.exe"));
+        }
+        first_existing_file(&candidates)
+            .or_else(|| which_on_path(&["antigravity-ide.cmd", "antigravity-ide.exe", "antigravity-ide"]))
+    }
+
+    #[cfg(not(windows))]
+    {
+        which_on_path(&["antigravity-ide", "antigravity"])
+    }
+}
+
+pub fn open_in_antigravity(path: &Path) -> Result<(), String> {
+    if !path.is_dir() {
+        return Err(format!("Not a directory: {}", path.display()));
+    }
+
+    let launcher =
+        find_antigravity_launcher().ok_or_else(|| "Antigravity IDE was not found".to_string())?;
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let mut cmd = Command::new(&launcher);
+        cmd.arg(path);
+        cmd.creation_flags(0x0800_0000);
+        cmd.spawn()
+            .map(|_| ())
+            .map_err(|err| format!("Could not launch Antigravity IDE ({launcher:?}): {err}"))
+    }
+
+    #[cfg(not(windows))]
+    {
+        Command::new(&launcher)
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|err| format!("Could not launch Antigravity IDE ({launcher:?}): {err}"))
+    }
+}
+
 pub fn system_file_explorer_label() -> &'static str {
     if cfg!(windows) {
         "Explorer"

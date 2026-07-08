@@ -38,6 +38,7 @@ const emit = defineEmits<{
   switchBranch: [branch: string, isRemote: boolean];
   openSshSftp: [];
   openDockerManager: [];
+  openProcessManager: [];
   openPullRequests: [];
   openBranchManager: [];
   openIssues: [];
@@ -238,6 +239,20 @@ onBeforeUnmount(() => {
 
     <div class="no-drag flex items-center gap-1">
       <SshMenu @open-ssh-sftp="emit('openSshSftp')" />
+      <button
+        type="button"
+        class="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 text-[var(--oterm-muted)] transition hover:border-white/20 hover:bg-white/5 hover:text-[#F5F5F7]"
+        title="Process manager"
+        aria-label="Process manager"
+        @click="emit('openProcessManager')"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+          <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
+          <rect x="9" y="2.5" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
+          <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
+          <rect x="9" y="9" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
+        </svg>
+      </button>
       <button
         type="button"
         class="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 text-[var(--oterm-muted)] transition hover:border-white/20 hover:bg-white/5 hover:text-[#F5F5F7]"

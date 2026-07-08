@@ -5,6 +5,7 @@ mod git;
 mod launch;
 mod lm;
 mod process;
+mod process_manager;
 mod settings;
 mod ssh_client;
 mod ssh_credentials;
@@ -24,8 +25,9 @@ use docker::commands::{
     docker_remove_network, docker_remove_volume, docker_summary,
 };
 use fs::commands::{
-    fs_create_dir, fs_import_env_file, fs_list_directory, fs_open_in_file_explorer,
-    fs_open_in_rider, fs_open_in_visual_studio, fs_open_in_vscode, fs_open_in_zed, fs_read_file,
+    fs_create_dir, fs_import_env_file, fs_list_directory, fs_open_in_antigravity,
+    fs_open_in_file_explorer, fs_open_in_rider, fs_open_in_visual_studio, fs_open_in_vscode,
+    fs_open_in_zed, fs_read_file,
     fs_remove_path, fs_save_gemini_clipboard_image_rgba, fs_search_files,
     fs_show_shell_context_menu, fs_tools_directory_hints, fs_user_home, fs_write_file,
     fs_write_temp_attachment, fs_write_temp_attachment_rgba, fs_write_temp_clipboard_paste,
@@ -46,6 +48,7 @@ use git::commands::{
     pr_files, pr_list, pr_view,
 };
 use launch::{launch_initial_cwd, LaunchState};
+use process_manager::commands::{process_manager_kill, process_manager_list};
 use lm::commands::{
     lm_chat_completion, lm_detect_github_copilot_token, lm_list_models, lm_test_connection,
 };
@@ -194,6 +197,7 @@ pub fn run() {
             fs_import_env_file,
             fs_open_in_vscode,
             fs_open_in_zed,
+            fs_open_in_antigravity,
             fs_open_in_file_explorer,
             fs_search_files,
             fs_show_shell_context_menu,
@@ -295,6 +299,8 @@ pub fn run() {
             dictation_start_recording,
             dictation_cancel_recording,
             dictation_stop_and_transcribe,
+            process_manager_list,
+            process_manager_kill,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
