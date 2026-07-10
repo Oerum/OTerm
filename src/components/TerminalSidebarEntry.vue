@@ -351,6 +351,7 @@ watch(
 <template>
   <div
     class="relative"
+    data-terminal-entry-menu-root
   >
     <div
       v-if="dropTarget"

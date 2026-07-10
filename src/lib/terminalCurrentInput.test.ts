@@ -1,10 +1,14 @@
 import type { Terminal } from "@xterm/xterm";
 import { describe, expect, it } from "vitest";
 import {
+  commandColumnOnLine,
+  commandInputStartColumn,
   extractInputAfterPrompt,
+  inferLastCommandBlock,
   isGhostSuggestionCell,
   mergeTerminalDraftSources,
   readTerminalCurrentInput,
+  resolveActiveCommandColumn,
   resolveTerminalAutocompleteInput,
 } from "./terminalCurrentInput";
 
@@ -19,6 +23,20 @@ describe("extractInputAfterPrompt", () => {
   it("strips CMD prompts", () => {
     expect(extractInputAfterPrompt("C:\\Users\\Oerum> dir")).toBe("dir");
     expect(extractInputAfterPrompt("C:\\Projects\\myapp> ")).toBe("");
+  });
+
+  it("strips CMD prompts wrapped in OSC 133 shell-integration markers", () => {
+    const raw =
+      "\x1b]133;D;0\x1b\\\x1b]133;A\x1b\\ C:\\Users\\Filip\\Desktop\\oterm> adasdasd\x1b]133;B\x1b\\";
+    expect(extractInputAfterPrompt(raw)).toBe("adasdasd");
+  });
+
+  it("strips CMD prompts when command follows > without a space", () => {
+    expect(
+      extractInputAfterPrompt(
+        "C:\\Users\\Filip\\Desktop\\CleanQuote\\CleanQuoteCore\\.worktree\\cq-1316>dasdsad",
+      ),
+    ).toBe("dasdsad");
   });
 
   it("strips bash-style prompts", () => {
@@ -48,6 +66,81 @@ describe("extractInputAfterPrompt", () => {
     expect(extractInputAfterPrompt('C:\\Users\\Oerum> echo "hello > world"')).toBe(
       'echo "hello > world"',
     );
+  });
+});
+
+describe("commandColumnOnLine", () => {
+  it("finds command text after a CMD prompt", () => {
+    const line = "C:\\Users\\Filip\\Desktop\\oterm> asdasd";
+    expect(commandColumnOnLine(line, "asdasd")).toBe(line.indexOf("asdasd"));
+  });
+
+  it("finds command text after a PowerShell prompt", () => {
+    const line = "PS C:\\Users\\Filip\\Desktop\\oterm> git status";
+    expect(commandColumnOnLine(line, "git status")).toBe(line.indexOf("git"));
+  });
+
+  it("finds command text through cmd OSC 133 prompt wrappers", () => {
+    const line =
+      "\x1b]133;D;0\x1b\\\x1b]133;A\x1b\\ C:\\Users\\Filip\\Desktop\\oterm> adasdasd\x1b]133;B\x1b\\";
+    expect(commandColumnOnLine(line, "adasdasd")).toBe(line.indexOf("adasdasd"));
+  });
+
+  it("finds command text when OSC 133 leaves a leading space before the prompt", () => {
+    const line =
+      "\x1b]133;D;0\x1b\\\x1b]133;A\x1b\\ C:\\Users\\Filip\\Desktop\\oterm>asdasd\x1b]133;B\x1b\\";
+    expect(commandColumnOnLine(line, "asdasd")).toBe(line.indexOf("asdasd"));
+    expect(commandInputStartColumn(line)).toBe(line.indexOf("asdasd"));
+  });
+});
+
+describe("resolveActiveCommandColumn", () => {
+  it("anchors draft-only input after the cmd prompt", () => {
+    const prompt =
+      "\x1b]133;D;0\x1b\\\x1b]133;A\x1b\\ C:\\Users\\Filip\\Desktop\\CleanQuote\\CleanQuoteCore\\.worktree\\cq-1316>";
+    expect(resolveActiveCommandColumn(prompt, "dasdsad")).toBe(commandInputStartColumn(prompt));
+  });
+
+  it("uses echoed command position when the buffer already contains it", () => {
+    const line = "C:\\repo>dasdsad";
+    expect(resolveActiveCommandColumn(line, "dasdsad")).toBe(line.indexOf("dasdsad"));
+  });
+});
+
+describe("commandInputStartColumn", () => {
+  it("returns the column immediately after a cmd prompt", () => {
+    const line = "C:\\repo>dasdsad";
+    expect(commandInputStartColumn(line)).toBe(line.indexOf("dasdsad"));
+  });
+
+  it("detects the live cmd prompt from the screenshot shape", () => {
+    const line = "C:\\Users\\Filip>asdasdsad";
+    expect(commandInputStartColumn(line)).toBe(line.indexOf("asdasdsad"));
+    expect(resolveActiveCommandColumn(line, "asdasdsad")).toBe(line.indexOf("asdasdsad"));
+  });
+
+  it("detects cmd prompts with a leading shell-integration space", () => {
+    const line = " C:\\Users\\Filip> asdasdsad";
+    expect(commandInputStartColumn(line)).toBe(line.indexOf("asdasdsad"));
+  });
+});
+
+describe("inferLastCommandBlock", () => {
+  it("finds the command line above a fresh prompt", () => {
+    const terminal = makeMockTerminal(
+      [
+        { text: "PS C:\\dev> asdasd" },
+        { text: "asdasd: The term 'asdasd' is not recognized" },
+        { text: "PS C:\\dev> " },
+      ],
+      2,
+      12,
+    );
+    expect(inferLastCommandBlock(terminal)).toEqual({
+      command: "asdasd",
+      commandLine: 0,
+      endLine: 1,
+    });
   });
 });
 

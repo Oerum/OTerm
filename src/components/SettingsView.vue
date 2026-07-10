@@ -3,15 +3,21 @@ import { computed, ref } from "vue";
 import ApplicationSettingsPage from "./settings/ApplicationSettingsPage.vue";
 import SftpTransferSettingsPage from "./settings/SftpTransferSettingsPage.vue";
 import TerminalAutocompleteSettingsPage from "./settings/TerminalAutocompleteSettingsPage.vue";
+import TerminalAppearanceSettingsPage from "./settings/TerminalAppearanceSettingsPage.vue";
 import KeyMappingSettingsPage from "./settings/KeyMappingSettingsPage.vue";
 
 const emit = defineEmits<{
   close: [];
 }>();
 
-type SettingsSectionId = "application" | "terminal-autocomplete" | "sftp-transfers" | "key-mapping";
+type SettingsSectionId = "application" | "terminal-appearance" | "terminal-autocomplete" | "sftp-transfers" | "key-mapping";
 
 const sections: { id: SettingsSectionId; label: string; description: string }[] = [
+  {
+    id: "terminal-appearance",
+    label: "Terminal appearance",
+    description: "Themes, blocks, and command colors",
+  },
   {
     id: "terminal-autocomplete",
     label: "Terminal autocomplete",
@@ -86,6 +92,7 @@ const activeMeta = computed(
       <div class="oterm-scroll min-h-0 min-w-0 flex-1 overflow-y-auto">
         <div class="mx-auto max-w-2xl px-6 py-6">
           <ApplicationSettingsPage v-if="activeSection === 'application'" />
+          <TerminalAppearanceSettingsPage v-else-if="activeSection === 'terminal-appearance'" />
           <TerminalAutocompleteSettingsPage v-else-if="activeSection === 'terminal-autocomplete'" />
           <SftpTransferSettingsPage v-else-if="activeSection === 'sftp-transfers'" />
           <KeyMappingSettingsPage v-else-if="activeSection === 'key-mapping'" />

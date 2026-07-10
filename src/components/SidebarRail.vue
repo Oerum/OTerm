@@ -730,7 +730,6 @@ onBeforeUnmount(() => {
             <TerminalSidebarEntry
               v-for="entry in category.entries"
               :key="entry.entryId"
-              data-terminal-entry-menu-root
               :entry="entry"
               :groups="terminalGroups"
               :menu-open="openMenuEntryId === entry.entryId"
@@ -758,7 +757,6 @@ onBeforeUnmount(() => {
             <TerminalSidebarEntry
               v-for="entry in category.entries"
               :key="entry.entryId"
-              data-terminal-entry-menu-root
               :entry="entry"
               :groups="terminalGroups"
               :menu-open="openMenuEntryId === entry.entryId"

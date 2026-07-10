@@ -98,8 +98,63 @@ body {
   padding-left: 2px;
 }
 
+.terminal-output .xterm-screen {
+  padding-left: 16px;
+  padding-right: 12px;
+}
+
 .xterm .xterm-cursor-layer .xterm-cursor {
-  background-color: var(--oterm-accent) !important;
+  background-color: var(--term-cursor-color, var(--oterm-accent)) !important;
+}
+
+.terminal-block-body {
+  pointer-events: none;
+  box-sizing: border-box;
+  overflow: visible !important;
+}
+
+.xterm-screen .xterm-decoration-container .xterm-decoration.terminal-block-body {
+  overflow: visible !important;
+}
+
+.terminal-block-body--failure {
+  background-color: var(--term-block-failure-bg) !important;
+  border-left: 3px solid var(--term-block-failure-rail) !important;
+  box-shadow: inset 0 1px 0 rgba(248, 113, 113, 0.12);
+}
+
+.terminal-block-body--success {
+  background-color: var(--term-block-success-bg) !important;
+  border-left: 3px solid var(--term-block-success-rail) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Live cmd/bash input — success rail alone is ~invisible on black; bump while typing. */
+.terminal-block-body--active {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  border-left-color: color-mix(in srgb, var(--term-block-active-rail, var(--term-cursor-color)) 55%, transparent) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.terminal-block-meta {
+  font-family: var(--oterm-font-mono);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 12px);
+  padding-left: 2px;
+  user-select: none;
+}
+
+.terminal-block-meta--attached {
+  position: absolute;
+  left: 14px;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 4px;
+  max-width: none;
 }
 
 .drag-region {
@@ -203,6 +258,7 @@ body {
 }
 
 .terminal-output {
+  position: relative;
   overflow: hidden !important;
 }
 

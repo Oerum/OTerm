@@ -14,7 +14,12 @@ import {
   watch,
 } from "vue";
 import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE } from "../lib/terminalFont";
-import { resolveSshTerminalTheme } from "../lib/sshTerminalThemes";
+import { resolveTerminalTheme } from "../lib/terminalThemes";
+import { TerminalBlockRenderer } from "../lib/terminalBlockRenderer";
+import {
+  applyTerminalThemeCssVars,
+  useTerminalAppearanceSettings,
+} from "../lib/terminalAppearanceSettings";
 import {
   detectCliAgent,
   isAgentExitCommand,
@@ -145,6 +150,7 @@ import type { IDisposable } from "@xterm/xterm";
 import ChatView from "./ChatView.vue";
 
 const { settings: autocompleteSettings } = useTerminalAutocompleteSettings();
+const { state: appearanceState } = useTerminalAppearanceSettings();
 
 const props = defineProps<{
   paneId: string;
@@ -237,6 +243,7 @@ async function replayPendingOutput(sessionId: string) {
     cancelPromptKick();
     const output = prepareTerminalOutput(drained);
     terminal.write(output);
+    blockRenderer?.appendOutput(output);
     handleOutputNotification(output);
     noteOutputActivity(output);
     trackCwd(output);
@@ -607,6 +614,7 @@ let outputNotifyTimer: number | undefined;
 const OUTPUT_NOTIFY_DEBOUNCE_MS = 400;
 let linkProviderDisposable: IDisposable | null = null;
 let pathDecorationDisposables: IDisposable[] = [];
+let blockRenderer: TerminalBlockRenderer | null = null;
 let pathRefreshDisposables: IDisposable[] = [];
 let pathDecorationTimer: number | undefined;
 let pathCopiedTimer: number | undefined;
@@ -697,6 +705,10 @@ function clearPathDecorations() {
   pathDecorationDisposables = [];
 }
 
+function isPromptPathLine(text: string): boolean {
+  return /^(?:PS\s+)?[A-Za-z]:\\[^>\r\n]*>\s*/.test(text);
+}
+
 function refreshPathDecorations() {
   if (!terminal || !pathsInteractiveEnabled()) {
     clearPathDecorations();
@@ -714,6 +726,7 @@ function refreshPathDecorations() {
     const line = buffer.getLine(lineIndex);
     if (!line) continue;
     const text = line.translateToString(false);
+    if (isPromptPathLine(text)) continue;
     const paths = scanLineForTerminalLinks(text);
     if (paths.length === 0) continue;
 
@@ -839,6 +852,19 @@ function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\r/g, "");
 }
 
+function resolvePaneTheme() {
+  return resolveTerminalTheme(props.themeId ?? appearanceState.value.activeThemeId, appearanceState.value.customThemes);
+}
+
+function syncPaneTheme() {
+  const theme = resolvePaneTheme();
+  applyTerminalThemeCssVars(theme);
+  if (terminal) {
+    terminal.options.theme = theme.xterm;
+  }
+  blockRenderer?.setTheme(theme);
+}
+
 function trimExchanges() {
   const max = autocompleteSettings.value.commandContextCount;
   if (exchanges.value.length > max) {
@@ -888,6 +914,7 @@ function rememberDraftInput(data: string) {
   if (draftInput.value.trim()) {
     lastNonEmptyDraft.value = draftInput.value;
   }
+  blockRenderer?.notifyDraftInputChanged(draftInput.value);
 }
 
 function canSuggest(): boolean {
@@ -1246,6 +1273,7 @@ function trackCwd(data: string) {
   if (looksLikeTuiTransition(data)) {
     tuiModeActive.value = true;
     clearPathDecorations();
+    blockRenderer?.setAlternateBuffer(true);
     void syncActiveAgentFromProcess();
   }
 
@@ -1281,6 +1309,9 @@ function trackCwd(data: string) {
   if (!isPlausiblePromptCwd(next.trailingPrompt.cwd)) return;
 
   tuiModeActive.value = false;
+  blockRenderer?.setAlternateBuffer(false);
+  blockRenderer?.setPaneCwd(next.trailingPrompt.cwd);
+  blockRenderer?.finalizeOnPromptReady();
   paneCwd.value = next.trailingPrompt.cwd;
   finalizeExchange();
   promptScanBuffer = "";
@@ -1320,7 +1351,10 @@ function maybeRecordCommand(data: string, preferredLine = "") {
 
   const fromPending = normalizeSubmittedCommand(pendingInput.value);
   pendingInput.value = "";
-  const command = normalizeSubmittedCommand(preferredLine) || fromPending;
+  const command =
+    normalizeSubmittedCommand(preferredLine) ||
+    fromPending ||
+    normalizeSubmittedCommand(lastNonEmptyDraft.value);
   if (!isRecordableCommand(command)) {
     return;
   }
@@ -1352,6 +1386,9 @@ function maybeRecordCommand(data: string, preferredLine = "") {
   capturingResponse = true;
   responseBuffer = "";
   awaitingOutputSinceFocus.value = true;
+  if (!isSshSession.value) {
+    blockRenderer?.noteSubmittedCommand(command);
+  }
   clearSuggestion();
   emit("commandSubmitted", command);
 }
@@ -1683,12 +1720,23 @@ async function mountTerminal() {
     scrollback: 5000,
     rescaleOverlappingGlyphs: true,
     allowTransparency: true,
-    theme: resolveSshTerminalTheme(props.themeId),
+    allowProposedApi: true,
+    theme: resolvePaneTheme().xterm,
   });
+
+  if (!isSshSession.value) {
+    blockRenderer = new TerminalBlockRenderer(terminal, resolvePaneTheme(), {
+      enabled: true,
+      shellId: props.shellId,
+    });
+    blockRenderer.register();
+  }
+  syncPaneTheme();
 
   fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);
   terminal.open(containerRef.value);
+  blockRenderer?.installOverlay(containerRef.value);
   fitAddon.fit();
   terminal.focus();
   registerPathLinkProvider();
@@ -1808,6 +1856,7 @@ async function setupTerminalEventListeners() {
         if (capturingResponse) responseBuffer += event.payload.data;
         const output = prepareTerminalOutput(event.payload.data);
         terminal!.write(output);
+        blockRenderer?.appendOutput(output);
         handleOutputNotification(output);
         noteOutputActivity(output);
         trackCwd(output);
@@ -2097,6 +2146,7 @@ watch(
   () => props.shellId,
   async (shellId, previous) => {
     if (shellId === previous || !terminal || isSshSession.value) return;
+    blockRenderer?.setShellId(shellId);
     launchError.value = null;
     bootstrapAwaitingLayout = false;
     pendingBootstrapInput.length = 0;
@@ -2133,6 +2183,8 @@ onBeforeUnmount(async () => {
   }
   pathRefreshDisposables = [];
   clearPathDecorations();
+  blockRenderer?.dispose();
+  blockRenderer = null;
   await eventListenersSetup?.catch(() => {});
   if (terminal?.element && terminalContextMenuHandler) {
     terminal.element.removeEventListener("contextmenu", terminalContextMenuHandler);
@@ -2148,9 +2200,9 @@ onBeforeUnmount(async () => {
 
 const isReady = computed(() => Boolean(localSessionId.value));
 
-const currentTheme = computed(() => resolveSshTerminalTheme(props.themeId));
+const currentTheme = computed(() => resolvePaneTheme());
 const terminalBgStyle = computed(() => {
-  const bg = currentTheme.value.background;
+  const bg = currentTheme.value.xterm.background;
   if (!bg || bg === "transparent") {
     return { backgroundColor: "#000000" };
   }
@@ -2158,12 +2210,11 @@ const terminalBgStyle = computed(() => {
 });
 
 watch(
-  () => props.themeId,
-  (themeId) => {
-    if (terminal) {
-      terminal.options.theme = resolveSshTerminalTheme(themeId);
-    }
+  () => [props.themeId, appearanceState.value.activeThemeId, appearanceState.value.customThemes] as const,
+  () => {
+    syncPaneTheme();
   },
+  { deep: true },
 );
 
 const agentComposerVisible = computed(() =>

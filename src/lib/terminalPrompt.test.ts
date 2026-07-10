@@ -3,9 +3,40 @@ import {
   appendPromptScanBuffer,
   detectShellPrompt,
   detectTrailingShellPrompt,
+  extractCwdFromPromptLine,
   isPlausiblePromptCwd,
   looksLikeTuiTransition,
+  rawIndexForStrippedIndex,
+  stripAnsiForPrompt,
 } from "./terminalPrompt";
+
+describe("stripAnsiForPrompt", () => {
+  it("removes OSC 133 prompt markers used by cmd integration", () => {
+    const raw = "\x1b]133;D;0\x1b\\\x1b]133;A\x1b\\ C:\\repo> adasdasd";
+    expect(stripAnsiForPrompt(raw)).toBe(" C:\\repo> adasdasd");
+  });
+});
+
+describe("rawIndexForStrippedIndex", () => {
+  it("maps visible command columns through leading OSC bytes", () => {
+    const raw = "\x1b]133;A\x1b\\C:\\repo> adasdasd";
+    const stripped = stripAnsiForPrompt(raw);
+    const visibleIndex = stripped.indexOf("adasdasd");
+    expect(rawIndexForStrippedIndex(raw, visibleIndex)).toBe(raw.indexOf("adasdasd"));
+  });
+});
+
+describe("extractCwdFromPromptLine", () => {
+  it("reads cwd from command rows that still contain the typed command", () => {
+    expect(extractCwdFromPromptLine("PS C:\\Users\\Oerum\\Desktop\\oterm> asd")).toBe(
+      "C:\\Users\\Oerum\\Desktop\\oterm",
+    );
+    expect(extractCwdFromPromptLine("C:\\Projects\\myapp>asd")).toBe("C:\\Projects\\myapp");
+    expect(extractCwdFromPromptLine("/home/user/projects/oterm> npm test")).toBe(
+      "/home/user/projects/oterm",
+    );
+  });
+});
 
 describe("detectShellPrompt", () => {
   it("detects PowerShell prompts", () => {

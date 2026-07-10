@@ -1,5 +1,6 @@
 use crate::terminal::agent_process::{detect_active_process, detect_agent_in_tree};
 use crate::terminal::profiles::{resolve_shell, ShellProfile};
+use crate::terminal::shell_integration::prepare_shell_launch;
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
 use std::io::{ErrorKind, Read, Write};
@@ -81,9 +82,23 @@ impl PtyManager {
             })
             .map_err(|err| err.to_string())?;
 
+        let launch_plan = prepare_shell_launch(&shell_id).unwrap_or_else(|err| {
+            eprintln!("shell integration unavailable for {shell_id}: {err}");
+            crate::terminal::shell_integration::ShellLaunchPlan {
+                extra_args: Vec::new(),
+                env: vec![("OTERM_SHELL_INTEGRATION".into(), "0".into())],
+            }
+        });
+
         let mut cmd = CommandBuilder::new(&profile.program);
         for arg in &profile.args {
             cmd.arg(arg);
+        }
+        for arg in &launch_plan.extra_args {
+            cmd.arg(arg);
+        }
+        for (key, value) in &launch_plan.env {
+            cmd.env(key, value);
         }
 
         if let Some(dir) = cwd.or(default_cwd()) {

@@ -44,7 +44,7 @@ pub fn available_shells() -> Vec<ShellProfile> {
                 id: "cmd".into(),
                 label: "Command Prompt".into(),
                 program: path,
-                args: vec!["/Q".into(), "/K".into(), "cls".into()],
+                args: vec!["/Q".into()],
             },
         );
     }

@@ -1,7 +1,12 @@
 const PS_PROMPT =
   /PS\s+([A-Za-z]:\\[^\r\n>]+)>$/;
 
+const PS_PROMPT_PREFIX =
+  /^PS\s+([A-Za-z]:\\[^\r\n>]+)>\s*/;
+
 const CMD_PROMPT = /([A-Za-z]:\\[^>\r\n]*)>$/;
+
+const CMD_PROMPT_PREFIX = /^([A-Za-z]:\\[^>\r\n]*)>\s*/;
 
 /** Paths ending with `>` (pwsh/bash on some setups). Reject HTML closing tags like </div>. */
 const UNIX_PROMPT_GT =
@@ -22,8 +27,35 @@ export function isPlausiblePromptCwd(cwd: string): boolean {
 const UNIX_PROMPT_BASH =
   /:((?:\/[\w.-]+)+)[$#]$/;
 
+const OSC_SEQUENCE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
+const CSI_SEQUENCE = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
+
 export function stripAnsiForPrompt(text: string): string {
-  return text.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\r/g, "");
+  return text.replace(OSC_SEQUENCE, "").replace(CSI_SEQUENCE, "").replace(/\r/g, "");
+}
+
+/** Map a visible-text index back to a raw PTY string index (skips OSC/CSI bytes). */
+export function rawIndexForStrippedIndex(raw: string, strippedIndex: number): number {
+  if (strippedIndex <= 0) return 0;
+
+  let visible = 0;
+  let index = 0;
+  while (index < raw.length && visible < strippedIndex) {
+    const tail = raw.slice(index);
+    const osc = tail.match(/^\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/);
+    if (osc) {
+      index += osc[0].length;
+      continue;
+    }
+    const csi = tail.match(/^\x1b\[[0-9;?]*[ -/]*[@-~]/);
+    if (csi) {
+      index += csi[0].length;
+      continue;
+    }
+    visible += 1;
+    index += 1;
+  }
+  return index;
 }
 
 export function looksLikeTuiTransition(text: string): boolean {
@@ -33,6 +65,24 @@ export function looksLikeTuiTransition(text: string): boolean {
 function promptCwd(raw: string): { cwd: string } | null {
   const cwd = raw.trim();
   return isPlausiblePromptCwd(cwd) ? { cwd } : null;
+}
+
+/** Extract cwd from a command row that still contains the typed command after the prompt. */
+export function extractCwdFromPromptLine(text: string): string | null {
+  const line = stripAnsiForPrompt(text);
+  const psMatch = line.match(PS_PROMPT_PREFIX);
+  if (psMatch?.[1]) return promptCwd(psMatch[1])?.cwd ?? null;
+
+  const cmdMatch = line.match(CMD_PROMPT_PREFIX);
+  if (cmdMatch?.[1]) return promptCwd(cmdMatch[1])?.cwd ?? null;
+
+  const unixGtMatch = line.match(/^((?:\/[\w.-]+)+)>\s*/);
+  if (unixGtMatch?.[1]) return promptCwd(unixGtMatch[1])?.cwd ?? null;
+
+  const bashMatch = line.match(/^[\w.-]+@[\w.-]+:((?:\/[\w.-]+)+)[$#]\s*/);
+  if (bashMatch?.[1]) return promptCwd(bashMatch[1])?.cwd ?? null;
+
+  return null;
 }
 
 export function detectShellPrompt(text: string): { cwd: string } | null {

@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { identityKindForAuth } from "../../lib/sshIdentityDiscovery";
 import { endpointHasNetworkHop } from "../../lib/sshConnectSecrets";
 import { collectAllTags, newId, sortGroups } from "../../lib/sshSftpStore";
-import { SSH_TERMINAL_THEMES } from "../../lib/sshTerminalThemes";
+import { useTerminalAppearanceSettings } from "../../lib/terminalAppearanceSettings";
 import type { SshIdentity } from "../../types/sshIdentity";
 import {
   endpointDisplayLabel,
@@ -19,6 +19,8 @@ const props = defineProps<{
   password: string;
   hasStoredPassword?: boolean;
 }>();
+
+const { allThemes } = useTerminalAppearanceSettings();
 
 const emit = defineEmits<{
   "update:draft": [value: SshEndpoint];
@@ -527,7 +529,7 @@ const tabs = [
           @change="patch({ themeId: ($event.target as HTMLSelectElement).value || null })"
         >
           <option value="">App default</option>
-          <option v-for="theme in SSH_TERMINAL_THEMES" :key="theme.id" :value="theme.id">
+          <option v-for="theme in allThemes" :key="theme.id" :value="theme.id">
             {{ theme.label }}
           </option>
         </select>
