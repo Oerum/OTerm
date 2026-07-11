@@ -170,6 +170,17 @@ export function expandBlockEndLine(
   return end;
 }
 
+/** The meta label is absolutely positioned above the block; only attach it when
+ * that row is blank, otherwise it overwrites the previous command's output. */
+export function canAttachBlockMetaAbove(
+  buffer: { getLine: (line: number) => { translateToString: (trimRight: boolean) => string } | undefined },
+  startLine: number,
+): boolean {
+  if (startLine <= 0) return false;
+  const text = buffer.getLine(startLine - 1)?.translateToString(true) ?? "";
+  return !text.trim();
+}
+
 export function looksLikeTerminalClear(data: string): boolean {
   return /\x1b\[[0-9;]*3J|\x1b\[[0-9;]*2J/.test(data);
 }

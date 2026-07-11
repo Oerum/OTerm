@@ -13,6 +13,7 @@ import { resolveLiveInputTokenColor } from "./terminalThemes";
 import { readTerminalCellMetrics } from "./terminalBlockMetrics";
 import {
   blockLineSpan,
+  canAttachBlockMetaAbove,
   createTerminalBlock,
   expandBlockEndLine,
   finishTerminalBlock,
@@ -207,7 +208,6 @@ export class TerminalBlockRenderer {
     this.expandActiveBlockEnd(promptLineNum);
     this.completeActiveBlock(
       this.activeBlock!,
-      this.activeBlock!.endMarkerLine ?? inferred.endLine,
       this.pendingOscExitCode,
     );
     this.pendingOscExitCode = null;
@@ -280,11 +280,7 @@ export class TerminalBlockRenderer {
     inferred: { command: string; commandLine: number; endLine: number },
   ): void {
     const cursorLine = this.currentBufferLine();
-    const nextEnd = Math.max(
-      block.endMarkerLine ?? block.commandMarkerLine ?? 0,
-      inferred.endLine,
-      expandBlockEndLine(this.terminal.buffer.active, inferred.commandLine, cursorLine),
-    );
+    const nextEnd = expandBlockEndLine(this.terminal.buffer.active, inferred.commandLine, cursorLine);
     const exitCode = resolveBlockExitCode(
       block.outputText,
       this.pendingOscExitCode ?? block.exitCode,
@@ -380,7 +376,7 @@ export class TerminalBlockRenderer {
     }
   }
 
-  private completeActiveBlock(block: TerminalBlock, endMarkerLine: number, oscExitCode: number | null): void {
+  private completeActiveBlock(block: TerminalBlock, oscExitCode: number | null): void {
     this.hydrateBlockFromBuffer(block);
     if (!block.command.trim() || block.commandMarkerLine === null) {
       this.dropBlock(block);
@@ -389,8 +385,10 @@ export class TerminalBlockRenderer {
       return;
     }
 
-    block.endMarkerLine = Math.max(block.endMarkerLine ?? block.commandMarkerLine, endMarkerLine);
-    this.syncBlockFromBuffer(block, this.currentBufferLine());
+    const buffer = this.terminal.buffer.active;
+    const expanded = expandBlockEndLine(buffer, block.commandMarkerLine, this.currentBufferLine());
+    block.endMarkerLine = expanded;
+    block.cwd = this.resolveBlockCwd(block, buffer);
 
     const exitCode = resolveBlockExitCode(block.outputText, oscExitCode, this.shellId);
     const finished = finishTerminalBlock(
@@ -503,7 +501,7 @@ export class TerminalBlockRenderer {
         const span = blockLineSpan(block);
         if (!span) continue;
         if (span.end < viewportStart || span.start > viewportEnd) continue;
-        this.renderBlockDecorations(block, span.start, span.end, metrics);
+        this.renderBlockDecorations(block, span.start, span.end, buffer.viewportY, buffer.viewportY + this.terminal.rows - 1, metrics);
       }
 
       this.renderActiveInputDecorations(metrics);
@@ -516,15 +514,21 @@ export class TerminalBlockRenderer {
     block: TerminalBlock,
     startLine: number,
     endLine: number,
+    viewportYStart: number,
+    viewportYEnd: number,
     metrics: { width: number; height: number },
   ): void {
     const isFailure = block.status === "failure";
-    const height = Math.max(1, endLine - startLine + 1);
-    this.renderBodyDecoration(block, startLine, height, isFailure);
+    const visibleStart = Math.max(startLine, viewportYStart);
+    const visibleEnd = Math.min(endLine, viewportYEnd);
+    const height = Math.max(1, visibleEnd - visibleStart + 1);
+    this.renderBodyDecoration(block, startLine, endLine, visibleStart, visibleEnd, height, isFailure, metrics);
 
     if (this.shellId !== "pwsh" && this.shellId !== "powershell") {
       const commandLine = block.commandMarkerLine ?? startLine;
-      this.renderCommandTokenDecorations(block, commandLine, metrics);
+      if (commandLine >= viewportYStart && commandLine <= viewportYEnd) {
+        this.renderCommandTokenDecorations(block, commandLine, metrics);
+      }
     }
   }
 
@@ -539,11 +543,16 @@ export class TerminalBlockRenderer {
   private renderBodyDecoration(
     block: TerminalBlock,
     startLine: number,
+    endLine: number,
+    visibleStart: number,
+    visibleEnd: number,
     height: number,
     isFailure: boolean,
+    metrics: { width: number; height: number },
   ): void {
     const inset = this.blockInsetCols();
-    const marker = this.terminal.registerMarker(this.cursorRelativeLine(startLine));
+    const showMeta = visibleStart === startLine && canAttachBlockMetaAbove(this.terminal.buffer.active, startLine);
+    const marker = this.terminal.registerMarker(this.cursorRelativeLine(visibleStart));
     if (!marker || marker.isDisposed) return;
 
     const decoration = this.terminal.registerDecoration({
@@ -564,9 +573,22 @@ export class TerminalBlockRenderer {
       element.classList.toggle("terminal-block-body--success", !isFailure);
       element.style.pointerEvents = "none";
       element.style.boxSizing = "border-box";
-      element.style.borderRadius = "8px";
+
+      const isTopCutOff = visibleStart > startLine;
+      const isBottomCutOff = visibleEnd < endLine;
+
+      element.style.borderTopLeftRadius = isTopCutOff ? "0" : "8px";
+      element.style.borderTopRightRadius = isTopCutOff ? "0" : "8px";
+      element.style.borderBottomLeftRadius = isBottomCutOff ? "0" : "8px";
+      element.style.borderBottomRightRadius = isBottomCutOff ? "0" : "8px";
+
       const edgeInset = this.blockEdgeInsetPx();
-      element.style.margin = `1px 10px 1px 0`;
+      const marginTopPx = isTopCutOff ? 0 : -4;
+      const marginBottomPx = isBottomCutOff ? 0 : 3;
+      const cellHeight = metrics.height;
+      const totalHeightPx = height * cellHeight;
+      element.style.height = `${totalHeightPx - (marginTopPx + marginBottomPx)}px`;
+      element.style.margin = `${marginTopPx}px 10px ${marginBottomPx}px 0`;
       element.style.marginLeft = `-${edgeInset}px`;
       element.style.width = `calc(100% + ${edgeInset}px)`;
       element.style.overflow = "visible";
@@ -575,6 +597,10 @@ export class TerminalBlockRenderer {
         : this.theme.blocks.successBackground;
 
       let meta = element.querySelector(".terminal-block-meta") as HTMLElement | null;
+      if (!showMeta) {
+        meta?.remove();
+        return;
+      }
       if (!meta) {
         meta = document.createElement("div");
         meta.className = "terminal-block-meta terminal-block-meta--attached";
@@ -633,14 +659,14 @@ export class TerminalBlockRenderer {
     // ponytail: always anchor live tokens at the prompt — buffer echo can lag draft by chars
     const commandIndex = promptStart;
 
-    this.renderActiveInputLineBody(cursorLine);
+    this.renderActiveInputLineBody(cursorLine, metrics);
     this.renderCommandTokenSpans(cursorLine, commandIndex, input, metrics, (kind) =>
       resolveLiveInputTokenColor(kind, this.theme),
     );
   }
 
   /** ponytail: single-line running tint so cmd input matches finished block chrome. */
-  private renderActiveInputLineBody(line: number): void {
+  private renderActiveInputLineBody(line: number, metrics: { width: number; height: number }): void {
     const inset = this.blockInsetCols();
     const marker = this.terminal.registerMarker(this.cursorRelativeLine(line));
     if (!marker || marker.isDisposed) return;
@@ -667,7 +693,10 @@ export class TerminalBlockRenderer {
       element.style.boxSizing = "border-box";
       element.style.borderRadius = "8px";
       const edgeInset = this.blockEdgeInsetPx();
-      element.style.margin = "1px 10px 1px 0";
+      const marginTopPx = -4;
+      const marginBottomPx = 3;
+      element.style.height = `${1 * metrics.height - (marginTopPx + marginBottomPx)}px`;
+      element.style.margin = `${marginTopPx}px 10px ${marginBottomPx}px 0`;
       element.style.marginLeft = `-${edgeInset}px`;
       element.style.width = `calc(100% + ${edgeInset}px)`;
       element.style.overflow = "visible";

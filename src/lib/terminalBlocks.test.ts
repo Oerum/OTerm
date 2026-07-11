@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   blockLineSpan,
+  canAttachBlockMetaAbove,
   createTerminalBlock,
   derivePowerShellExitCode,
   expandBlockEndLine,
@@ -110,6 +111,30 @@ describe("expandBlockEndLine", () => {
           : undefined,
     };
     expect(expandBlockEndLine(buffer, 0, 3)).toBe(2);
+  });
+});
+
+describe("canAttachBlockMetaAbove", () => {
+  const bufferOf = (lines: string[]) => ({
+    getLine: (line: number) =>
+      lines[line] === undefined
+        ? undefined
+        : { translateToString: () => lines[line]! },
+  });
+
+  it("allows meta when the row above the block is blank", () => {
+    expect(canAttachBlockMetaAbove(bufferOf(["", "PS C:\\dev> f"]), 1)).toBe(true);
+    expect(canAttachBlockMetaAbove(bufferOf(["   ", "PS C:\\dev> f"]), 1)).toBe(true);
+  });
+
+  it("rejects meta when it would overlay the previous block's output", () => {
+    expect(
+      canAttachBlockMetaAbove(bufferOf(["nothing to commit, working tree clean", "PS C:\\dev> f"]), 1),
+    ).toBe(false);
+  });
+
+  it("rejects meta on the first buffer row", () => {
+    expect(canAttachBlockMetaAbove(bufferOf(["PS C:\\dev> f"]), 0)).toBe(false);
   });
 });
 

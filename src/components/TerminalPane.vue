@@ -234,6 +234,22 @@ function activeOutputSessionId(): string | null {
   return localSessionId.value ?? bootstrappingSessionId;
 }
 
+/** Single PTY output sink. Prompt detection and decorations read the xterm
+ * buffer, which only reflects a write inside its parse callback — calling
+ * them synchronously froze finished blocks at stale one-row spans. */
+function writeTerminalOutput(output: string) {
+  if (!terminal) return;
+  blockRenderer?.appendOutput(output);
+  handleOutputNotification(output);
+  noteOutputActivity(output);
+  terminal.write(output, () => {
+    if (disposed || !terminal) return;
+    trackCwd(output);
+    schedulePathDecorations();
+    updateScrollToBottomVisibility();
+  });
+}
+
 async function replayPendingOutput(sessionId: string) {
   if (isSshSession.value || !terminal) return;
   try {
@@ -241,14 +257,7 @@ async function replayPendingOutput(sessionId: string) {
     if (!drained || disposed || localSessionId.value !== sessionId) return;
     hasReceivedTerminalOutput = true;
     cancelPromptKick();
-    const output = prepareTerminalOutput(drained);
-    terminal.write(output);
-    blockRenderer?.appendOutput(output);
-    handleOutputNotification(output);
-    noteOutputActivity(output);
-    trackCwd(output);
-    schedulePathDecorations();
-    updateScrollToBottomVisibility();
+    writeTerminalOutput(prepareTerminalOutput(drained));
   } catch {
     // Best-effort replay for output emitted before the listener attached.
   }
@@ -1854,14 +1863,7 @@ async function setupTerminalEventListeners() {
           void writeSession(event.payload.sessionId, `${snippet}\r`);
         }
         if (capturingResponse) responseBuffer += event.payload.data;
-        const output = prepareTerminalOutput(event.payload.data);
-        terminal!.write(output);
-        blockRenderer?.appendOutput(output);
-        handleOutputNotification(output);
-        noteOutputActivity(output);
-        trackCwd(output);
-        schedulePathDecorations();
-        updateScrollToBottomVisibility();
+        writeTerminalOutput(prepareTerminalOutput(event.payload.data));
       }),
       listen<TerminalExitEvent>("terminal-exit", (event) => {
         if (disposed) return;
