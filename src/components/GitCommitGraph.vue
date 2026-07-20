@@ -410,6 +410,7 @@ function isSelected(hash: string): boolean {
       <button
         type="button"
         class="flex min-w-0 flex-1 items-center gap-1 text-left"
+        :aria-expanded="!collapsed"
         @click="toggleCollapsed"
       >
         <svg

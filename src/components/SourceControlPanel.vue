@@ -1160,6 +1160,7 @@ function authorInitials(author: string): string {
             <button
               type="button"
               class="flex w-full items-center gap-1.5 px-3 pb-1.5 text-left select-none group/title"
+              :aria-expanded="!stagedCollapsed"
               @click="stagedCollapsed = !stagedCollapsed"
             >
               <svg
@@ -1221,6 +1222,7 @@ function authorInitials(author: string): string {
             <button
               type="button"
               class="flex w-full items-center gap-1.5 px-3 pb-1.5 text-left select-none group/title"
+              :aria-expanded="!changesCollapsed"
               @click="changesCollapsed = !changesCollapsed"
             >
               <svg
@@ -1292,6 +1294,7 @@ function authorInitials(author: string): string {
             <button
               type="button"
               class="flex w-full items-center gap-1.5 px-3 pb-1.5 text-left select-none group/title"
+              :aria-expanded="!untrackedCollapsed"
               @click="untrackedCollapsed = !untrackedCollapsed"
             >
               <svg
@@ -1373,6 +1376,7 @@ function authorInitials(author: string): string {
             <button
               type="button"
               class="flex w-full items-center gap-1.5 px-3 pb-1.5 text-left select-none group/title"
+              :aria-expanded="!historyCollapsed"
               @click="historyCollapsed = !historyCollapsed"
             >
               <svg
