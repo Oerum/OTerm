@@ -64,6 +64,10 @@ const emit = defineEmits<{
   "unstage-hunk": [path: string, patch: string];
   "diff-expanded-change": [expanded: boolean];
   "expand-panel": [];
+  "open-rebase": [];
+  "open-merge": [];
+  "open-stash": [];
+  "open-ai-preflight": [];
 }>();
 
 const { settings: commitAiSettings } = useCommitAiSettings();
@@ -101,11 +105,13 @@ const stagedCollapsed = ref(localStorage.getItem("oterm:sc-staged-collapsed") ==
 const changesCollapsed = ref(localStorage.getItem("oterm:sc-changes-collapsed") === "1");
 const untrackedCollapsed = ref(localStorage.getItem("oterm:sc-untracked-collapsed") === "1");
 const historyCollapsed = ref(localStorage.getItem("oterm:sc-history-collapsed") === "1");
+const stashCollapsed = ref(localStorage.getItem("oterm:sc-stash-collapsed") !== "0");
 
 watch(stagedCollapsed, (val) => localStorage.setItem("oterm:sc-staged-collapsed", val ? "1" : "0"));
 watch(changesCollapsed, (val) => localStorage.setItem("oterm:sc-changes-collapsed", val ? "1" : "0"));
 watch(untrackedCollapsed, (val) => localStorage.setItem("oterm:sc-untracked-collapsed", val ? "1" : "0"));
 watch(historyCollapsed, (val) => localStorage.setItem("oterm:sc-history-collapsed", val ? "1" : "0"));
+watch(stashCollapsed, (val) => localStorage.setItem("oterm:sc-stash-collapsed", val ? "1" : "0"));
 
 let diffRequestId = 0;
 let editRequestId = 0;
@@ -963,7 +969,7 @@ function authorInitials(author: string): string {
           </div>
 
           <!-- Secondary icon-only overrides toolbar -->
-          <div class="flex items-center justify-between gap-1.5 bg-white/[0.02] border border-[var(--oterm-border)] rounded-md p-1">
+          <div class="flex items-center justify-between gap-1.5 bg-white/[0.02] border border-[var(--oterm-border)] rounded-md p-1 mb-2">
             <span class="text-[9px] uppercase tracking-wider text-[var(--oterm-faint)] pl-1.5 font-semibold">Granular actions</span>
             <div class="flex items-center gap-1">
               <button
@@ -1105,15 +1111,26 @@ function authorInitials(author: string): string {
           >
             Open AI settings to choose a provider and model.
           </p>
-          <button
-            type="button"
-            class="mt-2 w-full rounded-md bg-[var(--oterm-accent)] px-3 py-2 text-sm font-medium text-[var(--oterm-bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-            style="font-family: var(--oterm-font-ui)"
-            :disabled="!canCommit || busy"
-            @click="onCommit"
-          >
-            Commit
-          </button>
+          <div class="mt-2 flex gap-1.5">
+            <button
+              type="button"
+              class="flex-1 rounded-md bg-[var(--oterm-accent)] px-3 py-2 text-sm font-medium text-[var(--oterm-bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              style="font-family: var(--oterm-font-ui)"
+              :disabled="!canCommit || busy"
+              @click="onCommit"
+            >
+              Commit
+            </button>
+            <button
+              type="button"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/60 text-[var(--oterm-text)] transition hover:bg-white/5"
+              title="AI Pre-flight"
+              @click="emit('open-ai-preflight')"
+            >
+              ✨
+            </button>
+          </div>
+
           <p
             v-if="!showDiffPane && allChangedFiles.length"
             class="mt-2 text-xs text-[var(--oterm-faint)]"
@@ -1156,6 +1173,11 @@ function authorInitials(author: string): string {
         </div>
 
         <div class="oterm-scroll min-h-0 flex-1 overflow-y-auto">
+          <div class="flex items-center gap-2 px-3 py-2 border-b border-[var(--oterm-border)]">
+            <button type="button" class="text-xs text-[var(--oterm-muted)] hover:text-white" @click="emit('open-merge')">Test Merge</button>
+            <button type="button" class="text-xs text-[var(--oterm-muted)] hover:text-white" @click="emit('open-rebase')">Test Rebase</button>
+          </div>
+
           <section v-if="status.staged.length" class="border-b border-[var(--oterm-border)] py-2">
             <button
               type="button"
@@ -1445,6 +1467,23 @@ function authorInitials(author: string): string {
           >
             Working tree clean
           </p>
+
+          <section class="border-t border-[var(--oterm-border)] mt-auto py-2">
+            <button
+              class="flex w-full items-center justify-between py-1.5 px-3 text-xs font-semibold text-[var(--oterm-muted)] transition-colors hover:text-[var(--oterm-text)]"
+              @click="emit('open-stash')"
+            >
+              <span class="flex items-center gap-1.5 uppercase tracking-wider">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                  <path d="M4 11V5C4 4.44772 4.44772 4 5 4H11C11.5523 4 12 4.44772 12 5V11" stroke-linecap="round" />
+                  <path d="M4 11H12" stroke-linecap="round" />
+                  <path d="M3 14H13" stroke-linecap="round" />
+                  <path d="M5 8H11" stroke-linecap="round" />
+                </svg>
+                Stashes
+              </span>
+            </button>
+          </section>
         </div>
       </template>
     </div>

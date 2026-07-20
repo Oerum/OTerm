@@ -13,6 +13,7 @@ import {
   ref,
   watch,
 } from "vue";
+import { captureTerminalOutput } from "../lib/terminalSyncApi";
 import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE } from "../lib/terminalFont";
 import { resolveTerminalTheme } from "../lib/terminalThemes";
 import { TerminalBlockRenderer } from "../lib/terminalBlockRenderer";
@@ -237,11 +238,30 @@ function activeOutputSessionId(): string | null {
 /** Single PTY output sink. Prompt detection and decorations read the xterm
  * buffer, which only reflects a write inside its parse callback — calling
  * them synchronously froze finished blocks at stale one-row spans. */
+let syncBatchBuffer = "";
+let syncBatchTimeoutId: number | undefined = undefined;
+
 function writeTerminalOutput(output: string) {
   if (!terminal) return;
   blockRenderer?.appendOutput(output);
   handleOutputNotification(output);
   noteOutputActivity(output);
+  
+  // Terminal/GUI bi-directional sync
+  const root = paneCwd.value || props.initialCwd;
+  if (root) {
+    syncBatchBuffer += output;
+    if (syncBatchTimeoutId === undefined) {
+      syncBatchTimeoutId = window.setTimeout(() => {
+        if (syncBatchBuffer) {
+          captureTerminalOutput(root, syncBatchBuffer).catch(err => console.error("Sync error", err));
+          syncBatchBuffer = "";
+        }
+        syncBatchTimeoutId = undefined;
+      }, 50);
+    }
+  }
+
   terminal.write(output, () => {
     if (disposed || !terminal) return;
     trackCwd(output);

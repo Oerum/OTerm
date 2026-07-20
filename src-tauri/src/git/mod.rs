@@ -2,6 +2,11 @@ pub mod branches;
 pub mod commands;
 pub mod issues;
 pub mod pr;
+pub mod rebase;
+pub mod merge;
+pub mod stash;
+pub mod ai_preflight;
+pub mod sync;
 
 use std::collections::HashMap;
 use std::io::Write;

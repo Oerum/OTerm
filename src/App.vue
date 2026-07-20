@@ -25,6 +25,10 @@ import SshSftpManagerView from "./components/SshSftpManagerView.vue";
 import CreatePullRequestDialog from "./components/CreatePullRequestDialog.vue";
 import PullRequestsView from "./components/PullRequestsView.vue";
 import IssuesView from "./components/IssuesView.vue";
+import RebaseBuilder from "./components/RebaseBuilder.vue";
+import MergeConflictViewer from "./components/MergeConflictViewer.vue";
+import StashManager from "./components/StashManager.vue";
+import AiPreflight from "./components/AiPreflight.vue";
 import SettingsView from "./components/SettingsView.vue";
 import TitleBar from "./components/TitleBar.vue";
 import AgentsView from "./components/AgentsView.vue";
@@ -333,6 +337,10 @@ const {
   openBranchManagerTab,
   openWorktreeManagerTab,
   openIssuesTab,
+  openRebaseTab,
+  openMergeTab,
+  openStashTab,
+  openAiPreflightTab,
   openDockerManagerTab,
   openProcessManagerTab,
   openSshSftpTab,
@@ -822,6 +830,30 @@ function openIssues() {
   const root = gitRepoRoot.value;
   if (!root) return;
   openIssuesTab(root);
+}
+
+function openRebase() {
+  const root = sourceControlStatus.value.repoRoot;
+  if (!root) return;
+  openRebaseTab(root);
+}
+
+function openMerge() {
+  const root = sourceControlStatus.value.repoRoot;
+  if (!root) return;
+  openMergeTab(root);
+}
+
+function openStash() {
+  const root = sourceControlStatus.value.repoRoot;
+  if (!root) return;
+  openStashTab(root);
+}
+
+function openAiPreflight() {
+  const root = sourceControlStatus.value.repoRoot;
+  if (!root) return;
+  openAiPreflightTab(root);
 }
 
 function openDockerManager() {
@@ -1798,6 +1830,38 @@ onUnmounted(() => {
                 @refresh-git="refreshGitViews"
                 @close="closeTab(tab.id)"
               />
+              <RebaseBuilder
+                v-else-if="tab.kind === 'rebase'"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1"
+                :repo-root="tab.repoRoot"
+                :active="tab.id === activeTabId"
+                @close="closeTab(tab.id)"
+              />
+              <MergeConflictViewer
+                v-else-if="tab.kind === 'merge'"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1"
+                :repo-root="tab.repoRoot"
+                :active="tab.id === activeTabId"
+                @close="closeTab(tab.id)"
+              />
+              <StashManager
+                v-else-if="tab.kind === 'stash'"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1"
+                :repo-root="tab.repoRoot"
+                :active="tab.id === activeTabId"
+                @close="closeTab(tab.id)"
+              />
+              <AiPreflight
+                v-else-if="tab.kind === 'aiPreflight'"
+                v-show="tab.id === activeTabId"
+                class="flex min-h-0 flex-1"
+                :repo-root="tab.repoRoot"
+                :active="tab.id === activeTabId"
+                @close="closeTab(tab.id)"
+              />
               <DockerManagerView
                 v-else-if="tab.kind === 'docker'"
                 v-show="tab.id === activeTabId"
@@ -1922,6 +1986,10 @@ onUnmounted(() => {
           @stage-hunk="(path, patch) => runGitHunkAction(() => stageGitHunk(path, patch))"
           @unstage-hunk="(path, patch) => runGitHunkAction(() => unstageGitHunk(path, patch))"
           @diff-expanded-change="onDiffExpandedChange"
+          @open-rebase="openRebase"
+          @open-merge="openMerge"
+          @open-stash="openStash"
+          @open-ai-preflight="openAiPreflight"
         />
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { cwdForNewTerminal } from "../lib/newTerminalCwd";
 import type { CliAgentId } from "../lib/terminalAgentMode";
 import { normalizeOscTitle } from "../lib/terminalOscTitle";
@@ -27,6 +27,15 @@ export function useWorkspace(getDefaultShellId: () => string) {
   const collapsedGroupIds = ref<string[]>([]);
   const activeTabId = ref<string | null>(null);
   const activePaneId = ref<string | null>(null);
+  const mruTabIds = ref<string[]>([]);
+
+  watch(activeTabId, (id) => {
+    if (id) {
+      mruTabIds.value = mruTabIds.value.filter((x) => x !== id);
+      mruTabIds.value.push(id);
+    }
+  }, { immediate: true });
+
   let lastActiveTerminalTabId: string | null = null;
   let lastActiveTerminalPaneId: string | null = null;
 
@@ -172,6 +181,82 @@ export function useWorkspace(getDefaultShellId: () => string) {
     return tab;
   }
 
+  function openRebaseTab(repoRoot: string) {
+    const existing = tabs.value.find((tab) => tab.kind === "rebase" && tab.repoRoot === repoRoot);
+    if (existing) {
+      activeTabId.value = existing.id;
+      activePaneId.value = null;
+      return existing;
+    }
+    const tab: WorkspaceTab = {
+      kind: "rebase",
+      id: uid("rebase-tab"),
+      title: "Rebase",
+      repoRoot,
+    };
+    tabs.value.push(tab);
+    activeTabId.value = tab.id;
+    activePaneId.value = null;
+    return tab;
+  }
+
+  function openMergeTab(repoRoot: string) {
+    const existing = tabs.value.find((tab) => tab.kind === "merge" && tab.repoRoot === repoRoot);
+    if (existing) {
+      activeTabId.value = existing.id;
+      activePaneId.value = null;
+      return existing;
+    }
+    const tab: WorkspaceTab = {
+      kind: "merge",
+      id: uid("merge-tab"),
+      title: "Merge Conflicts",
+      repoRoot,
+    };
+    tabs.value.push(tab);
+    activeTabId.value = tab.id;
+    activePaneId.value = null;
+    return tab;
+  }
+
+  function openStashTab(repoRoot: string) {
+    const existing = tabs.value.find((tab) => tab.kind === "stash" && tab.repoRoot === repoRoot);
+    if (existing) {
+      activeTabId.value = existing.id;
+      activePaneId.value = null;
+      return existing;
+    }
+    const tab: WorkspaceTab = {
+      kind: "stash",
+      id: uid("stash-tab"),
+      title: "Stashes",
+      repoRoot,
+    };
+    tabs.value.push(tab);
+    activeTabId.value = tab.id;
+    activePaneId.value = null;
+    return tab;
+  }
+
+  function openAiPreflightTab(repoRoot: string) {
+    const existing = tabs.value.find((tab) => tab.kind === "aiPreflight" && tab.repoRoot === repoRoot);
+    if (existing) {
+      activeTabId.value = existing.id;
+      activePaneId.value = null;
+      return existing;
+    }
+    const tab: WorkspaceTab = {
+      kind: "aiPreflight",
+      id: uid("ai-preflight-tab"),
+      title: "AI Pre-flight",
+      repoRoot,
+    };
+    tabs.value.push(tab);
+    activeTabId.value = tab.id;
+    activePaneId.value = null;
+    return tab;
+  }
+
   function openDockerManagerTab() {
     const existing = tabs.value.find((tab) => tab.kind === "docker");
     if (existing) {
@@ -248,8 +333,21 @@ export function useWorkspace(getDefaultShellId: () => string) {
     const index = tabs.value.findIndex((tab) => tab.id === tabId);
     if (index === -1) return;
     tabs.value.splice(index, 1);
+    mruTabIds.value = mruTabIds.value.filter((x) => x !== tabId);
+
     if (activeTabId.value === tabId) {
-      const next = tabs.value[index] ?? tabs.value[index - 1] ?? null;
+      let nextId: string | null = null;
+      for (let i = mruTabIds.value.length - 1; i >= 0; i--) {
+        if (tabs.value.some((t) => t.id === mruTabIds.value[i])) {
+          nextId = mruTabIds.value[i];
+          break;
+        }
+      }
+
+      const next = nextId 
+        ? tabs.value.find((t) => t.id === nextId) ?? null
+        : tabs.value[index] ?? tabs.value[index - 1] ?? null;
+
       activeTabId.value = next?.id ?? null;
       const nextPane =
         next && isTerminalTab(next) ? (next.panes[0]?.id ?? null) : null;
@@ -601,8 +699,11 @@ export function useWorkspace(getDefaultShellId: () => string) {
     const index = tabs.value.findIndex((tab) => tab.id === tabId);
     if (index === -1) return;
     const kept = tabs.value.slice(0, index + 1);
+    const removedIds = tabs.value.slice(index + 1).map((t) => t.id);
     const removedActive = !kept.some((tab) => tab.id === activeTabId.value);
     tabs.value = kept;
+    mruTabIds.value = mruTabIds.value.filter((id) => !removedIds.includes(id));
+
     if (removedActive) {
       activeTabId.value = tabId;
       const tab = kept[index];
@@ -752,6 +853,10 @@ export function useWorkspace(getDefaultShellId: () => string) {
     openBranchManagerTab,
     openWorktreeManagerTab,
     openIssuesTab,
+    openRebaseTab,
+    openMergeTab,
+    openStashTab,
+    openAiPreflightTab,
     openDockerManagerTab,
     openProcessManagerTab,
     openSshSftpTab,

@@ -127,6 +127,34 @@ export interface WorkspaceWorktreeManagerTab {
   repoRoot: string;
 }
 
+export interface WorkspaceRebaseTab {
+  kind: "rebase";
+  id: string;
+  title: string;
+  repoRoot: string;
+}
+
+export interface WorkspaceMergeTab {
+  kind: "merge";
+  id: string;
+  title: string;
+  repoRoot: string;
+}
+
+export interface WorkspaceStashTab {
+  kind: "stash";
+  id: string;
+  title: string;
+  repoRoot: string;
+}
+
+export interface WorkspaceAiPreflightTab {
+  kind: "aiPreflight";
+  id: string;
+  title: string;
+  repoRoot: string;
+}
+
 export type WorkspaceTab =
   | WorkspaceTerminalTab
   | WorkspacePullRequestsTab
@@ -136,7 +164,11 @@ export type WorkspaceTab =
   | WorkspaceProcessManagerTab
   | WorkspaceSshSftpTab
   | WorkspaceSettingsTab
-  | WorkspaceWorktreeManagerTab;
+  | WorkspaceWorktreeManagerTab
+  | WorkspaceRebaseTab
+  | WorkspaceMergeTab
+  | WorkspaceStashTab
+  | WorkspaceAiPreflightTab;
 
 export function isTerminalTab(tab: WorkspaceTab): tab is WorkspaceTerminalTab {
   return tab.kind === "terminal";

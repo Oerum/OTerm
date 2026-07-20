@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { openPath } from "@tauri-apps/plugin-opener";
 import ExplorerContextMenu from "./ExplorerContextMenu.vue";
+import TerminalSyncPanel from "./TerminalSyncPanel.vue";
 import {
   getToolsDirectoryHints,
   importEnvFile,
@@ -41,6 +42,7 @@ function loadShowHidden(): boolean {
 }
 
 const showHidden = ref(loadShowHidden());
+const syncCollapsed = ref(true);
 
 const props = defineProps<{
   rootPath: string;
@@ -743,6 +745,33 @@ onBeforeUnmount(() => {
         <p v-if="entries.length === 0 && !loading" class="py-8 text-center text-xs text-[var(--oterm-muted)]">
           Empty Folder.
         </p>
+      </div>
+
+      <!-- Terminal Sync View -->
+      <div class="border-t border-[var(--oterm-border)] shrink-0">
+        <button
+          type="button"
+          class="flex w-full items-center gap-1.5 px-4 py-2 text-left select-none group/title bg-[var(--oterm-panel)]/30 hover:bg-white/5 transition"
+          :aria-expanded="!syncCollapsed"
+          @click="syncCollapsed = !syncCollapsed"
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="currentColor"
+            class="shrink-0 text-(--oterm-faint) transition group-hover/title:text-white"
+            :class="syncCollapsed ? '-rotate-90' : ''"
+          >
+            <path d="M3 1.5 7.5 5 3 8.5z" />
+          </svg>
+          <span class="text-[10px] font-bold uppercase tracking-[0.1em] text-(--oterm-faint) group-hover/title:text-white transition">
+            Terminal Sync
+          </span>
+        </button>
+        <div v-show="!syncCollapsed" class="h-64 overflow-y-auto bg-[var(--oterm-panel)]/5 border-t border-[var(--oterm-border)]">
+          <TerminalSyncPanel :repo-root="currentDirectory" />
+        </div>
       </div>
     </div>
 

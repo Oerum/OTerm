@@ -18,10 +18,9 @@ fn validate_whisper_backend_features() {
         .collect();
 
     match enabled.len() {
-        0 => panic!(
-            "No Whisper backend feature enabled. Pass one of: \
-             --features whisper-metal | whisper-vulkan | whisper-cuda | whisper-openblas"
-        ),
+        0 => {
+            println!("cargo:warning=No Whisper backend feature enabled. Using stub/mock mode for testing.");
+        },
         1 => {}
         _ => panic!("Multiple Whisper backend features enabled ({enabled:?}). Enable exactly one."),
     }

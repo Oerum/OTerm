@@ -15,6 +15,11 @@ use super::pr::{
     pull_request_diff, remote_browser_url, view_pull_request, GitHubUserProfile, PrChangedFile,
     PrCheck, PrCommit, PrProviderInfo, PullRequestDetail, PullRequestSummary,
 };
+use super::rebase::{get_rebase_todo, set_rebase_todo, git_rebase_action, RebaseTodoInfo};
+use super::merge::{get_merge_conflicts, parse_conflict_markers, resolve_conflict, ConflictFile, MergeConflictFile};
+use super::stash::{git_stash_list, git_stash_save, git_stash_apply, git_stash_pop, git_stash_drop, StashInfo};
+use super::ai_preflight::run_ai_preflight;
+use super::sync::{capture_terminal_output, update_gui_state, get_sync_state, TerminalSyncState};
 use super::{
     checkout_branch, commit_changes, fetch_changes, list_branches, pull_changes, push_changes,
     read_log, resolve_file_diff, resolve_git_status, resolve_read_working_file,
@@ -409,4 +414,85 @@ pub async fn git_create_worktree(
     start_point: String,
 ) -> Result<GitWorktreeInfo, String> {
     blocking_git(move || create_worktree(repo_root, path, branch_name, start_point)).await
+}
+
+#[tauri::command]
+pub async fn git_get_rebase_todo(repo_root: String) -> Result<Vec<RebaseTodoInfo>, String> {
+    blocking_git(move || get_rebase_todo(repo_root)).await
+}
+
+#[tauri::command]
+pub async fn git_set_rebase_todo(repo_root: String, todos: Vec<RebaseTodoInfo>) -> Result<(), String> {
+    blocking_git(move || set_rebase_todo(repo_root, todos)).await
+}
+
+#[tauri::command]
+pub async fn git_rebase_action_cmd(repo_root: String, action: String) -> Result<(), String> {
+    blocking_git(move || git_rebase_action(repo_root, action)).await
+}
+
+#[tauri::command]
+pub async fn git_parse_conflict_markers(repo_root: String, file_path: String) -> Result<ConflictFile, String> {
+    blocking_git(move || parse_conflict_markers(repo_root, file_path)).await
+}
+
+#[tauri::command]
+pub async fn git_get_merge_conflicts(repo_root: String) -> Result<Vec<MergeConflictFile>, String> {
+    blocking_git(move || get_merge_conflicts(repo_root)).await
+}
+
+#[tauri::command]
+pub async fn git_resolve_conflict(repo_root: String, file_path: String, resolved_content: String) -> Result<(), String> {
+    blocking_git(move || resolve_conflict(repo_root, file_path, resolved_content)).await
+}
+
+#[tauri::command]
+pub async fn git_stash_list_cmd(repo_root: String) -> Result<Vec<StashInfo>, String> {
+    blocking_git(move || git_stash_list(repo_root)).await
+}
+
+#[tauri::command]
+pub async fn git_stash_save_cmd(repo_root: String, message: String, include_untracked: bool) -> Result<(), String> {
+    blocking_git(move || git_stash_save(repo_root, message, include_untracked)).await
+}
+
+#[tauri::command]
+pub async fn git_stash_apply_cmd(repo_root: String, index: u32) -> Result<(), String> {
+    blocking_git(move || git_stash_apply(repo_root, index)).await
+}
+
+#[tauri::command]
+pub async fn git_stash_pop_cmd(repo_root: String, index: u32) -> Result<(), String> {
+    blocking_git(move || git_stash_pop(repo_root, index)).await
+}
+
+#[tauri::command]
+pub async fn git_stash_drop_cmd(repo_root: String, index: u32) -> Result<(), String> {
+    blocking_git(move || git_stash_drop(repo_root, index)).await
+}
+
+#[tauri::command]
+pub async fn git_ai_preflight(
+    repo_root: String,
+    endpoint: String,
+    provider: Option<String>,
+    api_key: Option<String>,
+    model: String,
+) -> Result<String, String> {
+    run_ai_preflight(repo_root, endpoint, provider, api_key, model).await
+}
+
+#[tauri::command]
+pub async fn git_capture_terminal_output(repo_root: String, output: String) -> Result<(), String> {
+    blocking_git(move || capture_terminal_output(repo_root, output)).await
+}
+
+#[tauri::command]
+pub async fn git_update_gui_state(repo_root: String, gui_state: String) -> Result<(), String> {
+    blocking_git(move || update_gui_state(repo_root, gui_state)).await
+}
+
+#[tauri::command]
+pub async fn git_get_sync_state(repo_root: String) -> Result<TerminalSyncState, String> {
+    blocking_git(move || get_sync_state(repo_root)).await
 }
