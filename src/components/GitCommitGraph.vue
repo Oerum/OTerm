@@ -10,7 +10,7 @@ import {
   GRAPH_ROW_HEIGHT,
   isHeadCommit,
   parseDecorations,
-  primaryBranchLabel,
+
 } from "../lib/gitGraphLayout";
 import {
   getCommitGraph,
@@ -131,6 +131,29 @@ function onResizePointerDown(event: PointerEvent) {
 }
 
 const layout = computed(() => buildGraphLayout(commits.value));
+
+// ⚡ Bolt Optimization: Memoize decoration parsing
+// Previously, parseDecorations() and filtering ran directly in the v-for template.
+// This caused thousands of unnecessary string allocations and regex evaluations
+// every time the graph re-rendered (e.g. on row hover).
+const parsedCommits = computed(() => {
+  return commits.value.map((commit) => {
+    const isHead = isHeadCommit(commit.decorations);
+
+    const allBadges = parseDecorations(commit.decorations);
+    const headBadge = allBadges.find((part) => part.startsWith("HEAD -> "));
+    const primaryLabel = headBadge ? headBadge.replace("HEAD -> ", "").trim() : (allBadges[0] ?? null);
+
+    const badges = allBadges.filter(
+      (b) => !b.startsWith("HEAD ->") && b !== primaryLabel
+    );
+    return {
+      isHead,
+      primaryLabel,
+      badges,
+    };
+  });
+});
 
 watch(collapsed, (value) => {
   localStorage.setItem(STORAGE_KEY, value ? "1" : "0");
@@ -544,7 +567,7 @@ function isSelected(hash: string): boolean {
               class="transition-all duration-150 ease-in-out"
             >
               <!-- HEAD commit nodes -->
-              <template v-if="isHeadCommit(commits[index]?.decorations)">
+              <template v-if="parsedCommits[index]?.isHead">
                 <!-- Hover halo ring -->
                 <circle
                   v-if="hoveredRowIndex === index"
@@ -622,11 +645,11 @@ function isSelected(hash: string): boolean {
               >
                 {{ commit.subject }}
                 <span
-                  v-if="primaryBranchLabel(commit.decorations)"
+                  v-if="parsedCommits[index]?.primaryLabel"
                   class="ml-1.5 inline-flex items-center rounded px-1.5 py-px text-[10px] font-medium leading-none text-white"
                   :style="{ backgroundColor: layout.rows[index]?.color ?? '#3794ff' }"
                 >
-                  {{ primaryBranchLabel(commit.decorations) }}
+                  {{ parsedCommits[index]?.primaryLabel }}
                 </span>
               </p>
               <p
@@ -635,9 +658,7 @@ function isSelected(hash: string): boolean {
               >
                 {{ commit.shortHash }}
                 <span
-                  v-for="badge in parseDecorations(commit.decorations).filter(
-                    (b) => !b.startsWith('HEAD ->') && b !== primaryBranchLabel(commit.decorations),
-                  )"
+                  v-for="badge in parsedCommits[index]?.badges"
                   :key="`${commit.hash}:${badge}`"
                   class="ml-1 text-[var(--oterm-muted)]"
                 >
