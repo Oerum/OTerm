@@ -10,7 +10,7 @@ import {
   GRAPH_ROW_HEIGHT,
   isHeadCommit,
   parseDecorations,
-  primaryBranchLabel,
+
 } from "../lib/gitGraphLayout";
 import {
   getCommitGraph,
@@ -139,8 +139,11 @@ const layout = computed(() => buildGraphLayout(commits.value));
 const parsedCommits = computed(() => {
   return commits.value.map((commit) => {
     const isHead = isHeadCommit(commit.decorations);
-    const primaryLabel = primaryBranchLabel(commit.decorations);
+
     const allBadges = parseDecorations(commit.decorations);
+    const headBadge = allBadges.find((part) => part.startsWith("HEAD -> "));
+    const primaryLabel = headBadge ? headBadge.replace("HEAD -> ", "").trim() : (allBadges[0] ?? null);
+
     const badges = allBadges.filter(
       (b) => !b.startsWith("HEAD ->") && b !== primaryLabel
     );
