@@ -656,6 +656,12 @@ function chunkClass(chunk: WordDiffChunk) {
 .diff-body {
   font-size: 12px;
   line-height: 22px;
+  width: max-content;
+  min-width: 100%;
+}
+
+.diff-hunk {
+  width: 100%;
 }
 
 .diff-hunk--active {
