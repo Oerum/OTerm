@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isDictationShortcut, isTabCycleShortcut } from "./appKeyboardShortcuts";
+import {
+  isCommandPaletteShortcut,
+  isDictationShortcut,
+  isTabCycleShortcut,
+} from "./appKeyboardShortcuts";
 
 function keyEvent(
   key: string,
@@ -56,5 +60,25 @@ describe("isDictationShortcut", () => {
 
   it("does not match plain F", () => {
     expect(isDictationShortcut(keyEvent("f"))).toBe(false);
+  });
+});
+
+describe("isCommandPaletteShortcut", () => {
+  it("matches Ctrl+K", () => {
+    expect(isCommandPaletteShortcut(keyEvent("k", { ctrlKey: true }))).toBe(true);
+  });
+
+  it("matches Meta+K for default bind", () => {
+    expect(isCommandPaletteShortcut(keyEvent("k", { metaKey: true }))).toBe(true);
+  });
+
+  it("does not match plain K", () => {
+    expect(isCommandPaletteShortcut(keyEvent("k"))).toBe(false);
+  });
+
+  it("does not match Ctrl+Shift+K for default", () => {
+    expect(
+      isCommandPaletteShortcut(keyEvent("k", { ctrlKey: true, shiftKey: true })),
+    ).toBe(false);
   });
 });

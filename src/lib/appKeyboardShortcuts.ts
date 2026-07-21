@@ -20,6 +20,19 @@ export function isDictationShortcut(event: KeyboardEvent): boolean {
   return isActionKeybind(event, "dictation");
 }
 
+export function isCommandPaletteShortcut(event: KeyboardEvent): boolean {
+  const bind = getKeybind("command-palette");
+  const isDefault =
+    !!bind.ctrl && !bind.meta && !bind.alt && !bind.shift && bind.key.toLowerCase() === "k";
+  if (isDefault) {
+    const key = event.key.toLowerCase();
+    if (key !== "k") return false;
+    if (event.shiftKey || event.altKey) return false;
+    return event.ctrlKey || event.metaKey;
+  }
+  return isActionKeybind(event, "command-palette");
+}
+
 export function consumeAppShortcut(event: KeyboardEvent): void {
   event.preventDefault();
   event.stopImmediatePropagation();

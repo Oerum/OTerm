@@ -15,7 +15,8 @@ const actionLabels: Record<KeybindAction, string> = {
   "terminal-new": "New Terminal (Grouped)",
   "terminal-new-ungrouped": "New Terminal (Ungrouped)",
   "terminal-reopen": "Reopen Closed Terminal",
-  "reload-window": "Search / Commands",
+  "command-palette": "Command Palette",
+  "reload-window": "Command History",
   dictation: "Dictation",
   "tab-cycle": "Cycle Tabs",
   "terminal-set-default": "Set Default Shell (Menu)",
@@ -31,7 +32,7 @@ const actionLabels: Record<KeybindAction, string> = {
 const groups = [
   {
     name: "General",
-    actions: ["reload-window", "dictation", "tab-cycle"] as KeybindAction[],
+    actions: ["command-palette", "reload-window", "dictation", "tab-cycle"] as KeybindAction[],
   },
   {
     name: "Terminal",
