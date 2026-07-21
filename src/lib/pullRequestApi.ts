@@ -4,6 +4,7 @@ import type {
   PrChangedFile,
   PrCheck,
   PrCommit,
+  PrMergeMethod,
   PrProviderInfo,
   PullRequestDetail,
   PullRequestSummary,
@@ -49,6 +50,15 @@ export function commentOnPullRequest(
   body: string,
 ): Promise<void> {
   return invoke("pr_comment", { repoRoot, number, body });
+}
+
+export function mergePullRequest(
+  repoRoot: string,
+  number: number,
+  method: PrMergeMethod,
+  deleteBranch: boolean,
+): Promise<void> {
+  return invoke("pr_merge", { repoRoot, number, method, deleteBranch });
 }
 
 export function createPullRequest(input: CreatePullRequestInput): Promise<PullRequestSummary> {

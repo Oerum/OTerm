@@ -41,7 +41,10 @@ export interface PullRequestDetail extends PullRequestSummary {
   additions: number;
   deletions: number;
   changedFiles: number;
+  mergeable?: string | null;
 }
+
+export type PrMergeMethod = "merge" | "squash" | "rebase";
 
 export interface PrCommit {
   oid: string;
@@ -70,7 +73,7 @@ export interface PrChangedFile {
   changeType: string;
 }
 
-export type PullRequestTab = "conversation" | "commits" | "checks" | "files";
+export type PullRequestTab = "conversation" | "reviews" | "commits" | "checks" | "files";
 
 export interface CreatePullRequestInput {
   repoRoot: string;

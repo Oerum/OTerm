@@ -8,7 +8,9 @@ import {
   importEnvFile,
   listDirectory,
   openInAntigravity,
+  openInCursor,
   openInFileExplorer,
+  openInIntelliJ,
   openInRider,
   openInVisualStudio,
   openInVsCode,
@@ -18,6 +20,8 @@ import {
 } from "../lib/fsApi";
 import { getSetting, setSetting } from "../lib/settingsStore";
 import type { FsEntry, FsToolsDirectoryHints } from "../types/fs";
+import cursorIcon from "../assets/editors/cursor.png";
+import intellijIcon from "../assets/editors/intellij.webp";
 import riderIcon from "../assets/editors/JetBrains_Rider.svg";
 import visualStudioIcon from "../assets/editors/VS2026.svg";
 import vscodeIcon from "../assets/editors/vscode.svg";
@@ -95,8 +99,14 @@ const riderSolutionEntries = computed(() =>
 
 const envImportHint = computed(() => directoryHints.value?.envImport ?? null);
 const vscodeAvailable = computed(() => directoryHints.value?.vscodeAvailable ?? false);
+const cursorAvailable = computed(() => directoryHints.value?.cursorAvailable ?? false);
 const zedAvailable = computed(() => directoryHints.value?.zedAvailable ?? false);
 const antigravityAvailable = computed(() => directoryHints.value?.antigravityAvailable ?? false);
+const intellijAvailable = computed(
+  () =>
+    (directoryHints.value?.intellijAvailable ?? false) &&
+    (directoryHints.value?.javaProject ?? false),
+);
 const fileExplorerLabel = computed(
   () => directoryHints.value?.fileExplorerLabel ?? "File manager",
 );
@@ -268,7 +278,9 @@ function toggleOpenWithMenu() {
   openWithMenuOpen.value = !openWithMenuOpen.value;
 }
 
-async function openCurrentDirectoryWith(app: "code" | "zed" | "antigravity" | "explorer") {
+async function openCurrentDirectoryWith(
+  app: "code" | "cursor" | "intellij" | "zed" | "antigravity" | "explorer",
+) {
   openWithMenuOpen.value = false;
   const directory = currentDirectory.value;
   if (!directory) return;
@@ -276,6 +288,14 @@ async function openCurrentDirectoryWith(app: "code" | "zed" | "antigravity" | "e
   try {
     if (app === "code") {
       await openInVsCode(directory);
+      return;
+    }
+    if (app === "cursor") {
+      await openInCursor(directory);
+      return;
+    }
+    if (app === "intellij") {
+      await openInIntelliJ(directory);
       return;
     }
     if (app === "zed") {
@@ -526,6 +546,32 @@ onBeforeUnmount(() => {
                 <img :src="vscodeIcon" alt="" :class="openWithIconImageClass" />
               </span>
               <span class="min-w-0 truncate">VS Code</span>
+            </button>
+
+            <button
+              v-if="cursorAvailable"
+              type="button"
+              :class="openWithItemClass"
+              role="menuitem"
+              @click="openCurrentDirectoryWith('cursor')"
+            >
+              <span :class="openWithIconClass">
+                <img :src="cursorIcon" alt="" :class="openWithIconImageClass" />
+              </span>
+              <span class="min-w-0 truncate">Cursor</span>
+            </button>
+
+            <button
+              v-if="intellijAvailable"
+              type="button"
+              :class="openWithItemClass"
+              role="menuitem"
+              @click="openCurrentDirectoryWith('intellij')"
+            >
+              <span :class="openWithIconClass">
+                <img :src="intellijIcon" alt="" :class="openWithIconImageClass" />
+              </span>
+              <span class="min-w-0 truncate">IntelliJ IDEA</span>
             </button>
 
             <button

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import CreatePullRequestDialog from "./CreatePullRequestDialog.vue";
 import {
   switchPullRequestBranch,
@@ -13,22 +13,27 @@ import {
   listPrCommits,
   listPrFiles,
   listPullRequests,
+  mergePullRequest,
   viewPullRequest,
 } from "../lib/pullRequestApi";
 import { defaultCreatePrTitle, initCreatePrBranches } from "../lib/createPrFlow";
 import { getGitLog, getSourceControlStatus, listGitBranches } from "../lib/gitApi";
+import { formatGitOperationError } from "../lib/formatGitError";
+import { pushAppToast, setAppToastActivity } from "../lib/appToast";
 import { splitUnifiedDiffByFile } from "../lib/parseUnifiedDiff";
 import type { GitBranchList } from "../types/git";
 import type {
   PrChangedFile,
   PrCheck,
   PrCommit,
+  PrMergeMethod,
   PrProviderInfo,
   PullRequestDetail,
   PullRequestSummary,
   PullRequestTab,
 } from "../types/pullRequest";
 import GitDiffViewer from "./GitDiffViewer.vue";
+import GitHubAvatar from "./GitHubAvatar.vue";
 import MarkdownContent from "./MarkdownContent.vue";
 
 const props = defineProps<{
@@ -89,6 +94,9 @@ const createHead = ref("");
 const createDraft = ref(false);
 const createError = ref<string | null>(null);
 const busy = ref(false);
+const mergeMenuOpen = ref(false);
+const deleteBranchAfterMerge = ref(true);
+const mergeBusy = ref(false);
 
 const activeTab = ref<PullRequestTab>("conversation");
 const detail = ref<PullRequestDetail | null>(null);
@@ -149,6 +157,40 @@ const checksSummary = computed(() => {
   if (pending > 0) return { label: `${pending} pending`, tone: "pending" as const };
   if (pass > 0) return { label: `${pass} passed`, tone: "pass" as const };
   return { label: `${checks.value.length}`, tone: "neutral" as const };
+});
+
+const reviewsSorted = computed(() => {
+  if (!detail.value) return [];
+  return [...detail.value.reviews].sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+});
+
+const reviewsSummary = computed(() => {
+  const reviews = detail.value?.reviews ?? [];
+  if (reviews.length === 0) return null;
+  const approved = reviews.filter((r) => r.state.toUpperCase().includes("APPROVED")).length;
+  const changes = reviews.filter((r) => r.state.toUpperCase().includes("CHANGES")).length;
+  if (changes > 0) return { label: `${changes} changes`, tone: "fail" as const };
+  if (approved > 0) return { label: `${approved} approved`, tone: "pass" as const };
+  return { label: `${reviews.length}`, tone: "neutral" as const };
+});
+
+const canMergePr = computed(() => {
+  const pr = selected.value;
+  if (!pr || busy.value || mergeBusy.value) return false;
+  if (pr.state.toUpperCase() !== "OPEN" || pr.isDraft) return false;
+  if (detail.value?.mergeable?.toUpperCase() === "CONFLICTING") return false;
+  return true;
+});
+
+const mergeBlockedReason = computed(() => {
+  const pr = selected.value;
+  if (!pr) return null;
+  if (pr.state.toUpperCase() !== "OPEN") return "Only open pull requests can be merged";
+  if (pr.isDraft) return "Mark the draft ready before merging";
+  if (detail.value?.mergeable?.toUpperCase() === "CONFLICTING") {
+    return "Resolve merge conflicts before merging";
+  }
+  return null;
 });
 
 const fileDiffSlices = computed(() => splitUnifiedDiffByFile(diffContent.value));
@@ -232,6 +274,7 @@ async function loadConversation(number: number) {
     if (selectedNumber.value === number) {
       detail.value = res;
       loadedTabs.value.add("conversation");
+      loadedTabs.value.add("reviews");
     }
   } catch (err) {
     if (selectedNumber.value === number) {
@@ -320,7 +363,7 @@ async function loadFilesTab(number: number) {
 
 async function ensureTabLoaded(tab: PullRequestTab, number: number) {
   if (loadedTabs.value.has(tab)) return;
-  if (tab === "conversation") await loadConversation(number);
+  if (tab === "conversation" || tab === "reviews") await loadConversation(number);
   else if (tab === "commits") await loadCommitsTab(number);
   else if (tab === "checks") await loadChecksTab(number);
   else if (tab === "files") await loadFilesTab(number);
@@ -344,6 +387,52 @@ async function onSwitchPullRequestBranch(pr: PullRequestSummary) {
     error.value = err instanceof Error ? err.message : String(err);
   } finally {
     busy.value = false;
+  }
+}
+
+async function openMergeMenu() {
+  if (mergeBusy.value || busy.value) return;
+  const number = selectedNumber.value;
+  if (!number) return;
+  mergeMenuOpen.value = !mergeMenuOpen.value;
+  if (mergeMenuOpen.value) {
+    await ensureTabLoaded("conversation", number);
+  }
+}
+
+async function onMerge(method: PrMergeMethod) {
+  const pr = selected.value;
+  if (!pr || !canMergePr.value) return;
+  mergeMenuOpen.value = false;
+  mergeBusy.value = true;
+  error.value = null;
+  const labels: Record<PrMergeMethod, string> = {
+    merge: "Merging pull request…",
+    squash: "Squash merging pull request…",
+    rebase: "Rebase merging pull request…",
+  };
+  setAppToastActivity(labels[method]);
+  try {
+    await mergePullRequest(props.repoRoot, pr.number, method, deleteBranchAfterMerge.value);
+    pushAppToast(`Merged #${pr.number}`, "success");
+    emit("refreshGit");
+    selectedNumber.value = null;
+    await load();
+  } catch (err) {
+    const message = formatGitOperationError(err);
+    error.value = message;
+    pushAppToast(message, "error");
+  } finally {
+    setAppToastActivity(null);
+    mergeBusy.value = false;
+  }
+}
+
+function onMergeMenuMouseDown(event: MouseEvent) {
+  if (!mergeMenuOpen.value) return;
+  const target = event.target as Element | null;
+  if (!target?.closest("[data-merge-menu-root]")) {
+    mergeMenuOpen.value = false;
   }
 }
 
@@ -431,12 +520,19 @@ async function onSubmitComment() {
   }
 }
 
-onMounted(() => void load());
+onMounted(() => {
+  void load();
+  document.addEventListener("mousedown", onMergeMenuMouseDown);
+});
+onUnmounted(() => {
+  document.removeEventListener("mousedown", onMergeMenuMouseDown);
+});
 watch(
   () => props.repoRoot,
   () => {
     resetTabCaches();
     selectedNumber.value = null;
+    mergeMenuOpen.value = false;
     void load();
   },
 );
@@ -444,6 +540,7 @@ watch(includeClosed, () => void load());
 watch(selectedNumber, (number) => {
   resetTabCaches();
   activeTab.value = "conversation";
+  mergeMenuOpen.value = false;
   if (number) void ensureTabLoaded("conversation", number);
 });
 watch(() => props.active, (isActive) => {
@@ -452,32 +549,6 @@ watch(() => props.active, (isActive) => {
   }
 });
 
-function getInitials(name: string): string {
-  if (!name) return "?";
-  const parts = name.trim().split(/[\s._-]+/);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase();
-}
-
-function avatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const colors = [
-    "from-pink-500 to-rose-500",
-    "from-purple-500 to-indigo-500",
-    "from-blue-500 to-cyan-500",
-    "from-teal-500 to-emerald-500",
-    "from-green-500 to-lime-500",
-    "from-yellow-500 to-amber-500",
-    "from-orange-500 to-red-500",
-  ];
-  const index = Math.abs(hash) % colors.length;
-  return colors[index];
-}
 </script>
 
 <template>
@@ -626,14 +697,7 @@ function avatarColor(name: string): string {
             @click="selectedNumber = pr.number"
           >
             <div class="flex items-start gap-3">
-              <!-- Initials avatar badge -->
-              <div
-                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-bold text-white shadow-sm"
-                :class="avatarColor(pr.author)"
-                :title="`Author: ${pr.author}`"
-              >
-                {{ getInitials(pr.author) }}
-              </div>
+              <GitHubAvatar :login="pr.author" size-class="h-7 w-7" text-class="text-[10px]" :size-px="56" />
               
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-1.5 flex-wrap">
@@ -682,13 +746,12 @@ function avatarColor(name: string): string {
         <!-- PR Header Details -->
         <div class="shrink-0 border-b border-[var(--oterm-border)] px-5 py-4 bg-[var(--oterm-panel)]/30">
           <div class="flex items-start gap-4">
-            <!-- Large Author Avatar -->
-            <div
-              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white shadow"
-              :class="avatarColor(selected.author)"
-            >
-              {{ getInitials(selected.author) }}
-            </div>
+            <GitHubAvatar
+              :login="selected.author"
+              size-class="h-10 w-10"
+              text-class="text-xs"
+              :size-px="80"
+            />
             
             <div class="min-w-0 flex-1">
               <h3 class="text-base font-semibold text-[var(--oterm-text)] leading-snug">{{ selected.title }}</h3>
@@ -723,7 +786,7 @@ function avatarColor(name: string): string {
                 class="pr-action-btn"
                 :class="isCurrentBranch ? 'pr-action-btn--active-branch' : 'pr-action-btn--primary'"
                 title="Checkout PR head branch locally"
-                :disabled="busy || isCurrentBranch"
+                :disabled="busy || mergeBusy || isCurrentBranch"
                 @click="onSwitchPullRequestBranch(selected)"
               >
                 <svg v-if="isCurrentBranch" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
@@ -734,6 +797,94 @@ function avatarColor(name: string): string {
                 </svg>
                 {{ isCurrentBranch ? 'Active Branch' : 'Checkout Branch' }}
               </button>
+              <div
+                v-if="selected.state.toUpperCase() === 'OPEN'"
+                class="relative"
+                data-merge-menu-root
+              >
+                <button
+                  type="button"
+                  class="pr-action-btn pr-action-btn--primary"
+                  :class="{ 'opacity-70': !canMergePr && !mergeBusy }"
+                  :title="mergeBlockedReason ?? 'Merge pull request'"
+                  :disabled="mergeBusy || busy"
+                  @click.stop="openMergeMenu"
+                >
+                  <svg
+                    v-if="mergeBusy"
+                    class="animate-spin"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path d="M13.5 8a5.5 5.5 0 11-1.61-3.89L13.5 5.5" stroke-width="1.5" stroke-linecap="round" />
+                  </svg>
+                  <svg v-else width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                    <path d="M4 8h8M8 4v8" stroke-width="1.5" stroke-linecap="round" />
+                    <path d="M3 12.5h10" stroke-width="1.5" stroke-linecap="round" />
+                  </svg>
+                  {{ mergeBusy ? "Merging…" : "Merge" }}
+                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" class="opacity-70">
+                    <path d="M2 3l2 2 2-2" stroke-width="1.2" stroke-linecap="round" />
+                  </svg>
+                </button>
+                <div
+                  v-if="mergeMenuOpen"
+                  class="absolute right-0 top-full z-30 mt-1 w-72 overflow-hidden rounded-md border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-1 shadow-lg"
+                >
+                  <p
+                    v-if="mergeBlockedReason"
+                    class="px-3 py-2 text-[11px] text-[var(--oterm-danger)] border-b border-[var(--oterm-border)]"
+                  >
+                    {{ mergeBlockedReason }}
+                  </p>
+                  <button
+                    type="button"
+                    class="block w-full px-3 py-2 text-left hover:bg-white/5 disabled:opacity-40 disabled:pointer-events-none"
+                    :disabled="!canMergePr"
+                    @click="onMerge('merge')"
+                  >
+                    <span class="block text-xs font-medium text-[var(--oterm-text)]">Create a merge commit</span>
+                    <span class="mt-0.5 block text-[10px] text-[var(--oterm-faint)] leading-snug">
+                      All commits from this branch will be added to the base branch via a merge commit.
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    class="block w-full px-3 py-2 text-left hover:bg-white/5 disabled:opacity-40 disabled:pointer-events-none"
+                    :disabled="!canMergePr"
+                    @click="onMerge('squash')"
+                  >
+                    <span class="block text-xs font-medium text-[var(--oterm-text)]">Squash and merge</span>
+                    <span class="mt-0.5 block text-[10px] text-[var(--oterm-faint)] leading-snug">
+                      The commits from this branch will be combined into one commit in the base branch.
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    class="block w-full px-3 py-2 text-left hover:bg-white/5 disabled:opacity-40 disabled:pointer-events-none"
+                    :disabled="!canMergePr"
+                    @click="onMerge('rebase')"
+                  >
+                    <span class="block text-xs font-medium text-[var(--oterm-text)]">Rebase and merge</span>
+                    <span class="mt-0.5 block text-[10px] text-[var(--oterm-faint)] leading-snug">
+                      The commits from this branch will be rebased and added to the base branch.
+                    </span>
+                  </button>
+                  <label
+                    class="flex items-center gap-2 border-t border-[var(--oterm-border)] px-3 py-2 text-[11px] text-[var(--oterm-muted)] cursor-pointer hover:bg-white/5"
+                  >
+                    <input
+                      v-model="deleteBranchAfterMerge"
+                      type="checkbox"
+                      class="rounded border-[var(--oterm-border)]"
+                    />
+                    Delete branch after merge
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -750,6 +901,25 @@ function avatarColor(name: string): string {
               <path d="M2.5 13.5V3.5a1 1 0 011-1h9a1 1 0 011 1v7a1 1 0 01-1 1h-6.5L2.5 13.5z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
             Conversation
+          </button>
+
+          <button
+            type="button"
+            class="pr-tab-btn"
+            :class="{ 'pr-tab-btn--active': activeTab === 'reviews' }"
+            @click="selectTab('reviews')"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+              <path d="M8 2l1.5 3.5L13 6l-2.5 2.5L11 12l-3-1.5L5 12l.5-3.5L3 6l3.5-.5L8 2z" stroke-width="1.5" stroke-linejoin="round" />
+            </svg>
+            Reviews
+            <span
+              v-if="reviewsSummary"
+              class="pr-tab-badge"
+              :class="checkBucketClass(reviewsSummary.tone === 'neutral' ? '' : reviewsSummary.tone)"
+            >
+              {{ reviewsSummary.label }}
+            </span>
           </button>
           
           <button
@@ -849,13 +1019,7 @@ function avatarColor(name: string): string {
                       <span class="h-1.5 w-1.5 rounded-full bg-[var(--oterm-faint)]" />
                     </span>
 
-                    <!-- Author mini avatar -->
-                    <div
-                      class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-bold text-white shadow-sm"
-                      :class="avatarColor(item.author)"
-                    >
-                      {{ getInitials(item.author) }}
-                    </div>
+                    <GitHubAvatar :login="item.author" size-class="h-7 w-7" text-class="text-[10px]" :size-px="56" />
                     
                     <div class="min-w-0 flex-1">
                       <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--oterm-muted)]">
@@ -903,6 +1067,50 @@ function avatarColor(name: string): string {
                 </div>
               </div>
             </template>
+          </div>
+
+          <!-- Reviews -->
+          <div v-else-if="activeTab === 'reviews'" class="p-5 max-w-4xl">
+            <div v-if="detailLoading" class="flex items-center gap-2 text-xs text-[var(--oterm-faint)] py-4">
+              <svg class="animate-spin text-[var(--oterm-faint)]" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                <path d="M13.5 8a5.5 5.5 0 11-1.61-3.89L13.5 5.5" stroke-width="1.5" stroke-linecap="round" />
+              </svg>
+              <span>Loading reviews…</span>
+            </div>
+
+            <p v-else-if="!reviewsSorted.length" class="text-xs text-[var(--oterm-faint)] py-4">
+              No reviews yet.
+            </p>
+
+            <ul v-else class="space-y-4">
+              <li
+                v-for="(review, index) in reviewsSorted"
+                :key="`review-${review.author}-${review.submittedAt}-${index}`"
+                class="flex gap-3 rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-panel)]/10 p-3.5 shadow-sm hover:border-[var(--oterm-border-strong)] transition"
+              >
+                <GitHubAvatar :login="review.author" size-class="h-7 w-7" text-class="text-[10px]" :size-px="56" />
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--oterm-muted)]">
+                    <span class="font-semibold text-[var(--oterm-text)]">{{ review.author }}</span>
+                    <span>·</span>
+                    <span class="text-[10px] text-[var(--oterm-faint)]">{{ review.submittedAt }}</span>
+                    <span
+                      class="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider"
+                      :class="reviewStateClass(review.state)"
+                    >
+                      {{ review.state }}
+                    </span>
+                  </div>
+                  <MarkdownContent
+                    v-if="review.body.trim()"
+                    class="mt-2 text-xs text-[var(--oterm-text)] leading-relaxed"
+                    :source="review.body"
+                    empty-text=""
+                  />
+                  <p v-else class="mt-2 text-[11px] text-[var(--oterm-faint)] italic">No review comment.</p>
+                </div>
+              </li>
+            </ul>
           </div>
 
           <!-- Commits -->

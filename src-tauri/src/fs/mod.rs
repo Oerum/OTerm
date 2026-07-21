@@ -738,6 +738,270 @@ pub fn open_in_vscode(path: &Path) -> Result<(), String> {
     }
 }
 
+pub fn find_cursor_launcher() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        let mut candidates = Vec::new();
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            let root = PathBuf::from(local_app_data)
+                .join("Programs")
+                .join("cursor");
+            candidates.push(root.join("Cursor.exe"));
+            let bin = root.join("bin");
+            candidates.push(bin.join("cursor.cmd"));
+            candidates.push(bin.join("cursor.exe"));
+        }
+        first_existing_file(&candidates)
+            .or_else(|| which_on_path(&["cursor.cmd", "cursor.exe", "cursor"]))
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let candidates = [PathBuf::from(
+            "/Applications/Cursor.app/Contents/Resources/app/bin/cursor",
+        )];
+        first_existing_file(&candidates).or_else(|| which_on_path(&["cursor"]))
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let candidates = [
+            PathBuf::from("/usr/bin/cursor"),
+            PathBuf::from("/usr/local/bin/cursor"),
+            PathBuf::from("/opt/cursor/bin/cursor"),
+        ];
+        first_existing_file(&candidates).or_else(|| which_on_path(&["cursor"]))
+    }
+}
+
+pub fn open_in_cursor(path: &Path) -> Result<(), String> {
+    if !path.is_dir() {
+        return Err(format!("Not a directory: {}", path.display()));
+    }
+
+    let launcher = find_cursor_launcher().ok_or_else(|| "Cursor was not found".to_string())?;
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let mut cmd = Command::new(&launcher);
+        cmd.arg(path);
+        cmd.creation_flags(0x0800_0000);
+        cmd.spawn()
+            .map(|_| ())
+            .map_err(|err| format!("Could not launch Cursor ({launcher:?}): {err}"))
+    }
+
+    #[cfg(not(windows))]
+    {
+        Command::new(&launcher)
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|err| format!("Could not launch Cursor ({launcher:?}): {err}"))
+    }
+}
+
+fn intellij_bin_names() -> &'static [&'static str] {
+    if cfg!(windows) {
+        &["idea64.exe", "idea.exe"]
+    } else {
+        &["idea", "idea.sh"]
+    }
+}
+
+fn is_intellij_install_dir_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.starts_with("intellij idea")
+        || lower.starts_with("intellijidea")
+        || lower.starts_with("idea-")
+        || lower == "intellij"
+        || lower.starts_with("intellij-idea")
+}
+
+fn find_jetbrains_toolbox_intellij_bin() -> Option<PathBuf> {
+    let apps_root = jetbrains_toolbox_apps_dir()?;
+    if !apps_root.is_dir() {
+        return None;
+    }
+
+    let mut found = Vec::new();
+    let read_dir = std::fs::read_dir(&apps_root).ok()?;
+    for entry in read_dir.flatten() {
+        let install_root = entry.path();
+        if !install_root.is_dir() {
+            continue;
+        }
+        let folder_name = install_root
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("");
+        if !is_intellij_install_dir_name(folder_name) {
+            continue;
+        }
+
+        // Toolbox may nest version folders under the product root.
+        let mut search_dirs = vec![install_root.clone()];
+        if let Ok(nested) = std::fs::read_dir(&install_root) {
+            for nested_entry in nested.flatten() {
+                let nested_path = nested_entry.path();
+                if nested_path.is_dir() {
+                    search_dirs.push(nested_path);
+                }
+            }
+        }
+
+        for dir in search_dirs {
+            for bin in intellij_bin_names() {
+                let candidate = dir.join("bin").join(bin);
+                if candidate.is_file() {
+                    found.push(candidate);
+                }
+            }
+        }
+    }
+
+    found.sort();
+    found.last().cloned()
+}
+
+pub fn find_intellij_launcher() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        let local_programs = std::env::var("LOCALAPPDATA").ok().map(PathBuf::from);
+        let program_files = std::env::var("ProgramFiles").ok().map(PathBuf::from);
+
+        let mut candidates = Vec::new();
+        if let Some(local) = local_programs {
+            let programs = local.join("Programs");
+            if let Ok(entries) = std::fs::read_dir(&programs) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(is_intellij_install_dir_name)
+                    {
+                        candidates.push(path.join("bin").join("idea64.exe"));
+                    }
+                }
+            }
+        }
+        if let Some(toolbox) = find_jetbrains_toolbox_intellij_bin() {
+            candidates.push(toolbox);
+        }
+        if let Some(files) = program_files {
+            if let Ok(entries) = std::fs::read_dir(files.join("JetBrains")) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(is_intellij_install_dir_name)
+                    {
+                        candidates.push(path.join("bin").join("idea64.exe"));
+                    }
+                }
+            }
+        }
+
+        first_existing_file(&candidates).or_else(|| which_on_path(intellij_bin_names()))
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut candidates = vec![
+            PathBuf::from("/Applications/IntelliJ IDEA.app/Contents/MacOS/idea"),
+            PathBuf::from("/Applications/IntelliJ IDEA CE.app/Contents/MacOS/idea"),
+            PathBuf::from("/Applications/IntelliJ IDEA Ultimate.app/Contents/MacOS/idea"),
+        ];
+        if let Some(home) = user_home() {
+            candidates.push(
+                home.join("Applications")
+                    .join("IntelliJ IDEA.app")
+                    .join("Contents")
+                    .join("MacOS")
+                    .join("idea"),
+            );
+        }
+        if let Ok(entries) = std::fs::read_dir("/Applications") {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(is_intellij_install_dir_name)
+                {
+                    candidates.push(path.join("Contents").join("MacOS").join("idea"));
+                }
+            }
+        }
+        if let Some(toolbox) = find_jetbrains_toolbox_intellij_bin() {
+            candidates.push(toolbox);
+        }
+        first_existing_file(&candidates).or_else(|| which_on_path(intellij_bin_names()))
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let mut candidates = vec![
+            PathBuf::from("/opt/idea/bin/idea.sh"),
+            PathBuf::from("/opt/idea/bin/idea"),
+            PathBuf::from("/opt/intellij-idea/bin/idea.sh"),
+        ];
+        if let Some(toolbox) = find_jetbrains_toolbox_intellij_bin() {
+            candidates.push(toolbox);
+        }
+        first_existing_file(&candidates).or_else(|| which_on_path(intellij_bin_names()))
+    }
+}
+
+pub fn open_in_intellij(path: &Path) -> Result<(), String> {
+    if !path.is_dir() {
+        return Err(format!("Not a directory: {}", path.display()));
+    }
+
+    let launcher =
+        find_intellij_launcher().ok_or_else(|| "IntelliJ IDEA was not found".to_string())?;
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let mut cmd = Command::new(&launcher);
+        cmd.arg(path);
+        cmd.creation_flags(0x0800_0000);
+        cmd.spawn()
+            .map(|_| ())
+            .map_err(|err| format!("Could not launch IntelliJ IDEA ({launcher:?}): {err}"))
+    }
+
+    #[cfg(not(windows))]
+    {
+        Command::new(&launcher)
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|err| format!("Could not launch IntelliJ IDEA ({launcher:?}): {err}"))
+    }
+}
+
+const JAVA_PROJECT_MARKERS: &[&str] = &[
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "settings.gradle",
+    "settings.gradle.kts",
+];
+
+pub fn is_java_project_dir(dir: &Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    JAVA_PROJECT_MARKERS
+        .iter()
+        .any(|marker| dir.join(marker).is_file())
+}
+
 pub fn find_zed_launcher() -> Option<PathBuf> {
     #[cfg(windows)]
     {
@@ -920,6 +1184,25 @@ mod tests {
         let solutions = list_solution_files(&temp).expect("list solutions");
         assert_eq!(solutions.len(), 2);
         assert!(solutions.iter().all(|path| is_solution_file(path)));
+
+        fs::remove_dir_all(&temp).expect("cleanup");
+    }
+
+    #[test]
+    fn is_java_project_dir_detects_markers() {
+        let temp = std::env::temp_dir().join(format!("oterm_java_test_{}", std::process::id()));
+        fs::create_dir_all(&temp).expect("temp dir");
+        assert!(!is_java_project_dir(&temp));
+
+        fs::write(temp.join("readme.txt"), "fake").expect("write txt");
+        assert!(!is_java_project_dir(&temp));
+
+        fs::write(temp.join("pom.xml"), "<project/>").expect("write pom");
+        assert!(is_java_project_dir(&temp));
+
+        fs::remove_file(temp.join("pom.xml")).expect("remove pom");
+        fs::write(temp.join("build.gradle.kts"), "// gradle").expect("write gradle");
+        assert!(is_java_project_dir(&temp));
 
         fs::remove_dir_all(&temp).expect("cleanup");
     }

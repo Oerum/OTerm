@@ -71,6 +71,14 @@ pub struct PullRequestReview {
     pub submitted_at: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum MergeMethod {
+    Merge,
+    Squash,
+    Rebase,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PullRequestDetail {
@@ -90,6 +98,8 @@ pub struct PullRequestDetail {
     pub additions: u32,
     pub deletions: u32,
     pub changed_files: u32,
+    #[serde(default)]
+    pub mergeable: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,6 +158,8 @@ struct GhPrView {
     deletions: u32,
     #[serde(rename = "changedFiles")]
     changed_files: u32,
+    #[serde(default)]
+    mergeable: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -409,7 +421,7 @@ pub fn view_pull_request(repo_root: String, number: u32) -> Result<PullRequestDe
             "view",
             &number.to_string(),
             "--json",
-            "title,body,state,url,author,headRefName,baseRefName,createdAt,updatedAt,isDraft,comments,reviews,additions,deletions,changedFiles",
+            "title,body,state,url,author,headRefName,baseRefName,createdAt,updatedAt,isDraft,comments,reviews,additions,deletions,changedFiles,mergeable",
         ],
     )?;
 
@@ -497,6 +509,40 @@ pub fn comment_on_pull_request(repo_root: String, number: u32, body: String) -> 
     )
 }
 
+fn merge_method_flag(method: MergeMethod) -> &'static str {
+    match method {
+        MergeMethod::Merge => "--merge",
+        MergeMethod::Squash => "--squash",
+        MergeMethod::Rebase => "--rebase",
+    }
+}
+
+fn merge_gh_args(number: u32, method: MergeMethod, delete_branch: bool) -> Vec<String> {
+    let mut args = vec![
+        "pr".into(),
+        "merge".into(),
+        number.to_string(),
+        merge_method_flag(method).into(),
+    ];
+    if delete_branch {
+        args.push("--delete-branch".into());
+    }
+    args
+}
+
+pub fn merge_pull_request(
+    repo_root: String,
+    number: u32,
+    method: MergeMethod,
+    delete_branch: bool,
+) -> Result<(), String> {
+    let root = PathBuf::from(&repo_root);
+    ensure_github_ready(repo_root)?;
+    let args = merge_gh_args(number, method, delete_branch);
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    gh_run(&root, &arg_refs)
+}
+
 fn map_pr_view(number: u32, row: GhPrView) -> PullRequestDetail {
     PullRequestDetail {
         number,
@@ -532,6 +578,7 @@ fn map_pr_view(number: u32, row: GhPrView) -> PullRequestDetail {
         additions: row.additions,
         deletions: row.deletions,
         changed_files: row.changed_files,
+        mergeable: row.mergeable,
     }
 }
 
@@ -739,12 +786,30 @@ mod tests {
             "reviews": [],
             "additions": 10,
             "deletions": 2,
-            "changedFiles": 3
+            "changedFiles": 3,
+            "mergeable": "MERGEABLE"
         }"#;
         let row: GhPrView = serde_json::from_str(json).unwrap();
         let detail = map_pr_view(12, row);
         assert_eq!(detail.body, "");
         assert_eq!(detail.changed_files, 3);
+        assert_eq!(detail.mergeable.as_deref(), Some("MERGEABLE"));
+    }
+
+    #[test]
+    fn merge_gh_args_methods_and_delete_branch() {
+        assert_eq!(
+            merge_gh_args(42, MergeMethod::Merge, false),
+            vec!["pr", "merge", "42", "--merge"]
+        );
+        assert_eq!(
+            merge_gh_args(7, MergeMethod::Squash, true),
+            vec!["pr", "merge", "7", "--squash", "--delete-branch"]
+        );
+        assert_eq!(
+            merge_gh_args(3, MergeMethod::Rebase, true),
+            vec!["pr", "merge", "3", "--rebase", "--delete-branch"]
+        );
     }
 
     #[test]

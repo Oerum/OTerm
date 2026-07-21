@@ -24,6 +24,14 @@ export function openInVsCode(path: string): Promise<void> {
   return invoke<void>("fs_open_in_vscode", { path });
 }
 
+export function openInCursor(path: string): Promise<void> {
+  return invoke<void>("fs_open_in_cursor", { path });
+}
+
+export function openInIntelliJ(path: string): Promise<void> {
+  return invoke<void>("fs_open_in_intellij", { path });
+}
+
 export function openInZed(path: string): Promise<void> {
   return invoke<void>("fs_open_in_zed", { path });
 }

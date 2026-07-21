@@ -15,8 +15,11 @@ export interface FsToolsDirectoryHints {
   visualStudioAvailable: boolean;
   riderAvailable: boolean;
   vscodeAvailable: boolean;
+  cursorAvailable: boolean;
   zedAvailable: boolean;
   antigravityAvailable: boolean;
+  intellijAvailable: boolean;
+  javaProject: boolean;
   fileExplorerLabel: string;
   solutionFiles: string[];
   envImport: FsEnvImportHint | null;

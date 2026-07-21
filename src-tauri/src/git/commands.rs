@@ -12,8 +12,9 @@ use super::issues::{
 use super::pr::{
     checkout_pull_request, comment_on_pull_request, create_pull_request, detect_provider,
     fetch_github_user_profile, list_pr_checks, list_pr_commits, list_pr_files, list_pull_requests,
-    pull_request_diff, remote_browser_url, view_pull_request, GitHubUserProfile, PrChangedFile,
-    PrCheck, PrCommit, PrProviderInfo, PullRequestDetail, PullRequestSummary,
+    merge_pull_request, pull_request_diff, remote_browser_url, view_pull_request,
+    GitHubUserProfile, MergeMethod, PrChangedFile, PrCheck, PrCommit, PrProviderInfo,
+    PullRequestDetail, PullRequestSummary,
 };
 use super::rebase::{get_rebase_todo, set_rebase_todo, git_rebase_action, RebaseTodoInfo};
 use super::merge::{get_merge_conflicts, parse_conflict_markers, resolve_conflict, ConflictFile, MergeConflictFile};
@@ -247,6 +248,16 @@ pub async fn pr_diff(repo_root: String, number: u32) -> Result<String, String> {
 #[tauri::command]
 pub async fn pr_comment(repo_root: String, number: u32, body: String) -> Result<(), String> {
     blocking_git(move || comment_on_pull_request(repo_root, number, body)).await
+}
+
+#[tauri::command]
+pub async fn pr_merge(
+    repo_root: String,
+    number: u32,
+    method: MergeMethod,
+    delete_branch: bool,
+) -> Result<(), String> {
+    blocking_git(move || merge_pull_request(repo_root, number, method, delete_branch)).await
 }
 
 #[tauri::command]
