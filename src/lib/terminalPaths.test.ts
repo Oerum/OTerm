@@ -70,6 +70,11 @@ describe("scanLineForPaths()", () => {
     expect(scanLineForPaths("npm install -g @vue/cli")).toEqual([]);
     expect(scanLineForPaths("any/path/at/all")).toEqual([]);
   });
+
+  it("does not match slash commands or single-segment absolutes", () => {
+    expect(scanLineForPaths("/pr-reviewer")).toEqual([]);
+    expect(scanLineForPaths("AI: 17 (/credits to add more)")).toEqual([]);
+  });
 });
 
 describe("scanLineForUrls", () => {

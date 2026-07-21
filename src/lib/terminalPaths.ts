@@ -42,8 +42,8 @@ const PATTERNS: RegExp[] = [
   /(?<=^|[\s"':=,;(\[\]])[A-Za-z]:[/\\][^\s"'<>|$#]+(?:[/\\][^\s"'<>|$#]+)*/g,
   // Relative ./ paths (rg/find)
   /(?<=^|[\s"':=,;(\[\]])\.\/[\w./-]+/g,
-  // Unix absolute paths (at least /segment)
-  /(?<=^|[\s"':=,;(\[\]])\/[\w.-]+(?:\/[\w.-]+)*/g,
+  // Unix absolute paths (at least /segment/segment)
+  /(?<=^|[\s"':=,;(\[\]])\/[\w.-]+(?:\/[\w.-]+)+/g,
   // Home-relative paths
   /(?<=^|[\s"':=,;(\[\]])~\/[\w./-]+/g,
 ];
