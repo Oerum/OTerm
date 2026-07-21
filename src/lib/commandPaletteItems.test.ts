@@ -90,6 +90,6 @@ describe("buildCommandPaletteItems", () => {
   it("does not expose a chat toggle action", () => {
     const items = buildCommandPaletteItems(emptyCtx);
     expect(items.some((i) => i.id === "action:toggle-chat")).toBe(false);
-    expect(items.some((i) => i.action.type === "toggle-chat")).toBe(false);
+    expect(items.some((i) => (i.action.type as string) === "toggle-chat")).toBe(false);
   });
 });

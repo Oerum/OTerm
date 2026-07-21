@@ -3,11 +3,12 @@ import {
   closeToolWindow,
   isFeatureTabKind,
   openToolWindow,
+  type ToolWindowState,
 } from "./toolWindow";
 
 describe("toolWindow state", () => {
   it("opens and replaces current tool", () => {
-    let state = { openId: null as null, repoRoot: null as null };
+    let state: ToolWindowState = { openId: null, repoRoot: null };
     state = openToolWindow(state, "docker");
     expect(state).toEqual({ openId: "docker", repoRoot: null });
     state = openToolWindow(state, "process");
