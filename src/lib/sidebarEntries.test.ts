@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ShellProfile, WorkspaceTerminalTab } from "../types/terminal";
-import { buildTerminalEntries, buildTerminalSidebarSections, groupTerminalSidebarSections, paneDisplayTitle } from "./sidebarEntries";
+import {
+  buildFeatureEntries,
+  buildTerminalEntries,
+  buildTerminalSidebarSections,
+  groupTerminalSidebarSections,
+  paneDisplayTitle,
+} from "./sidebarEntries";
 
 const shells: ShellProfile[] = [
   { id: "pwsh", label: "PowerShell", program: "pwsh.exe", args: [] },
@@ -35,31 +41,24 @@ function terminalTab(overrides: Partial<WorkspaceTerminalTab> = {}): WorkspaceTe
 }
 
 describe("paneDisplayTitle", () => {
-  it("uses agent display name when activeAgentId is set", () => {
+  it("uses cwd basename when agent is active (project stays primary title)", () => {
     const pane = terminalTab().panes[0];
     pane.activeAgentId = "claude";
-    expect(paneDisplayTitle(pane, "PowerShell", null)).toBe("Claude Code");
+    expect(paneDisplayTitle(pane, "PowerShell", null)).toBe("oterm");
   });
 
-  it("prefers customTitle over agent name", () => {
+  it("prefers customTitle over cwd when agent is active", () => {
     const pane = terminalTab().panes[0];
     pane.activeAgentId = "claude";
     pane.customTitle = "My dev shell";
     expect(paneDisplayTitle(pane, "PowerShell", null)).toBe("My dev shell");
   });
 
-  it("uses OSC title when agent is active and sets it", () => {
+  it("ignores OSC title for sidebar session title (radar/subtitle owns agent task text)", () => {
     const pane = terminalTab().panes[0];
     pane.activeAgentId = "claude";
     pane.oscTitle = "Fix auth bug";
-    expect(paneDisplayTitle(pane, "PowerShell", null)).toBe("Fix auth bug");
-  });
-
-  it("prefers OSC title over agent display name", () => {
-    const pane = terminalTab().panes[0];
-    pane.activeAgentId = "claude";
-    pane.oscTitle = "Implementing feature X";
-    expect(paneDisplayTitle(pane, "PowerShell", null)).toBe("Implementing feature X");
+    expect(paneDisplayTitle(pane, "PowerShell", null)).toBe("oterm");
   });
 
   it("prefers customTitle over OSC title", () => {
@@ -68,21 +67,14 @@ describe("paneDisplayTitle", () => {
     pane.oscTitle = "Agent task";
     expect(paneDisplayTitle(pane, "PowerShell", null)).toBe("Pinned shell");
   });
-
-  it("falls back to agent name when OSC title is empty", () => {
-    const pane = terminalTab().panes[0];
-    pane.activeAgentId = "claude";
-    pane.oscTitle = "   ";
-    expect(paneDisplayTitle(pane, "PowerShell", null)).toBe("Claude Code");
-  });
 });
 
 describe("buildTerminalEntries", () => {
-  it("shows agent display name when agent is active and tab is not renamed", () => {
+  it("shows project cwd when agent is active and tab is not renamed", () => {
     const tab = terminalTab();
     tab.panes[0].activeAgentId = "opencode";
     const entries = buildTerminalEntries([tab], shells, tab.id, tab.panes[0].id, new Map());
-    expect(entries[0]?.title).toBe("OpenCode");
+    expect(entries[0]?.title).toBe("oterm");
     expect(entries[0]?.activeAgentId).toBe("opencode");
   });
 
@@ -93,15 +85,14 @@ describe("buildTerminalEntries", () => {
     expect(entries[0]?.title).toBe("Backend work");
   });
 
-  it("shows OSC title when set, agent is active, and tab is not renamed", () => {
-    const tab = terminalTab();
-    tab.panes[0].activeAgentId = "claude";
-    tab.panes[0].oscTitle = "Refactor sidebar";
+  it("treats legacy agent-brand tab title as default and shows project cwd", () => {
+    const tab = terminalTab({ title: "Agy" });
+    tab.panes[0].activeAgentId = "agy";
     const entries = buildTerminalEntries([tab], shells, tab.id, tab.panes[0].id, new Map());
-    expect(entries[0]?.title).toBe("Refactor sidebar");
+    expect(entries[0]?.title).toBe("oterm");
   });
 
-  it("hides OSC title when tab is manually renamed even if agent is active", () => {
+  it("keeps manual rename even when OSC title is set and agent is active", () => {
     const tab = terminalTab({ title: "My tab" });
     tab.panes[0].activeAgentId = "claude";
     tab.panes[0].oscTitle = "Agent working";
@@ -180,6 +171,27 @@ describe("buildTerminalEntries", () => {
   });
 });
 
+describe("buildFeatureEntries", () => {
+  // Hard-cut: tools are summonable windows, never sidebar session peers.
+  it("never lists feature tabs as session peers", () => {
+    const entries = buildFeatureEntries(
+      [
+        terminalTab({ id: "tab-a" }),
+        { kind: "settings", id: "settings-1", title: "Settings" },
+        { kind: "docker", id: "docker-1", title: "Docker" },
+        {
+          kind: "pullRequests",
+          id: "pr-1",
+          title: "Pull Requests",
+          repoRoot: "C:\\repo",
+        },
+      ],
+      "settings-1",
+    );
+    expect(entries).toEqual([]);
+  });
+});
+
 describe("buildTerminalSidebarSections", () => {
   it("renders grouped sections with collapse and ungrouped header", () => {
     const tabA = terminalTab({ id: "tab-a", title: "A", groupId: "g1" });
@@ -207,6 +219,29 @@ describe("buildTerminalSidebarSections", () => {
     const tab = terminalTab({ id: "tab-a" });
     const sections = buildTerminalSidebarSections([], [], [tab], shells, tab.id, tab.panes[0].id, new Map());
     expect(sections).toEqual([{ kind: "entry", entry: expect.objectContaining({ tabId: "tab-a" }) }]);
+  });
+
+  // ponytail: v1 radar is visual-only — do not auto-reorder by attention (avoids jumpiness).
+  it("keeps user tab order when attention differs across entries", () => {
+    const quiet = terminalTab({ id: "tab-quiet", title: "Quiet" });
+    const blocked = terminalTab({ id: "tab-blocked", title: "Blocked" });
+    blocked.panes[0].activeAgentId = "claude";
+    blocked.panes[0].agentStatus = "blocked";
+    blocked.panes[0].hasUnseenNotification = true;
+
+    const sections = buildTerminalSidebarSections(
+      [],
+      [],
+      [quiet, blocked],
+      shells,
+      quiet.id,
+      quiet.panes[0].id,
+      new Map(),
+    );
+    const entryIds = sections
+      .filter((s) => s.kind === "entry")
+      .map((s) => (s.kind === "entry" ? s.entry.tabId : ""));
+    expect(entryIds).toEqual(["tab-quiet", "tab-blocked"]);
   });
 });
 

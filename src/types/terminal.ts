@@ -72,7 +72,7 @@ export interface WorkspaceTerminalTab {
   color: TerminalEntryColor;
   groupId: string | null;
   panes: WorkspacePane[];
-  split: "none" | "horizontal";
+  split: "none" | "horizontal" | "vertical";
 }
 
 export interface WorkspacePullRequestsTab {
@@ -283,7 +283,7 @@ export interface PersistedWorkspacePane {
 export interface PersistedTerminalTab {
   title: string;
   color: TerminalEntryColor;
-  split: "none" | "horizontal";
+  split: "none" | "horizontal" | "vertical";
   groupId?: string | null;
   panes: PersistedWorkspacePane[];
 }

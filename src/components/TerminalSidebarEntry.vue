@@ -2,13 +2,9 @@
 import { inject, ref, computed, watch, onUnmounted, nextTick } from "vue";
 import { hideTooltip } from "../lib/tooltipController";
 import { isTerminalRowDragBlocked } from "../composables/useTerminalTabDragReorder";
-import { entryAccentColor } from "../lib/sidebarEntries";
-import {
-  agentStatusDotClass,
-  agentStatusLabel,
-  agentStatusTextClass,
-  displayAgentStatus,
-} from "../lib/agentStatus";
+import { entryAccentColor, isDefaultTabTitle } from "../lib/sidebarEntries";
+import { buildSessionRadar } from "../lib/sessionRadar";
+import { getCliAgentDefinition } from "../lib/terminalAgentMode";
 import type { TerminalMenuActionId, TerminalSidebarEntry, TerminalTabGroup } from "../types/terminal";
 import AgentFooterBadge from "./AgentFooterBadge.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
@@ -53,28 +49,52 @@ const gitStatus = computed(() => ({
   deletions: props.entry.gitDeletions,
 }));
 
-const showUnseenNotification = computed(
-  () => props.entry.hasUnseenNotification && !props.entry.isActive,
+const agentDisplayName = computed(() =>
+  props.entry.activeAgentId
+    ? getCliAgentDefinition(props.entry.activeAgentId).displayName
+    : null,
 );
 
-const agentDisplayStatus = computed(() => {
-  if (props.entry.agentStatus === "unknown") return null;
-  if (!props.entry.activeAgentId && props.entry.agentStatus !== "idle") return null;
-  return displayAgentStatus(props.entry.agentStatus, props.entry.agentStatusSeen);
-});
-
-const showAgentStatus = computed(() => {
-  const status = agentDisplayStatus.value;
-  if (!status) return false;
-  if (!props.entry.isActive) return true;
-  return status === "working" || status === "blocked";
-});
-
-const showBranchFooter = computed(
-  () => props.entry.gitIsRepo && !!props.entry.gitBranch,
+const radar = computed(() =>
+  buildSessionRadar({
+    activeAgentId: props.entry.activeAgentId,
+    agentDisplayName: agentDisplayName.value,
+    agentStatus: props.entry.agentStatus,
+    agentStatusSeen: props.entry.agentStatusSeen,
+    hasUnseenNotification: props.entry.hasUnseenNotification && !props.entry.isActive,
+    activeProcessCmd: props.entry.activeProcessCmd,
+    gitIsRepo: props.entry.gitIsRepo,
+    gitBranch: props.entry.gitBranch,
+    gitChangedFiles: props.entry.gitChangedFiles,
+    sshEndpointId: null,
+  }),
 );
 
+const showUnseenNotification = computed(() => radar.value.attention === "unseen-output");
 
+const showGitDiffBadge = computed(() => radar.value.showGitDiff);
+
+const subtitleLine = computed(() => {
+  if (radar.value.statusLabel) return radar.value.statusLabel;
+  return displayCwdContext.value || null;
+});
+
+const attentionAccent = computed(() => {
+  switch (radar.value.attention) {
+    case "blocked-agent":
+      return "rgb(248 113 113)";
+    case "unseen-output":
+      return "var(--oterm-accent)";
+    case "working-agent":
+      return "rgb(251 191 36)";
+    case "running-process":
+      return "rgb(52 211 153)";
+    case "dirty-git":
+      return "rgb(56 189 248)";
+    default:
+      return null;
+  }
+});
 
 const accentStyle = computed(() => {
   const color = entryAccentColor(props.entry.tabColor);
@@ -131,8 +151,8 @@ const gitContext = computed(() => {
 });
 
 const isCustom = computed(() => {
-  if (props.entry.activeAgentId) return true;
-  if (props.entry.tabTitle !== "Terminal") return true;
+  // Agent brand as tab title is not a real rename — show project/cwd like terminal rows.
+  if (!isDefaultTabTitle(props.entry.tabTitle, props.entry.activeAgentId)) return true;
   const cwd = props.entry.cwd;
   if (!cwd || cwd === "~") {
     return props.entry.title !== props.entry.shellLabel;
@@ -387,14 +407,15 @@ watch(
       @mouseenter="onMouseEnter"
       @mouseleave="onMouseLeave"
     >
-      <!-- Left edge indicator pill -->
+      <!-- Left edge indicator pill (attention overrides tab color when urgent) -->
       <span 
         class="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r transition-all duration-[150ms]"
-        :class="entry.isActive ? 'h-3/5' : 'h-0 group-hover:h-2/5'"
+        :class="entry.isActive || attentionAccent ? 'h-3/5' : 'h-0 group-hover:h-2/5'"
         :style="{
-          backgroundColor: entry.tabColor === 'none' 
-            ? 'rgba(255, 255, 255, 0.45)' 
-            : entryAccentColor(entry.tabColor)
+          backgroundColor: attentionAccent
+            ?? (entry.tabColor === 'none'
+              ? 'rgba(255, 255, 255, 0.45)'
+              : entryAccentColor(entry.tabColor))
         }"
       />
 
@@ -468,130 +489,27 @@ watch(
           @blur="onRenameBlur"
         />
         <template v-else>
-          <!-- Line 1: Title and Status Info -->
-          <div class="flex items-center justify-between gap-2 w-full min-w-0 pr-4">
+          <div class="flex w-full min-w-0 items-center justify-between gap-2 pr-10">
             <div
               class="min-w-0 flex-1 flex items-center gap-1.5 font-semibold text-[10.5px] tracking-wide"
-              :class="[
-                entry.isActive 
-                  ? 'text-white' 
-                  : 'text-[var(--oterm-muted)]'
-              ]"
+              :class="entry.isActive ? 'text-white' : 'text-[var(--oterm-muted)]'"
             >
-              <!-- Worktree icon or Repo icon -->
-              <svg
-                v-if="gitContext?.isWorktree"
-                width="10"
-                height="10"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                class="text-[var(--oterm-muted)] shrink-0"
-                aria-hidden="true"
-              >
-                <circle cx="4.5" cy="11.5" r="2.5" />
-                <circle cx="11.5" cy="4.5" r="2.5" />
-                <path d="M4.5 9V6a2 2 0 0 1 2-2h3" />
-              </svg>
-              <svg
-                v-else-if="gitContext"
-                width="10"
-                height="10"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                class="text-[var(--oterm-muted)] shrink-0"
-                aria-hidden="true"
-              >
-                <path d="M1.75 3A1.75 1.75 0 0 0 0 4.75v6.5C0 12.21 1.75 13 1.75 13h12.5c.96 0 1.75-.79 1.75-1.75v-5.5A1.75 1.75 0 0 0 14.25 4H8.75L7.25 2.5H1.75z" />
-              </svg>
-              
               <span class="truncate flex-1">{{ displayTitleText }}</span>
-
             </div>
-
-            <!-- Right side badges/stats (inline right) -->
-            <div class="flex items-center gap-1.5 shrink-0">
-              <span
-                v-if="showAgentStatus && agentDisplayStatus"
-                class="flex items-center gap-1 rounded px-1 py-0.5 text-[8px] font-semibold"
-                :class="agentStatusTextClass(agentDisplayStatus)"
-              >
-                <span
-                  class="h-1.5 w-1.5 rounded-full"
-                  :class="agentStatusDotClass(agentDisplayStatus)"
-                />
-                {{ agentStatusLabel(agentDisplayStatus) }}
-              </span>
-              <!-- WT tag -->
-              <span
-                v-if="gitContext?.isWorktree && !isCustom"
-                class="px-1 py-0.2 text-[7px] font-extrabold tracking-wide uppercase text-[var(--oterm-muted)] bg-white/5 border border-white/10 rounded-sm select-none"
-                title="Git Worktree"
-              >
-                WT
-              </span>
-              <!-- Active command/process -->
-              <span
-                v-if="entry.activeProcessName"
-                class="px-1 py-0.2 text-[8px] font-mono font-medium text-[var(--oterm-muted)] bg-white/5 border border-white/5 rounded-sm select-none truncate max-w-[65px]"
-                :title="entry.activeProcessCmd || entry.activeProcessName"
-              >
-                {{ entry.activeProcessName }}
-              </span>
-            </div>
-          </div>
-
-          <!-- Line 2: Path, Branch & Git Diff inline -->
-          <div class="flex items-center gap-1.5 w-full min-w-0 mt-0.5 text-[9.5px]">
-            <!-- CWD Path Context -->
-            <span
-              v-if="displayCwdContext"
-              class="truncate font-mono text-[9px] min-w-0 flex-1"
-              :class="entry.isActive ? 'text-[var(--oterm-text)] font-medium' : 'text-[var(--oterm-faint)]'"
-            >
-              {{ displayCwdContext }}
-            </span>
-
-            <!-- Separator dot -->
-            <span v-if="displayCwdContext && (showBranchFooter || entry.gitIsRepo)" class="text-[var(--oterm-faint)]/50 select-none shrink-0">·</span>
-
-            <!-- Branch Badge (Clean inline style) -->
-            <span
-              v-if="showBranchFooter"
-              class="flex items-center gap-0.5 font-mono text-[9px] text-[var(--oterm-muted)] hover:text-[var(--oterm-text)] transition-colors min-w-0 shrink"
-              :class="gitContext?.isWorktree ? 'text-teal-400/90' : 'text-sky-400/90'"
-            >
-              <svg
-                width="8"
-                height="8"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                class="shrink-0"
-                aria-hidden="true"
-              >
-                <circle cx="4.5" cy="4.5" r="1.5" />
-                <circle cx="11.5" cy="11.5" r="1.5" />
-                <path d="M6 4.5h3.5a2 2 0 0 1 2-2V9" stroke-linecap="round" />
-              </svg>
-              <span class="truncate flex-1">{{ entry.gitBranch }}</span>
-            </span>
-
-            <!-- Separator dot -->
-            <span v-if="showBranchFooter && entry.gitIsRepo && (gitStatus.changedFiles > 0 || gitStatus.additions > 0 || gitStatus.deletions > 0)" class="text-[var(--oterm-faint)]/50 select-none shrink-0">·</span>
-
-            <!-- Git Diff Stats inline -->
             <GitDiffBadge
-              v-if="entry.gitIsRepo"
+              v-if="showGitDiffBadge"
               :git-status="gitStatus"
               readonly
               compact
               class="font-mono text-[9px] shrink-0"
             />
+          </div>
+          <div
+            v-if="subtitleLine"
+            class="mt-0.5 w-full min-w-0 truncate font-mono text-[9px]"
+            :class="entry.isActive ? 'text-[var(--oterm-text)] font-medium' : 'text-[var(--oterm-faint)]'"
+          >
+            {{ subtitleLine }}
           </div>
         </template>
       </div>
@@ -613,12 +531,12 @@ watch(
         <path d="M13.73 21a2 2 0 0 1-3.46 0" />
       </svg>
 
-      <!-- Action buttons & dot-menu (Floating on the right, overlapping the entry card) -->
+      <!-- Action buttons & dot-menu (inside card so sidebar overflow does not clip them) -->
       <div
         v-if="!isDraggingAny"
         data-terminal-entry-actions
-        class="absolute left-[calc(100%-20px)] top-0 flex items-center z-20 transition-all duration-[150ms] ease-out origin-left"
-        :class="menuOpen ? 'opacity-100 scale-100 translate-x-0 -translate-y-1/2' : 'opacity-0 scale-95 -translate-x-1.5 -translate-y-1/2 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 group-focus-within:opacity-100 group-focus-within:scale-100 group-focus-within:translate-x-0'"
+        class="absolute right-1 top-1/2 z-20 flex -translate-y-1/2 items-center transition-all duration-[150ms] ease-out"
+        :class="menuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 group-focus-within:scale-100'"
       >
         <!-- A small unified pill background -->
         <div class="flex items-center gap-0.5 bg-[var(--oterm-elevated)] border border-[var(--oterm-border-strong)] rounded-md px-1 py-0.5 shadow-lg">

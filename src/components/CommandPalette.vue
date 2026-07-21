@@ -144,7 +144,7 @@ function onKeydown(event: KeyboardEvent) {
       <div
         class="flex items-center justify-between border-t border-[var(--oterm-border)] px-4 py-2 text-[10px] text-[var(--oterm-faint)]"
       >
-        <span>↑↓ navigate · Enter select · Esc close</span>
+        <span>&gt; commands · @ sessions · $ history · # agents · Enter run · Esc close</span>
         <span>{{ paletteShortcut }}</span>
       </div>
     </div>

@@ -3,19 +3,15 @@ import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useWindowDrag } from "../composables/useWindowDrag";
 import type { GitBranchList, GitStatus } from "../types/git";
-import dockerIcon from "../assets/docker/docker-mark-ocean-blue.svg";
 import BranchSwitcherButton from "./BranchSwitcherButton.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
-import GitMenu from "./GitMenu.vue";
-import SshMenu from "./SshMenu.vue";
+import TitleBarToolsMenu from "./TitleBarToolsMenu.vue";
 import UserMenu from "./UserMenu.vue";
 import { formatPathFull, formatPathShort, formatTitleCompact, isShellExecutablePath } from "../lib/formatPath";
 import type { ShellProfile, WorkspacePane } from "../types/terminal";
 import { getCliAgentDefinition } from "../lib/terminalAgentMode";
 
 const props = defineProps<{
-  terminalSidebarOpen: boolean;
-  toolsOpen: boolean;
   sourceControlOpen: boolean;
   gitStatus: GitStatus;
   gitBranches: GitBranchList;
@@ -27,14 +23,11 @@ const props = defineProps<{
   pane?: WorkspacePane | null;
   shells?: ShellProfile[];
   tabTitle?: string;
-  chatViewOpen: boolean;
 }>();
 
 const emit = defineEmits<{
-  toggleTerminalSidebar: [];
   toggleTools: [];
   toggleSourceControl: [];
-  toggleChatView: [];
   switchBranch: [branch: string, isRemote: boolean];
   openSshSftp: [];
   openDockerManager: [];
@@ -133,69 +126,6 @@ onBeforeUnmount(() => {
         height="20"
         draggable="false"
       />
-      <div class="ml-4 flex items-center gap-1.5 border-l border-white/[0.08] pl-3.5">
-        <button
-          type="button"
-          class="flex h-6 w-6 items-center justify-center rounded-full border transition"
-          :class="
-            terminalSidebarOpen
-              ? 'border-[var(--oterm-accent)]/40 bg-[var(--oterm-accent-dim)] text-[var(--oterm-accent)]'
-              : 'border-white/10 text-[var(--oterm-muted)] hover:border-white/20 hover:text-[#F5F5F7]'
-          "
-          title="Toggle terminal sidebar"
-          aria-label="Toggle terminal sidebar"
-          @click="emit('toggleTerminalSidebar')"
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-            <path
-              d="M3.5 4.5 7 8 3.5 11.5M8.5 11.5h4.5"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </button>
-        <button
-          type="button"
-          class="flex h-6 w-6 items-center justify-center rounded-full border transition"
-          :class="
-            toolsOpen
-              ? 'border-[var(--oterm-accent)]/40 bg-[var(--oterm-accent-dim)] text-[var(--oterm-accent)]'
-              : 'border-white/10 text-[var(--oterm-muted)] hover:border-white/20 hover:text-[#F5F5F7]'
-          "
-          title="Toggle tools sidebar"
-          aria-label="Toggle tools sidebar"
-          @click="emit('toggleTools')"
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-            <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
-            <rect x="9" y="2.5" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
-            <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
-            <rect x="9" y="9" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          class="flex h-6 w-6 items-center justify-center rounded-full border transition"
-          :class="
-            chatViewOpen
-              ? 'border-[var(--oterm-accent)]/40 bg-[var(--oterm-accent-dim)] text-[var(--oterm-accent)]'
-              : 'border-white/10 text-[var(--oterm-muted)] hover:border-white/20 hover:text-[#F5F5F7]'
-          "
-          title="Toggle Chat View"
-          aria-label="Toggle Chat View"
-          @click="emit('toggleChatView')"
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-            <path
-              d="M2.5 3.5h11a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1H5.2L2.5 13V4.5a1 1 0 0 1 1-1Z"
-              stroke-width="1.2"
-              stroke-linejoin="round"
-            />
-            <path d="M5 6.5h6M5 9h4" stroke-width="1.2" stroke-linecap="round" />
-          </svg>
-        </button>
-      </div>
     </div>
 
     <div
@@ -226,7 +156,6 @@ onBeforeUnmount(() => {
         </template>
       </span>
 
-      <!-- Running process badge -->
       <span
         v-if="localActiveProcessCmd"
         class="no-drag flex items-center gap-1.5 text-[8.5px] px-2 py-0.5 rounded border font-mono text-emerald-400 bg-emerald-500/10 border-emerald-400/20 transition-colors shrink-0"
@@ -238,36 +167,6 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="no-drag flex items-center gap-1">
-      <SshMenu @open-ssh-sftp="emit('openSshSftp')" />
-      <button
-        type="button"
-        class="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 text-[var(--oterm-muted)] transition hover:border-white/20 hover:bg-white/5 hover:text-[#F5F5F7]"
-        title="Process manager"
-        aria-label="Process manager"
-        @click="emit('openProcessManager')"
-      >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-          <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
-          <rect x="9" y="2.5" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
-          <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
-          <rect x="9" y="9" width="4.5" height="4.5" rx="1" stroke-width="1.4" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        class="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 text-[var(--oterm-muted)] transition hover:border-white/20 hover:bg-white/5 hover:text-[#F5F5F7]"
-        title="Docker manager"
-        aria-label="Docker manager"
-        @click="emit('openDockerManager')"
-      >
-        <img :src="dockerIcon" class="h-3.5 w-3.5 shrink-0 object-contain" alt="" draggable="false" />
-      </button>
-      <GitMenu
-        :can-open-git-features="canOpenGitFeatures"
-        @open-pull-requests="emit('openPullRequests')"
-        @open-issues="emit('openIssues')"
-        @open-branch-manager="emit('openBranchManager')"
-      />
       <GitDiffBadge
         :git-status="gitStatus"
         :active="sourceControlOpen"
@@ -281,6 +180,16 @@ onBeforeUnmount(() => {
         :worktree-hint="gitWorktreeHint"
         compact
         @switch="(branch, remote) => emit('switchBranch', branch, remote)"
+      />
+      <TitleBarToolsMenu
+        :can-open-git-features="canOpenGitFeatures"
+        @toggle-tools="emit('toggleTools')"
+        @open-ssh-sftp="emit('openSshSftp')"
+        @open-process-manager="emit('openProcessManager')"
+        @open-docker-manager="emit('openDockerManager')"
+        @open-pull-requests="emit('openPullRequests')"
+        @open-issues="emit('openIssues')"
+        @open-branch-manager="emit('openBranchManager')"
       />
       <UserMenu :app-version="appVersion" class="mx-0.5" @open-settings="emit('openSettings')" />
       <button

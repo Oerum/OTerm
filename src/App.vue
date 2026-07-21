@@ -9,7 +9,6 @@ import {
   provide,
   type ComponentPublicInstance,
 } from "vue";
-import HistorySearch from "./components/HistorySearch.vue";
 import CommandPalette from "./components/CommandPalette.vue";
 import SidebarRail from "./components/SidebarRail.vue";
 import SourceControlPanel from "./components/SourceControlPanel.vue";
@@ -46,6 +45,18 @@ import { useTerminalHistory } from "./composables/useTerminalHistory";
 import { useWorkspace } from "./composables/useWorkspace";
 import { useWorkspacePersistence } from "./composables/useWorkspacePersistence";
 import { isActionKeybind } from "./lib/keybindSettings";
+import { sanitizeTerminalLogText } from "./lib/terminalPrompt";
+import {
+  nextSourceControlPresentation,
+  type SourceControlPresentation,
+} from "./lib/sourceControlMode";
+import {
+  closeToolWindow,
+  isFeatureTabKind,
+  openToolWindow,
+  type ToolWindowId,
+  type ToolWindowState,
+} from "./lib/toolWindow";
 import {
   buildCommandPaletteItems,
   type CommandPaletteItem,
@@ -120,6 +131,7 @@ import {
 import { findNextCyclableTabId } from "./lib/terminalGroups";
 import { formatGitOperationError } from "./lib/formatGitError";
 import { pushAppToast } from "./lib/appToast";
+import { writeClipboardText } from "./lib/clipboard";
 import { listGitWorktrees, createGitWorktree, getGitStatus } from "./lib/gitApi";
 import { listBranchRefs } from "./lib/branchManagerApi";
 import {
@@ -264,8 +276,12 @@ function toggleActiveAgentComposer() {
 const terminalSidebarOpen = ref(true);
 const toolsOpen = ref(false);
 const agentsViewOpen = ref(false);
-const chatViewOpen = ref(false);
-const sourceControlOpen = ref(false);
+const sourceControlPresentation = ref<SourceControlPresentation>("hidden");
+const sourceControlOpen = computed(() => sourceControlPresentation.value !== "hidden");
+const sourceControlShellRef = ref<HTMLElement | null>(null);
+const toolWindow = ref<ToolWindowState>({ openId: null, repoRoot: null });
+const toolWindowOpen = computed(() => toolWindow.value.openId !== null);
+const toolWindowRepoRoot = computed(() => toolWindow.value.repoRoot);
 const gitRefreshToken = ref(0);
 
 const createPrOpen = ref(false);
@@ -347,20 +363,9 @@ const {
   activePane,
   activeTerminalTab,
   createTab,
-  openPullRequestsTab,
-  openBranchManagerTab,
-  openWorktreeManagerTab,
-  openIssuesTab,
-  openRebaseTab,
-  openMergeTab,
-  openStashTab,
-  openAiPreflightTab,
-  openDockerManagerTab,
-  openProcessManagerTab,
-  openSshSftpTab,
-  openSettingsTab,
   closeTab: removeTab,
   splitActiveTabHorizontal,
+  splitActiveTabVertical,
   selectTab,
   selectPane,
   setPaneSession,
@@ -429,15 +434,7 @@ watch(activePaneId, () => {
 });
 
 const history = useTerminalHistory();
-const {
-  open: historyOpen,
-  query: historyQuery,
-  addEntry,
-  filteredEntries,
-  openSearch,
-  closeSearch,
-} = history;
-const filteredHistory = computed(() => filteredEntries());
+const { addEntry } = history;
 
 const activeWorkspaceTab = computed(
   () => tabs.value.find((tab) => tab.id === activeTabId.value) ?? null,
@@ -650,7 +647,7 @@ async function submitCreatePr() {
     });
     closeCreatePrDialog();
     dismissCreatePrBanner();
-    openPullRequestsTab(root);
+    openPullRequests();
     bumpGitBadges();
   } catch (err) {
     createPrError.value = err instanceof Error ? err.message : String(err);
@@ -678,9 +675,8 @@ async function maybeOfferCreatePrAfterPush() {
     }
 
     prepareCreatePrForm();
-    if (!sourceControlOpen.value) {
-      sourceControlOpen.value = true;
-    }
+    // Ephemeral SC collapses after push; surface PR offer via toast + banner if reopened.
+    pushAppToast("Branch pushed. Reopen Source Control to create a PR.", "info");
     createPrBannerVisible.value = true;
   } catch {
     // Optional flow — ignore detection failures.
@@ -727,9 +723,21 @@ async function onPushGit() {
   }
   try {
     await runGitActionWithFeedback(() => pushGitRepo(repoRoot));
+    dismissSourceControl("pushed");
+    pushAppToast("Pushed", "success");
     await maybeOfferCreatePrAfterPush();
   } catch {
     // Error shown in source control panel.
+  }
+}
+
+async function onCommitGit(message: string) {
+  try {
+    await runGitAction(() => commitGitChanges(message));
+    dismissSourceControl("committed");
+    pushAppToast("Committed", "success");
+  } catch (err) {
+    notifyGitError(err);
   }
 }
 
@@ -774,9 +782,24 @@ function onPromptReady(paneId: string) {
   }, 150);
 }
 
+function setSourceControlPresentation(
+  event: Parameters<typeof nextSourceControlPresentation>[1],
+) {
+  sourceControlPresentation.value = nextSourceControlPresentation(
+    sourceControlPresentation.value,
+    event,
+  );
+}
+
 function toggleSourceControl() {
-  sourceControlOpen.value = !sourceControlOpen.value;
+  setSourceControlPresentation("toggle");
   void refreshGitViews();
+}
+
+function dismissSourceControl(
+  event: "escape" | "committed" | "pushed" | "leave-repo",
+) {
+  setSourceControlPresentation(event);
 }
 
 const projectRoot = computed(() => {
@@ -862,9 +885,6 @@ async function runPaletteItem(item: CommandPaletteItem) {
     case "toggle-agents":
       agentsViewOpen.value = !agentsViewOpen.value;
       return;
-    case "toggle-chat":
-      chatViewOpen.value = !chatViewOpen.value;
-      return;
     case "open-ssh-manager":
       openSshSftp();
       return;
@@ -889,7 +909,7 @@ async function runPaletteItem(item: CommandPaletteItem) {
       return;
     case "select-terminal":
       agentsViewOpen.value = false;
-      chatViewOpen.value = false;
+      dismissToolWindow();
       selectTerminal(a.tabId, a.paneId);
       return;
     case "select-group": {
@@ -903,7 +923,6 @@ async function runPaletteItem(item: CommandPaletteItem) {
         return;
       }
       agentsViewOpen.value = false;
-      chatViewOpen.value = false;
       selectTerminal(target.id, target.panes[0]?.id ?? "");
       return;
     }
@@ -920,7 +939,11 @@ async function runPaletteItem(item: CommandPaletteItem) {
       if (a.surface === "source-control") toggleSourceControl();
       else if (a.surface === "prs") openPullRequests();
       else if (a.surface === "issues") openIssues();
-      else openBranchManager();
+      else if (a.surface === "branches") openBranchManager();
+      else if (a.surface === "worktrees") openWorktreeManager();
+      else if (a.surface === "stash") openStash();
+      else if (a.surface === "rebase") openRebase();
+      else if (a.surface === "merge") openMerge();
       return;
     case "launch-agent":
       launchAgent(a.agentId);
@@ -932,51 +955,100 @@ async function runPaletteItem(item: CommandPaletteItem) {
       }
       await insertHistoryEntry(a.command);
       return;
+    case "toggle-composer":
+      toggleActiveAgentComposer();
+      return;
+    case "split-horizontal":
+      splitActiveTabHorizontal();
+      return;
+    case "split-vertical":
+      splitActiveTabVertical();
+      return;
+    case "focus-active-terminal": {
+      agentsViewOpen.value = false;
+      const paneId = activePaneId.value;
+      if (paneId) {
+        selectPane(paneId);
+        terminalPaneRefs.get(paneId)?.focusTerminal?.();
+      }
+      return;
+    }
+    case "block-copy": {
+      const paneId = activePaneId.value;
+      const pane = paneId ? terminalPaneRefs.get(paneId) : null;
+      const copied = pane?.copySelectedBlock?.() ?? null;
+      if (!copied) {
+        pushAppToast("No command block to copy.", "info");
+        return;
+      }
+      try {
+        await writeClipboardText(
+          [copied.command, sanitizeTerminalLogText(copied.output)].filter(Boolean).join("\n"),
+        );
+        pushAppToast("Block copied.", "success");
+      } catch {
+        pushAppToast("Failed to copy block.", "error");
+      }
+      return;
+    }
+    case "block-rerun": {
+      const paneId = activePaneId.value;
+      const pane = paneId ? terminalPaneRefs.get(paneId) : null;
+      const command = pane?.getSelectedOrLastFailedCommand?.() ?? null;
+      if (!command) {
+        pushAppToast("No command block to rerun.", "info");
+        return;
+      }
+      await insertHistoryEntry(command);
+      return;
+    }
+    case "block-prev-failure": {
+      const paneId = activePaneId.value;
+      const pane = paneId ? terminalPaneRefs.get(paneId) : null;
+      if (!pane?.jumpToLastFailedBlock?.()) {
+        pushAppToast("No failed block.", "info");
+        return;
+      }
+      pane.focusTerminal?.();
+      return;
+    }
   }
 }
-
-const sourceControlRestoreOnReturn = ref(false);
 
 watch(
   () => sourceControlStatus.value.isRepo,
   (isRepo) => {
     if (!isRepo) {
-      sourceControlOpen.value = false;
+      dismissSourceControl("leave-repo");
     }
   },
   { immediate: true },
 );
 
 watch(
-  [() => activeWorkspaceTab.value?.kind ?? null, () => sourceControlStatus.value.isRepo],
-  ([kind, isRepo], [previousKind, previousIsRepo]) => {
-    if (previousKind === "terminal" && kind !== "terminal" && previousIsRepo) {
-      sourceControlRestoreOnReturn.value = sourceControlOpen.value;
+  () => activeWorkspaceTab.value?.kind ?? null,
+  (kind, previousKind) => {
+    // Close SC when leaving the terminal surface — no restore-on-return dock habit.
+    if (previousKind === "terminal" && kind !== "terminal") {
+      dismissSourceControl("escape");
     }
-
-    if (kind === "terminal" && isRepo && sourceControlRestoreOnReturn.value) {
-      sourceControlOpen.value = true;
-      sourceControlRestoreOnReturn.value = false;
-      return;
-    }
-
-    if (!isRepo) {
-      sourceControlOpen.value = false;
+    if (!sourceControlStatus.value.isRepo) {
+      dismissSourceControl("leave-repo");
     }
   },
-  { immediate: true },
 );
 
 function openPullRequests() {
   const root = gitRepoRoot.value;
   if (!root) return;
-  openPullRequestsTab(root);
+  showToolWindow("pullRequests", root);
 }
 
 function openBranchManager() {
   const root = gitRepoRoot.value;
   if (!root) return;
-  openBranchManagerTab(
+  showToolWindow(
+    "branchManager",
     resolveGitMutationRoot(root, activeCwd.value, gitWorktrees.value),
   );
 }
@@ -984,59 +1056,61 @@ function openBranchManager() {
 function openWorktreeManager() {
   const root = gitRepoRoot.value;
   if (!root) return;
-  openWorktreeManagerTab(
+  showToolWindow(
+    "worktreeManager",
     resolveGitMutationRoot(root, activeCwd.value, gitWorktrees.value),
   );
 }
 
 function openWorktreeTerminal(cwd: string) {
+  dismissToolWindow();
   createTab(resolveDefaultShellId(), cwd);
 }
 
 function openIssues() {
   const root = gitRepoRoot.value;
   if (!root) return;
-  openIssuesTab(root);
+  showToolWindow("issues", root);
 }
 
 function openRebase() {
   const root = sourceControlStatus.value.repoRoot;
   if (!root) return;
-  openRebaseTab(root);
+  showToolWindow("rebase", root);
 }
 
 function openMerge() {
   const root = sourceControlStatus.value.repoRoot;
   if (!root) return;
-  openMergeTab(root);
+  showToolWindow("merge", root);
 }
 
 function openStash() {
   const root = sourceControlStatus.value.repoRoot;
   if (!root) return;
-  openStashTab(root);
+  showToolWindow("stash", root);
 }
 
 function openAiPreflight() {
   const root = sourceControlStatus.value.repoRoot;
   if (!root) return;
-  openAiPreflightTab(root);
+  showToolWindow("aiPreflight", root);
 }
 
 function openDockerManager() {
-  openDockerManagerTab();
+  showToolWindow("docker");
 }
 
 function openProcessManager() {
-  openProcessManagerTab();
+  showToolWindow("process");
 }
 
 function openSshSftp() {
-  openSshSftpTab();
+  showToolWindow("sshSftp");
 }
 
 function openSettings() {
-  openSettingsTab();
+  showToolWindow("settings");
 }
 
 function findWorkspacePane(paneId: string): WorkspacePane | null {
@@ -1131,6 +1205,7 @@ function resolveSshConfirm(confirmed: boolean) {
 }
 
 async function openSshTerminal(endpoint: SshEndpoint) {
+  dismissToolWindow();
   const library = loadSshSftpLibrary();
   const shellId = resolveDefaultShellId();
 
@@ -1194,6 +1269,7 @@ function openDockerContainerTerminal(
   container: DockerContainer,
   mode: "logs" | "shell",
 ) {
+  dismissToolWindow();
   const tab = createTab(resolveDefaultShellId());
   if (!tab || !isTerminalTab(tab)) return;
   const pane = tab.panes[0];
@@ -1316,6 +1392,23 @@ async function closeTabs(tabIds: string[]) {
   }
 }
 
+function closeAllFeatureTabs() {
+  const featureIds = tabs.value.filter((tab) => isFeatureTabKind(tab.kind)).map((tab) => tab.id);
+  for (const id of featureIds) {
+    removeTab(id);
+  }
+}
+
+function showToolWindow(id: ToolWindowId, repoRoot: string | null = null) {
+  agentsViewOpen.value = false;
+  closeAllFeatureTabs();
+  toolWindow.value = openToolWindow(toolWindow.value, id, repoRoot);
+}
+
+function dismissToolWindow() {
+  toolWindow.value = closeToolWindow();
+}
+
 function onSaveProfile(draft: SaveProfileDraft) {
   const base = shells.value.find((shell) => shell.id === draft.shellId);
   if (!base) return;
@@ -1422,7 +1515,7 @@ function launchAgent(agentId: CliAgentId) {
   const pane = tab.panes[0];
   if (!pane) return;
 
-  setTabTitle(tab.id, agent.displayName);
+  // Keep default tab title so sidebar shows project/cwd; agent brand is badge + radar subtitle.
   const command = agent.commandPrefixes[0] || agent.id;
   pendingTerminalCommands.set(pane.id, `${command}\r`);
 
@@ -1546,10 +1639,7 @@ function onKeyDown(event: KeyboardEvent) {
   if (isCommandPaletteShortcut(event)) {
     consumeAppShortcut(event);
     if (paletteOpen.value) closePalette();
-    else {
-      if (historyOpen.value) closeSearch();
-      openPalette();
-    }
+    else openPalette();
     return;
   }
   if (isActionKeybind(event, "terminal-new")) {
@@ -1567,10 +1657,45 @@ function onKeyDown(event: KeyboardEvent) {
     reopenClosedSession();
     return;
   }
-  if (isActionKeybind(event, "reload-window")) {
+  if (isActionKeybind(event, "history-palette")) {
     consumeAppShortcut(event);
     if (paletteOpen.value) closePalette();
-    openSearch();
+    openPalette({ initialQuery: "$" });
+    return;
+  }
+  if (isActionKeybind(event, "toggle-sidebar")) {
+    consumeAppShortcut(event);
+    terminalSidebarOpen.value = !terminalSidebarOpen.value;
+    return;
+  }
+  if (isActionKeybind(event, "toggle-tools")) {
+    consumeAppShortcut(event);
+    toolsOpen.value = !toolsOpen.value;
+    return;
+  }
+  if (isActionKeybind(event, "toggle-source-control")) {
+    consumeAppShortcut(event);
+    toggleSourceControl();
+    return;
+  }
+  if (isActionKeybind(event, "toggle-agent-ops")) {
+    consumeAppShortcut(event);
+    agentsViewOpen.value = !agentsViewOpen.value;
+    return;
+  }
+  if (isActionKeybind(event, "split-horizontal")) {
+    consumeAppShortcut(event);
+    splitActiveTabHorizontal();
+    return;
+  }
+  if (isActionKeybind(event, "close-tab")) {
+    consumeAppShortcut(event);
+    if (activeTabId.value) void closeTab(activeTabId.value);
+    return;
+  }
+  if (isActionKeybind(event, "reload-window")) {
+    consumeAppShortcut(event);
+    location.reload();
     return;
   }
   if (isTabCycleShortcut(event)) {
@@ -1590,9 +1715,18 @@ function onKeyDown(event: KeyboardEvent) {
     closePalette();
     return;
   }
-  if (event.key === "Escape" && historyOpen.value) {
+  if (event.key === "Escape" && toolWindowOpen.value) {
     consumeAppShortcut(event);
-    closeSearch();
+    dismissToolWindow();
+    return;
+  }
+  if (event.key === "Escape" && sourceControlOpen.value) {
+    const root = sourceControlShellRef.value;
+    const active = document.activeElement;
+    if (root && active instanceof Node && root.contains(active)) {
+      consumeAppShortcut(event);
+      dismissSourceControl("escape");
+    }
   }
 }
 
@@ -1601,7 +1735,6 @@ function shellLineEnding() {
 }
 
 async function insertHistoryEntry(entry: string) {
-  closeSearch();
   const pane = activePane.value;
   if (!pane?.sessionId) return;
   const payload = `${entry}${shellLineEnding()}`;
@@ -1824,10 +1957,6 @@ onUnmounted(() => {
 
 <template>
   <div class="oterm-app relative flex h-full flex-col overflow-hidden">
-    <!-- Ambient background glows for high-end feel -->
-    <div class="pointer-events-none absolute -top-40 -left-40 z-0 h-96 w-96 rounded-full bg-emerald-500/6 blur-[120px]" />
-    <div class="pointer-events-none absolute -bottom-40 -right-40 z-0 h-96 w-96 rounded-full bg-cyan-500/6 blur-[120px]" />
-
     <TooltipLayer />
     <AppToastLayer />
     <CommandPalette
@@ -1842,9 +1971,6 @@ onUnmounted(() => {
       @set-active="setPaletteActiveIndex"
     />
     <TitleBar
-      :terminal-sidebar-open="terminalSidebarOpen"
-      :tools-open="toolsOpen"
-      :chat-view-open="chatViewOpen"
       :source-control-open="sourceControlOpen"
       :git-status="gitBadgeStatus"
       :git-branches="gitBranches"
@@ -1856,9 +1982,7 @@ onUnmounted(() => {
       :pane="activePane"
       :shells="shells"
       :tab-title="activeTerminalTab?.title"
-      @toggle-terminal-sidebar="terminalSidebarOpen = !terminalSidebarOpen"
       @toggle-tools="toolsOpen = !toolsOpen"
-      @toggle-chat-view="chatViewOpen = !chatViewOpen"
       @toggle-source-control="toggleSourceControl"
       @switch-branch="onSwitchBranch"
       @open-ssh-sftp="openSshSftp"
@@ -1867,13 +1991,12 @@ onUnmounted(() => {
       @open-pull-requests="openPullRequests"
       @open-issues="openIssues"
       @open-branch-manager="openBranchManager"
-      @open-worktree-manager="openWorktreeManager"
       @open-settings="openSettings"
     />
 
     <div class="flex min-h-0 flex-1 overflow-hidden">
       <SidebarRail
-        v-if="terminalSidebarOpen && !agentsViewOpen && !chatViewOpen"
+        v-if="terminalSidebarOpen && !agentsViewOpen"
         :tabs="tabs"
         :terminal-groups="terminalGroups"
         :collapsed-group-ids="collapsedGroupIds"
@@ -1909,7 +2032,7 @@ onUnmounted(() => {
       />
 
       <div
-        v-if="terminalSidebarOpen && !agentsViewOpen && !chatViewOpen"
+        v-if="terminalSidebarOpen && !agentsViewOpen"
         class="no-drag relative z-20 w-[1px] shrink-0 cursor-col-resize bg-[var(--oterm-border)] hover:bg-[var(--oterm-accent)]/40 transition-colors"
         :class="sidebarResizing ? 'bg-[var(--oterm-accent)]' : ''"
         title="Drag to resize sidebar"
@@ -1936,24 +2059,109 @@ onUnmounted(() => {
             @close="agentsViewOpen = false"
             @launch-agent="launchAgent"
             @select-tab="selectTab"
+            @select-pane="selectTerminal"
           />
-          <template v-else>
-            <HistorySearch
-              v-if="activePane"
-              :open="historyOpen"
-              :query="historyQuery"
-              :entries="filteredHistory"
-              @update:query="(value) => (historyQuery = value)"
-              @close="closeSearch"
-              @select="insertHistoryEntry"
+          <div
+            v-else-if="toolWindowOpen"
+            class="flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)]"
+          >
+            <DockerManagerView
+              v-if="toolWindow.openId === 'docker'"
+              class="flex min-h-0 flex-1"
+              :active="true"
+              @close="dismissToolWindow"
+              @open-container-logs="openDockerContainerTerminal($event, 'logs')"
+              @open-container-shell="openDockerContainerTerminal($event, 'shell')"
             />
-
+            <ProcessManagerView
+              v-else-if="toolWindow.openId === 'process'"
+              class="flex min-h-0 flex-1"
+              :active="true"
+              @close="dismissToolWindow"
+            />
+            <SshSftpManagerView
+              v-else-if="toolWindow.openId === 'sshSftp'"
+              class="flex min-h-0 flex-1"
+              @close="dismissToolWindow"
+              @open-ssh-terminal="openSshTerminal"
+            />
+            <SettingsView
+              v-else-if="toolWindow.openId === 'settings'"
+              v-model:section="settingsSectionTarget"
+              class="flex min-h-0 flex-1"
+              @close="dismissToolWindow"
+            />
+            <PullRequestsView
+              v-else-if="toolWindow.openId === 'pullRequests' && toolWindowRepoRoot"
+              class="flex min-h-0 flex-1"
+              :repo-root="toolWindowRepoRoot"
+              :active="true"
+              @refresh-git="refreshGitViews"
+              @close="dismissToolWindow"
+            />
+            <BranchManagerView
+              v-else-if="toolWindow.openId === 'branchManager' && toolWindowRepoRoot"
+              class="flex min-h-0 flex-1"
+              :repo-root="toolWindowRepoRoot"
+              :active="true"
+              :switch-branch="onSwitchBranch"
+              @refresh-git="refreshGitViews"
+              @close="dismissToolWindow"
+            />
+            <WorktreeManagerView
+              v-else-if="toolWindow.openId === 'worktreeManager' && toolWindowRepoRoot"
+              class="flex min-h-0 flex-1"
+              :repo-root="toolWindowRepoRoot"
+              :active="true"
+              @close="dismissToolWindow"
+              @create-worktree="openWorktreeDialog"
+              @open-terminal="openWorktreeTerminal"
+            />
+            <IssuesView
+              v-else-if="toolWindow.openId === 'issues' && toolWindowRepoRoot"
+              class="flex min-h-0 flex-1"
+              :repo-root="toolWindowRepoRoot"
+              :active="true"
+              @refresh-git="refreshGitViews"
+              @close="dismissToolWindow"
+            />
+            <RebaseBuilder
+              v-else-if="toolWindow.openId === 'rebase' && toolWindowRepoRoot"
+              class="flex min-h-0 flex-1"
+              :repo-root="toolWindowRepoRoot"
+              :active="true"
+              @close="dismissToolWindow"
+            />
+            <MergeConflictViewer
+              v-else-if="toolWindow.openId === 'merge' && toolWindowRepoRoot"
+              class="flex min-h-0 flex-1"
+              :repo-root="toolWindowRepoRoot"
+              :active="true"
+              @close="dismissToolWindow"
+            />
+            <StashManager
+              v-else-if="toolWindow.openId === 'stash' && toolWindowRepoRoot"
+              class="flex min-h-0 flex-1"
+              :repo-root="toolWindowRepoRoot"
+              :active="true"
+              @close="dismissToolWindow"
+            />
+            <AiPreflight
+              v-else-if="toolWindow.openId === 'aiPreflight' && toolWindowRepoRoot"
+              class="flex min-h-0 flex-1"
+              :repo-root="toolWindowRepoRoot"
+              :active="true"
+              @close="dismissToolWindow"
+            />
+          </div>
+          <template v-else>
             <template v-for="tab in tabs" :key="tab.id">
               <section
                 v-if="tab.kind === 'terminal' && mountedTerminalTabIds.has(tab.id)"
                 v-show="tab.id === activeTabId"
                 class="flex min-h-0 flex-1 divide-[var(--oterm-border)]"
                 :class="tab.split === 'horizontal' ? 'flex-row divide-x' : 'flex-col divide-y'"
+                :data-split="tab.split"
                 style="margin-left: -3px;"
               >
                 <TerminalPane
@@ -1969,7 +2177,6 @@ onUnmounted(() => {
                   :active-agent-id="pane.activeAgentId"
                   :theme-id="terminalPaneThemes[pane.id] ?? null"
                   :ssh-endpoint-id="pane.sshEndpointId"
-                  :chat-view-open="chatViewOpen"
                   @session-created="onSessionCreated"
                   @session-bootstrapping="onSessionBootstrapping"
                   @session-ended="onSessionEnded"
@@ -2122,8 +2329,10 @@ onUnmounted(() => {
 
       <div
         v-if="sourceControlOpen"
+        ref="sourceControlShellRef"
         class="flex shrink-0 flex-col overflow-hidden"
         :style="{ width: `${sourceControlWidth}px` }"
+        tabindex="-1"
       >
         <div
           v-if="createPrBannerVisible"
@@ -2172,7 +2381,7 @@ onUnmounted(() => {
           @unstage="(paths) => runGitAction(() => unstageGitPaths(paths))"
           @revert="(paths, untracked) => runGitAction(() => revertGitPaths(paths, untracked))"
           @revert-all="() => runGitAction(revertAllGitChanges)"
-          @commit="(message) => runGitAction(() => commitGitChanges(message))"
+          @commit="onCommitGit"
           @fetch="() => runGitActionWithFeedback(fetchGitRepo)"
           @pull="() => runGitActionWithFeedback(pullGitRepo)"
           @push="onPushGit"

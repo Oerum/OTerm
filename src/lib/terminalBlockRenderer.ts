@@ -53,6 +53,7 @@ export class TerminalBlockRenderer {
   private paneCwd: string | null = null;
   private refreshTimer: number | undefined;
   private disposables: IDisposable[] = [];
+  private selectedBlockId: number | null = null;
 
   constructor(terminal: Terminal, theme: TerminalTheme, options: TerminalBlockRendererOptions = {}) {
     this.terminal = terminal;
@@ -222,6 +223,48 @@ export class TerminalBlockRenderer {
 
   getBlocks(): TerminalBlock[] {
     return [...this.blocks];
+  }
+
+  getLastFailedBlock(): TerminalBlock | null {
+    for (let i = this.blocks.length - 1; i >= 0; i--) {
+      const block = this.blocks[i];
+      if (block?.status === "failure") return block;
+    }
+    return null;
+  }
+
+  selectBlock(id: number): void {
+    this.selectedBlockId = id;
+    this.scheduleRefresh();
+  }
+
+  getSelectedBlock(): TerminalBlock | null {
+    if (this.selectedBlockId == null) return null;
+    return this.blocks.find((block) => block.id === this.selectedBlockId) ?? null;
+  }
+
+  copySelectedBlock(): { command: string; output: string } | null {
+    const block =
+      this.getSelectedBlock() ??
+      this.getLastFailedBlock() ??
+      this.blocks[this.blocks.length - 1] ??
+      null;
+    if (!block) return null;
+    if (this.selectedBlockId !== block.id) {
+      this.selectBlock(block.id);
+    }
+    return { command: block.command, output: block.outputText };
+  }
+
+  scrollToBlock(id: number): boolean {
+    const block = this.blocks.find((entry) => entry.id === id);
+    if (!block) return false;
+    const line = block.commandMarkerLine ?? block.startMarkerLine;
+    if (line == null) return false;
+    const term = this.terminal as Terminal & { scrollToLine?: (line: number) => void };
+    term.scrollToLine?.(line);
+    this.selectBlock(id);
+    return true;
   }
 
   private expandActiveBlockEnd(cursorLine?: number): void {
@@ -567,12 +610,16 @@ export class TerminalBlockRenderer {
       return;
     }
 
+    const selected = this.selectedBlockId === block.id;
     const renderDisposable = decoration.onRender((element) => {
       element.classList.add("terminal-block-body");
       element.classList.toggle("terminal-block-body--failure", isFailure);
       element.classList.toggle("terminal-block-body--success", !isFailure);
+      element.classList.toggle("terminal-block-body--selected", selected);
       element.style.pointerEvents = "none";
       element.style.boxSizing = "border-box";
+      element.style.outline = selected ? "1px solid var(--oterm-accent)" : "";
+      element.style.outlineOffset = selected ? "-1px" : "";
 
       const isTopCutOff = visibleStart > startLine;
       const isBottomCutOff = visibleEnd < endLine;

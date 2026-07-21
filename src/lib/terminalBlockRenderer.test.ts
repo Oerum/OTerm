@@ -143,4 +143,22 @@ describe("finalizeOnPromptReady buffer-parse ordering", () => {
     const [repaired] = renderer.getBlocks();
     expect(blockLineSpan(repaired!)).toEqual({ start: 0, end: 2 });
   });
+
+  it("selects and copies the last failed block", () => {
+    const { state, renderer } = makeFailureScenario();
+    state.lines = [`${PROMPT}f`, ...ERROR_LINES, PROMPT];
+    state.cursorY = 3;
+    renderer.finalizeOnPromptReady();
+
+    const failed = renderer.getLastFailedBlock();
+    expect(failed?.status).toBe("failure");
+    expect(failed?.command).toBe("f");
+
+    renderer.selectBlock(failed!.id);
+    expect(renderer.getSelectedBlock()?.id).toBe(failed!.id);
+
+    const copied = renderer.copySelectedBlock();
+    expect(copied?.command).toBe("f");
+    expect(copied?.output.length).toBeGreaterThan(0);
+  });
 });

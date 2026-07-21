@@ -6,9 +6,11 @@ import {
   listAllTerminalThemes,
   resolveTerminalTheme,
 } from "./terminalThemes";
+import { applyChromeTheme, chromeTokensFromTerminalColors } from "./applyChromeTheme";
 import { getSetting, setSetting } from "./settingsStore";
 
 const STORAGE_KEY = "oterm:terminal-appearance";
+const CHROME_THEME_KEY = "oterm:theme-app-chrome";
 
 const DEFAULT_STATE: TerminalAppearanceState = {
   activeThemeId: BUILTIN_TERMINAL_THEMES[0]!.id,
@@ -168,6 +170,17 @@ export function useTerminalAppearanceSettings() {
   };
 }
 
+export function isThemeAppChromeEnabled(): boolean {
+  return getSetting(CHROME_THEME_KEY) === "true";
+}
+
+export async function setThemeAppChromeEnabled(enabled: boolean): Promise<void> {
+  await setSetting(CHROME_THEME_KEY, enabled ? "true" : "false");
+  applyTerminalThemeCssVars(
+    resolveTerminalTheme(stateRef.value.activeThemeId, stateRef.value.customThemes),
+  );
+}
+
 export function applyTerminalThemeCssVars(theme: TerminalTheme): void {
   const root = document.documentElement;
   root.style.setProperty("--term-block-separator", theme.blocks.separator);
@@ -188,6 +201,18 @@ export function applyTerminalThemeCssVars(theme: TerminalTheme): void {
     "--term-block-active-rail",
     theme.xterm.brightGreen ?? theme.xterm.green ?? theme.xterm.cursor ?? "#00e5ba",
   );
+
+  // Opt-in: retint app chrome from terminal theme colors.
+  if (isThemeAppChromeEnabled()) {
+    const derived = chromeTokensFromTerminalColors({
+      background: theme.xterm.background,
+      foreground: theme.xterm.foreground,
+      cursor: theme.xterm.cursor,
+    });
+    applyChromeTheme(derived);
+  } else {
+    applyChromeTheme(null);
+  }
 }
 
 /** Used by settings color inputs — accepts hex and rgba strings. */

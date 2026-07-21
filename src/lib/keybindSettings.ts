@@ -5,6 +5,7 @@ export type KeybindAction =
   | "terminal-new-ungrouped"
   | "terminal-reopen"
   | "command-palette"
+  | "history-palette"
   | "reload-window"
   | "dictation"
   | "tab-cycle"
@@ -15,13 +16,20 @@ export type KeybindAction =
   | "navigate-child-commit"
   | "refresh"
   | "delete-item"
-  | "composer-toggle";
+  | "composer-toggle"
+  | "toggle-sidebar"
+  | "toggle-tools"
+  | "toggle-source-control"
+  | "toggle-agent-ops"
+  | "split-horizontal"
+  | "close-tab";
 
 export const ALL_KEYBIND_ACTIONS: KeybindAction[] = [
   "terminal-new",
   "terminal-new-ungrouped",
   "terminal-reopen",
   "command-palette",
+  "history-palette",
   "reload-window",
   "dictation",
   "tab-cycle",
@@ -33,6 +41,12 @@ export const ALL_KEYBIND_ACTIONS: KeybindAction[] = [
   "refresh",
   "delete-item",
   "composer-toggle",
+  "toggle-sidebar",
+  "toggle-tools",
+  "toggle-source-control",
+  "toggle-agent-ops",
+  "split-horizontal",
+  "close-tab",
 ];
 
 export interface Keybind {
@@ -48,7 +62,8 @@ const defaultKeybinds: Record<KeybindAction, Keybind> = {
   "terminal-new-ungrouped": { ctrl: true, shift: true, alt: true, key: "t" },
   "terminal-reopen": { ctrl: true, alt: true, key: "t" },
   "command-palette": { ctrl: true, key: "k" },
-  "reload-window": { ctrl: true, key: "r" },
+  "history-palette": { ctrl: true, key: "r" },
+  "reload-window": { ctrl: true, shift: true, key: "r" },
   dictation: { ctrl: true, key: "f" },
   "tab-cycle": { ctrl: true, key: "Tab" }, // Actually we check ctrl || meta in appKeyboardShortcuts
   "terminal-set-default": { ctrl: true, key: "d" },
@@ -59,6 +74,12 @@ const defaultKeybinds: Record<KeybindAction, Keybind> = {
   refresh: { key: "F5" },
   "delete-item": { key: "Delete" },
   "composer-toggle": { ctrl: true, shift: true, key: "Enter" },
+  "toggle-sidebar": { ctrl: true, shift: true, key: "b" },
+  "toggle-tools": { ctrl: true, shift: true, key: "e" },
+  "toggle-source-control": { ctrl: true, shift: true, key: "g" },
+  "toggle-agent-ops": { ctrl: true, shift: true, key: "a" },
+  "split-horizontal": { ctrl: true, shift: true, key: "d" },
+  "close-tab": { ctrl: true, shift: true, key: "w" },
 };
 
 export function getKeybind(action: KeybindAction): Keybind {

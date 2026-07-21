@@ -22,7 +22,6 @@ export type CommandPaletteAction =
   | { type: "toggle-tools" }
   | { type: "toggle-source-control" }
   | { type: "toggle-agents" }
-  | { type: "toggle-chat" }
   | { type: "open-ssh-manager" }
   | { type: "open-docker" }
   | { type: "open-process" }
@@ -32,9 +31,27 @@ export type CommandPaletteAction =
   | { type: "select-terminal"; tabId: string; paneId: string }
   | { type: "select-group"; groupId: string | null }
   | { type: "open-ssh-host"; endpointId: string }
-  | { type: "open-git"; surface: "source-control" | "prs" | "issues" | "branches" }
+  | {
+      type: "open-git";
+      surface:
+        | "source-control"
+        | "prs"
+        | "issues"
+        | "branches"
+        | "worktrees"
+        | "stash"
+        | "rebase"
+        | "merge";
+    }
   | { type: "launch-agent"; agentId: CliAgentId }
-  | { type: "run-history"; command: string };
+  | { type: "run-history"; command: string }
+  | { type: "toggle-composer" }
+  | { type: "split-horizontal" }
+  | { type: "split-vertical" }
+  | { type: "focus-active-terminal" }
+  | { type: "block-copy" }
+  | { type: "block-rerun" }
+  | { type: "block-prev-failure" };
 
 export interface CommandPaletteItem {
   id: string;
@@ -113,8 +130,24 @@ export function buildCommandPaletteItems(ctx: CommandPaletteBuildContext): Comma
   const items: CommandPaletteItem[] = [
     action("action:toggle-sidebar", "Toggle Sidebar", "sidebar panel", { type: "toggle-sidebar" }),
     action("action:toggle-tools", "Toggle Tools", "tools panel", { type: "toggle-tools" }),
-    action("action:toggle-agents", "Toggle Agents View", "agents", { type: "toggle-agents" }),
-    action("action:toggle-chat", "Toggle Chat View", "chat", { type: "toggle-chat" }),
+    action("action:toggle-agents", "Toggle Agent Ops", "agents ops board", { type: "toggle-agents" }),
+    action("action:toggle-composer", "Toggle Agent Composer", "composer message agent", {
+      type: "toggle-composer",
+    }),
+    action("action:split-horizontal", "Split Terminal Horizontal", "split pane", {
+      type: "split-horizontal",
+    }),
+    action("action:split-vertical", "Split Terminal Vertical", "split pane vertical", {
+      type: "split-vertical",
+    }),
+    action("action:focus-active-terminal", "Focus Active Terminal", "focus pane", {
+      type: "focus-active-terminal",
+    }),
+    action("action:block-copy", "Block: Copy", "block copy output", { type: "block-copy" }),
+    action("action:block-rerun", "Block: Rerun", "block rerun command", { type: "block-rerun" }),
+    action("action:block-prev-failure", "Block: Jump to last failure", "block failure jump", {
+      type: "block-prev-failure",
+    }),
     action(
       "action:toggle-source-control",
       "Toggle Source Control",
@@ -189,6 +222,38 @@ export function buildCommandPaletteItems(ctx: CommandPaletteBuildContext): Comma
         hint: "Git",
         action: { type: "open-git", surface: "branches" },
       },
+      {
+        id: "git:worktrees",
+        category: "git",
+        label: "Git: Worktrees",
+        keywords: "worktree",
+        hint: "Git",
+        action: { type: "open-git", surface: "worktrees" },
+      },
+      {
+        id: "git:stash",
+        category: "git",
+        label: "Git: Stash",
+        keywords: "stash",
+        hint: "Git",
+        action: { type: "open-git", surface: "stash" },
+      },
+      {
+        id: "git:rebase",
+        category: "git",
+        label: "Git: Rebase",
+        keywords: "rebase",
+        hint: "Git",
+        action: { type: "open-git", surface: "rebase" },
+      },
+      {
+        id: "git:merge",
+        category: "git",
+        label: "Git: Merge",
+        keywords: "merge",
+        hint: "Git",
+        action: { type: "open-git", surface: "merge" },
+      },
     );
   }
 
@@ -258,12 +323,13 @@ export function buildCommandPaletteItems(ctx: CommandPaletteBuildContext): Comma
     });
   }
 
-  for (const command of ctx.historyCommands.slice(0, 20)) {
+  // Cap at 50; empty-query "all" mode still keeps actions visible via fuzzy filter order.
+  for (const command of ctx.historyCommands.slice(0, 50)) {
     items.push({
       id: `history:${command}`,
       category: "history",
       label: command,
-      keywords: "history recent command",
+      keywords: `history recent command ${command}`,
       hint: "Recent",
       action: { type: "run-history", command },
     });

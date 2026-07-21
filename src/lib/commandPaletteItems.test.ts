@@ -55,12 +55,41 @@ describe("buildCommandPaletteItems", () => {
     const historyCommands = Array.from({ length: 40 }, (_, i) => `cmd-${i}`);
     const items = buildCommandPaletteItems({ ...emptyCtx, historyCommands });
     const history = items.filter((i) => i.category === "history");
-    expect(history.length).toBeLessThanOrEqual(20);
+    expect(history.length).toBeLessThanOrEqual(50);
     expect(items.some((i) => i.category === "agents")).toBe(true);
+  });
+
+  it("includes more history when many commands exist", () => {
+    const historyCommands = Array.from({ length: 80 }, (_, i) => `cmd-${i}`);
+    const items = buildCommandPaletteItems({ ...emptyCtx, historyCommands });
+    const history = items.filter((i) => i.category === "history");
+    expect(history.length).toBeGreaterThan(20);
+    expect(history.length).toBe(50);
+  });
+
+  it("exposes chrome-diet leftover actions", () => {
+    const items = buildCommandPaletteItems({ ...emptyCtx, canOpenGitFeatures: true });
+    const ids = items.map((i) => i.id);
+    expect(ids).toContain("action:toggle-composer");
+    expect(ids).toContain("action:split-horizontal");
+    expect(ids).toContain("action:focus-active-terminal");
+    expect(ids).toContain("action:block-copy");
+    expect(ids).toContain("action:block-rerun");
+    expect(ids).toContain("action:block-prev-failure");
+    expect(ids).toContain("git:worktrees");
+    expect(ids).toContain("git:stash");
+    expect(ids).toContain("git:rebase");
+    expect(ids).toContain("git:merge");
   });
 
   it("omits reopen when canReopenClosed is false", () => {
     const items = buildCommandPaletteItems(emptyCtx);
     expect(items.some((i) => i.id === "action:reopen-terminal")).toBe(false);
+  });
+
+  it("does not expose a chat toggle action", () => {
+    const items = buildCommandPaletteItems(emptyCtx);
+    expect(items.some((i) => i.id === "action:toggle-chat")).toBe(false);
+    expect(items.some((i) => i.action.type === "toggle-chat")).toBe(false);
   });
 });

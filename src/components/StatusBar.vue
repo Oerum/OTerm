@@ -114,8 +114,8 @@ const agentStatusText = computed(() =>
         type="button"
         class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
         :class="agentsViewOpen ? 'text-[var(--oterm-accent)]' : ''"
-        title="Toggle Agents View"
-        aria-label="Toggle Agents View"
+        title="Toggle Agent Ops"
+        aria-label="Toggle Agent Ops"
         @click="emit('toggleAgentsView')"
       >
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
@@ -132,7 +132,7 @@ const agentStatusText = computed(() =>
             stroke-linejoin="round"
           />
         </svg>
-        <span class="hidden md:inline">Agents</span>
+        <span class="hidden md:inline">Agent ops</span>
       </button>
 
       <span
@@ -233,7 +233,7 @@ const agentStatusText = computed(() =>
     <div class="hidden shrink-0 items-center gap-3 sm:flex">
       <span class="text-[var(--oterm-muted)]">{{ shellLabel }}</span>
       <span>{{ formatKeybind(getKeybind("command-palette")) }} commands</span>
-      <span>{{ formatKeybind(getKeybind("reload-window")) }} history</span>
+      <span>{{ formatKeybind(getKeybind("history-palette")) }} history</span>
     </div>
   </footer>
 </template>

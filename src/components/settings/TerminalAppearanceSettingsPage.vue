@@ -4,7 +4,9 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { readFile, writeFile } from "../../lib/fsTransferApi";
 import { pushAppToast } from "../../lib/appToast";
 import {
+  isThemeAppChromeEnabled,
   isThemeColorInput,
+  setThemeAppChromeEnabled,
   useTerminalAppearanceSettings,
 } from "../../lib/terminalAppearanceSettings";
 import { BUILTIN_TERMINAL_THEMES } from "../../lib/terminalThemes";
@@ -25,6 +27,13 @@ const {
 
 const draft = ref<TerminalTheme>(structuredClone(activeTheme.value));
 const saveError = ref<string | null>(null);
+const themeAppChrome = ref(isThemeAppChromeEnabled());
+
+async function onThemeAppChromeChange(event: Event) {
+  const enabled = (event.target as HTMLInputElement).checked;
+  themeAppChrome.value = enabled;
+  await setThemeAppChromeEnabled(enabled);
+}
 
 watch(
   () => state.value.activeThemeId,
@@ -168,6 +177,16 @@ function onRemoveCustom() {
         terminals immediately. SSH hosts can still override with their own theme.
       </p>
     </div>
+
+    <label class="flex items-center gap-2 text-sm text-[var(--oterm-muted)]">
+      <input
+        type="checkbox"
+        class="rounded border-[var(--oterm-border)]"
+        :checked="themeAppChrome"
+        @change="onThemeAppChromeChange"
+      />
+      Theme app chrome
+    </label>
 
     <div class="grid gap-4 sm:grid-cols-[220px_1fr]">
       <label class="grid gap-1 text-xs text-[var(--oterm-muted)]">

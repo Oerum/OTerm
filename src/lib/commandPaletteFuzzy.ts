@@ -1,5 +1,8 @@
 // ponytail: subsequence + substring only; no typo tolerance. Upgrade: add fuzzy lib if users complain about typos.
 
+import type { CommandPaletteCategory } from "./commandPaletteItems";
+import { categoriesForPaletteMode, parsePaletteQuery } from "./commandPaletteMode";
+
 export function scoreCommandPaletteMatch(
   query: string,
   label: string,
@@ -35,14 +38,17 @@ function isSubsequence(q: string, s: string): boolean {
   return false;
 }
 
-export function filterCommandPaletteItems<T extends { label: string; keywords?: string }>(
-  query: string,
-  items: T[],
-): T[] {
-  const scored = items
+export function filterCommandPaletteItems<
+  T extends { label: string; keywords?: string; category?: CommandPaletteCategory },
+>(query: string, items: T[]): T[] {
+  const { mode, needle } = parsePaletteQuery(query);
+  const allow = categoriesForPaletteMode(mode);
+  const scoped = allow ? items.filter((item) => item.category && allow.includes(item.category)) : items;
+
+  const scored = scoped
     .map((item) => ({
       item,
-      score: scoreCommandPaletteMatch(query, item.label, item.keywords ?? ""),
+      score: scoreCommandPaletteMatch(needle, item.label, item.keywords ?? ""),
     }))
     .filter((row) => row.score > 0);
   scored.sort((a, b) => {

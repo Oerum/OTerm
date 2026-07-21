@@ -22,8 +22,8 @@ export function useCommandPalette(
     activeIndex.value = clampActiveIndex(activeIndex.value, list.length);
   });
 
-  function openPalette() {
-    query.value = "";
+  function openPalette(opts?: { initialQuery?: string }) {
+    query.value = opts?.initialQuery ?? "";
     activeIndex.value = 0;
     open.value = true;
   }

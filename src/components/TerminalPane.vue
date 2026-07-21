@@ -148,7 +148,6 @@ import "@xterm/xterm/css/xterm.css";
 import AgentComposer from "./AgentComposer.vue";
 import TerminalPathContextMenu from "./TerminalPathContextMenu.vue";
 import type { IDisposable } from "@xterm/xterm";
-import ChatView from "./ChatView.vue";
 
 const { settings: autocompleteSettings } = useTerminalAutocompleteSettings();
 const { state: appearanceState } = useTerminalAppearanceSettings();
@@ -163,7 +162,6 @@ const props = defineProps<{
   activeAgentId?: CliAgentId | null;
   themeId?: string | null;
   sshEndpointId?: string | null;
-  chatViewOpen?: boolean;
 }>();
 
 const isSshSession = computed(() => Boolean(props.sshEndpointId));
@@ -2022,6 +2020,25 @@ async function insertText(text: string) {
   }
 }
 
+function copySelectedBlock(): { command: string; output: string } | null {
+  return blockRenderer?.copySelectedBlock() ?? null;
+}
+
+function jumpToLastFailedBlock(): boolean {
+  const failed = blockRenderer?.getLastFailedBlock();
+  if (!failed) return false;
+  return blockRenderer?.scrollToBlock(failed.id) ?? false;
+}
+
+function getSelectedOrLastFailedCommand(): string | null {
+  const block =
+    blockRenderer?.getSelectedBlock() ??
+    blockRenderer?.getLastFailedBlock() ??
+    null;
+  const command = block?.command?.trim();
+  return command || null;
+}
+
 defineExpose({
   focusTerminal,
   toggleAgentComposer,
@@ -2032,6 +2049,9 @@ defineExpose({
   killSession,
   getBackendSessionId,
   insertText,
+  copySelectedBlock,
+  jumpToLastFailedBlock,
+  getSelectedOrLastFailedCommand,
 });
 
 onMounted(async () => {
@@ -2278,13 +2298,7 @@ watch(suggestionStripVisible, () => {
     :class="active ? 'terminal-pane--active' : ''"
     @mousedown="emit('focusPane')"
   >
-    <!-- Chat View GUI Container -->
-    <div v-if="chatViewOpen" class="flex flex-1 flex-col min-h-0 w-full bg-[var(--oterm-bg)]">
-      <ChatView />
-    </div>
-
-    <!-- Standard Terminal Layout Container -->
-    <div v-show="!chatViewOpen" class="flex-1 min-h-0 w-full px-2 py-1">
+    <div class="flex-1 min-h-0 w-full px-2 py-1">
       <div
         class="terminal-window-container flex flex-col h-full w-full rounded-lg overflow-hidden p-3 transition-all"
         :class="[
@@ -2331,7 +2345,7 @@ watch(suggestionStripVisible, () => {
       @layout-change="handleResize"
     />
     <div
-      v-if="suggestionStripVisible && !chatViewOpen"
+      v-if="suggestionStripVisible"
       class="flex shrink-0 justify-center px-4 pb-3 pt-1"
     >
       <div

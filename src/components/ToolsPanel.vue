@@ -503,7 +503,7 @@ onBeforeUnmount(() => {
             :aria-expanded="openWithMenuOpen"
             @click.stop="toggleOpenWithMenu"
           >
-            Open With
+            Open externally…
           </button>
 
           <div
@@ -815,7 +815,10 @@ onBeforeUnmount(() => {
             Terminal Sync
           </span>
         </button>
-        <div v-show="!syncCollapsed" class="h-64 overflow-y-auto bg-[var(--oterm-panel)]/5 border-t border-[var(--oterm-border)]">
+        <div
+          v-show="!syncCollapsed"
+          class="oterm-scroll h-72 overflow-y-auto border-t border-[var(--oterm-border)] bg-[var(--oterm-bg)]"
+        >
           <TerminalSyncPanel :repo-root="currentDirectory" />
         </div>
       </div>

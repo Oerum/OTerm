@@ -6,6 +6,25 @@ function terminalTabIds(ws: ReturnType<typeof useWorkspace>) {
   return ws.tabs.value.filter(isTerminalTab).map((tab) => tab.id);
 }
 
+describe("splitActiveTabVertical", () => {
+  it("persists vertical split through serialize/hydrate", () => {
+    const ws = useWorkspace(() => "powershell");
+    ws.createTab("powershell", "C:\\repo");
+    ws.splitActiveTabVertical("powershell");
+    const active = ws.activeTerminalTab.value;
+    expect(active?.split).toBe("vertical");
+    expect(active?.panes).toHaveLength(2);
+
+    const snapshot = ws.serializeTerminalWorkspace();
+    expect(snapshot?.tabs[0]?.split).toBe("vertical");
+
+    const hydrated = ws.hydrateTerminalWorkspace(snapshot!, (id) => id);
+    const tab = hydrated.tabs.find(isTerminalTab);
+    expect(tab?.split).toBe("vertical");
+    expect(tab?.panes).toHaveLength(2);
+  });
+});
+
 describe("reorderTerminalTab", () => {
   function setup() {
     return useWorkspace(() => "powershell");

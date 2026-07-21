@@ -9,7 +9,7 @@ import type {
   WorkspaceTerminalTab,
 } from "../types/terminal";
 import { isTerminalTab } from "../types/terminal";
-import { getCliAgentDefinition } from "./terminalAgentMode";
+import { getCliAgentDefinition, type CliAgentId } from "./terminalAgentMode";
 import { sortGroups, tabsInGroup, ungroupedTabs } from "./terminalGroups";
 
 export const ENTRY_COLORS = [
@@ -37,10 +37,7 @@ export function paneDisplayTitle(
   splitIndex: number | null,
 ) {
   if (pane.customTitle?.trim()) return pane.customTitle.trim();
-  if (pane.activeAgentId) {
-    if (pane.oscTitle?.trim()) return pane.oscTitle.trim();
-    return getCliAgentDefinition(pane.activeAgentId).displayName;
-  }
+  // Agent brand/OSC belong in radar subtitle + badge — title stays project/cwd.
   const cwd = pane.cwd;
   let title = shellLabel;
   if (cwd && cwd !== "~") {
@@ -49,6 +46,13 @@ export function paneDisplayTitle(
   }
   if (splitIndex) title = `${title} (${splitIndex})`;
   return title;
+}
+
+/** Tab titles that are just the agent brand (legacy launchAgent rename) are not real renames. */
+export function isDefaultTabTitle(tabTitle: string, activeAgentId: string | null | undefined) {
+  if (tabTitle === "Terminal") return true;
+  if (!activeAgentId) return false;
+  return tabTitle === getCliAgentDefinition(activeAgentId as CliAgentId).displayName;
 }
 
 function paneSubtitle(pane: WorkspaceTerminalTab["panes"][number], shellLabel: string) {
@@ -84,10 +88,9 @@ export function buildTerminalEntries(
       const shellLabel = labels[pane.shellId] ?? "Terminal";
       const splitIndex = tab.panes.length > 1 ? paneIndex + 1 : null;
       const git = gitByPane.get(pane.id);
-      const baseTitle =
-        tab.title !== "Terminal"
-          ? tab.title
-          : paneDisplayTitle(pane, shellLabel, null);
+      const baseTitle = isDefaultTabTitle(tab.title, pane.activeAgentId)
+        ? paneDisplayTitle(pane, shellLabel, null)
+        : tab.title;
       const title = splitIndex ? `${baseTitle} (${splitIndex})` : baseTitle;
       return {
         entryId: `${tab.id}:${pane.id}`,
@@ -258,26 +261,10 @@ export function groupTerminalSidebarSections(
   return categories;
 }
 
+/** Hard-cut: tools are summonable windows, never session-list peers. */
 export function buildFeatureEntries(
-  tabs: WorkspaceTab[],
-  activeTabId: string | null,
+  _tabs: WorkspaceTab[],
+  _activeTabId: string | null,
 ): FeatureSidebarEntry[] {
-  return tabs
-    .filter(
-      (tab) =>
-        tab.kind === "pullRequests" ||
-        tab.kind === "branchManager" ||
-        tab.kind === "issues" ||
-        tab.kind === "docker" ||
-        tab.kind === "processManager" ||
-        tab.kind === "sshSftp" ||
-        tab.kind === "settings",
-    )
-    .map((tab) => ({
-      entryId: tab.id,
-      tabId: tab.id,
-      kind: tab.kind,
-      title: tab.title,
-      isActive: tab.id === activeTabId,
-    }));
+  return [];
 }

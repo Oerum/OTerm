@@ -16,7 +16,8 @@ const actionLabels: Record<KeybindAction, string> = {
   "terminal-new-ungrouped": "New Terminal (Ungrouped)",
   "terminal-reopen": "Reopen Closed Terminal",
   "command-palette": "Command Palette",
-  "reload-window": "Command History",
+  "history-palette": "Command History (Palette)",
+  "reload-window": "Reload Window",
   dictation: "Dictation",
   "tab-cycle": "Cycle Tabs",
   "terminal-set-default": "Set Default Shell (Menu)",
@@ -27,12 +28,24 @@ const actionLabels: Record<KeybindAction, string> = {
   refresh: "Refresh Local/Remote SFTP",
   "delete-item": "Delete Item (SFTP)",
   "composer-toggle": "Toggle Agent Composer (Composer)",
+  "toggle-sidebar": "Toggle Sidebar",
+  "toggle-tools": "Toggle Tools Panel",
+  "toggle-source-control": "Toggle Source Control",
+  "toggle-agent-ops": "Toggle Agent Ops",
+  "split-horizontal": "Split Terminal Horizontal",
+  "close-tab": "Close Active Tab",
 };
 
 const groups = [
   {
     name: "General",
-    actions: ["command-palette", "reload-window", "dictation", "tab-cycle"] as KeybindAction[],
+    actions: [
+      "command-palette",
+      "history-palette",
+      "reload-window",
+      "dictation",
+      "tab-cycle",
+    ] as KeybindAction[],
   },
   {
     name: "Terminal",
@@ -42,6 +55,17 @@ const groups = [
       "terminal-reopen",
       "terminal-set-default",
       "composer-toggle",
+      "split-horizontal",
+      "close-tab",
+    ] as KeybindAction[],
+  },
+  {
+    name: "Layout",
+    actions: [
+      "toggle-sidebar",
+      "toggle-tools",
+      "toggle-source-control",
+      "toggle-agent-ops",
     ] as KeybindAction[],
   },
   {

@@ -34,6 +34,17 @@ export function stripAnsiForPrompt(text: string): string {
   return text.replace(OSC_SEQUENCE, "").replace(CSI_SEQUENCE, "").replace(/\r/g, "");
 }
 
+/** Private-mode CSI leftovers after ESC was dropped (e.g. `[?2004h`, trailing `[?`). */
+const ORPHAN_PRIVATE_MODE = /\[\?[0-9;]*[a-zA-Z]?/g;
+
+/** Sanitize PTY noise for human-readable log panels (not for prompt/cwd parsing). */
+export function sanitizeTerminalLogText(text: string): string {
+  return stripAnsiForPrompt(text)
+    .replace(/\x1b./g, "")
+    .replace(ORPHAN_PRIVATE_MODE, "")
+    .replace(/\x07/g, "");
+}
+
 /** Map a visible-text index back to a raw PTY string index (skips OSC/CSI bytes). */
 export function rawIndexForStrippedIndex(raw: string, strippedIndex: number): number {
   if (strippedIndex <= 0) return 0;

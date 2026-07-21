@@ -7,6 +7,7 @@ import {
   isPlausiblePromptCwd,
   looksLikeTuiTransition,
   rawIndexForStrippedIndex,
+  sanitizeTerminalLogText,
   stripAnsiForPrompt,
 } from "./terminalPrompt";
 
@@ -14,6 +15,14 @@ describe("stripAnsiForPrompt", () => {
   it("removes OSC 133 prompt markers used by cmd integration", () => {
     const raw = "\x1b]133;D;0\x1b\\\x1b]133;A\x1b\\ C:\\repo> adasdasd";
     expect(stripAnsiForPrompt(raw)).toBe(" C:\\repo> adasdasd");
+  });
+});
+
+describe("sanitizeTerminalLogText", () => {
+  it("strips CSI and orphan bracketed-paste fragments", () => {
+    expect(sanitizeTerminalLogText("\x1b[?2004hhello\x1b[?2004l")).toBe("hello");
+    expect(sanitizeTerminalLogText("[?2004h[? ok")).toBe(" ok");
+    expect(sanitizeTerminalLogText("status [1] kept")).toBe("status [1] kept");
   });
 });
 

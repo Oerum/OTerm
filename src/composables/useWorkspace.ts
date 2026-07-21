@@ -360,8 +360,17 @@ export function useWorkspace(getDefaultShellId: () => string) {
 
   function splitActiveTabHorizontal(shellId?: string) {
     const tab = activeTerminalTab.value;
-    if (!tab || tab.split === "horizontal") return;
+    if (!tab || tab.split === "horizontal" || tab.panes.length >= 2) return;
     tab.split = "horizontal";
+    tab.panes.push(
+      createPane(shellId, cwdForNewTerminal(activePane.value?.cwd)),
+    );
+  }
+
+  function splitActiveTabVertical(shellId?: string) {
+    const tab = activeTerminalTab.value;
+    if (!tab || tab.split === "vertical" || tab.panes.length >= 2) return;
+    tab.split = "vertical";
     tab.panes.push(
       createPane(shellId, cwdForNewTerminal(activePane.value?.cwd)),
     );
@@ -863,6 +872,7 @@ export function useWorkspace(getDefaultShellId: () => string) {
     openSettingsTab,
     closeTab,
     splitActiveTabHorizontal,
+    splitActiveTabVertical,
     selectTab,
     selectPane,
     setPaneSession,
