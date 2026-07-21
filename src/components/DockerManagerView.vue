@@ -1105,6 +1105,7 @@ watch(() => props.active, (isActive) => {
               type="button"
               class="p-1 rounded hover:bg-white/5 text-[var(--oterm-muted)] hover:text-[var(--oterm-text)] transition text-sm flex items-center justify-center w-6 h-6 font-bold"
               title="Close log viewer"
+              aria-label="Close log viewer"
               @click="selectedContainer = null"
             >
               ×

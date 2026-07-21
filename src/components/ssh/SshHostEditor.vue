@@ -222,7 +222,7 @@ const tabs = [
             class="inline-flex items-center gap-1 rounded-full border border-[var(--oterm-border)] px-2 py-0.5 text-[10px]"
           >
             {{ tag }}
-            <button type="button" class="text-[var(--oterm-danger)]" @click="removeTag(tag)">×</button>
+            <button type="button" class="text-[var(--oterm-danger)]" title="Remove tag" aria-label="Remove tag" @click="removeTag(tag)">×</button>
           </span>
         </div>
         <input
