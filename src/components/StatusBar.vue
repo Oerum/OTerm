@@ -232,7 +232,8 @@ const agentStatusText = computed(() =>
 
     <div class="hidden shrink-0 items-center gap-3 sm:flex">
       <span class="text-[var(--oterm-muted)]">{{ shellLabel }}</span>
-      <span>Ctrl+R history</span>
+      <span>{{ formatKeybind(getKeybind("command-palette")) }} commands</span>
+      <span>{{ formatKeybind(getKeybind("reload-window")) }} history</span>
     </div>
   </footer>
 </template>

@@ -4,6 +4,7 @@ export type KeybindAction =
   | "terminal-new"
   | "terminal-new-ungrouped"
   | "terminal-reopen"
+  | "command-palette"
   | "reload-window"
   | "dictation"
   | "tab-cycle"
@@ -20,6 +21,7 @@ export const ALL_KEYBIND_ACTIONS: KeybindAction[] = [
   "terminal-new",
   "terminal-new-ungrouped",
   "terminal-reopen",
+  "command-palette",
   "reload-window",
   "dictation",
   "tab-cycle",
@@ -45,6 +47,7 @@ const defaultKeybinds: Record<KeybindAction, Keybind> = {
   "terminal-new": { ctrl: true, shift: true, key: "t" },
   "terminal-new-ungrouped": { ctrl: true, shift: true, alt: true, key: "t" },
   "terminal-reopen": { ctrl: true, alt: true, key: "t" },
+  "command-palette": { ctrl: true, key: "k" },
   "reload-window": { ctrl: true, key: "r" },
   dictation: { ctrl: true, key: "f" },
   "tab-cycle": { ctrl: true, key: "Tab" }, // Actually we check ctrl || meta in appKeyboardShortcuts

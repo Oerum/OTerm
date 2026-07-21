@@ -1,46 +1,36 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import ApplicationSettingsPage from "./settings/ApplicationSettingsPage.vue";
 import SftpTransferSettingsPage from "./settings/SftpTransferSettingsPage.vue";
 import TerminalAutocompleteSettingsPage from "./settings/TerminalAutocompleteSettingsPage.vue";
 import TerminalAppearanceSettingsPage from "./settings/TerminalAppearanceSettingsPage.vue";
 import KeyMappingSettingsPage from "./settings/KeyMappingSettingsPage.vue";
+import {
+  SETTINGS_PALETTE_SECTIONS,
+  type SettingsSectionId,
+} from "../lib/commandPaletteItems";
+
+const props = defineProps<{
+  section?: SettingsSectionId | null;
+}>();
 
 const emit = defineEmits<{
   close: [];
+  "update:section": [value: null];
 }>();
 
-type SettingsSectionId = "application" | "terminal-appearance" | "terminal-autocomplete" | "sftp-transfers" | "key-mapping";
-
-const sections: { id: SettingsSectionId; label: string; description: string }[] = [
-  {
-    id: "terminal-appearance",
-    label: "Terminal appearance",
-    description: "Themes, blocks, and command colors",
-  },
-  {
-    id: "terminal-autocomplete",
-    label: "Terminal autocomplete",
-    description: "AI command suggestions in the terminal",
-  },
-  {
-    id: "sftp-transfers",
-    label: "SFTP transfers",
-    description: "Parallel file transfers and size limits",
-  },
-  {
-    id: "key-mapping",
-    label: "Key mapping",
-    description: "Custom application shortcuts",
-  },
-  {
-    id: "application",
-    label: "About",
-    description: "Version, updates, and app info",
-  }
-];
-
+const sections = SETTINGS_PALETTE_SECTIONS;
 const activeSection = ref<SettingsSectionId>("application");
+
+watch(
+  () => props.section,
+  (next) => {
+    if (!next) return;
+    activeSection.value = next;
+    emit("update:section", null);
+  },
+  { immediate: true },
+);
 
 const activeMeta = computed(
   () => sections.find((section) => section.id === activeSection.value) ?? sections[0],

@@ -10,6 +10,7 @@ import {
   type ComponentPublicInstance,
 } from "vue";
 import HistorySearch from "./components/HistorySearch.vue";
+import CommandPalette from "./components/CommandPalette.vue";
 import SidebarRail from "./components/SidebarRail.vue";
 import SourceControlPanel from "./components/SourceControlPanel.vue";
 import StatusBar from "./components/StatusBar.vue";
@@ -38,12 +39,19 @@ import TooltipLayer from "./components/TooltipLayer.vue";
 import AppToastLayer from "./components/AppToastLayer.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
 import { useActiveBranchPr } from "./composables/useActiveBranchPr";
+import { useCommandPalette } from "./composables/useCommandPalette";
 import { useResizablePanel } from "./composables/useResizablePanel";
 import { useSourceControl } from "./composables/useSourceControl";
 import { useTerminalHistory } from "./composables/useTerminalHistory";
 import { useWorkspace } from "./composables/useWorkspace";
 import { useWorkspacePersistence } from "./composables/useWorkspacePersistence";
 import { isActionKeybind } from "./lib/keybindSettings";
+import {
+  buildCommandPaletteItems,
+  type CommandPaletteItem,
+  type SettingsSectionId,
+} from "./lib/commandPaletteItems";
+import { buildTerminalEntries, shellLabelFor } from "./lib/sidebarEntries";
 import type {
   AgentSemanticStatus,
   ClosedTerminalSession,
@@ -60,7 +68,11 @@ import {
 import { getSetting, setSetting } from "./lib/settingsStore";
 import { loadPersistedTerminalWorkspace } from "./lib/workspaceStore";
 import type { DockerContainer } from "./types/docker";
-import type { SshEndpoint } from "./types/sshSftp";
+import {
+  endpointDisplayLabel,
+  type SshConnectError,
+  type SshEndpoint,
+} from "./types/sshSftp";
 import { loadSshSftpLibrary, saveSshSftpLibrary } from "./lib/sshSftpStore";
 import {
   buildSshConnectRequest,
@@ -76,7 +88,6 @@ import {
 import { sshTerminalKill, sshTerminalKillAll, sshTerminalWrite } from "./lib/sshTerminalApi";
 import { buildTerminalLaunchCommand, terminalTabTitle } from "./lib/sshOpenSshArgs";
 import { saveHostPassword, saveIdentityPassphrase } from "./lib/sshCredentialStore";
-import type { SshConnectError } from "./types/sshSftp";
 import { getLaunchInitialCwd } from "./lib/launchApi";
 import {
   getDefaultShellId,
@@ -88,7 +99,11 @@ import {
   writeTerminal,
 } from "./lib/terminalApi";
 import type { CliAgentId } from "./lib/terminalAgentMode";
-import { consumeAppShortcut, isTabCycleShortcut } from "./lib/appKeyboardShortcuts";
+import {
+  consumeAppShortcut,
+  isCommandPaletteShortcut,
+  isTabCycleShortcut,
+} from "./lib/appKeyboardShortcuts";
 import {
   canOfferCreatePrLocally,
   defaultCreatePrTitle,
@@ -103,7 +118,6 @@ import {
   sendTerminalSystemNotification,
 } from "./lib/systemNotification";
 import { findNextCyclableTabId } from "./lib/terminalGroups";
-import { shellLabelFor } from "./lib/sidebarEntries";
 import { formatGitOperationError } from "./lib/formatGitError";
 import { pushAppToast } from "./lib/appToast";
 import { listGitWorktrees, createGitWorktree, getGitStatus } from "./lib/gitApi";
@@ -781,6 +795,146 @@ const { activePr, loading: activePrLoading } = useActiveBranchPr(
 );
 const canOpenGitFeatures = computed(() => Boolean(gitRepoRoot.value));
 
+const settingsSectionTarget = ref<SettingsSectionId | null>(null);
+
+// ponytail: loadSshSftpLibrary() on every computed tick is fine for MVP; upgrade: snapshot on openPalette if profiling hurts.
+const paletteItems = computed(() => {
+  const terminalEntries = buildTerminalEntries(
+    tabs.value,
+    shells.value,
+    activeTabId.value,
+    activePaneId.value,
+    new Map(),
+  ).map((e) => ({
+    tabId: e.tabId,
+    paneId: e.paneId,
+    title: e.title,
+    subtitle: e.subtitle,
+    cwd: e.cwd,
+  }));
+
+  const library = loadSshSftpLibrary();
+  return buildCommandPaletteItems({
+    terminalEntries,
+    groups: terminalGroups.value.map((g) => ({
+      id: g.id,
+      name: g.name,
+      tabCount: tabs.value.filter((t) => isTerminalTab(t) && t.groupId === g.id).length,
+    })),
+    hasUngroupedTabs: tabs.value.some((t) => isTerminalTab(t) && !t.groupId),
+    sshEndpoints: library.endpoints.map((e) => ({
+      id: e.id,
+      label: endpointDisplayLabel(e),
+      host: e.host,
+      username: e.username,
+      tags: e.tags,
+    })),
+    historyCommands: [...history.entries.value].reverse(),
+    canOpenGitFeatures: canOpenGitFeatures.value,
+    canReopenClosed: canReopenClosed.value,
+  });
+});
+
+const {
+  open: paletteOpen,
+  query: paletteQuery,
+  activeIndex: paletteActiveIndex,
+  filtered: paletteFiltered,
+  openPalette,
+  closePalette,
+  moveActive: movePaletteActive,
+  setActiveIndex: setPaletteActiveIndex,
+} = useCommandPalette(paletteItems);
+
+async function runPaletteItem(item: CommandPaletteItem) {
+  closePalette();
+  const a = item.action;
+  switch (a.type) {
+    case "toggle-sidebar":
+      terminalSidebarOpen.value = !terminalSidebarOpen.value;
+      return;
+    case "toggle-tools":
+      toolsOpen.value = !toolsOpen.value;
+      return;
+    case "toggle-source-control":
+      toggleSourceControl();
+      return;
+    case "toggle-agents":
+      agentsViewOpen.value = !agentsViewOpen.value;
+      return;
+    case "toggle-chat":
+      chatViewOpen.value = !chatViewOpen.value;
+      return;
+    case "open-ssh-manager":
+      openSshSftp();
+      return;
+    case "open-docker":
+      openDockerManager();
+      return;
+    case "open-process":
+      openProcessManager();
+      return;
+    case "open-settings":
+      settingsSectionTarget.value = a.section ?? null;
+      openSettings();
+      return;
+    case "new-terminal":
+      onAddTerminal(
+        resolveDefaultShellId(),
+        a.ungrouped ? null : activeTerminalTab.value?.groupId ?? null,
+      );
+      return;
+    case "reopen-terminal":
+      reopenClosedSession();
+      return;
+    case "select-terminal":
+      agentsViewOpen.value = false;
+      chatViewOpen.value = false;
+      selectTerminal(a.tabId, a.paneId);
+      return;
+    case "select-group": {
+      const terminalTabs = tabs.value.filter(isTerminalTab);
+      const target =
+        a.groupId == null
+          ? terminalTabs.find((t) => !t.groupId)
+          : terminalTabs.find((t) => t.groupId === a.groupId);
+      if (!target) {
+        pushAppToast("No terminals in that group.", "info");
+        return;
+      }
+      agentsViewOpen.value = false;
+      chatViewOpen.value = false;
+      selectTerminal(target.id, target.panes[0]?.id ?? "");
+      return;
+    }
+    case "open-ssh-host": {
+      const endpoint = loadSshSftpLibrary().endpoints.find((e) => e.id === a.endpointId);
+      if (!endpoint) {
+        pushAppToast("SSH host no longer exists.", "error");
+        return;
+      }
+      await openSshTerminal(endpoint);
+      return;
+    }
+    case "open-git":
+      if (a.surface === "source-control") toggleSourceControl();
+      else if (a.surface === "prs") openPullRequests();
+      else if (a.surface === "issues") openIssues();
+      else openBranchManager();
+      return;
+    case "launch-agent":
+      launchAgent(a.agentId);
+      return;
+    case "run-history":
+      if (!activePane.value?.sessionId) {
+        pushAppToast("No active terminal.", "warning");
+        return;
+      }
+      await insertHistoryEntry(a.command);
+      return;
+  }
+}
+
 const sourceControlRestoreOnReturn = ref(false);
 
 watch(
@@ -1389,6 +1543,15 @@ function onSessionEnded(paneId: string) {
 }
 
 function onKeyDown(event: KeyboardEvent) {
+  if (isCommandPaletteShortcut(event)) {
+    consumeAppShortcut(event);
+    if (paletteOpen.value) closePalette();
+    else {
+      if (historyOpen.value) closeSearch();
+      openPalette();
+    }
+    return;
+  }
   if (isActionKeybind(event, "terminal-new")) {
     consumeAppShortcut(event);
     onAddTerminal(resolveDefaultShellId(), activeTerminalTab.value?.groupId ?? null);
@@ -1406,6 +1569,7 @@ function onKeyDown(event: KeyboardEvent) {
   }
   if (isActionKeybind(event, "reload-window")) {
     consumeAppShortcut(event);
+    if (paletteOpen.value) closePalette();
     openSearch();
     return;
   }
@@ -1419,6 +1583,11 @@ function onKeyDown(event: KeyboardEvent) {
     if (!nextTabId) return;
     consumeAppShortcut(event);
     selectTab(nextTabId);
+    return;
+  }
+  if (event.key === "Escape" && paletteOpen.value) {
+    consumeAppShortcut(event);
+    closePalette();
     return;
   }
   if (event.key === "Escape" && historyOpen.value) {
@@ -1661,6 +1830,17 @@ onUnmounted(() => {
 
     <TooltipLayer />
     <AppToastLayer />
+    <CommandPalette
+      :open="paletteOpen"
+      :query="paletteQuery"
+      :items="paletteFiltered"
+      :active-index="paletteActiveIndex"
+      @update:query="(v) => (paletteQuery = v)"
+      @close="closePalette"
+      @select="runPaletteItem"
+      @move-active="movePaletteActive"
+      @set-active="setPaletteActiveIndex"
+    />
     <TitleBar
       :terminal-sidebar-open="terminalSidebarOpen"
       :tools-open="toolsOpen"
@@ -1901,6 +2081,7 @@ onUnmounted(() => {
               <SettingsView
                 v-else-if="tab.kind === 'settings'"
                 v-show="tab.id === activeTabId"
+                v-model:section="settingsSectionTarget"
                 class="flex min-h-0 flex-1"
                 @close="closeTab(tab.id)"
               />
