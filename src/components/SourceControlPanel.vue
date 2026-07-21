@@ -9,6 +9,11 @@ import {
   commitAiProviderLabel,
   isCommitAiConfigured,
 } from "../types/commitAi";
+import {
+  clearCommitDraft,
+  getCommitDraft,
+  setCommitDraft,
+} from "../lib/sourceControlDrafts";
 import CommitAiSettingsDialog from "./CommitAiSettingsDialog.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import type {
@@ -46,6 +51,8 @@ const props = defineProps<{
   onFileListResizePointerDown: (event: PointerEvent) => void;
   graphRefreshToken: number;
   sidebarOffset?: number;
+  /** Stable pane/tab key for per-entry commit drafts. */
+  scopeKey?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -72,7 +79,7 @@ const emit = defineEmits<{
 
 const { settings: commitAiSettings } = useCommitAiSettings();
 
-const commitMessage = ref("");
+const commitMessage = ref(getCommitDraft(props.scopeKey));
 const commitAiSettingsOpen = ref(false);
 const generatingCommit = ref(false);
 const generateError = ref<string | null>(null);
@@ -112,6 +119,20 @@ watch(changesCollapsed, (val) => localStorage.setItem("oterm:sc-changes-collapse
 watch(untrackedCollapsed, (val) => localStorage.setItem("oterm:sc-untracked-collapsed", val ? "1" : "0"));
 watch(historyCollapsed, (val) => localStorage.setItem("oterm:sc-history-collapsed", val ? "1" : "0"));
 watch(stashCollapsed, (val) => localStorage.setItem("oterm:sc-stash-collapsed", val ? "1" : "0"));
+
+watch(commitMessage, (msg) => {
+  setCommitDraft(props.scopeKey, msg);
+});
+
+watch(
+  () => props.scopeKey,
+  (next, prev) => {
+    if (prev) setCommitDraft(prev, commitMessage.value);
+    commitMessage.value = getCommitDraft(next);
+    confirmOpen.value = false;
+    pendingConfirm.value = null;
+  },
+);
 
 let diffRequestId = 0;
 let editRequestId = 0;
@@ -629,6 +650,7 @@ function onCommit() {
   if (!message) return;
   emit("commit", message);
   commitMessage.value = "";
+  clearCommitDraft(props.scopeKey);
 }
 
 function rowClass(entry: GitFileEntry, staged: boolean, untracked: boolean) {

@@ -207,14 +207,14 @@ export function useSourceControl(cwd: Ref<string | undefined>) {
     await runAction("pull", () => pullGitRepo(root), true);
   }
 
-  async function push() {
-    const root = status.value.repoRoot;
+  async function push(rootOverride?: string) {
+    const root = rootOverride ?? status.value.repoRoot;
     if (!root) return;
     await runAction("push", () => pushGitRepo(root), true);
   }
 
-  async function sync() {
-    const root = status.value.repoRoot;
+  async function sync(rootOverride?: string) {
+    const root = rootOverride ?? status.value.repoRoot;
     if (!root) return;
     await runAction("sync", () => syncGitRepo(root), true);
   }

@@ -436,6 +436,16 @@ const activeCwd = computed(() => {
   }
   return activePane.value?.cwd;
 });
+const sourceControlScopeKey = computed(() => {
+  const tab = activeWorkspaceTab.value;
+  if (tab && "repoRoot" in tab) {
+    return `tab:${tab.id}`;
+  }
+  if (activePaneId.value) {
+    return `pane:${activePaneId.value}`;
+  }
+  return null;
+});
 const {
   status: sourceControlStatus,
   branches: gitBranches,
@@ -663,13 +673,12 @@ async function maybeOfferCreatePrAfterPush() {
   }
 }
 
-async function checkDefaultBranchSafety(): Promise<boolean> {
+async function checkDefaultBranchSafety(branch: string | null): Promise<boolean> {
   const isEnabled = getSetting("oterm.promptDefaultBranchPush") !== "false";
   if (!isEnabled) {
     return true;
   }
 
-  const branch = sourceControlStatus.value.branch;
   if (branch !== "main" && branch !== "master") {
     return true;
   }
@@ -697,11 +706,13 @@ function handlePushDefaultBranchDecision(decision: "createBranch" | "pushAnyway"
 }
 
 async function onPushGit() {
-  if (!(await checkDefaultBranchSafety())) {
+  const { repoRoot, branch } = sourceControlStatus.value;
+  if (!repoRoot) return;
+  if (!(await checkDefaultBranchSafety(branch))) {
     return;
   }
   try {
-    await runGitActionWithFeedback(pushGitRepo);
+    await runGitActionWithFeedback(() => pushGitRepo(repoRoot));
     await maybeOfferCreatePrAfterPush();
   } catch {
     // Error shown in source control panel.
@@ -709,12 +720,14 @@ async function onPushGit() {
 }
 
 async function onSyncGit() {
-  if (!(await checkDefaultBranchSafety())) {
+  const { repoRoot, branch, ahead } = sourceControlStatus.value;
+  if (!repoRoot) return;
+  if (!(await checkDefaultBranchSafety(branch))) {
     return;
   }
-  const hadCommitsToPush = sourceControlStatus.value.ahead > 0;
+  const hadCommitsToPush = ahead > 0;
   try {
-    await runGitActionWithFeedback(syncGitRepo);
+    await runGitActionWithFeedback(() => syncGitRepo(repoRoot));
     if (hadCommitsToPush) await maybeOfferCreatePrAfterPush();
   } catch {
     // Error shown in source control panel.
@@ -1962,6 +1975,7 @@ onUnmounted(() => {
         <SourceControlPanel
           ref="sourceControlPanelRef"
           :sidebar-offset="sidebarOffset"
+          :scope-key="sourceControlScopeKey"
           :status="sourceControlStatus"
           :history="gitHistory"
           :loading="sourceControlLoading"
