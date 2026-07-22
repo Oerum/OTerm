@@ -182,6 +182,7 @@ export async function setThemeAppChromeEnabled(enabled: boolean): Promise<void> 
 }
 
 export function applyTerminalThemeCssVars(theme: TerminalTheme): void {
+  if (typeof document === "undefined") return;
   const root = document.documentElement;
   root.style.setProperty("--term-block-separator", theme.blocks.separator);
   root.style.setProperty("--term-block-meta", theme.blocks.meta);
@@ -200,6 +201,12 @@ export function applyTerminalThemeCssVars(theme: TerminalTheme): void {
   root.style.setProperty(
     "--term-block-active-rail",
     theme.xterm.brightGreen ?? theme.xterm.green ?? theme.xterm.cursor ?? "#00e5ba",
+  );
+  root.style.setProperty("--term-selection-bg", theme.xterm.selectionBackground ?? "rgba(38, 79, 120, 0.85)");
+  root.style.setProperty("--term-selection-fg", theme.xterm.selectionForeground ?? "#ffffff");
+  root.style.setProperty(
+    "--term-selection-inactive-bg",
+    theme.xterm.selectionInactiveBackground ?? "rgba(38, 79, 120, 0.45)",
   );
 
   // Opt-in: retint app chrome from terminal theme colors.

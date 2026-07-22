@@ -16,12 +16,16 @@ pub fn get_rebase_todo(repo_root: String) -> Result<Vec<RebaseTodoInfo>, String>
     cmd.arg("rev-parse").arg("--git-path").arg("rebase-merge");
     let out = cmd.output().map_err(|e| e.to_string())?;
     let git_path_str = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    let path = PathBuf::from(&repo_root).join(git_path_str).join("git-rebase-todo");
+    let path = PathBuf::from(&repo_root)
+        .join(git_path_str)
+        .join("git-rebase-todo");
     let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
     let mut todos = Vec::new();
     for line in content.lines() {
         let line = line.trim();
-        if line.is_empty() || line.starts_with('#') { continue; }
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
         let parts: Vec<&str> = line.splitn(3, ' ').collect();
         if parts.len() >= 2 {
             todos.push(RebaseTodoInfo {
@@ -40,7 +44,9 @@ pub fn set_rebase_todo(repo_root: String, todos: Vec<RebaseTodoInfo>) -> Result<
     cmd.arg("rev-parse").arg("--git-path").arg("rebase-merge");
     let out = cmd.output().map_err(|e| e.to_string())?;
     let git_path_str = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    let path = PathBuf::from(&repo_root).join(git_path_str).join("git-rebase-todo");
+    let path = PathBuf::from(&repo_root)
+        .join(git_path_str)
+        .join("git-rebase-todo");
     let mut out = String::new();
     for t in todos {
         out.push_str(&format!("{} {} {}\n", t.action, t.commit, t.message));
@@ -53,7 +59,7 @@ pub fn git_rebase_action(repo_root: String, action: String) -> Result<(), String
     let mut cmd = Command::new(git_program());
     cmd.current_dir(&root);
     cmd.arg("rebase").arg(format!("--{}", action));
-    
+
     let out = cmd.output().map_err(|e| e.to_string())?;
     if out.status.success() {
         Ok(())
@@ -68,14 +74,17 @@ mod tests {
 
     #[test]
     fn test_rebase_todo_parsing() {
-        let dir = std::env::temp_dir().join(format!("rebase_test_{}", std::time::UNIX_EPOCH.elapsed().unwrap().as_nanos()));
+        let dir = std::env::temp_dir().join(format!(
+            "rebase_test_{}",
+            std::time::UNIX_EPOCH.elapsed().unwrap().as_nanos()
+        ));
         std::fs::create_dir_all(dir.join(".git/rebase-merge")).unwrap();
-        
+
         let _ = Command::new(git_program())
             .arg("init")
             .current_dir(&dir)
             .output();
-            
+
         let path = dir.join(".git/rebase-merge/git-rebase-todo");
         std::fs::write(&path, "pick 1234567 init\n# comment\nsquash 89abcdef feat").unwrap();
 

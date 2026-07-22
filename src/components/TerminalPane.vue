@@ -1475,7 +1475,7 @@ function onWindowKeyCapture(event: KeyboardEvent) {
     : null;
   const ptyPayload =
     ctrlDPayload ??
-    getMultilineEnterPayload(event) ??
+    getMultilineEnterPayload(event, activeAgentId.value) ??
     getCtrlBackspaceWordDeletePayload(event);
   if (!ptyPayload) return;
 
@@ -1800,6 +1800,15 @@ async function mountTerminal() {
   terminal.attachCustomKeyEventHandler((event) => {
     const wordDeletePayload = getCtrlBackspaceWordDeletePayload(event);
     if (wordDeletePayload) {
+      event.preventDefault();
+      return false;
+    }
+
+    const multilineEnterPayload = getMultilineEnterPayload(event, activeAgentId.value);
+    if (multilineEnterPayload) {
+      if (event.type === "keydown") {
+        void forwardTerminalInput(multilineEnterPayload);
+      }
       event.preventDefault();
       return false;
     }
@@ -2340,6 +2349,7 @@ watch(suggestionStripVisible, () => {
       :pane-id="paneId"
       :agent-id="activeAgentId"
       :session-id="localSessionId"
+      :cwd="paneCwd || initialCwd"
       @submitted="onAgentComposerSubmitted"
       @close="closeAgentComposer"
       @layout-change="handleResize"

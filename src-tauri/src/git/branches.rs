@@ -650,9 +650,7 @@ fn parse_graph_line(line: &str) -> Option<GraphCommit> {
 }
 
 fn normalize_worktree_path(path: &str) -> String {
-    path.replace('\\', "/")
-        .trim_end_matches('/')
-        .to_lowercase()
+    path.replace('\\', "/").trim_end_matches('/').to_lowercase()
 }
 
 pub fn create_worktree(
@@ -689,10 +687,7 @@ pub fn create_worktree(
         .to_str()
         .ok_or_else(|| "Invalid worktree path".to_string())?;
 
-    git_run(
-        &root,
-        &["worktree", "add", "-b", branch, path_arg, start],
-    )?;
+    git_run(&root, &["worktree", "add", "-b", branch, path_arg, start])?;
 
     let target_norm = normalize_worktree_path(path_arg);
     list_worktrees(repo_root)?
@@ -751,6 +746,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
 
         fs::create_dir_all(&dir).unwrap();
+        fs::create_dir_all(&target).unwrap();
         git_run(&dir, &["init"]).unwrap();
         git_run(&dir, &["config", "user.email", "t@example.com"]).unwrap();
         git_run(&dir, &["config", "user.name", "test"]).unwrap();

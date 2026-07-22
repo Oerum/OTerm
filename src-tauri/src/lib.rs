@@ -25,38 +25,36 @@ use docker::commands::{
     docker_remove_network, docker_remove_volume, docker_summary,
 };
 use fs::commands::{
-    fs_create_dir, fs_import_env_file, fs_list_directory, fs_open_in_antigravity, fs_open_in_cursor,
-    fs_open_in_file_explorer, fs_open_in_intellij, fs_open_in_rider, fs_open_in_visual_studio,
-    fs_open_in_vscode, fs_open_in_zed, fs_read_file, fs_remove_path,
+    fs_create_dir, fs_import_env_file, fs_list_directory, fs_open_in_antigravity,
+    fs_open_in_cursor, fs_open_in_file_explorer, fs_open_in_intellij, fs_open_in_rider,
+    fs_open_in_visual_studio, fs_open_in_vscode, fs_open_in_zed, fs_read_file, fs_remove_path,
     fs_save_gemini_clipboard_image_rgba, fs_search_files, fs_show_shell_context_menu,
     fs_tools_directory_hints, fs_user_home, fs_write_file, fs_write_temp_attachment,
     fs_write_temp_attachment_rgba, fs_write_temp_clipboard_paste,
     fs_write_temp_clipboard_paste_rgba, FsSearchState,
 };
 use git::commands::{
-    git_checkout_branch, git_checkout_detached, git_cherry_pick, git_commit, git_commit_details,
-    git_commit_graph, git_compare_commits, git_create_branch, git_create_tag, git_delete_branch,
-    git_fetch, git_file_diff, git_incoming_outgoing, git_list_branch_refs, git_list_branches,
-    git_list_tag_refs, git_list_worktrees, git_log, git_merge_branch, git_pull, git_push,
-    git_create_worktree, git_push_tag, git_read_working_file, git_remote_browser_url,
-    git_remove_worktree,
-    git_reset_commit, git_revert_commit, git_revert_hunk, git_revert_tracked_paths,
-    git_revert_untracked_paths, git_source_control_status, git_squash_commits, git_stage_hunk,
-    git_stage_paths, git_staged_diff, git_status, git_sync, git_unstage_hunk, git_unstage_paths,
-    git_write_working_file, github_user_profile, issue_create_branch, issue_list, issue_view,
-    pr_checkout, pr_checks, pr_comment, pr_commits, pr_create, pr_detect_provider, pr_diff,
-    pr_files, pr_list, pr_merge, pr_view,
-    git_get_rebase_todo, git_set_rebase_todo, git_rebase_action_cmd,
-    git_parse_conflict_markers, git_get_merge_conflicts, git_resolve_conflict,
-    git_stash_list_cmd, git_stash_save_cmd, git_stash_apply_cmd, git_stash_pop_cmd, git_stash_drop_cmd,
-    git_ai_preflight,
-    git_capture_terminal_output, git_update_gui_state, git_get_sync_state,
+    git_ai_preflight, git_capture_terminal_output, git_checkout_branch, git_checkout_detached,
+    git_cherry_pick, git_commit, git_commit_details, git_commit_graph, git_compare_commits,
+    git_create_branch, git_create_tag, git_create_worktree, git_delete_branch, git_fetch,
+    git_file_diff, git_get_merge_conflicts, git_get_rebase_todo, git_get_sync_state,
+    git_incoming_outgoing, git_list_branch_refs, git_list_branches, git_list_tag_refs,
+    git_list_worktrees, git_log, git_merge_branch, git_parse_conflict_markers, git_pull, git_push,
+    git_push_tag, git_read_working_file, git_rebase_action_cmd, git_remote_browser_url,
+    git_remove_worktree, git_reset_commit, git_resolve_conflict, git_revert_commit,
+    git_revert_hunk, git_revert_tracked_paths, git_revert_untracked_paths, git_set_rebase_todo,
+    git_source_control_status, git_squash_commits, git_stage_hunk, git_stage_paths,
+    git_staged_diff, git_stash_apply_cmd, git_stash_drop_cmd, git_stash_list_cmd,
+    git_stash_pop_cmd, git_stash_save_cmd, git_status, git_sync, git_unstage_hunk,
+    git_unstage_paths, git_update_gui_state, git_write_working_file, github_user_profile,
+    issue_create_branch, issue_list, issue_view, pr_checkout, pr_checks, pr_comment, pr_commits,
+    pr_create, pr_detect_provider, pr_diff, pr_files, pr_list, pr_merge, pr_view,
 };
 use launch::{launch_initial_cwd, LaunchState};
-use process_manager::commands::{process_manager_kill, process_manager_list};
 use lm::commands::{
     lm_chat_completion, lm_detect_github_copilot_token, lm_list_models, lm_test_connection,
 };
+use process_manager::commands::{process_manager_kill, process_manager_list};
 use settings::commands::{
     settings_dir_path, settings_get, settings_get_all, settings_import, settings_set,
 };

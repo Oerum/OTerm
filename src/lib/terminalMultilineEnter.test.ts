@@ -214,12 +214,48 @@ describe("getMultilineEnterPayload", () => {
     expect(getMultilineEnterPayload(enterEvent("keypress", { ctrlKey: true }))).toBeNull();
   });
 
-  it("returns null when alt or meta is held", () => {
+  it("returns null when alt or meta is held for default agent", () => {
     expect(
       getMultilineEnterPayload(enterEvent("keydown", { shiftKey: true, altKey: true })),
     ).toBeNull();
     expect(
       getMultilineEnterPayload(enterEvent("keydown", { ctrlKey: true, metaKey: true })),
     ).toBeNull();
+  });
+
+  describe("Codex agent", () => {
+    it("returns Alt+Enter sequence (\\x1b\\r) for Shift+Enter on keydown", () => {
+      expect(
+        getMultilineEnterPayload(enterEvent("keydown", { shiftKey: true }), "codex"),
+      ).toBe("\x1b\r");
+    });
+
+    it("returns Alt+Enter sequence (\\x1b\\r) for Alt+Enter / Option+Enter on keydown", () => {
+      expect(
+        getMultilineEnterPayload(enterEvent("keydown", { altKey: true }), "codex"),
+      ).toBe("\x1b\r");
+    });
+
+    it("returns Alt+Enter sequence (\\x1b\\r) for Cmd+Enter (macOS equivalent) on keydown", () => {
+      expect(
+        getMultilineEnterPayload(enterEvent("keydown", { metaKey: true }), "codex"),
+      ).toBe("\x1b\r");
+    });
+
+    it("returns Alt+Enter sequence (\\x1b\\r) for Ctrl+Enter on keydown", () => {
+      expect(
+        getMultilineEnterPayload(enterEvent("keydown", { ctrlKey: true }), "codex"),
+      ).toBe("\x1b\r");
+    });
+
+    it("returns null for plain Enter", () => {
+      expect(getMultilineEnterPayload(enterEvent("keydown"), "codex")).toBeNull();
+    });
+
+    it("returns null for keyup events", () => {
+      expect(
+        getMultilineEnterPayload(enterEvent("keyup", { shiftKey: true }), "codex"),
+      ).toBeNull();
+    });
   });
 });

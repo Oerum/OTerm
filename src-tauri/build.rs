@@ -20,7 +20,7 @@ fn validate_whisper_backend_features() {
     match enabled.len() {
         0 => {
             println!("cargo:warning=No Whisper backend feature enabled. Using stub/mock mode for testing.");
-        },
+        }
         1 => {}
         _ => panic!("Multiple Whisper backend features enabled ({enabled:?}). Enable exactly one."),
     }
