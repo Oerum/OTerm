@@ -2154,7 +2154,10 @@ onUnmounted(() => {
               @close="dismissToolWindow"
             />
           </div>
-          <template v-else>
+          <div
+            v-show="!agentsViewOpen && !toolWindowOpen"
+            class="flex min-h-0 flex-1 flex-col"
+          >
             <template v-for="tab in tabs" :key="tab.id">
               <section
                 v-if="tab.kind === 'terminal' && mountedTerminalTabIds.has(tab.id)"
@@ -2172,8 +2175,8 @@ onUnmounted(() => {
                   :session-id="pane.sessionId"
                   :shell-id="pane.shellId"
                   :initial-cwd="pane.cwd"
-                  :active="pane.id === activePaneId"
-                  :tab-active="tab.id === activeTabId"
+                  :active="pane.id === activePaneId && !agentsViewOpen && !toolWindowOpen"
+                  :tab-active="tab.id === activeTabId && !agentsViewOpen && !toolWindowOpen"
                   :active-agent-id="pane.activeAgentId"
                   :theme-id="terminalPaneThemes[pane.id] ?? null"
                   :ssh-endpoint-id="pane.sshEndpointId"
@@ -2293,7 +2296,7 @@ onUnmounted(() => {
                 @close="closeTab(tab.id)"
               />
             </template>
-          </template>
+          </div>
         </main>
 
         <StatusBar

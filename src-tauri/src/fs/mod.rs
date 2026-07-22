@@ -218,15 +218,23 @@ pub fn search_files(
     include_hidden: bool,
     is_cancelled: impl Fn() -> bool,
 ) -> Result<Vec<commands::FsEntry>, String> {
-    let needle = query.trim().to_lowercase();
-    if needle.is_empty() {
+    let needle = query.trim().replace('\\', "/").to_lowercase();
+    let tokens: Vec<String> = needle
+        .split('/')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect();
+
+    if tokens.is_empty() {
         return Ok(Vec::new());
     }
 
     let mut results = Vec::new();
     search_recursive(
         root,
-        &needle,
+        root,
+        &tokens,
         include_hidden,
         SEARCH_RESULT_LIMIT,
         SEARCH_MAX_DEPTH,
@@ -244,8 +252,9 @@ fn should_skip_dir(name: &str) -> bool {
 
 #[allow(clippy::too_many_arguments)]
 fn search_recursive(
+    root: &Path,
     current: &Path,
-    needle: &str,
+    tokens: &[String],
     include_hidden: bool,
     limit: usize,
     max_depth: usize,
@@ -282,7 +291,18 @@ fn search_recursive(
         };
 
         let name = item.file_name().to_string_lossy().into_owned();
-        if name.to_lowercase().contains(needle) {
+        let rel_path_str = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/")
+            .to_lowercase();
+
+        let is_match = tokens
+            .iter()
+            .all(|token| rel_path_str.contains(token.as_str()));
+
+        if is_match {
             results.push(commands::FsEntry {
                 name: name.clone(),
                 path: path.to_string_lossy().into_owned(),
@@ -297,8 +317,9 @@ fn search_recursive(
                 continue;
             }
             search_recursive(
+                root,
                 &path,
-                needle,
+                tokens,
                 include_hidden,
                 limit,
                 max_depth,
@@ -1048,13 +1069,20 @@ pub fn find_antigravity_launcher() -> Option<PathBuf> {
     {
         let mut candidates = Vec::new();
         if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            let root = PathBuf::from(local).join("Programs").join("Antigravity IDE");
+            let root = PathBuf::from(local)
+                .join("Programs")
+                .join("Antigravity IDE");
             candidates.push(root.join("bin").join("antigravity-ide.cmd"));
             candidates.push(root.join("bin").join("antigravity-ide"));
             candidates.push(root.join("Antigravity IDE.exe"));
         }
-        first_existing_file(&candidates)
-            .or_else(|| which_on_path(&["antigravity-ide.cmd", "antigravity-ide.exe", "antigravity-ide"]))
+        first_existing_file(&candidates).or_else(|| {
+            which_on_path(&[
+                "antigravity-ide.cmd",
+                "antigravity-ide.exe",
+                "antigravity-ide",
+            ])
+        })
     }
 
     #[cfg(not(windows))]
@@ -1297,5 +1325,21 @@ mod tests {
             cleanup_old_composer_attachments_in(&temp, Duration::from_secs(7 * 24 * 60 * 60))
                 .expect("cleanup");
         assert_eq!(deleted, 0);
+    }
+
+    #[test]
+    fn search_files_matches_relative_path_queries() {
+        let temp = std::env::temp_dir().join(format!("oterm_search_path_{}", std::process::id()));
+        let sub = temp.join("src").join("components");
+        fs::create_dir_all(&sub).expect("create dir");
+        let file = sub.join("StashManager.vue");
+        fs::write(&file, b"content").expect("write file");
+
+        let results = search_files(&temp, "src/components/StashMan", false, || false)
+            .expect("search should succeed");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "StashManager.vue");
+
+        fs::remove_dir_all(&temp).expect("cleanup");
     }
 }

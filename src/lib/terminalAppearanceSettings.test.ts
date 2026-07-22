@@ -42,3 +42,28 @@ describe("validateTerminalThemeExport", () => {
     expect(validateTerminalThemeExport({ id: "x" })).toBeNull();
   });
 });
+
+describe("applyTerminalThemeCssVars", () => {
+  it("sets --term-selection-bg and --term-selection-inactive-bg on root element", async () => {
+    const { applyTerminalThemeCssVars } = await import("./terminalAppearanceSettings");
+    const theme = BUILTIN_TERMINAL_THEMES[0]!;
+    const vars = new Map<string, string>();
+    const originalDocument = (globalThis as unknown as { document?: unknown }).document;
+    (globalThis as unknown as { document: unknown }).document = {
+      documentElement: {
+        style: {
+          setProperty: (k: string, v: string) => vars.set(k, v),
+          removeProperty: () => {},
+        },
+      },
+    };
+    try {
+      applyTerminalThemeCssVars(theme);
+      expect(vars.get("--term-selection-bg")).toBe("rgba(38, 79, 120, 0.85)");
+      expect(vars.get("--term-selection-fg")).toBe("#ffffff");
+      expect(vars.get("--term-selection-inactive-bg")).toBe("rgba(38, 79, 120, 0.45)");
+    } finally {
+      (globalThis as unknown as { document: unknown }).document = originalDocument;
+    }
+  });
+});

@@ -29,12 +29,20 @@ import {
 } from "../lib/agentComposerSubmit";
 import { getCliAgentDefinition, type CliAgentId } from "../lib/terminalAgentMode";
 import { writeTerminal } from "../lib/terminalApi";
+import { listDirectory, searchFiles } from "../lib/fsApi";
+import {
+  detectMentionQuery,
+  formatMentionPath,
+  insertMentionText,
+} from "../lib/agentComposerMentions";
+import type { FsEntry } from "../types/fs";
 import AgentFooterBadge from "./AgentFooterBadge.vue";
 
 const props = defineProps<{
   paneId: string;
   agentId?: CliAgentId | null;
   sessionId: string;
+  cwd?: string;
   hideCloseButton?: boolean;
   transparent?: boolean;
 }>();
@@ -298,7 +306,150 @@ async function submitDraft() {
   }
 }
 
+interface MentionSuggestionItem extends FsEntry {
+  relativePath: string;
+}
+
+const mentionActive = ref(false);
+const mentionQuery = ref("");
+const suggestions = ref<MentionSuggestionItem[]>([]);
+const activeMentionIndex = ref(0);
+const mentionLoading = ref(false);
+const mentionListRef = ref<HTMLElement | null>(null);
+let mentionSearchTimer: number | undefined;
+let mentionRequestId = 0;
+
+function scrollToActiveMention() {
+  void nextTick(() => {
+    const list = mentionListRef.value;
+    if (!list) return;
+    const activeEl = list.children[activeMentionIndex.value] as HTMLElement | undefined;
+    if (activeEl) {
+      activeEl.scrollIntoView({ block: "nearest" });
+    }
+  });
+}
+
+function updateMentionState() {
+  const el = textareaRef.value;
+  const cursorIndex = el ? el.selectionStart : draft.value.length;
+  const match = detectMentionQuery(draft.value, cursorIndex);
+
+  if (!match) {
+    closeMentionMenu();
+    return;
+  }
+
+  const queryChanged = match.query !== mentionQuery.value || !mentionActive.value;
+  mentionActive.value = true;
+  if (queryChanged) {
+    mentionQuery.value = match.query;
+    scheduleMentionSearch(match.query);
+  }
+}
+
+function closeMentionMenu() {
+  mentionActive.value = false;
+  mentionQuery.value = "";
+  suggestions.value = [];
+  activeMentionIndex.value = 0;
+  mentionLoading.value = false;
+  window.clearTimeout(mentionSearchTimer);
+}
+
+function scheduleMentionSearch(query: string) {
+  window.clearTimeout(mentionSearchTimer);
+  mentionSearchTimer = window.setTimeout(() => {
+    void fetchMentionSuggestions(query);
+  }, 80);
+}
+
+async function fetchMentionSuggestions(query: string) {
+  const reqId = ++mentionRequestId;
+  mentionLoading.value = true;
+  try {
+    let rawEntries: FsEntry[] = [];
+    const root = props.cwd || undefined;
+    if (!query) {
+      rawEntries = await listDirectory(root, false);
+    } else {
+      rawEntries = await searchFiles(query, root, false);
+    }
+
+    if (reqId !== mentionRequestId) return;
+
+    const items: MentionSuggestionItem[] = rawEntries
+      .map((entry) => ({
+        ...entry,
+        relativePath: formatMentionPath(entry.path, props.cwd),
+      }))
+      .slice(0, 30);
+
+    suggestions.value = items;
+    activeMentionIndex.value = 0;
+  } catch {
+    if (reqId !== mentionRequestId) return;
+    suggestions.value = [];
+  } finally {
+    if (reqId === mentionRequestId) {
+      mentionLoading.value = false;
+    }
+  }
+}
+
+function selectMention(item: MentionSuggestionItem) {
+  const el = textareaRef.value;
+  const cursorIndex = el ? el.selectionStart : draft.value.length;
+
+  const result = insertMentionText(draft.value, cursorIndex, item.path, props.cwd);
+  draft.value = result.text;
+  closeMentionMenu();
+
+  void nextTick(() => {
+    if (textareaRef.value) {
+      textareaRef.value.focus();
+      textareaRef.value.setSelectionRange(result.newCursorIndex, result.newCursorIndex);
+    }
+    resizeTextarea();
+  });
+}
+
 function onKeydown(event: KeyboardEvent) {
+  if (mentionActive.value && (suggestions.value.length > 0 || mentionLoading.value)) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (suggestions.value.length > 0) {
+        activeMentionIndex.value = (activeMentionIndex.value + 1) % suggestions.value.length;
+        scrollToActiveMention();
+      }
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (suggestions.value.length > 0) {
+        activeMentionIndex.value =
+          (activeMentionIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
+        scrollToActiveMention();
+      }
+      return;
+    }
+    if (event.key === "Enter" || event.key === "Tab") {
+      if (suggestions.value.length > 0) {
+        event.preventDefault();
+        const selected = suggestions.value[activeMentionIndex.value];
+        if (selected) {
+          selectMention(selected);
+        }
+        return;
+      }
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMentionMenu();
+      return;
+    }
+  }
+
   if (isDictationShortcut(event)) {
     event.preventDefault();
     void toggleDictation();
@@ -424,6 +575,55 @@ defineExpose({
           Close
         </button>
       </div>
+      <!-- Mention Autocomplete Popover -->
+      <div
+        v-if="mentionActive"
+        class="relative z-30 flex max-h-60 w-full flex-col overflow-hidden rounded-xl border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.45)] backdrop-blur-md"
+      >
+        <div class="flex items-center justify-between px-2.5 py-1.5 text-[11px] font-medium text-[var(--oterm-faint)] border-b border-[var(--oterm-border)]/50">
+          <span class="flex items-center gap-1.5">
+            <span>Files &amp; Folders</span>
+            <span v-if="mentionLoading" class="text-[10px] text-[var(--oterm-accent)] animate-pulse">Searching…</span>
+          </span>
+          <span class="hidden sm:inline">↑↓ navigate · Enter/Tab select · Esc close</span>
+        </div>
+        <div
+          v-if="suggestions.length > 0"
+          ref="mentionListRef"
+          class="max-h-48 overflow-y-auto oterm-scroll py-1 space-y-0.5"
+        >
+          <button
+            v-for="(item, idx) in suggestions"
+            :key="item.path"
+            type="button"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors"
+            :class="[
+              idx === activeMentionIndex
+                ? 'bg-[var(--oterm-accent)]/15 text-[var(--oterm-accent)] font-medium ring-1 ring-[var(--oterm-accent)]/30'
+                : 'text-[var(--oterm-text)] hover:bg-white/5'
+            ]"
+            @mousedown.prevent="selectMention(item)"
+            @mouseenter="activeMentionIndex = idx"
+          >
+            <span class="shrink-0 text-sm leading-none">
+              {{ item.isDir ? '📁' : '📄' }}
+            </span>
+            <span class="truncate font-mono text-[var(--oterm-text)]">{{ item.relativePath }}</span>
+            <span
+              v-if="item.isDir"
+              class="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase font-semibold bg-blue-500/20 text-blue-300"
+            >
+              Folder
+            </span>
+          </button>
+        </div>
+        <div
+          v-else-if="!mentionLoading"
+          class="px-3 py-2 text-xs text-[var(--oterm-faint)] italic"
+        >
+          No matching files or folders found
+        </div>
+      </div>
       <textarea
         ref="textareaRef"
         v-model="draft"
@@ -431,9 +631,15 @@ defineExpose({
         class="min-h-[2.25rem] max-h-40 w-full shrink-0 resize-none overflow-y-auto oterm-scroll bg-transparent font-mono text-sm leading-relaxed text-[var(--oterm-text)] outline-none placeholder:text-[var(--oterm-faint)]"
         :placeholder="composerPlaceholder"
         :disabled="textareaDisabled"
+        spellcheck="false"
+        autocorrect="off"
+        autocapitalize="off"
         @focus="isFocused = true"
         @blur="isFocused = false"
         @keydown="onKeydown"
+        @keyup="updateMentionState"
+        @click="updateMentionState"
+        @input="updateMentionState"
         @paste="onPaste"
       />
       <div
@@ -551,12 +757,12 @@ defineExpose({
           </button>
         </div>
         <div class="flex items-center justify-between gap-3 text-[10px] leading-none text-[var(--oterm-faint)]">
-          <span class="hidden min-w-0 truncate sm:inline">Paste or drop images</span>
+          <span class="hidden min-w-0 truncate sm:inline">Paste or drop images · Type @ to mention files</span>
           <span class="hidden shrink-0 text-right lg:inline">
-            Enter send · Shift+Enter newline · Ctrl+F dictate · Ctrl+V image · Esc close
+            Enter send · Shift+Enter newline · @ mention file/folder · Ctrl+F dictate · Ctrl+V image · Esc close
           </span>
           <span class="hidden shrink-0 text-right md:inline lg:hidden">
-            Enter send · Ctrl+F dictate · Esc close
+            Enter send · @ mention · Ctrl+F dictate · Esc close
           </span>
           <span class="shrink-0 md:hidden">Enter send · Esc close</span>
         </div>

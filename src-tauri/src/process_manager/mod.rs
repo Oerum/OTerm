@@ -48,9 +48,8 @@ fn truncate_cmd(cmd: &str) -> String {
 pub fn list_processes() -> ProcessListSummary {
     let self_pid = current_pid();
     let mut system = System::new();
-    system.refresh_specifics(
-        RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
-    );
+    system
+        .refresh_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()));
 
     let mut processes: Vec<ProcessEntry> = system
         .processes()
@@ -69,9 +68,7 @@ pub fn list_processes() -> ProcessListSummary {
                 pid: pid_u32,
                 parent_pid: process.parent().map(|p| p.as_u32()),
                 name: process.name().to_string_lossy().into_owned(),
-                exe: process
-                    .exe()
-                    .map(|p| p.to_string_lossy().into_owned()),
+                exe: process.exe().map(|p| p.to_string_lossy().into_owned()),
                 cmd,
                 memory: process.memory(),
                 is_killable: !is_protected(pid_u32, self_pid),
@@ -99,9 +96,8 @@ pub fn kill_process(pid: u32) -> Result<(), String> {
     }
 
     let mut system = System::new();
-    system.refresh_specifics(
-        RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
-    );
+    system
+        .refresh_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()));
 
     let target = Pid::from_u32(pid);
     let process = system

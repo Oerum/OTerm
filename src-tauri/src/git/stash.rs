@@ -14,17 +14,19 @@ pub fn git_stash_list(repo_root: String) -> Result<Vec<StashInfo>, String> {
     let mut cmd = Command::new(git_program());
     cmd.current_dir(&root);
     cmd.arg("stash").arg("list").arg("--format=%gd|%gs");
-    
+
     let out = cmd.output().map_err(|e| e.to_string())?;
     if !out.status.success() {
         return Err(String::from_utf8_lossy(&out.stderr).into_owned());
     }
-    
+
     let stdout = String::from_utf8_lossy(&out.stdout);
     let mut stashes = Vec::new();
-    
+
     for line in stdout.lines() {
-        if line.is_empty() { continue; }
+        if line.is_empty() {
+            continue;
+        }
         if let Some((idx_str, msg)) = line.split_once('|') {
             if let Some(idx_str) = idx_str.strip_prefix("stash@{") {
                 if let Some(idx_str) = idx_str.strip_suffix("}") {
@@ -41,7 +43,11 @@ pub fn git_stash_list(repo_root: String) -> Result<Vec<StashInfo>, String> {
     Ok(stashes)
 }
 
-pub fn git_stash_save(repo_root: String, message: String, include_untracked: bool) -> Result<(), String> {
+pub fn git_stash_save(
+    repo_root: String,
+    message: String,
+    include_untracked: bool,
+) -> Result<(), String> {
     let root = PathBuf::from(repo_root);
     let mut cmd = Command::new(git_program());
     cmd.current_dir(&root);
@@ -50,7 +56,7 @@ pub fn git_stash_save(repo_root: String, message: String, include_untracked: boo
         cmd.arg("--include-untracked");
     }
     cmd.arg("-m").arg(message);
-    
+
     let out = cmd.output().map_err(|e| e.to_string())?;
     if out.status.success() {
         Ok(())
@@ -63,8 +69,10 @@ pub fn git_stash_apply(repo_root: String, index: u32) -> Result<(), String> {
     let root = PathBuf::from(repo_root);
     let mut cmd = Command::new(git_program());
     cmd.current_dir(&root);
-    cmd.arg("stash").arg("apply").arg(format!("stash@{{{}}}", index));
-    
+    cmd.arg("stash")
+        .arg("apply")
+        .arg(format!("stash@{{{}}}", index));
+
     let out = cmd.output().map_err(|e| e.to_string())?;
     if out.status.success() {
         Ok(())
@@ -77,8 +85,10 @@ pub fn git_stash_pop(repo_root: String, index: u32) -> Result<(), String> {
     let root = PathBuf::from(repo_root);
     let mut cmd = Command::new(git_program());
     cmd.current_dir(&root);
-    cmd.arg("stash").arg("pop").arg(format!("stash@{{{}}}", index));
-    
+    cmd.arg("stash")
+        .arg("pop")
+        .arg(format!("stash@{{{}}}", index));
+
     let out = cmd.output().map_err(|e| e.to_string())?;
     if out.status.success() {
         Ok(())
@@ -91,8 +101,10 @@ pub fn git_stash_drop(repo_root: String, index: u32) -> Result<(), String> {
     let root = PathBuf::from(repo_root);
     let mut cmd = Command::new(git_program());
     cmd.current_dir(&root);
-    cmd.arg("stash").arg("drop").arg(format!("stash@{{{}}}", index));
-    
+    cmd.arg("stash")
+        .arg("drop")
+        .arg(format!("stash@{{{}}}", index));
+
     let out = cmd.output().map_err(|e| e.to_string())?;
     if out.status.success() {
         Ok(())
