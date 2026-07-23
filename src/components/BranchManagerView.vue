@@ -11,6 +11,7 @@ import {
 } from "../lib/branchGrouping";
 import { sortTags } from "../lib/tagSorting";
 import { isGithubPrCapable } from "../lib/createPrFlow";
+import { useCreatePullRequestForm } from "../composables/useCreatePullRequestForm";
 import {
   fetchGitRepo,
   listGitBranches,
@@ -39,7 +40,6 @@ import {
   squashCommits,
 } from "../lib/branchManagerApi";
 import {
-  createPullRequest,
   detectPrProvider,
   gitRemoteBrowserUrl,
 } from "../lib/pullRequestApi";
@@ -136,14 +136,18 @@ const mergeTarget = ref("");
 const mergeError = ref<string | null>(null);
 const mergePrAvailable = ref(false);
 const gitBranchList = ref<GitBranchList | null>(null);
-const createPrOpen = ref(false);
-const createPrTitle = ref("");
-const createPrBody = ref("");
-const createPrBase = ref("");
-const createPrHead = ref("");
-const createPrDraft = ref(false);
-const createPrBusy = ref(false);
-const createPrError = ref<string | null>(null);
+const {
+  createPrOpen,
+  createPrTitle,
+  createPrBody,
+  createPrBase,
+  createPrHead,
+  createPrDraft,
+  createPrBusy,
+  createPrError,
+  closeCreatePrDialog,
+  executeSubmitCreatePr,
+} = useCreatePullRequestForm();
 const branchContextMenuOpen = ref(false);
 const branchContextMenuX = ref(0);
 const branchContextMenuY = ref(0);
@@ -911,37 +915,12 @@ function openCreatePrFromMerge() {
   createPrOpen.value = true;
 }
 
-function closeCreatePrDialog() {
-  createPrOpen.value = false;
-  createPrError.value = null;
-}
-
 async function submitCreatePr() {
-  if (!createPrTitle.value.trim() || !createPrBase.value || !createPrHead.value) return;
-  if (createPrBase.value === createPrHead.value) {
-    createPrError.value = "Base and compare branches must be different.";
-    return;
-  }
-  createPrBusy.value = true;
-  createPrError.value = null;
-  try {
-    await createPullRequest({
-      repoRoot: props.repoRoot,
-      title: createPrTitle.value.trim(),
-      body: createPrBody.value,
-      base: createPrBase.value,
-      head: createPrHead.value,
-      draft: createPrDraft.value,
-    });
-    closeCreatePrDialog();
+  await executeSubmitCreatePr(props.repoRoot, async () => {
     closeMergeDialog();
     emit("refreshGit");
     await load();
-  } catch (err) {
-    createPrError.value = err instanceof Error ? err.message : String(err);
-  } finally {
-    createPrBusy.value = false;
-  }
+  });
 }
 
 function onDocumentMouseDown(event: MouseEvent) {
@@ -1538,33 +1517,6 @@ watch(() => props.active, (isActive) => {
 </template>
 
 <style scoped>
-.pr-header-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-family: var(--oterm-font-ui);
-  color: var(--oterm-muted);
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--oterm-border);
-  cursor: pointer;
-  transition: all 120ms ease;
-  font-weight: 500;
-}
-
-.pr-header-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--oterm-text);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.pr-header-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
 .right-tab-btn {
   padding: 8px 12px;
   font-size: 11px;

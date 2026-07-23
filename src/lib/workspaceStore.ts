@@ -8,7 +8,7 @@ import type {
   TerminalEntryColor,
 } from "../types/terminal";
 
-export const WORKSPACE_TERMINAL_TABS_KEY = "oterm:workspace-terminal-tabs";
+const WORKSPACE_TERMINAL_TABS_KEY = "oterm:workspace-terminal-tabs";
 
 export const EMPTY_TERMINAL_WORKSPACE: PersistedTerminalWorkspaceV2 = {
   version: 2,
@@ -141,13 +141,13 @@ function buildWorkspaceV2(
   };
 }
 
-export function upgradePersistedTerminalWorkspaceV1(
+function upgradePersistedTerminalWorkspaceV1(
   snapshot: PersistedTerminalWorkspaceV1,
 ): PersistedTerminalWorkspaceV2 {
   return buildWorkspaceV2([], snapshot.tabs, [], snapshot.activeTabIndex, snapshot.activePaneIndex);
 }
 
-export function parsePersistedTerminalWorkspaceV2(
+function parsePersistedTerminalWorkspaceV2(
   raw: unknown,
 ): PersistedTerminalWorkspaceV2 | null {
   if (!raw || typeof raw !== "object") return null;
@@ -171,7 +171,7 @@ export function parsePersistedTerminalWorkspaceV2(
   return buildWorkspaceV2(groups, tabs, collapsedGroupIds, activeTabIndex, activePaneIndex);
 }
 
-export function parsePersistedTerminalWorkspaceV1(
+function parsePersistedTerminalWorkspaceV1(
   raw: unknown,
 ): PersistedTerminalWorkspaceV1 | null {
   if (!raw || typeof raw !== "object") return null;

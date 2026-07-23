@@ -1,4 +1,4 @@
-import { ref, watch } from "vue";
+import { createPersistedSettings, setSetting } from "./settingsStore";
 import {
   DEFAULT_SFTP_MAX_FILE_BYTES,
   DEFAULT_SFTP_PARALLEL_FILES,
@@ -7,7 +7,6 @@ import {
   MIN_SFTP_PARALLEL_FILES,
   type SftpTransferSettings,
 } from "../types/sshSftpSettings";
-import { getSetting, setSetting } from "./settingsStore";
 
 const STORAGE_KEY = "oterm:sftp-transfer-settings";
 
@@ -35,28 +34,17 @@ function defaultSettings(): SftpTransferSettings {
   return { ...DEFAULT_SFTP_TRANSFER_SETTINGS };
 }
 
-const settingsRef = ref<SftpTransferSettings>(defaultSettings());
-let hydrated = false;
-
-watch(
+const {
   settingsRef,
-  (value) => {
-    if (!hydrated) return;
-    void setSetting(STORAGE_KEY, JSON.stringify(value));
-  },
-  { deep: true },
-);
+  init: initSftpTransferSettings,
+  setHydrated,
+} = createPersistedSettings<SftpTransferSettings>({
+  storageKey: STORAGE_KEY,
+  defaultSettings,
+  parseSettings: parseSftpTransferSettings,
+});
 
-export async function initSftpTransferSettings() {
-  try {
-    const raw = getSetting(STORAGE_KEY);
-    settingsRef.value = raw ? parseSftpTransferSettings(raw) : defaultSettings();
-  } catch {
-    settingsRef.value = defaultSettings();
-  } finally {
-    hydrated = true;
-  }
-}
+export { initSftpTransferSettings };
 
 export function useSftpTransferSettings() {
   function update(patch: Partial<SftpTransferSettings>) {
@@ -68,7 +56,7 @@ export function useSftpTransferSettings() {
       parallelFiles: clampParallel(value.parallelFiles),
       maxFileSizeBytes: parseMaxFileSizeBytes(value.maxFileSizeBytes),
     };
-    if (!hydrated) hydrated = true;
+    setHydrated(true);
     await setSetting(STORAGE_KEY, JSON.stringify(settingsRef.value));
   }
 

@@ -1,6 +1,6 @@
 import type { CliAgentId } from "./terminalAgentMode";
 
-export type AgentSemanticStatus = "idle" | "working" | "blocked" | "unknown";
+import type { AgentSemanticStatus } from "../types/terminal";
 
 export type AgentDisplayStatus = AgentSemanticStatus | "done";
 

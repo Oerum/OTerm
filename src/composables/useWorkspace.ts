@@ -404,15 +404,24 @@ export function useWorkspace(getDefaultShellId: () => string) {
     }
   }
 
-  function setPaneUnseenNotification(paneId: string, value: boolean) {
+  function updateTerminalPane(
+    paneId: string,
+    mutate: (pane: WorkspacePane) => void,
+  ) {
     for (const tab of tabs.value) {
       if (!isTerminalTab(tab)) continue;
       const pane = tab.panes.find((item) => item.id === paneId);
       if (pane) {
-        pane.hasUnseenNotification = value;
+        mutate(pane);
         return;
       }
     }
+  }
+
+  function setPaneUnseenNotification(paneId: string, value: boolean) {
+    updateTerminalPane(paneId, (pane) => {
+      pane.hasUnseenNotification = value;
+    });
   }
 
   function setPaneAgentStatus(
@@ -420,117 +429,72 @@ export function useWorkspace(getDefaultShellId: () => string) {
     status: AgentSemanticStatus,
     seen?: boolean,
   ) {
-    for (const tab of tabs.value) {
-      if (!isTerminalTab(tab)) continue;
-      const pane = tab.panes.find((item) => item.id === paneId);
-      if (pane) {
-        pane.agentStatus = status;
-        if (seen !== undefined) pane.agentStatusSeen = seen;
-        return;
-      }
-    }
+    updateTerminalPane(paneId, (pane) => {
+      pane.agentStatus = status;
+      if (seen !== undefined) pane.agentStatusSeen = seen;
+    });
   }
 
   function markPaneAgentStatusSeen(paneId: string) {
-    for (const tab of tabs.value) {
-      if (!isTerminalTab(tab)) continue;
-      const pane = tab.panes.find((item) => item.id === paneId);
-      if (pane) {
-        pane.agentStatusSeen = true;
-        return;
-      }
-    }
+    updateTerminalPane(paneId, (pane) => {
+      pane.agentStatusSeen = true;
+    });
   }
 
   function setPaneSession(paneId: string, sessionId: string) {
-    for (const tab of tabs.value) {
-      if (!isTerminalTab(tab)) continue;
-      const pane = tab.panes.find((item) => item.id === paneId);
-      if (pane) {
-        pane.sessionId = sessionId;
-        pane.bootstrappingSessionId = null;
-        return;
-      }
-    }
+    updateTerminalPane(paneId, (pane) => {
+      pane.sessionId = sessionId;
+      pane.bootstrappingSessionId = null;
+    });
   }
 
   function setPaneBootstrappingSession(paneId: string, sessionId: string) {
-    for (const tab of tabs.value) {
-      if (!isTerminalTab(tab)) continue;
-      const pane = tab.panes.find((item) => item.id === paneId);
-      if (pane) {
-        pane.bootstrappingSessionId = sessionId;
-        return;
-      }
-    }
+    updateTerminalPane(paneId, (pane) => {
+      pane.bootstrappingSessionId = sessionId;
+    });
   }
 
   function clearPaneBootstrappingSession(paneId: string) {
-    for (const tab of tabs.value) {
-      if (!isTerminalTab(tab)) continue;
-      const pane = tab.panes.find((item) => item.id === paneId);
-      if (pane) {
-        pane.bootstrappingSessionId = null;
-        if (!pane.sessionId) {
-          pane.activeProcessName = null;
-          pane.activeProcessCmd = null;
-        }
-        return;
+    updateTerminalPane(paneId, (pane) => {
+      pane.bootstrappingSessionId = null;
+      if (!pane.sessionId) {
+        pane.activeProcessName = null;
+        pane.activeProcessCmd = null;
       }
-    }
+    });
   }
 
   function clearPaneSession(paneId: string) {
-    for (const tab of tabs.value) {
-      if (!isTerminalTab(tab)) continue;
-      const pane = tab.panes.find((item) => item.id === paneId);
-      if (pane) {
-        pane.sessionId = null;
-        pane.bootstrappingSessionId = null;
-        pane.activeAgentId = null;
-        pane.activeProcessName = null;
-        pane.activeProcessCmd = null;
-        pane.oscTitle = null;
-        pane.hasUnseenNotification = false;
-        pane.agentStatus = "unknown";
-        pane.agentStatusSeen = true;
-        pane.sshEndpointId = null;
-        return;
-      }
-    }
+    updateTerminalPane(paneId, (pane) => {
+      pane.sessionId = null;
+      pane.bootstrappingSessionId = null;
+      pane.activeAgentId = null;
+      pane.activeProcessName = null;
+      pane.activeProcessCmd = null;
+      pane.oscTitle = null;
+      pane.hasUnseenNotification = false;
+      pane.agentStatus = "unknown";
+      pane.agentStatusSeen = true;
+      pane.sshEndpointId = null;
+    });
   }
 
   function setPaneSshEndpoint(paneId: string, endpointId: string | null) {
-    for (const tab of tabs.value) {
-      if (!isTerminalTab(tab)) continue;
-      const pane = tab.panes.find((item) => item.id === paneId);
-      if (pane) {
-        pane.sshEndpointId = endpointId;
-        return;
-      }
-    }
+    updateTerminalPane(paneId, (pane) => {
+      pane.sshEndpointId = endpointId;
+    });
   }
 
   function setPaneCwd(paneId: string, cwd: string) {
-    for (const tab of tabs.value) {
-      if (!isTerminalTab(tab)) continue;
-      const pane = tab.panes.find((item) => item.id === paneId);
-      if (pane) {
-        pane.cwd = cwd;
-        return;
-      }
-    }
+    updateTerminalPane(paneId, (pane) => {
+      pane.cwd = cwd;
+    });
   }
 
   function setPaneAgent(paneId: string, agentId: CliAgentId | null) {
-    for (const tab of tabs.value) {
-      if (!isTerminalTab(tab)) continue;
-      const pane = tab.panes.find((item) => item.id === paneId);
-      if (pane) {
-        pane.activeAgentId = agentId;
-        return;
-      }
-    }
+    updateTerminalPane(paneId, (pane) => {
+      pane.activeAgentId = agentId;
+    });
   }
 
   function setPaneProcess(
@@ -538,37 +502,22 @@ export function useWorkspace(getDefaultShellId: () => string) {
     processName: string | null,
     command: string | null,
   ) {
-    for (const tab of tabs.value) {
-      if (!isTerminalTab(tab)) continue;
-      const pane = tab.panes.find((item) => item.id === paneId);
-      if (pane) {
-        pane.activeProcessName = processName;
-        pane.activeProcessCmd = command;
-        return;
-      }
-    }
+    updateTerminalPane(paneId, (pane) => {
+      pane.activeProcessName = processName;
+      pane.activeProcessCmd = command;
+    });
   }
 
   function setPaneOscTitle(paneId: string, title: string | null) {
-    for (const tab of tabs.value) {
-      if (!isTerminalTab(tab)) continue;
-      const pane = tab.panes.find((item) => item.id === paneId);
-      if (pane) {
-        pane.oscTitle = title === null ? null : normalizeOscTitle(title);
-        return;
-      }
-    }
+    updateTerminalPane(paneId, (pane) => {
+      pane.oscTitle = title === null ? null : normalizeOscTitle(title);
+    });
   }
 
   function setPaneShell(paneId: string, shellId: string) {
-    for (const tab of tabs.value) {
-      if (!isTerminalTab(tab)) continue;
-      const pane = tab.panes.find((item) => item.id === paneId);
-      if (pane) {
-        pane.shellId = shellId;
-        return;
-      }
-    }
+    updateTerminalPane(paneId, (pane) => {
+      pane.shellId = shellId;
+    });
   }
 
   function setTabTitle(tabId: string, title: string) {

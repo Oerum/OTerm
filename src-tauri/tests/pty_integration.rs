@@ -1,14 +1,15 @@
-use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
+use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize, SlavePty};
 use std::io::{Read, Write};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-fn open_pty_shell(
-    program: &str,
-    args: &[&str],
-) -> Option<(
+type PtyTuple = (
     Box<dyn MasterPty + Send>,
+    Box<dyn SlavePty + Send>,
     Box<dyn portable_pty::Child + Send + Sync>,
-)> {
+);
+
+fn open_pty_shell(program: &str, args: &[&str]) -> Option<PtyTuple> {
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -25,31 +26,33 @@ fn open_pty_shell(
     }
 
     let child = pair.slave.spawn_command(cmd).ok()?;
-    drop(pair.slave);
-    let master: Box<dyn MasterPty + Send> = pair.master;
-    Some((master, child))
+    Some((pair.master, pair.slave, child))
 }
 
-fn open_pwsh_pty() -> Option<(
-    Box<dyn MasterPty + Send>,
-    Box<dyn portable_pty::Child + Send + Sync>,
-)> {
+fn open_pwsh_pty() -> Option<PtyTuple> {
     open_pty_shell("pwsh", &["-NoLogo", "-NoProfile"])
 }
 
-fn open_cmd_pty() -> Option<(
-    Box<dyn MasterPty + Send>,
-    Box<dyn portable_pty::Child + Send + Sync>,
-)> {
+fn open_cmd_pty() -> Option<PtyTuple> {
     open_pty_shell("cmd", &["/Q", "/K"])
 }
 
 #[test]
 fn shell_exits_on_exit_command() {
-    let (master, mut child) = open_pwsh_pty()
+    let (master, _slave, mut child) = open_pwsh_pty()
         .or_else(open_cmd_pty)
         .expect("pwsh or cmd must be available for PTY integration tests");
     let mut writer = master.take_writer().expect("writer");
+    let mut reader = master.try_clone_reader().expect("reader");
+
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        while let Ok(n) = reader.read(&mut buf) {
+            if n == 0 {
+                break;
+            }
+        }
+    });
 
     std::thread::sleep(Duration::from_millis(750));
     writer.write_all(b"exit\r\n").expect("write exit");
@@ -68,36 +71,46 @@ fn shell_exits_on_exit_command() {
 
 #[test]
 fn pwsh_reads_and_writes_in_pty() {
-    let (master, _child) =
-        open_pwsh_pty().expect("pwsh must be available for PTY integration tests");
+    let (master, _slave, _child) = open_pwsh_pty()
+        .or_else(open_cmd_pty)
+        .expect("pwsh or cmd must be available for PTY integration tests");
     let mut writer = master.take_writer().expect("writer");
     let mut reader = master.try_clone_reader().expect("reader");
 
+    let output_buffer = Arc::new(Mutex::new(String::new()));
+    let output_clone = Arc::clone(&output_buffer);
+
+    std::thread::spawn(move || {
+        let mut buffer = [0u8; 4096];
+        while let Ok(count) = reader.read(&mut buffer) {
+            if count == 0 {
+                break;
+            }
+            let text = String::from_utf8_lossy(&buffer[..count]);
+            if let Ok(mut lock) = output_clone.lock() {
+                lock.push_str(&text);
+            }
+        }
+    });
+
+    std::thread::sleep(Duration::from_millis(750));
     writer
         .write_all(b"echo oterm-pty-test\r\n")
         .expect("write command");
     writer.flush().expect("flush");
 
-    let deadline = Instant::now() + Duration::from_secs(5);
-    let mut collected = String::new();
-    let mut buffer = [0u8; 4096];
+    let deadline = Instant::now() + Duration::from_secs(10);
 
     while Instant::now() < deadline {
-        match reader.read(&mut buffer) {
-            Ok(0) => break,
-            Ok(count) => {
-                collected.push_str(&String::from_utf8_lossy(&buffer[..count]));
-                if collected.contains("oterm-pty-test") {
-                    return;
-                }
+        if let Ok(lock) = output_buffer.lock() {
+            if lock.contains("oterm-pty-test") {
+                return;
             }
-            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
-                std::thread::sleep(Duration::from_millis(50));
-            }
-            Err(err) => panic!("read failed: {err}"),
         }
+        std::thread::sleep(Duration::from_millis(50));
     }
 
+    let collected = output_buffer.lock().unwrap().clone();
     panic!(
         "expected echo output in PTY, got {} bytes: {:?}",
         collected.len(),

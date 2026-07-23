@@ -33,9 +33,6 @@ export interface SshGroup {
   order: number;
 }
 
-/** @deprecated use SshGroup */
-export type SshCategory = SshGroup;
-
 export interface SshEndpoint {
   id: string;
   schemaVersion: number;
@@ -110,7 +107,7 @@ export interface SshConnectResult {
 
 export const SSH_LIBRARY_SCHEMA_VERSION = 2;
 
-export const DEFAULT_SSH_PROXY: SshHostProxy = {
+const DEFAULT_SSH_PROXY: SshHostProxy = {
   type: "none",
   host: "",
   port: 1080,

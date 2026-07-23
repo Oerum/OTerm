@@ -1,6 +1,6 @@
 const MARKER_PREFIX = "\x1b]OTermAgentExit;code=";
 const MARKER_SUFFIX = "\x1b\\";
-export const AGENT_EXIT_MARKER_PATTERN = new RegExp(
+const AGENT_EXIT_MARKER_PATTERN = new RegExp(
   `${escapeRegExp(MARKER_PREFIX)}(\\d+)${escapeRegExp(MARKER_SUFFIX)}`,
   "g",
 );

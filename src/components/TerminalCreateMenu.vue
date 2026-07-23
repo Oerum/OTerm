@@ -3,6 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import type { CreateMenuAction, ShellProfile } from "../types/terminal";
 import { formatKeybind, getKeybind, isActionKeybind } from "../lib/keybindSettings";
 
+import { handleMenuNavigationKey } from "../lib/menuKeyboardNav";
+
 const props = defineProps<{
   shells: ShellProfile[];
   defaultShellId: string;
@@ -125,35 +127,12 @@ function onKeyDown(event: KeyboardEvent) {
     return;
   }
 
-  if (event.key === "ArrowDown") {
-    event.preventDefault();
-    const pos = enabled.indexOf(focusIndex.value);
-    const next = pos === -1 || pos === enabled.length - 1 ? enabled[0] : enabled[pos + 1];
-    focusIndex.value = next;
-    focusItem(next);
-    return;
-  }
-
-  if (event.key === "ArrowUp") {
-    event.preventDefault();
-    const pos = enabled.indexOf(focusIndex.value);
-    const next = pos <= 0 ? enabled[enabled.length - 1] : enabled[pos - 1];
-    focusIndex.value = next;
-    focusItem(next);
-    return;
-  }
-
-  if (event.key === "Home") {
-    event.preventDefault();
-    focusIndex.value = enabled[0];
-    focusItem(enabled[0]);
-    return;
-  }
-
-  if (event.key === "End") {
-    event.preventDefault();
-    focusIndex.value = enabled[enabled.length - 1];
-    focusItem(enabled[enabled.length - 1]);
+  if (
+    handleMenuNavigationKey(event, enabled, focusIndex.value, (next) => {
+      focusIndex.value = next;
+      focusItem(next);
+    })
+  ) {
     return;
   }
 

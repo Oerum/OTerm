@@ -1,15 +1,15 @@
 import { switchGitBranchApi, listGitWorktrees } from "./gitApi";
 import type { GitWorktreeInfo } from "../types/git";
 
-export function normalizeGitPath(path: string): string {
+function normalizeGitPath(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
 }
 
-export function isPathInWorktree(cwdNorm: string, worktreePathNorm: string): boolean {
+function isPathInWorktree(cwdNorm: string, worktreePathNorm: string): boolean {
   return cwdNorm === worktreePathNorm || cwdNorm.startsWith(`${worktreePathNorm}/`);
 }
 
-export function getMainWorktree(worktrees: GitWorktreeInfo[]): GitWorktreeInfo | undefined {
+function getMainWorktree(worktrees: GitWorktreeInfo[]): GitWorktreeInfo | undefined {
   return worktrees.find((wt) => wt.isMain) ?? worktrees[0];
 }
 

@@ -30,7 +30,7 @@ export function closeToolWindow(): ToolWindowState {
 }
 
 /** Feature tab kinds that must never appear as durable session peers. */
-export const FEATURE_TAB_KINDS = [
+const FEATURE_TAB_KINDS = [
   "pullRequests",
   "branchManager",
   "worktreeManager",

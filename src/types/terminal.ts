@@ -312,6 +312,3 @@ export interface PersistedTerminalWorkspaceV2 {
   activePaneIndex: number;
 }
 
-export type PersistedTerminalWorkspace =
-  | PersistedTerminalWorkspaceV1
-  | PersistedTerminalWorkspaceV2;

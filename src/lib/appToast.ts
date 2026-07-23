@@ -2,7 +2,7 @@ import { ref } from "vue";
 
 export type AppToastVariant = "info" | "warning" | "error" | "success";
 
-export type AppToastItem = {
+type AppToastItem = {
   id: number;
   message: string;
   variant: AppToastVariant;

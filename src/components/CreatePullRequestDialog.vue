@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, ref } from "vue";
 import type { GitBranchList } from "../types/git";
 
 const props = withDefaults(
@@ -41,30 +41,17 @@ const compareLabel = computed(() => {
   return `${head} → ${base}`;
 });
 
-function onKeyDown(event: KeyboardEvent) {
-  if (!props.open) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    emit("cancel");
-  }
-}
+import { useDialogKeyNav } from "../composables/useDialogEscapeFocus";
 
-watch(
+useDialogKeyNav(
   () => props.open,
-  async (isOpen) => {
-    if (isOpen) {
-      window.addEventListener("keydown", onKeyDown);
-      await nextTick();
-      titleRef.value?.focus();
-      titleRef.value?.select();
-    } else {
-      window.removeEventListener("keydown", onKeyDown);
-    }
+  () => emit("cancel"),
+  async () => {
+    await nextTick();
+    titleRef.value?.focus();
+    titleRef.value?.select();
   },
-  { immediate: true },
 );
-
-onUnmounted(() => window.removeEventListener("keydown", onKeyDown));
 </script>
 
 <template>

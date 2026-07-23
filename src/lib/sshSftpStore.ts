@@ -191,7 +191,7 @@ export function newId(prefix: string) {
   return `${prefix}-${Date.now()}-${nextId++}`;
 }
 
-export function sortGroups(groups: SshGroup[]) {
+export function sortSshGroups(groups: SshGroup[]) {
   return [...groups].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
 }
 
@@ -200,11 +200,6 @@ export function endpointsInGroup(endpoints: SshEndpoint[], groupId: string | nul
     .filter((e) => e.groupId === groupId)
     .sort((a, b) => endpointDisplayLabel(a).localeCompare(endpointDisplayLabel(b)));
 }
-
-/** @deprecated */
-export const sortCategories = sortGroups;
-/** @deprecated */
-export const endpointsInCategory = endpointsInGroup;
 
 export function collectAllTags(library: SshSftpLibrary): string[] {
   const tags = new Set<string>();
@@ -217,25 +212,6 @@ export function collectAllTags(library: SshSftpLibrary): string[] {
   return [...tags].sort((a, b) => a.localeCompare(b));
 }
 
-export function groupTree(groups: SshGroup[]): SshGroup[] {
-  return sortGroups(groups);
-}
-
 export function childGroups(groups: SshGroup[], parentId: string | null): SshGroup[] {
-  return sortGroups(groups.filter((group) => group.parentId === parentId));
-}
-
-export function resolveGroupPath(groups: SshGroup[], groupId: string | null): string {
-  if (!groupId) return "Uncategorized";
-  const names: string[] = [];
-  let current: string | null = groupId;
-  const seen = new Set<string>();
-  while (current && !seen.has(current)) {
-    seen.add(current);
-    const group = groups.find((item) => item.id === current);
-    if (!group) break;
-    names.unshift(group.name);
-    current = group.parentId;
-  }
-  return names.join(" / ") || "Uncategorized";
+  return sortSshGroups(groups.filter((group) => group.parentId === parentId));
 }
