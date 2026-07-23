@@ -12,13 +12,11 @@ import AgentFooterBadge from "./AgentFooterBadge.vue";
 
 const props = defineProps<{
   tabs: WorkspaceTab[];
-  active?: boolean;
 }>();
 
 const emit = defineEmits<{
   close: [];
   launchAgent: [agentId: CliAgentId];
-  selectTab: [tabId: string];
   selectPane: [tabId: string, paneId: string];
 }>();
 

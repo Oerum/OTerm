@@ -3,9 +3,9 @@ import { getSetting, setSetting } from "../lib/settingsStore";
 
 const STORAGE_KEY = "oterm:source-control-width";
 const FILE_LIST_STORAGE_KEY = "oterm:sc-file-list-width";
-export const SOURCE_CONTROL_FILE_LIST_WIDTH = 280;
-export const SOURCE_CONTROL_FILE_LIST_MIN_WIDTH = 220;
-export const SOURCE_CONTROL_DIFF_PANE_MIN_WIDTH = 480;
+const SOURCE_CONTROL_FILE_LIST_WIDTH = 280;
+const SOURCE_CONTROL_FILE_LIST_MIN_WIDTH = 220;
+const SOURCE_CONTROL_DIFF_PANE_MIN_WIDTH = 480;
 const SOURCE_CONTROL_DEFAULT_WIDTH = 720;
 
 const DEFAULT_WIDTH = SOURCE_CONTROL_DEFAULT_WIDTH;

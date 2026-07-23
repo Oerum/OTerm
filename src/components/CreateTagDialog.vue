@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onUnmounted, ref, watch } from "vue";
+import { nextTick, ref } from "vue";
 
 const props = withDefaults(
   defineProps<{
@@ -32,30 +32,17 @@ const inputRef = ref<HTMLInputElement | null>(null);
 const fieldClass =
   "w-full min-w-0 rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2.5 py-1.5 text-sm text-[var(--oterm-text)] outline-none transition focus:border-[var(--oterm-accent)]/50 disabled:cursor-not-allowed disabled:opacity-50";
 
-function onKeyDown(event: KeyboardEvent) {
-  if (!props.open) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    emit("cancel");
-  }
-}
+import { useDialogKeyNav } from "../composables/useDialogEscapeFocus";
 
-watch(
+useDialogKeyNav(
   () => props.open,
-  async (isOpen) => {
-    if (isOpen) {
-      window.addEventListener("keydown", onKeyDown);
-      await nextTick();
-      inputRef.value?.focus();
-      inputRef.value?.select();
-    } else {
-      window.removeEventListener("keydown", onKeyDown);
-    }
+  () => emit("cancel"),
+  async () => {
+    await nextTick();
+    inputRef.value?.focus();
+    inputRef.value?.select();
   },
-  { immediate: true },
 );
-
-onUnmounted(() => window.removeEventListener("keydown", onKeyDown));
 </script>
 
 <template>

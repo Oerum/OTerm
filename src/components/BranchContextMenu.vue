@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from "vue";
+import ContextMenuWrapper from "./ContextMenuWrapper.vue";
 import type { BranchRefInfo } from "../types/branchManager";
 
 const props = defineProps<{
@@ -40,86 +41,72 @@ onUnmounted(() => window.removeEventListener("keydown", onKeyDown));
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="open && branch"
-      class="fixed inset-0 z-[100]"
-      @mousedown="emit('close')"
-      @contextmenu.prevent="emit('close')"
+  <ContextMenuWrapper :open="open && Boolean(branch)" :x="x" :y="y" @close="emit('close')">
+    <button
+      type="button"
+      :class="[menuItemClass, 'text-[var(--oterm-text)]']"
+      @click="emit('copyName')"
     >
-      <div
-        class="no-drag absolute min-w-44 rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-elevated)] py-1 shadow-xl"
-        :style="{ left: `${x}px`, top: `${y}px` }"
-        @mousedown.stop
-        @contextmenu.stop.prevent
-      >
-        <button
-          type="button"
-          :class="[menuItemClass, 'text-[var(--oterm-text)]']"
-          @click="emit('copyName')"
-        >
-          Copy name
-        </button>
-        <button
-          type="button"
-          :class="[menuItemClass, 'text-[var(--oterm-text)]']"
-          :disabled="busy || !canSwitch"
-          @click="emit('switch')"
-        >
-          Switch
-        </button>
-        <button
-          v-if="isLocal"
-          type="button"
-          :class="[menuItemClass, 'text-[var(--oterm-text)]']"
-          :disabled="busy"
-          @click="emit('pull')"
-        >
-          Pull
-        </button>
-        <button
-          v-if="isLocal"
-          type="button"
-          :class="[menuItemClass, 'text-[var(--oterm-text)]']"
-          :disabled="busy"
-          @click="emit('push')"
-        >
-          Push
-        </button>
-        <button
-          type="button"
-          :class="[menuItemClass, 'text-[var(--oterm-text)]']"
-          :disabled="busy"
-          @click="emit('fetch')"
-        >
-          Fetch
-        </button>
-        <div class="my-1 border-t border-[var(--oterm-border)]/60" />
-        <button
-          type="button"
-          :class="[menuItemClass, 'text-[var(--oterm-text)]']"
-          :disabled="busy"
-          @click="emit('createFrom')"
-        >
-          Create branch from…
-        </button>
-        <button
-          type="button"
-          :class="[menuItemClass, 'text-[var(--oterm-text)]']"
-          :disabled="busy"
-          @click="emit('merge')"
-        >
-          Merge into…
-        </button>
-        <button
-          type="button"
-          :class="[menuItemClass, 'text-[var(--oterm-danger)]']"
-          :disabled="busy || !canDelete"
-          @click="emit('delete')"
-        >
-          Delete
-        </button>
-      </div>
-    </div>
-  </Teleport>
+      Copy name
+    </button>
+    <button
+      type="button"
+      :class="[menuItemClass, 'text-[var(--oterm-text)]']"
+      :disabled="busy || !canSwitch"
+      @click="emit('switch')"
+    >
+      Switch
+    </button>
+    <button
+      v-if="isLocal"
+      type="button"
+      :class="[menuItemClass, 'text-[var(--oterm-text)]']"
+      :disabled="busy"
+      @click="emit('pull')"
+    >
+      Pull
+    </button>
+    <button
+      v-if="isLocal"
+      type="button"
+      :class="[menuItemClass, 'text-[var(--oterm-text)]']"
+      :disabled="busy"
+      @click="emit('push')"
+    >
+      Push
+    </button>
+    <button
+      type="button"
+      :class="[menuItemClass, 'text-[var(--oterm-text)]']"
+      :disabled="busy"
+      @click="emit('fetch')"
+    >
+      Fetch
+    </button>
+    <div class="my-1 border-t border-[var(--oterm-border)]/60" />
+    <button
+      type="button"
+      :class="[menuItemClass, 'text-[var(--oterm-text)]']"
+      :disabled="busy"
+      @click="emit('createFrom')"
+    >
+      Create branch from…
+    </button>
+    <button
+      type="button"
+      :class="[menuItemClass, 'text-[var(--oterm-text)]']"
+      :disabled="busy"
+      @click="emit('merge')"
+    >
+      Merge into…
+    </button>
+    <button
+      type="button"
+      :class="[menuItemClass, 'text-[var(--oterm-danger)]']"
+      :disabled="busy || !canDelete"
+      @click="emit('delete')"
+    >
+      Delete
+    </button>
+  </ContextMenuWrapper>
 </template>

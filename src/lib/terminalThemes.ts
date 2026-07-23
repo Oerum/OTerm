@@ -136,12 +136,6 @@ export function resolveTerminalTheme(
   };
 }
 
-export function resolveTerminalXtermTheme(
-  themeId: string | null | undefined,
-  customThemes: TerminalTheme[] = [],
-): ITheme {
-  return resolveTerminalTheme(themeId, customThemes).xterm;
-}
 
 export function listAllTerminalThemes(customThemes: TerminalTheme[] = []): TerminalTheme[] {
   const builtinIds = new Set(BUILTIN_TERMINAL_THEMES.map((item) => item.id));

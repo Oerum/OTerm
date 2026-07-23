@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { identityKindForAuth } from "../../lib/sshIdentityDiscovery";
 import { endpointHasNetworkHop } from "../../lib/sshConnectSecrets";
-import { collectAllTags, newId, sortGroups } from "../../lib/sshSftpStore";
+import { collectAllTags, newId, sortSshGroups } from "../../lib/sshSftpStore";
 import { useTerminalAppearanceSettings } from "../../lib/terminalAppearanceSettings";
 import type { SshIdentity } from "../../types/sshIdentity";
 import {
@@ -32,7 +32,7 @@ const emit = defineEmits<{
 const activeTab = ref<"general" | "auth" | "sftp" | "ssh" | "appearance" | "notes">("general");
 const tagInput = ref("");
 
-const groups = computed(() => sortGroups(props.library.groups));
+const groups = computed(() => sortSshGroups(props.library.groups));
 const tagSuggestions = computed(() => collectAllTags(props.library));
 const otherHosts = computed(() =>
   props.library.endpoints.filter((item) => item.id !== props.draft.id),

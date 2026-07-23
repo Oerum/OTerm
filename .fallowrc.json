@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": [
+    "src/main.ts",
+    "scripts/**/*.mjs",
+    "scripts/**/*.test.mjs"
+  ],
+  "ignoreDependencies": [
+    "tailwindcss",
+    "@tauri-apps/cli"
+  ]
+}

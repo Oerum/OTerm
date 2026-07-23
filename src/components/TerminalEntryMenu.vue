@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { ENTRY_COLORS } from "../lib/sidebarEntries";
+import { handleMenuKeyDown } from "../lib/menuKeyboardNav";
+import { useTabColor } from "../composables/useTabColor";
 import type { TerminalEntryColor, TerminalMenuActionId, TerminalSidebarEntry, TerminalTabGroup } from "../types/terminal";
 
 const props = defineProps<{
@@ -21,30 +22,14 @@ const emit = defineEmits<{
 const menuRef = ref<HTMLElement | null>(null);
 const focusIndex = ref(0);
 
-const isCustomColor = computed(() => {
-  return props.entry.tabColor !== "none" && !ENTRY_COLORS.some(c => c.id === props.entry.tabColor);
-});
-
-const customColorHex = computed(() => {
-  if (isCustomColor.value && props.entry.tabColor.startsWith("#") && props.entry.tabColor.length === 7) {
-    return props.entry.tabColor;
-  }
-  return "#00e5ba";
-});
-
-function onColorPickerInput(event: Event) {
-  const value = (event.target as HTMLInputElement).value;
-  emit("colorChange", value);
-}
-
-function onCustomColorTextChange(event: Event) {
-  const value = (event.target as HTMLInputElement).value.trim();
-  if (!value) {
-    emit("colorChange", "none");
-  } else {
-    emit("colorChange", value);
-  }
-}
+const colorRef = computed(() => props.entry.tabColor);
+const {
+  ENTRY_COLORS,
+  isCustomColor,
+  customColorHex,
+  onColorPickerInput,
+  onCustomColorTextChange,
+} = useTabColor(colorRef, (event, val) => emit(event, val));
 
 interface MenuItem {
   id: TerminalMenuActionId;
@@ -114,55 +99,20 @@ function run(actionId: TerminalMenuActionId) {
   emit("action", actionId);
 }
 
+// fallow-ignore-next-line code-duplication
 function onKeyDown(event: KeyboardEvent) {
-  if (!props.open) return;
-
-  if (event.key === "Escape") {
-    event.preventDefault();
-    emit("close");
-    return;
-  }
-
-  const enabled = enabledIndices.value;
-  if (enabled.length === 0) return;
-
-  if (event.key === "ArrowDown") {
-    event.preventDefault();
-    const pos = enabled.indexOf(focusIndex.value);
-    const next = pos === -1 || pos === enabled.length - 1 ? enabled[0] : enabled[pos + 1];
-    focusIndex.value = next;
-    focusItem(next);
-    return;
-  }
-
-  if (event.key === "ArrowUp") {
-    event.preventDefault();
-    const pos = enabled.indexOf(focusIndex.value);
-    const next = pos <= 0 ? enabled[enabled.length - 1] : enabled[pos - 1];
-    focusIndex.value = next;
-    focusItem(next);
-    return;
-  }
-
-  if (event.key === "Home") {
-    event.preventDefault();
-    focusIndex.value = enabled[0];
-    focusItem(enabled[0]);
-    return;
-  }
-
-  if (event.key === "End") {
-    event.preventDefault();
-    focusIndex.value = enabled[enabled.length - 1];
-    focusItem(enabled[enabled.length - 1]);
-    return;
-  }
-
-  if (event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    const item = items.value[focusIndex.value];
-    if (item && !item.disabled) run(item.id);
-  }
+  handleMenuKeyDown(event, {
+    open: props.open,
+    enabledIndices: enabledIndices.value,
+    focusIndex: focusIndex.value,
+    items: items.value,
+    onClose: () => emit("close"),
+    onFocus: (next) => {
+      focusIndex.value = next;
+      focusItem(next);
+    },
+    onRun: (id) => run(id as TerminalMenuActionId),
+  });
 }
 
 function focusItem(index: number) {

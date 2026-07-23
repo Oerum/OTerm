@@ -40,10 +40,23 @@ export async function clipboardHasImage(): Promise<boolean> {
   }
 }
 
+async function getClipboardImageRgba(): Promise<{ data: number[]; width: number; height: number } | null> {
+  if (!isTauri()) return null;
+  try {
+    const image = await tauriReadClipboardImage();
+    const [rgba, size] = await Promise.all([image.rgba(), image.size()]);
+    if (rgba.length === 0 || size.width <= 0 || size.height <= 0) return null;
+    return { data: Array.from(rgba), width: size.width, height: size.height };
+  } catch {
+    return null;
+  }
+}
+
 async function readClipboardImagePath(
   destination: ClipboardImageDestination,
 ): Promise<string | null> {
-  if (!isTauri()) return null;
+  const payload = await getClipboardImageRgba();
+  if (!payload) return null;
 
   const command =
     destination === "composer"
@@ -51,15 +64,7 @@ async function readClipboardImagePath(
       : "fs_write_temp_clipboard_paste_rgba";
 
   try {
-    const image = await tauriReadClipboardImage();
-    const [rgba, size] = await Promise.all([image.rgba(), image.size()]);
-    if (rgba.length === 0 || size.width <= 0 || size.height <= 0) return null;
-
-    return await invoke<string>(command, {
-      data: Array.from(rgba),
-      width: size.width,
-      height: size.height,
-    });
+    return await invoke<string>(command, payload);
   } catch {
     return null;
   }
@@ -96,17 +101,12 @@ export async function clipboardHasPasteableImage(
 export async function saveGeminiClipboardImage(
   projectRoot: string,
 ): Promise<GeminiClipboardImageResult | null> {
-  if (!isTauri()) return null;
+  const payload = await getClipboardImageRgba();
+  if (!payload) return null;
 
   try {
-    const image = await tauriReadClipboardImage();
-    const [rgba, size] = await Promise.all([image.rgba(), image.size()]);
-    if (rgba.length === 0 || size.width <= 0 || size.height <= 0) return null;
-
     return await invoke<GeminiClipboardImageResult>("fs_save_gemini_clipboard_image_rgba", {
-      data: Array.from(rgba),
-      width: size.width,
-      height: size.height,
+      ...payload,
       projectRoot,
     });
   } catch {

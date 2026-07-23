@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useConfirmDialog } from "../composables/useConfirmDialog";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { isActionKeybind } from "../lib/keybindSettings";
@@ -77,15 +78,6 @@ const emit = defineEmits<{
   openSshTerminal: [endpoint: SshEndpoint];
 }>();
 
-type PendingConfirm = {
-  title: string;
-  message: string;
-  confirmLabel?: string;
-  dangerous?: boolean;
-  onConfirm: () => void;
-  onCancel?: () => void;
-};
-
 type PendingPrompt = {
   title: string;
   label: string;
@@ -132,8 +124,7 @@ function clearAllWatches() {
   activeWatches.clear();
 }
 
-const confirmOpen = ref(false);
-const pendingConfirm = ref<PendingConfirm | null>(null);
+const { confirmOpen, pendingConfirm, askConfirm, resolveConfirm } = useConfirmDialog();
 const promptOpen = ref(false);
 const pendingPrompt = ref<PendingPrompt | null>(null);
 const promptValue = ref("");
@@ -341,6 +332,23 @@ async function saveEndpointDraft() {
   }
 }
 
+function resolveSftpSecrets(ep: SshEndpoint, secretsOverride?: ConnectSecrets) {
+  return resolveConnectSecrets(
+    ep,
+    library.value,
+    {
+      askSecret: ({ kind, endpoint: epItem, title, label, defaultSave }) =>
+        askSecret(kind, epItem, title, label, defaultSave),
+      toast: (message, kind) => pushAppToast(message, kind),
+      agentUnsupported: () => {
+        error.value = "SFTP does not support SSH agent auth. Use a key file or password for SFTP.";
+      },
+    },
+    secretsOverride,
+    { context: "sftp" },
+  );
+}
+
 async function testConnection() {
   if (testingConnection.value) return;
 
@@ -358,31 +366,13 @@ async function testConnection() {
   setAppToastActivity("Testing connection…");
   error.value = null;
 
-  try {
+  async function runTest(acceptHostKey: boolean) {
     let inputPassword: string | undefined = draftPassword.value;
     if (inputPassword === "" && draftHasStoredPassword.value) {
       inputPassword = undefined;
     }
-
-    const resolved = await resolveConnectSecrets(
-      endpoint,
-      library.value,
-      {
-        askSecret: ({ kind, endpoint: ep, title, label, defaultSave }) =>
-          askSecret(kind, ep, title, label, defaultSave),
-        toast: (message, kind) => pushAppToast(message, kind),
-        agentUnsupported: () => {
-          error.value = "SFTP does not support SSH agent auth. Use a key file or password for SFTP.";
-        },
-      },
-      { password: inputPassword },
-      { context: "sftp" },
-    );
-    if (!resolved) {
-      testingConnection.value = false;
-      setAppToastActivity(null);
-      return;
-    }
+    const resolved = await resolveSftpSecrets(endpoint, { password: inputPassword });
+    if (!resolved) return false;
 
     const auth = endpointAuthMethod(endpoint);
     const keyPath = endpointKeyPath(endpoint, library.value.identities);
@@ -395,11 +385,17 @@ async function testConnection() {
       password: resolved.password ?? null,
       keyPath,
       keyPassphrase: resolved.keyPassphrase || null,
-      acceptHostKey: false,
+      acceptHostKey,
     });
 
     await sshSftpDisconnect(result.sessionId);
     pushAppToast("Connection successful!", "success");
+    return true;
+  }
+
+  try {
+    const success = await runTest(false);
+    if (!success) return;
   } catch (err) {
     const hostKeyError = parseSshConnectError(err instanceof Error ? err.message : String(err));
     if (hostKeyError?.code === "HOST_KEY_UNKNOWN") {
@@ -411,59 +407,22 @@ async function testConnection() {
           testingConnection.value = true;
           setAppToastActivity("Testing connection…");
           try {
-            let inputPassword: string | undefined = draftPassword.value;
-            if (inputPassword === "" && draftHasStoredPassword.value) {
-              inputPassword = undefined;
-            }
-            const resolved = await resolveConnectSecrets(
-              endpoint,
-              library.value,
-              {
-                askSecret: ({ kind, endpoint: ep, title, label, defaultSave }) =>
-                  askSecret(kind, ep, title, label, defaultSave),
-                toast: (message, kind) => pushAppToast(message, kind),
-                agentUnsupported: () => {
-                  error.value = "SFTP does not support SSH agent auth.";
-                },
-              },
-              { password: inputPassword },
-              { context: "sftp" },
-            );
-            if (resolved) {
-              const auth = endpointAuthMethod(endpoint);
-              const keyPath = endpointKeyPath(endpoint, library.value.identities);
-              const result = await sshSftpConnect({
-                host: endpoint.host,
-                port: endpoint.port,
-                username: endpoint.username,
-                authMethod: auth,
-                password: resolved.password ?? null,
-                keyPath,
-                keyPassphrase: resolved.keyPassphrase || null,
-                acceptHostKey: true,
-              });
-              await sshSftpDisconnect(result.sessionId);
-              pushAppToast("Connection successful!", "success");
-            }
+            await runTest(true);
           } catch (innerErr) {
             const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
             error.value = msg;
-            pushAppToast(`Connection failed: ${msg}`, "error");
+            pushAppToast(msg, "error");
           } finally {
             testingConnection.value = false;
             setAppToastActivity(null);
           }
         },
-        onCancel: () => {
-          testingConnection.value = false;
-          setAppToastActivity(null);
-        }
       });
       return;
     }
     const msg = err instanceof Error ? err.message : String(err);
     error.value = msg;
-    pushAppToast(`Connection failed: ${msg}`, "error");
+    pushAppToast(msg, "error");
   } finally {
     testingConnection.value = false;
     setAppToastActivity(null);
@@ -537,23 +496,6 @@ function resolvePrompt(confirmed: boolean) {
   pendingPrompt.value = null;
   promptValue.value = "";
   if (confirmed && pending && value) pending.onSubmit(value);
-}
-
-function askConfirm(options: PendingConfirm) {
-  if (confirmOpen.value) return;
-  pendingConfirm.value = options;
-  confirmOpen.value = true;
-}
-
-function resolveConfirm(confirmed: boolean) {
-  const pending = pendingConfirm.value;
-  confirmOpen.value = false;
-  pendingConfirm.value = null;
-  if (confirmed) {
-    pending?.onConfirm();
-  } else {
-    pending?.onCancel?.();
-  }
 }
 
 function addGroup() {
@@ -745,20 +687,7 @@ async function connectSftp(endpoint: SshEndpoint, acceptHostKey = false, secrets
     return;
   }
 
-  const resolved = await resolveConnectSecrets(
-    endpoint,
-    library.value,
-    {
-      askSecret: ({ kind, endpoint: ep, title, label, defaultSave }) =>
-        askSecret(kind, ep, title, label, defaultSave),
-      toast: (message, kind) => pushAppToast(message, kind),
-      agentUnsupported: () => {
-        error.value = "SFTP does not support SSH agent auth. Use a key file or password for SFTP.";
-      },
-    },
-    secrets,
-    { context: "sftp" },
-  );
+  const resolved = await resolveSftpSecrets(endpoint, secrets);
   if (!resolved) return;
 
   busy.value = true;

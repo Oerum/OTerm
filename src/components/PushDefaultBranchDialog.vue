@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch } from "vue";
+import { useDialogEscapeFocus } from "../composables/useDialogEscapeFocus";
 
 const props = defineProps<{
   open: boolean;
@@ -12,26 +12,7 @@ const emit = defineEmits<{
   cancel: [];
 }>();
 
-function onKeyDown(event: KeyboardEvent) {
-  if (!props.open) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    emit("cancel");
-  }
-}
-
-watch(
-  () => props.open,
-  (isOpen) => {
-    if (!isOpen) return;
-    window.setTimeout(() => {
-      document.getElementById("push-default-dialog-create")?.focus();
-    }, 0);
-  },
-);
-
-onMounted(() => window.addEventListener("keydown", onKeyDown));
-onUnmounted(() => window.removeEventListener("keydown", onKeyDown));
+useDialogEscapeFocus(() => props.open, () => emit("cancel"), "push-default-dialog-create");
 </script>
 
 <template>

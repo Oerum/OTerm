@@ -1,6 +1,6 @@
 import type { TagRefInfo } from "../types/branchManager";
 
-export interface SemverInfo {
+interface SemverInfo {
   major: number;
   minor: number;
   patch: number;
@@ -8,7 +8,7 @@ export interface SemverInfo {
   isSemver: boolean;
 }
 
-export function parseSemver(str: string): SemverInfo {
+function parseSemver(str: string): SemverInfo {
   // Matches optional 'v' or 'V' prefix, followed by major.minor.patch.
   // Optional pre-release info starting with '-' can follow.
   const match = str.trim().match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-(.+))?$/i);
@@ -30,7 +30,7 @@ export function parseSemver(str: string): SemverInfo {
   };
 }
 
-export function compareTags(a: TagRefInfo, b: TagRefInfo): number {
+function compareTags(a: TagRefInfo, b: TagRefInfo): number {
   const semverA = parseSemver(a.name);
   const semverB = parseSemver(b.name);
 
