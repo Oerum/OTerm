@@ -32,9 +32,16 @@ describe("renderMarkdown", () => {
     expect(html).toContain('rel="noopener noreferrer"');
   });
 
+  it("escapes double quotes in link href to prevent attribute injection", () => {
+    const html = renderMarkdown('[click](<https://example.com?q="test">)');
+    expect(html).not.toContain('href="https://example.com?q="test""');
+    expect(html).toContain('&quot;');
+  });
+
   it("preserves GFM task list checkboxes", () => {
     const html = renderMarkdown("- [x] Done\n- [ ] Todo");
     expect(html).toContain('type="checkbox"');
     expect(html).toContain("checked");
   });
 });
+
