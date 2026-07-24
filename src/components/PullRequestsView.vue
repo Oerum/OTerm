@@ -148,11 +148,18 @@ const timelineItems = computed(() => {
   return items;
 });
 
+// ⚡ Bolt Optimization: Replace chained `filter().length` with single loop
+// Reduces array iterations from 3x to 1x and eliminates temporary array allocations.
 const checksSummary = computed(() => {
   if (checks.value.length === 0) return null;
-  const fail = checks.value.filter((c) => c.bucket === "fail").length;
-  const pass = checks.value.filter((c) => c.bucket === "pass").length;
-  const pending = checks.value.filter((c) => c.bucket === "pending").length;
+  let fail = 0;
+  let pass = 0;
+  let pending = 0;
+  for (const c of checks.value) {
+    if (c.bucket === "fail") fail++;
+    else if (c.bucket === "pass") pass++;
+    else if (c.bucket === "pending") pending++;
+  }
   if (fail > 0) return { label: `${fail} failed`, tone: "fail" as const };
   if (pending > 0) return { label: `${pending} pending`, tone: "pending" as const };
   if (pass > 0) return { label: `${pass} passed`, tone: "pass" as const };
@@ -164,11 +171,17 @@ const reviewsSorted = computed(() => {
   return [...detail.value.reviews].sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
 });
 
+// ⚡ Bolt Optimization: Replace chained `filter().length` with single loop
 const reviewsSummary = computed(() => {
   const reviews = detail.value?.reviews ?? [];
   if (reviews.length === 0) return null;
-  const approved = reviews.filter((r) => r.state.toUpperCase().includes("APPROVED")).length;
-  const changes = reviews.filter((r) => r.state.toUpperCase().includes("CHANGES")).length;
+  let approved = 0;
+  let changes = 0;
+  for (const r of reviews) {
+    const upper = r.state.toUpperCase();
+    if (upper.includes("APPROVED")) approved++;
+    else if (upper.includes("CHANGES")) changes++;
+  }
   if (changes > 0) return { label: `${changes} changes`, tone: "fail" as const };
   if (approved > 0) return { label: `${approved} approved`, tone: "pass" as const };
   return { label: `${reviews.length}`, tone: "neutral" as const };
