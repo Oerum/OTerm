@@ -6,7 +6,7 @@ marked.use({
   breaks: true,
   renderer: {
     link({ href, title, text }) {
-      const safeHref = href ?? "";
+      const safeHref = (href ?? "").replace(/"/g, "&quot;");
       const titleAttr = title ? ` title="${title.replace(/"/g, "&quot;")}"` : "";
       return `<a href="${safeHref}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
     },
