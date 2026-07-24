@@ -1,11 +1,10 @@
-import { ref, watch } from "vue";
 import {
   COMMIT_AI_PROVIDER_PRESETS,
   DEFAULT_COMMIT_AI_SETTINGS,
   type CommitAiProvider,
   type CommitAiSettings,
 } from "../types/commitAi";
-import { getSetting, setSetting } from "./settingsStore";
+import { createPersistedSettings } from "./settingsStore";
 
 const STORAGE_KEY = "oterm:commit-ai-settings";
 const LEGACY_STORAGE_KEY = "oterm:lm-settings";
@@ -16,10 +15,7 @@ function normalizeProvider(value: unknown): CommitAiProvider {
 }
 
 function parseSettings(raw: string): CommitAiSettings {
-  const parsed = JSON.parse(raw) as Partial<CommitAiSettings> & {
-    endpoint?: string;
-    model?: string;
-  };
+  const parsed = JSON.parse(raw) as Partial<CommitAiSettings>;
   const provider = normalizeProvider(parsed.provider);
   const preset = COMMIT_AI_PROVIDER_PRESETS[provider];
   return {
@@ -42,28 +38,15 @@ function defaultSettings(): CommitAiSettings {
   };
 }
 
-const settingsRef = ref<CommitAiSettings>(defaultSettings());
-let hydrated = false;
+const { settingsRef, init: initCommitAiSettings } = createPersistedSettings<CommitAiSettings>({
+  storageKey: STORAGE_KEY,
+  legacyStorageKey: LEGACY_STORAGE_KEY,
+  defaultSettings,
+  parseSettings,
+});
 
-watch(
-  settingsRef,
-  (value) => {
-    if (!hydrated) return;
-    void setSetting(STORAGE_KEY, JSON.stringify(value));
-  },
-  { deep: true },
-);
+export { initCommitAiSettings };
 
-export async function initCommitAiSettings() {
-  try {
-    const raw = getSetting(STORAGE_KEY) ?? getSetting(LEGACY_STORAGE_KEY);
-    settingsRef.value = raw ? parseSettings(raw) : defaultSettings();
-  } catch {
-    settingsRef.value = defaultSettings();
-  } finally {
-    hydrated = true;
-  }
-}
 
 export function useCommitAiSettings() {
   function update(patch: Partial<CommitAiSettings>) {

@@ -164,6 +164,7 @@ async function handleKeydown(event: KeyboardEvent) {
         <button
           v-if="searchQuery"
           class="absolute right-2.5 top-2 text-[var(--oterm-muted)] hover:text-[var(--oterm-text)]"
+          aria-label="Clear search"
           @click="searchQuery = ''"
         >
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

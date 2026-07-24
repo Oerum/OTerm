@@ -22,7 +22,7 @@ export function parentPath(path: string): string {
   return `${sep}${parts.join(sep)}`;
 }
 
-export function assertWithinMaxFileSize(
+function assertWithinMaxFileSize(
   size: number,
   maxFileSizeBytes: number,
   label: string,

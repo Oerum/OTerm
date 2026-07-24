@@ -1,4 +1,3 @@
-import { ref, watch } from "vue";
 import { COMMIT_AI_PROVIDER_PRESETS } from "../types/commitAi";
 import type { CommitAiProvider } from "../types/commitAi";
 import {
@@ -6,7 +5,7 @@ import {
   DEFAULT_TERMINAL_AUTOCOMPLETE_SYSTEM_PROMPT,
   type TerminalAutocompleteSettings,
 } from "../types/terminalAutocomplete";
-import { getSetting, setSetting } from "./settingsStore";
+import { createPersistedSettings, setSetting } from "./settingsStore";
 
 const STORAGE_KEY = "oterm:terminal-autocomplete-settings";
 
@@ -44,28 +43,17 @@ function defaultSettings(): TerminalAutocompleteSettings {
   return { ...DEFAULT_TERMINAL_AUTOCOMPLETE_SETTINGS };
 }
 
-const settingsRef = ref<TerminalAutocompleteSettings>(defaultSettings());
-let hydrated = false;
-
-watch(
+const {
   settingsRef,
-  (value) => {
-    if (!hydrated) return;
-    void setSetting(STORAGE_KEY, JSON.stringify(value));
-  },
-  { deep: true },
-);
+  init: initTerminalAutocompleteSettings,
+  setHydrated,
+} = createPersistedSettings<TerminalAutocompleteSettings>({
+  storageKey: STORAGE_KEY,
+  defaultSettings,
+  parseSettings,
+});
 
-export async function initTerminalAutocompleteSettings() {
-  try {
-    const raw = getSetting(STORAGE_KEY);
-    settingsRef.value = raw ? parseSettings(raw) : defaultSettings();
-  } catch {
-    settingsRef.value = defaultSettings();
-  } finally {
-    hydrated = true;
-  }
-}
+export { initTerminalAutocompleteSettings };
 
 export function useTerminalAutocompleteSettings() {
   function update(patch: Partial<TerminalAutocompleteSettings>) {
@@ -74,9 +62,10 @@ export function useTerminalAutocompleteSettings() {
 
   async function save(value: TerminalAutocompleteSettings): Promise<void> {
     settingsRef.value = { ...value };
-    if (!hydrated) hydrated = true;
+    setHydrated(true);
     await setSetting(STORAGE_KEY, JSON.stringify(settingsRef.value));
   }
 
   return { settings: settingsRef, update, save };
 }
+

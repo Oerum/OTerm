@@ -31,7 +31,7 @@ function encodingEnv(encoding: SshEndpoint["encoding"]): Record<string, string> 
   return { LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" };
 }
 
-export function buildOpenSshArgs(endpoint: SshEndpoint, library: SshSftpLibrary): string[] {
+function buildOpenSshArgs(endpoint: SshEndpoint, library: SshSftpLibrary): string[] {
   const args: string[] = [];
   if (endpoint.port !== 22) args.push("-p", String(endpoint.port));
   if (endpoint.agentForwarding) args.push("-A");
@@ -88,7 +88,7 @@ function buildEnvPrefix(
   return parts.length ? `${parts.join(" ")} ` : "";
 }
 
-export function buildOpenSshCommand(
+function buildOpenSshCommand(
   endpoint: SshEndpoint,
   library: SshSftpLibrary,
   shellId?: string,
@@ -112,7 +112,7 @@ export function buildOpenSshCommand(
   return command;
 }
 
-export function buildMoshCommand(
+function buildMoshCommand(
   endpoint: SshEndpoint,
   library: SshSftpLibrary,
   shellId?: string,

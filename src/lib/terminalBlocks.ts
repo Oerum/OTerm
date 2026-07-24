@@ -77,7 +77,7 @@ export function parseOsc7Payload(payload: string): string | null {
   }
 }
 
-export function stripOutputForHeuristic(text: string): string {
+function stripOutputForHeuristic(text: string): string {
   return text
     .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
     .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
@@ -103,7 +103,7 @@ export function looksLikePowerShellFailure(output: string): boolean {
   );
 }
 
-export function looksLikeCmdFailure(output: string): boolean {
+function looksLikeCmdFailure(output: string): boolean {
   const text = stripOutputForHeuristic(output);
   return (
     /is not recognized as an internal or external command/i.test(text) ||

@@ -38,6 +38,7 @@ import TooltipLayer from "./components/TooltipLayer.vue";
 import AppToastLayer from "./components/AppToastLayer.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
 import { useActiveBranchPr } from "./composables/useActiveBranchPr";
+import { useCreatePullRequestForm } from "./composables/useCreatePullRequestForm";
 import { useCommandPalette } from "./composables/useCommandPalette";
 import { useResizablePanel } from "./composables/useResizablePanel";
 import { useSourceControl } from "./composables/useSourceControl";
@@ -122,7 +123,7 @@ import {
   initCreatePrBranches,
   isGithubPrCapable,
 } from "./lib/createPrFlow";
-import { createPullRequest, detectPrProvider, listPullRequests } from "./lib/pullRequestApi";
+import { detectPrProvider, listPullRequests } from "./lib/pullRequestApi";
 import { shouldSuppressReadyNotification } from "./lib/agentLifecycle";
 import {
   buildTerminalNotificationContent,
@@ -284,15 +285,19 @@ const toolWindowOpen = computed(() => toolWindow.value.openId !== null);
 const toolWindowRepoRoot = computed(() => toolWindow.value.repoRoot);
 const gitRefreshToken = ref(0);
 
-const createPrOpen = ref(false);
 const createPrBannerVisible = ref(false);
-const createPrTitle = ref("");
-const createPrBody = ref("");
-const createPrBase = ref("");
-const createPrHead = ref("");
-const createPrDraft = ref(false);
-const createPrBusy = ref(false);
-const createPrError = ref<string | null>(null);
+const {
+  createPrOpen,
+  createPrTitle,
+  createPrBody,
+  createPrBase,
+  createPrHead,
+  createPrDraft,
+  createPrBusy,
+  createPrError,
+  closeCreatePrDialog,
+  executeSubmitCreatePr,
+} = useCreatePullRequestForm();
 
 const {
   widthPx: sourceControlWidth,
@@ -600,11 +605,6 @@ async function runGitActionWithFeedback(action: () => Promise<void>) {
   }
 }
 
-function closeCreatePrDialog() {
-  createPrOpen.value = false;
-  createPrError.value = null;
-}
-
 function dismissCreatePrBanner() {
   createPrBannerVisible.value = false;
 }
@@ -628,32 +628,12 @@ function openCreatePrDialog() {
 
 async function submitCreatePr() {
   const root = gitRepoRoot.value;
-  if (!root || !createPrTitle.value.trim() || !createPrBase.value || !createPrHead.value) return;
-  if (createPrBase.value === createPrHead.value) {
-    createPrError.value = "Base and compare branches must be different.";
-    return;
-  }
-
-  createPrBusy.value = true;
-  createPrError.value = null;
-  try {
-    await createPullRequest({
-      repoRoot: root,
-      title: createPrTitle.value.trim(),
-      body: createPrBody.value,
-      base: createPrBase.value,
-      head: createPrHead.value,
-      draft: createPrDraft.value,
-    });
-    closeCreatePrDialog();
+  if (!root) return;
+  await executeSubmitCreatePr(root, async () => {
     dismissCreatePrBanner();
     openPullRequests();
     bumpGitBadges();
-  } catch (err) {
-    createPrError.value = err instanceof Error ? err.message : String(err);
-  } finally {
-    createPrBusy.value = false;
-  }
+  });
 }
 
 async function maybeOfferCreatePrAfterPush() {
@@ -1204,28 +1184,34 @@ function resolveSshConfirm(confirmed: boolean) {
   sshConfirmResolve = null;
 }
 
+function initSshTab(shellId: string, endpoint: SshEndpoint) {
+  const tab = createTab(shellId);
+  if (!tab || !isTerminalTab(tab)) return null;
+  const pane = tab.panes[0];
+  if (!pane) return null;
+
+  setTabTitle(tab.id, terminalTabTitle(endpoint));
+  terminalPaneThemes.value = {
+    ...terminalPaneThemes.value,
+    [pane.id]: endpoint.themeId,
+  };
+  return { tab, pane };
+}
+
 async function openSshTerminal(endpoint: SshEndpoint) {
   dismissToolWindow();
   const library = loadSshSftpLibrary();
   const shellId = resolveDefaultShellId();
 
   if (!usesNativeSshTerminal(endpoint)) {
-    const tab = createTab(shellId);
-    if (!tab || !isTerminalTab(tab)) return;
-    const pane = tab.panes[0];
-    if (!pane) return;
-
-    setTabTitle(tab.id, terminalTabTitle(endpoint));
-    terminalPaneThemes.value = {
-      ...terminalPaneThemes.value,
-      [pane.id]: endpoint.themeId,
-    };
+    const res = initSshTab(shellId, endpoint);
+    if (!res) return;
     pendingTerminalCommands.set(
-      pane.id,
+      res.pane.id,
       `${buildTerminalLaunchCommand(endpoint, library, shellId)}\r`,
     );
-    selectTab(tab.id);
-    selectPane(pane.id);
+    selectTab(res.tab.id);
+    selectPane(res.pane.id);
     return;
   }
 
@@ -1244,25 +1230,18 @@ async function openSshTerminal(endpoint: SshEndpoint) {
   }, undefined, { context: "terminal" });
   if (!secrets) return;
 
-  const tab = createTab(shellId);
-  if (!tab || !isTerminalTab(tab)) return;
-  const pane = tab.panes[0];
-  if (!pane) return;
+  const res = initSshTab(shellId, endpoint);
+  if (!res) return;
 
-  setTabTitle(tab.id, terminalTabTitle(endpoint));
-  terminalPaneThemes.value = {
-    ...terminalPaneThemes.value,
-    [pane.id]: endpoint.themeId,
-  };
-  setPaneSshEndpoint(pane.id, endpoint.id);
-  setPendingSshTerminalLaunch(pane.id, {
+  setPaneSshEndpoint(res.pane.id, endpoint.id);
+  setPendingSshTerminalLaunch(res.pane.id, {
     request: buildSshConnectRequest(endpoint, library, secrets, false),
     startupSnippet: endpoint.startupSnippet.trim() || null,
     trustHostKey: (error) => askSshHostKeyTrust(endpoint, error),
   });
 
-  selectTab(tab.id);
-  selectPane(pane.id);
+  selectTab(res.tab.id);
+  selectPane(res.pane.id);
 }
 
 function openDockerContainerTerminal(
@@ -1725,7 +1704,11 @@ function onKeyDown(event: KeyboardEvent) {
     const active = document.activeElement;
     if (root && active instanceof Node && root.contains(active)) {
       consumeAppShortcut(event);
-      dismissSourceControl("escape");
+      if (sourceControlPanelRef.value?.diffExpanded || sourceControlPanelRef.value?.showDiffPane) {
+        sourceControlPanelRef.value.closeDiffPane();
+      } else {
+        dismissSourceControl("escape");
+      }
     }
   }
 }
@@ -2136,14 +2119,12 @@ onUnmounted(() => {
               v-else-if="toolWindow.openId === 'merge' && toolWindowRepoRoot"
               class="flex min-h-0 flex-1"
               :repo-root="toolWindowRepoRoot"
-              :active="true"
               @close="dismissToolWindow"
             />
             <StashManager
               v-else-if="toolWindow.openId === 'stash' && toolWindowRepoRoot"
               class="flex min-h-0 flex-1"
               :repo-root="toolWindowRepoRoot"
-              :active="true"
               @close="dismissToolWindow"
             />
             <AiPreflight
@@ -2154,7 +2135,10 @@ onUnmounted(() => {
               @close="dismissToolWindow"
             />
           </div>
-          <template v-else>
+          <div
+            v-show="!agentsViewOpen && !toolWindowOpen"
+            class="flex min-h-0 flex-1 flex-col"
+          >
             <template v-for="tab in tabs" :key="tab.id">
               <section
                 v-if="tab.kind === 'terminal' && mountedTerminalTabIds.has(tab.id)"
@@ -2172,8 +2156,8 @@ onUnmounted(() => {
                   :session-id="pane.sessionId"
                   :shell-id="pane.shellId"
                   :initial-cwd="pane.cwd"
-                  :active="pane.id === activePaneId"
-                  :tab-active="tab.id === activeTabId"
+                  :active="pane.id === activePaneId && !agentsViewOpen && !toolWindowOpen"
+                  :tab-active="tab.id === activeTabId && !agentsViewOpen && !toolWindowOpen"
                   :active-agent-id="pane.activeAgentId"
                   :theme-id="terminalPaneThemes[pane.id] ?? null"
                   :ssh-endpoint-id="pane.sshEndpointId"
@@ -2293,7 +2277,7 @@ onUnmounted(() => {
                 @close="closeTab(tab.id)"
               />
             </template>
-          </template>
+          </div>
         </main>
 
         <StatusBar

@@ -21,14 +21,7 @@ import type {
 import ConfirmDialog from "./ConfirmDialog.vue";
 import { pushAppToast } from "../lib/appToast";
 import { writeClipboardText } from "../lib/clipboard";
-
-type PendingConfirm = {
-  title: string;
-  message: string;
-  confirmLabel?: string;
-  dangerous?: boolean;
-  onConfirm: () => void;
-};
+import { useConfirmDialog } from "../composables/useConfirmDialog";
 
 const props = defineProps<{
   active?: boolean;
@@ -59,8 +52,7 @@ const error = ref<string | null>(null);
 const selectedContainer = ref<DockerContainer | null>(null);
 const containerLogs = ref("");
 const logsLoading = ref(false);
-const confirmOpen = ref(false);
-const pendingConfirm = ref<PendingConfirm | null>(null);
+const { confirmOpen, pendingConfirm, askConfirm, resolveConfirm } = useConfirmDialog();
 
 const activeTab = ref<"containers" | "images" | "volumes" | "networks">("containers");
 const searchFilter = ref("");
@@ -188,18 +180,6 @@ async function runAction(action: () => Promise<void>, successMessage?: string) {
   } finally {
     busy.value = false;
   }
-}
-
-function askConfirm(options: PendingConfirm) {
-  pendingConfirm.value = options;
-  confirmOpen.value = true;
-}
-
-function resolveConfirm(confirmed: boolean) {
-  const pending = pendingConfirm.value;
-  confirmOpen.value = false;
-  pendingConfirm.value = null;
-  if (confirmed) pending?.onConfirm();
 }
 
 function pruneUnused(kind: DockerPruneKind, title: string, message: string) {

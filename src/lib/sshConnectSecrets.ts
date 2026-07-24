@@ -1,11 +1,10 @@
-import {
+import {
   loadHostPassword,
   loadIdentityPassphrase,
 } from "./sshCredentialStore";
 import {
   endpointAuthMethod,
   endpointKeyPath,
-  type SshAuthMethod,
   type SshConnectRequest,
   type SshEndpoint,
   type SshSftpLibrary,
@@ -137,7 +136,7 @@ export function endpointHasNetworkHop(endpoint: SshEndpoint): boolean {
 }
 
 /** Integrated russh connect (direct TCP), as opposed to external OpenSSH launch. */
-export function usesIntegratedRussh(
+function usesIntegratedRussh(
   endpoint: SshEndpoint,
   context: "sftp" | "terminal",
 ): boolean {
@@ -161,21 +160,4 @@ export function networkHopIntegratedConnectError(
 export function usesNativeSshTerminal(endpoint: SshEndpoint): boolean {
   const auth = endpointAuthMethod(endpoint);
   return endpoint.connectionType === "ssh" && auth !== "agent";
-}
-
-export function authMethodLabel(auth: SshAuthMethod): string {
-  switch (auth) {
-    case "password":
-      return "password";
-    case "publicKey":
-      return "private key";
-    case "certificate":
-      return "certificate";
-    case "agent":
-      return "SSH agent";
-    case "fido2":
-      return "FIDO2";
-    default:
-      return auth;
-  }
 }

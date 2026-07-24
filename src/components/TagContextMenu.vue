@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from "vue";
+import ContextMenuWrapper from "./ContextMenuWrapper.vue";
 import type { TagRefInfo } from "../types/branchManager";
 
 const props = defineProps<{
@@ -35,37 +36,23 @@ onUnmounted(() => window.removeEventListener("keydown", onKeyDown));
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="open && tag"
-      class="fixed inset-0 z-[100]"
-      @mousedown="emit('close')"
-      @contextmenu.prevent="emit('close')"
+  <ContextMenuWrapper :open="open && Boolean(tag)" :x="x" :y="y" @close="emit('close')">
+    <button
+      type="button"
+      :class="[menuItemClass, 'text-[var(--oterm-text)]']"
+      @click="emit('copyName')"
     >
-      <div
-        class="no-drag absolute min-w-44 rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-elevated)] py-1 shadow-xl"
-        :style="{ left: `${x}px`, top: `${y}px` }"
-        @mousedown.stop
-        @contextmenu.stop.prevent
-      >
-        <button
-          type="button"
-          :class="[menuItemClass, 'text-[var(--oterm-text)]']"
-          @click="emit('copyName')"
-        >
-          Copy name
-        </button>
-        <button
-          v-if="hasOrigin"
-          type="button"
-          :class="[menuItemClass, 'text-[var(--oterm-text)]']"
-          :disabled="busy || !canPush"
-          :title="tag.onOrigin ? 'Tag is already on origin' : undefined"
-          @click="emit('push')"
-        >
-          Push to origin
-        </button>
-      </div>
-    </div>
-  </Teleport>
+      Copy name
+    </button>
+    <button
+      v-if="hasOrigin"
+      type="button"
+      :class="[menuItemClass, 'text-[var(--oterm-text)]']"
+      :disabled="busy || !canPush"
+      :title="tag?.onOrigin ? 'Tag is already on origin' : undefined"
+      @click="emit('push')"
+    >
+      Push to origin
+    </button>
+  </ContextMenuWrapper>
 </template>

@@ -1,3 +1,5 @@
+import type { CliAgentId } from "./terminalAgentMode";
+
 /** Shown by agy (and similar TUIs) before the confirming Ctrl+D on Windows ConPTY. */
 const AGENT_EXIT_CONFIRM_PROMPT = /press ctrl\+d again to exit/i;
 
@@ -19,8 +21,19 @@ export function resolveCtrlDTerminalPayload(exitConfirmPending: boolean): string
   return exitConfirmPending ? AGENT_EXIT_CONFIRM_PAYLOAD : "\x04";
 }
 
-export function getMultilineEnterPayload(event: KeyboardEvent): string | null {
+export function getMultilineEnterPayload(
+  event: KeyboardEvent,
+  agentId?: CliAgentId | null,
+): string | null {
   if (event.type !== "keydown" || event.key !== "Enter") return null;
+
+  if (agentId === "codex") {
+    if (event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) {
+      return "\x1b\r";
+    }
+    return null;
+  }
+
   if (event.altKey || event.metaKey) return null;
   if (!event.shiftKey && !event.ctrlKey) return null;
   return "\n";
@@ -34,10 +47,13 @@ export function getCtrlBackspaceWordDeletePayload(event: KeyboardEvent): string 
   return "\x17";
 }
 
-export function getPtyKeyOverride(event: KeyboardEvent): string | null {
+export function getPtyKeyOverride(
+  event: KeyboardEvent,
+  agentId?: CliAgentId | null,
+): string | null {
   return (
     getCtrlDEofPayload(event) ??
-    getMultilineEnterPayload(event) ??
+    getMultilineEnterPayload(event, agentId) ??
     getCtrlBackspaceWordDeletePayload(event)
   );
 }

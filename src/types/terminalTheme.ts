@@ -33,4 +33,3 @@ export type TerminalAppearanceState = {
   customThemes: TerminalTheme[];
 };
 
-export const TERMINAL_THEME_SCHEMA_VERSION = 1 as const;

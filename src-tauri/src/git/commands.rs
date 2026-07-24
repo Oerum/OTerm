@@ -1,13 +1,16 @@
+use super::ai_preflight::run_ai_preflight;
 use super::branches::{
     checkout_detached, cherry_pick_commit, compare_commits, create_branch, create_tag,
     create_worktree, delete_branch, list_branch_refs, list_incoming_outgoing, list_tag_refs,
     list_worktrees, merge_branch, push_tag, read_commit_details, read_commit_graph,
-    remove_worktree, reset_commit,
-    revert_commit, squash_commits, BranchRefInfo, CommitDetails, CommitGraphPage, CompareResult,
-    GitWorktreeInfo, TagRefInfo,
+    remove_worktree, reset_commit, revert_commit, squash_commits, BranchRefInfo, CommitDetails,
+    CommitGraphPage, CompareResult, GitWorktreeInfo, TagRefInfo,
 };
 use super::issues::{
     create_branch_from_issue, list_issues, view_issue, IssueDetail, IssueListFilters, IssueSummary,
+};
+use super::merge::{
+    get_merge_conflicts, parse_conflict_markers, resolve_conflict, ConflictFile, MergeConflictFile,
 };
 use super::pr::{
     checkout_pull_request, comment_on_pull_request, create_pull_request, detect_provider,
@@ -16,11 +19,11 @@ use super::pr::{
     GitHubUserProfile, MergeMethod, PrChangedFile, PrCheck, PrCommit, PrProviderInfo,
     PullRequestDetail, PullRequestSummary,
 };
-use super::rebase::{get_rebase_todo, set_rebase_todo, git_rebase_action, RebaseTodoInfo};
-use super::merge::{get_merge_conflicts, parse_conflict_markers, resolve_conflict, ConflictFile, MergeConflictFile};
-use super::stash::{git_stash_list, git_stash_save, git_stash_apply, git_stash_pop, git_stash_drop, StashInfo};
-use super::ai_preflight::run_ai_preflight;
-use super::sync::{capture_terminal_output, update_gui_state, get_sync_state, TerminalSyncState};
+use super::rebase::{get_rebase_todo, git_rebase_action, set_rebase_todo, RebaseTodoInfo};
+use super::stash::{
+    git_stash_apply, git_stash_drop, git_stash_list, git_stash_pop, git_stash_save, StashInfo,
+};
+use super::sync::{capture_terminal_output, get_sync_state, update_gui_state, TerminalSyncState};
 use super::{
     checkout_branch, commit_changes, fetch_changes, list_branches, pull_changes, push_changes,
     read_log, resolve_file_diff, resolve_git_status, resolve_read_working_file,
@@ -433,7 +436,10 @@ pub async fn git_get_rebase_todo(repo_root: String) -> Result<Vec<RebaseTodoInfo
 }
 
 #[tauri::command]
-pub async fn git_set_rebase_todo(repo_root: String, todos: Vec<RebaseTodoInfo>) -> Result<(), String> {
+pub async fn git_set_rebase_todo(
+    repo_root: String,
+    todos: Vec<RebaseTodoInfo>,
+) -> Result<(), String> {
     blocking_git(move || set_rebase_todo(repo_root, todos)).await
 }
 
@@ -443,7 +449,10 @@ pub async fn git_rebase_action_cmd(repo_root: String, action: String) -> Result<
 }
 
 #[tauri::command]
-pub async fn git_parse_conflict_markers(repo_root: String, file_path: String) -> Result<ConflictFile, String> {
+pub async fn git_parse_conflict_markers(
+    repo_root: String,
+    file_path: String,
+) -> Result<ConflictFile, String> {
     blocking_git(move || parse_conflict_markers(repo_root, file_path)).await
 }
 
@@ -453,7 +462,11 @@ pub async fn git_get_merge_conflicts(repo_root: String) -> Result<Vec<MergeConfl
 }
 
 #[tauri::command]
-pub async fn git_resolve_conflict(repo_root: String, file_path: String, resolved_content: String) -> Result<(), String> {
+pub async fn git_resolve_conflict(
+    repo_root: String,
+    file_path: String,
+    resolved_content: String,
+) -> Result<(), String> {
     blocking_git(move || resolve_conflict(repo_root, file_path, resolved_content)).await
 }
 
@@ -463,7 +476,11 @@ pub async fn git_stash_list_cmd(repo_root: String) -> Result<Vec<StashInfo>, Str
 }
 
 #[tauri::command]
-pub async fn git_stash_save_cmd(repo_root: String, message: String, include_untracked: bool) -> Result<(), String> {
+pub async fn git_stash_save_cmd(
+    repo_root: String,
+    message: String,
+    include_untracked: bool,
+) -> Result<(), String> {
     blocking_git(move || git_stash_save(repo_root, message, include_untracked)).await
 }
 

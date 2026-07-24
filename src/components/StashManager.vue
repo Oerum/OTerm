@@ -8,7 +8,6 @@ const emit = defineEmits<{
 
 const props = defineProps<{
   repoRoot: string | null;
-  active?: boolean;
 }>()
 
 interface StashEntry {

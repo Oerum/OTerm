@@ -63,7 +63,7 @@ mod tests {
         let repo = "test_repo".to_string();
         capture_terminal_output(repo.clone(), "hello".into()).unwrap();
         update_gui_state(repo.clone(), "gui".into()).unwrap();
-        
+
         let state = get_sync_state(repo).unwrap();
         assert!(state.output.contains("hello"));
         assert_eq!(state.gui_state, "gui");

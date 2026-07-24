@@ -33,9 +33,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_ai_preflight_empty() {
-        let dir = std::env::temp_dir().join(format!("ai_preflight_{}", std::time::UNIX_EPOCH.elapsed().unwrap().as_nanos()));
+        let dir = std::env::temp_dir().join(format!(
+            "ai_preflight_{}",
+            std::time::UNIX_EPOCH.elapsed().unwrap().as_nanos()
+        ));
         std::fs::create_dir_all(&dir).unwrap();
-        
+
         std::process::Command::new("git")
             .arg("init")
             .current_dir(&dir)
@@ -47,8 +50,9 @@ mod tests {
             "http://localhost".into(),
             None,
             None,
-            "model".into()
-        ).await;
+            "model".into(),
+        )
+        .await;
 
         assert_eq!(result, Ok("No staged changes to analyze.".into()));
     }

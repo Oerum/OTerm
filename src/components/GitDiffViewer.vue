@@ -365,6 +365,7 @@ function chunkClass(chunk: WordDiffChunk) {
                       type="button"
                       class="diff-gutter-btn diff-gutter-btn--revert"
                       title="Discard change"
+                      aria-label="Discard change"
                       :disabled="sideCellDisabled(row.left)"
                       @click="onSideCellAction(hunk, row.left)"
                     >
@@ -391,6 +392,7 @@ function chunkClass(chunk: WordDiffChunk) {
                       type="button"
                       class="diff-gutter-btn diff-gutter-btn--stage"
                       title="Stage change"
+                      aria-label="Stage change"
                       :disabled="sideCellDisabled(row.left)"
                       @click="onStageLine(hunk, row.left.sourceLineIndex!)"
                     >
@@ -403,6 +405,7 @@ function chunkClass(chunk: WordDiffChunk) {
                       type="button"
                       class="diff-gutter-btn diff-gutter-btn--unstage"
                       title="Unstage change"
+                      aria-label="Unstage change"
                       :disabled="sideCellDisabled(row.left)"
                       @click="onUnstageLine(hunk, row.left.sourceLineIndex!)"
                     >
@@ -444,6 +447,7 @@ function chunkClass(chunk: WordDiffChunk) {
                       type="button"
                       class="diff-gutter-btn diff-gutter-btn--revert"
                       title="Discard change"
+                      aria-label="Discard change"
                       :disabled="sideCellDisabled(row.right)"
                       @click="onSideCellAction(hunk, row.right)"
                     >
@@ -470,6 +474,7 @@ function chunkClass(chunk: WordDiffChunk) {
                       type="button"
                       class="diff-gutter-btn diff-gutter-btn--stage"
                       title="Stage change"
+                      aria-label="Stage change"
                       :disabled="sideCellDisabled(row.right)"
                       @click="onStageLine(hunk, row.right.sourceLineIndex!)"
                     >
@@ -482,6 +487,7 @@ function chunkClass(chunk: WordDiffChunk) {
                       type="button"
                       class="diff-gutter-btn diff-gutter-btn--unstage"
                       title="Unstage change"
+                      aria-label="Unstage change"
                       :disabled="sideCellDisabled(row.right)"
                       @click="onUnstageLine(hunk, row.right.sourceLineIndex!)"
                     >
@@ -539,6 +545,7 @@ function chunkClass(chunk: WordDiffChunk) {
                     type="button"
                     class="diff-gutter-btn diff-gutter-btn--revert"
                     title="Discard change"
+                    aria-label="Discard change"
                     :disabled="lineActionsDisabled(hunk.index, lineIndex)"
                     @click="onRevertLine(hunk, lineIndex)"
                   >
@@ -568,6 +575,7 @@ function chunkClass(chunk: WordDiffChunk) {
                     type="button"
                     class="diff-gutter-btn diff-gutter-btn--stage"
                     title="Stage change"
+                    aria-label="Stage change"
                     :disabled="lineActionsDisabled(hunk.index, lineIndex)"
                     @click="onStageLine(hunk, lineIndex)"
                   >
@@ -580,6 +588,7 @@ function chunkClass(chunk: WordDiffChunk) {
                     type="button"
                     class="diff-gutter-btn diff-gutter-btn--unstage"
                     title="Unstage change"
+                    aria-label="Unstage change"
                     :disabled="lineActionsDisabled(hunk.index, lineIndex)"
                     @click="onUnstageLine(hunk, lineIndex)"
                   >

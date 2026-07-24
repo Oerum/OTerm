@@ -1,3 +1,4 @@
+import { ref, watch, type Ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 
 const MIGRATION_KEYS = [
@@ -60,3 +61,50 @@ export async function setSetting(key: string, value: string): Promise<void> {
   cache.set(key, value);
   await invoke("settings_set", { key, value });
 }
+
+export interface PersistedSettingsOptions<T> {
+  storageKey: string;
+  legacyStorageKey?: string;
+  defaultSettings: () => T;
+  parseSettings: (raw: string) => T;
+  onWatch?: (value: T) => void;
+}
+
+export function createPersistedSettings<T>(options: PersistedSettingsOptions<T>): {
+  settingsRef: Ref<T>;
+  init: () => Promise<void>;
+  setHydrated: (value: boolean) => void;
+} {
+  const settingsRef = ref(options.defaultSettings()) as Ref<T>;
+  let hydrated = false;
+
+  watch(
+    settingsRef,
+    (value) => {
+      if (!hydrated) return;
+      options.onWatch?.(value);
+      void setSetting(options.storageKey, JSON.stringify(value));
+    },
+    { deep: true },
+  );
+
+  async function init() {
+    try {
+      const raw =
+        getSetting(options.storageKey) ??
+        (options.legacyStorageKey ? getSetting(options.legacyStorageKey) : null);
+      settingsRef.value = raw ? options.parseSettings(raw) : options.defaultSettings();
+    } catch {
+      settingsRef.value = options.defaultSettings();
+    } finally {
+      hydrated = true;
+    }
+  }
+
+  function setHydrated(value: boolean) {
+    hydrated = value;
+  }
+
+  return { settingsRef, init, setHydrated };
+}
+

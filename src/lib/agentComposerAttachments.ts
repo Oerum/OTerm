@@ -51,7 +51,7 @@ export function isMediaAttachmentPath(path: string): boolean {
   return MEDIA_EXTENSION_SET.has(ext);
 }
 
-export async function saveClipboardImageAttachment(
+async function saveClipboardImageAttachment(
   file: File,
   destination: ClipboardImageDestination = "composer",
 ): Promise<string | null> {
@@ -111,13 +111,6 @@ export async function readClipboardImagePaths(options?: {
       ? await readComposerClipboardImagePath()
       : await readNativeClipboardImagePath();
   return fromTauri && isMediaAttachmentPath(fromTauri) ? [fromTauri] : [];
-}
-
-/** @deprecated Use readClipboardImagePaths instead. */
-export async function extractClipboardImagePaths(
-  clipboard: DataTransfer | null,
-): Promise<string[]> {
-  return readClipboardImagePaths({ clipboardData: clipboard });
 }
 
 export async function pickMediaAttachmentPaths(): Promise<string[]> {

@@ -16,6 +16,7 @@ import {
 } from "../lib/sourceControlDrafts";
 import CommitAiSettingsDialog from "./CommitAiSettingsDialog.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
+import { useConfirmDialog } from "../composables/useConfirmDialog";
 import type {
   GitCommitEntry,
   GitFileEntry,
@@ -26,18 +27,10 @@ import type {
 import GitCommitGraph from "./GitCommitGraph.vue";
 import GitDiffViewer from "./GitDiffViewer.vue";
 import GitFileEditor from "./GitFileEditor.vue";
-import GitFileLineStats from "./GitFileLineStats.vue";
+import SourceControlFileLabel from "./SourceControlFileLabel.vue";
 
 type PaneView = "diff" | "edit";
 type DiffPanelMode = "list" | "all" | "single";
-
-type PendingConfirm = {
-  title: string;
-  message: string;
-  confirmLabel?: string;
-  dangerous?: boolean;
-  onConfirm: () => void;
-};
 
 const props = defineProps<{
   status: GitSourceControlStatus;
@@ -70,7 +63,6 @@ const emit = defineEmits<{
   "stage-hunk": [path: string, patch: string];
   "unstage-hunk": [path: string, patch: string];
   "diff-expanded-change": [expanded: boolean];
-  "expand-panel": [];
   "open-rebase": [];
   "open-merge": [];
   "open-stash": [];
@@ -106,8 +98,7 @@ const panelFeedback = ref<string | null>(null);
 const panelFeedbackError = ref(false);
 const diffExpanded = ref(false);
 const diffPaneRef = ref<HTMLElement | null>(null);
-const confirmOpen = ref(false);
-const pendingConfirm = ref<PendingConfirm | null>(null);
+const { confirmOpen, pendingConfirm, askConfirm, resolveConfirm } = useConfirmDialog();
 const stagedCollapsed = ref(localStorage.getItem("oterm:sc-staged-collapsed") === "1");
 const changesCollapsed = ref(localStorage.getItem("oterm:sc-changes-collapsed") === "1");
 const untrackedCollapsed = ref(localStorage.getItem("oterm:sc-untracked-collapsed") === "1");
@@ -248,6 +239,9 @@ defineExpose({
   showPanelFeedback,
   clearHunkOperation,
   collapseDiffExpanded: () => setDiffExpanded(false),
+  closeDiffPane,
+  diffExpanded,
+  showDiffPane,
 });
 
 const canCommit = computed(
@@ -330,18 +324,6 @@ const canRevertAll = computed(
     props.status.staged.length > 0 ||
     props.status.untracked.length > 0,
 );
-
-function askConfirm(options: PendingConfirm) {
-  pendingConfirm.value = options;
-  confirmOpen.value = true;
-}
-
-function resolveConfirm(confirmed: boolean) {
-  const pending = pendingConfirm.value;
-  confirmOpen.value = false;
-  pendingConfirm.value = null;
-  if (confirmed) pending?.onConfirm();
-}
 
 function onStageAll() {
   if (stageAllPaths.value.length) emit("stage", stageAllPaths.value);
@@ -812,13 +794,6 @@ watch(
   }
 );
 
-function parseFilePath(path: string) {
-  const parts = path.split("/");
-  const fileName = parts.pop() || "";
-  const dirPath = parts.join("/");
-  return { fileName, dirPath: dirPath ? dirPath + "/" : "" };
-}
-
 function statusBadgeClass(entry: GitFileEntry, staged: boolean) {
   const base = "inline-flex items-center justify-center text-[9px] font-bold leading-none rounded w-5 h-5 shrink-0 select-none border";
   if (entry.untracked) {
@@ -1234,18 +1209,7 @@ function authorInitials(author: string): string {
                 @dblclick="openSingleFileDiff(entry, true, false)"
               >
                 <span :class="statusBadgeClass(entry, true)">{{ statusLabel(entry) }}</span>
-                <div
-                  class="min-w-0 flex-1 py-0.5 flex items-baseline gap-1.5"
-                  style="font-family: var(--oterm-font-ui)"
-                >
-                  <span class="truncate text-sm text-[var(--oterm-text)] font-medium">
-                    {{ parseFilePath(entry.path).fileName }}
-                  </span>
-                  <span class="truncate text-[10px] text-[var(--oterm-faint)]">
-                    {{ parseFilePath(entry.path).dirPath }}
-                  </span>
-                </div>
-                <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />
+                <SourceControlFileLabel :entry="entry" />
                 <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
                   <button
                     type="button"
@@ -1296,18 +1260,7 @@ function authorInitials(author: string): string {
                 @dblclick="openSingleFileDiff(entry, false, false)"
               >
                 <span :class="statusBadgeClass(entry, false)">{{ statusLabel(entry) }}</span>
-                <div
-                  class="min-w-0 flex-1 py-0.5 flex items-baseline gap-1.5"
-                  style="font-family: var(--oterm-font-ui)"
-                >
-                  <span class="truncate text-sm text-[var(--oterm-text)] font-medium">
-                    {{ parseFilePath(entry.path).fileName }}
-                  </span>
-                  <span class="truncate text-[10px] text-[var(--oterm-faint)]">
-                    {{ parseFilePath(entry.path).dirPath }}
-                  </span>
-                </div>
-                <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />
+                <SourceControlFileLabel :entry="entry" />
                 <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
                   <button
                     type="button"
@@ -1368,18 +1321,7 @@ function authorInitials(author: string): string {
                 @dblclick="openSingleFileDiff(entry, false, true)"
               >
                 <span :class="statusBadgeClass(entry, false)">U</span>
-                <div
-                  class="min-w-0 flex-1 py-0.5 flex items-baseline gap-1.5"
-                  style="font-family: var(--oterm-font-ui)"
-                >
-                  <span class="truncate text-sm text-[var(--oterm-text)] font-medium">
-                    {{ parseFilePath(entry.path).fileName }}
-                  </span>
-                  <span class="truncate text-[10px] text-[var(--oterm-faint)]">
-                    {{ parseFilePath(entry.path).dirPath }}
-                  </span>
-                </div>
-                <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />
+                <SourceControlFileLabel :entry="entry" />
                 <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
                   <button
                     type="button"

@@ -1,5 +1,5 @@
-export const MIN_PTY_COLS = 2;
-export const MIN_PTY_ROWS = 2;
+const MIN_PTY_COLS = 2;
+const MIN_PTY_ROWS = 2;
 export const PTY_LAYOUT_WAIT_MAX_FRAMES = 20;
 export const MOUNT_CONTAINER_WAIT_MAX_FRAMES = 8;
 

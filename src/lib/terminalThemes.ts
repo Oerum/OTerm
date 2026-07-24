@@ -42,7 +42,9 @@ export const BUILTIN_TERMINAL_THEMES: TerminalTheme[] = [
     foreground: "#ececec",
     cursor: "#00e5ba",
     cursorAccent: "transparent",
-    selectionBackground: "rgba(0, 229, 186, 0.22)",
+    selectionBackground: "rgba(38, 79, 120, 0.85)",
+    selectionForeground: "#ffffff",
+    selectionInactiveBackground: "rgba(38, 79, 120, 0.45)",
     black: "#0a0a0a",
     red: "#ff5f57",
     green: "#00e5ba",
@@ -66,6 +68,8 @@ export const BUILTIN_TERMINAL_THEMES: TerminalTheme[] = [
     cursor: "#93a1a1",
     cursorAccent: "#002b36",
     selectionBackground: "rgba(147, 161, 161, 0.35)",
+    selectionForeground: "#fdf6e3",
+    selectionInactiveBackground: "rgba(147, 161, 161, 0.20)",
     black: "#073642",
     red: "#dc322f",
     green: "#859900",
@@ -89,6 +93,8 @@ export const BUILTIN_TERMINAL_THEMES: TerminalTheme[] = [
     cursor: "#f8f8f2",
     cursorAccent: "#282a36",
     selectionBackground: "rgba(68, 71, 90, 0.8)",
+    selectionForeground: "#ffffff",
+    selectionInactiveBackground: "rgba(68, 71, 90, 0.45)",
     black: "#21222c",
     red: "#ff5555",
     green: "#50fa7b",
@@ -130,12 +136,6 @@ export function resolveTerminalTheme(
   };
 }
 
-export function resolveTerminalXtermTheme(
-  themeId: string | null | undefined,
-  customThemes: TerminalTheme[] = [],
-): ITheme {
-  return resolveTerminalTheme(themeId, customThemes).xterm;
-}
 
 export function listAllTerminalThemes(customThemes: TerminalTheme[] = []): TerminalTheme[] {
   const builtinIds = new Set(BUILTIN_TERMINAL_THEMES.map((item) => item.id));

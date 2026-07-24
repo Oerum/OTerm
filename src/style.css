@@ -51,6 +51,11 @@
   --diff-remove-text: #f87171;
 }
 
+::selection {
+  background: var(--term-selection-bg, rgba(38, 79, 120, 0.85));
+  color: var(--term-selection-fg, #ffffff);
+}
+
 html,
 body,
 #app {
@@ -86,21 +91,13 @@ body {
   text-rendering: geometricPrecision;
 }
 
-.xterm {
-  padding: 0;
+.xterm,
+.xterm-screen {
+  padding: 0 !important;
 }
 
 .xterm-viewport {
   background: transparent !important;
-}
-
-.xterm-screen {
-  padding-left: 2px;
-}
-
-.terminal-output .xterm-screen {
-  padding-left: 16px;
-  padding-right: 12px;
 }
 
 .xterm .xterm-cursor-layer .xterm-cursor {
@@ -260,6 +257,7 @@ body {
 .terminal-output {
   position: relative;
   overflow: hidden !important;
+  padding: 0 12px;
 }
 
 .terminal-output .xterm {
@@ -439,13 +437,21 @@ input[type="password"]:focus {
 .term-entry-menu,
 .term-group-menu,
 [role="menu"],
-.absolute.border-\[var\(--oterm-border-strong\)\].bg-\[var\(--oterm-elevated\)\] {
-  background: rgba(15, 17, 26, 0.8) !important;
-  backdrop-filter: blur(20px) !important;
+.absolute.border-\[var\(--oterm-border-strong\)\].bg-\[var\(--oterm-elevated\)\],
+.oterm-tooltip {
   border-color: rgba(255, 255, 255, 0.075) !important;
   box-shadow: 
     0 15px 35px -8px rgba(0, 0, 0, 0.7), 
     0 1px 1px 0 rgba(255, 255, 255, 0.05) inset !important;
+}
+
+.app-toast-item,
+.term-entry-menu,
+.term-group-menu,
+[role="menu"],
+.absolute.border-\[var\(--oterm-border-strong\)\].bg-\[var\(--oterm-elevated\)\] {
+  background: rgba(15, 17, 26, 0.8) !important;
+  backdrop-filter: blur(20px) !important;
 }
 
 .oterm-app [role="menu"].branch-switcher-menu {
@@ -455,10 +461,6 @@ input[type="password"]:focus {
 
 .oterm-tooltip {
   background: rgb(15, 17, 26) !important;
-  border-color: rgba(255, 255, 255, 0.075) !important;
-  box-shadow: 
-    0 15px 35px -8px rgba(0, 0, 0, 0.7), 
-    0 1px 1px 0 rgba(255, 255, 255, 0.05) inset !important;
 }
 
 /* Apply premium treatment to Dialogs / Modals */
@@ -502,5 +504,32 @@ input[type="password"]:focus {
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   pointer-events: none;
+}
+
+.pr-header-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--oterm-font-ui);
+  color: var(--oterm-muted);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--oterm-border);
+  cursor: pointer;
+  transition: all 120ms ease;
+  font-weight: 500;
+}
+
+.pr-header-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--oterm-text);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.pr-header-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 

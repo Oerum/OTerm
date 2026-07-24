@@ -157,6 +157,23 @@ export function buildTerminalSidebarSections(
   const terminalTabs = tabs.filter(isTerminalTab);
   const sections: TerminalSidebarSection[] = [];
 
+  function pushTabEntries(tabList: WorkspaceTab[]) {
+    for (const tab of tabList) {
+      if (!isTerminalTab(tab)) continue;
+      const firstPane = tab.panes[0];
+      if (!firstPane) continue;
+      const entry =
+        entriesByTabId.get(tab.id) ??
+        entries.find((item) => item.tabId === tab.id && item.paneId === firstPane.id);
+      if (!entry) continue;
+      sections.push({ kind: "entry", entry });
+      for (const pane of tab.panes.slice(1)) {
+        const splitEntry = entries.find((item) => item.tabId === tab.id && item.paneId === pane.id);
+        if (splitEntry) sections.push({ kind: "entry", entry: splitEntry });
+      }
+    }
+  }
+
   for (const group of sortGroups(groups)) {
     const groupTabs = tabsInGroup(terminalTabs, group.id);
     sections.push({
@@ -167,17 +184,8 @@ export function buildTerminalSidebarSections(
       collapsed: collapsedGroupIds.includes(group.id),
       color: group.color || "none",
     });
-    if (collapsedGroupIds.includes(group.id)) continue;
-    for (const tab of groupTabs) {
-      const firstPane = tab.panes[0];
-      if (!firstPane) continue;
-      const entry = entries.find((item) => item.tabId === tab.id && item.paneId === firstPane.id);
-      if (!entry) continue;
-      sections.push({ kind: "entry", entry });
-      for (const pane of tab.panes.slice(1)) {
-        const splitEntry = entries.find((item) => item.tabId === tab.id && item.paneId === pane.id);
-        if (splitEntry) sections.push({ kind: "entry", entry: splitEntry });
-      }
+    if (!collapsedGroupIds.includes(group.id)) {
+      pushTabEntries(groupTabs);
     }
   }
 
@@ -189,18 +197,7 @@ export function buildTerminalSidebarSections(
         tabCount: looseTabs.length,
       });
     }
-    for (const tab of looseTabs) {
-      const firstPane = tab.panes[0];
-      if (!firstPane) continue;
-      const entry = entriesByTabId.get(tab.id) ??
-        entries.find((item) => item.tabId === tab.id && item.paneId === firstPane.id);
-      if (!entry) continue;
-      sections.push({ kind: "entry", entry });
-      for (const pane of tab.panes.slice(1)) {
-        const splitEntry = entries.find((item) => item.tabId === tab.id && item.paneId === pane.id);
-        if (splitEntry) sections.push({ kind: "entry", entry: splitEntry });
-      }
-    }
+    pushTabEntries(looseTabs);
   }
 
   return sections;

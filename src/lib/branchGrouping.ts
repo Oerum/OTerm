@@ -23,7 +23,7 @@ export function branchSortKey(name: string): string {
   return name.toLowerCase().replace(/[-_.\s]+/g, "");
 }
 
-export function compareBranchNames(a: string, b: string): number {
+function compareBranchNames(a: string, b: string): number {
   const byKey = branchSortKey(a).localeCompare(branchSortKey(b));
   if (byKey !== 0) return byKey;
   return a.localeCompare(b, undefined, { sensitivity: "base" });
@@ -102,7 +102,7 @@ export function groupBranches(refs: BranchRefInfo[]): BranchSectionGroup[] {
   }));
 }
 
-export function matchesBranchFilter(branch: BranchRefInfo, filter: string): boolean {
+function matchesBranchFilter(branch: BranchRefInfo, filter: string): boolean {
   const q = filter.trim().toLowerCase();
   if (!q) return true;
   return branch.name.toLowerCase().includes(q);

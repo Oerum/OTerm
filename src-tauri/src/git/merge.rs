@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use crate::process::git_program;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,13 +32,20 @@ pub struct ConflictSection {
     pub conflict_block: Option<ConflictBlock>,
 }
 
-pub fn parse_conflict_markers(repo_root: String, file_path: String) -> Result<ConflictFile, String> {
-    if PathBuf::from(&file_path).is_absolute() || PathBuf::from(&file_path).components().any(|x| matches!(x, std::path::Component::ParentDir)) {
+pub fn parse_conflict_markers(
+    repo_root: String,
+    file_path: String,
+) -> Result<ConflictFile, String> {
+    if PathBuf::from(&file_path).is_absolute()
+        || PathBuf::from(&file_path)
+            .components()
+            .any(|x| matches!(x, std::path::Component::ParentDir))
+    {
         return Err("Path traversal detected".to_string());
     }
     let path = PathBuf::from(repo_root).join(file_path);
     let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-    
+
     let mut sections = Vec::new();
     let mut current_normal = String::new();
     let mut ours = String::new();
@@ -78,10 +85,22 @@ pub fn parse_conflict_markers(repo_root: String, file_path: String) -> Result<Co
             conflict_state = 0;
         } else {
             match conflict_state {
-                0 => { current_normal.push_str(line); current_normal.push('\n'); },
-                1 => { ours.push_str(line); ours.push('\n'); },
-                2 => { base.as_mut().unwrap().push_str(line); base.as_mut().unwrap().push('\n'); },
-                3 => { theirs.push_str(line); theirs.push('\n'); },
+                0 => {
+                    current_normal.push_str(line);
+                    current_normal.push('\n');
+                }
+                1 => {
+                    ours.push_str(line);
+                    ours.push('\n');
+                }
+                2 => {
+                    base.as_mut().unwrap().push_str(line);
+                    base.as_mut().unwrap().push('\n');
+                }
+                3 => {
+                    theirs.push_str(line);
+                    theirs.push('\n');
+                }
                 _ => {}
             }
         }
@@ -97,8 +116,16 @@ pub fn parse_conflict_markers(repo_root: String, file_path: String) -> Result<Co
     Ok(ConflictFile { sections })
 }
 
-pub fn resolve_conflict(repo_root: String, file_path: String, resolved_content: String) -> Result<(), String> {
-    if PathBuf::from(&file_path).is_absolute() || PathBuf::from(&file_path).components().any(|x| matches!(x, std::path::Component::ParentDir)) {
+pub fn resolve_conflict(
+    repo_root: String,
+    file_path: String,
+    resolved_content: String,
+) -> Result<(), String> {
+    if PathBuf::from(&file_path).is_absolute()
+        || PathBuf::from(&file_path)
+            .components()
+            .any(|x| matches!(x, std::path::Component::ParentDir))
+    {
         return Err("Path traversal detected".to_string());
     }
     let path = PathBuf::from(repo_root).join(file_path);
@@ -109,18 +136,20 @@ pub fn get_merge_conflicts(repo_root: String) -> Result<Vec<MergeConflictFile>, 
     let mut cmd = std::process::Command::new(git_program());
     cmd.current_dir(&repo_root);
     cmd.arg("diff").arg("--name-only").arg("--diff-filter=U");
-    
+
     let out = cmd.output().map_err(|e| e.to_string())?;
     let files_str = String::from_utf8_lossy(&out.stdout);
-    
+
     let mut conflicts = Vec::new();
     for file_path in files_str.lines() {
         let file_path = file_path.trim().to_string();
-        if file_path.is_empty() { continue; }
-        
+        if file_path.is_empty() {
+            continue;
+        }
+
         let path = PathBuf::from(&repo_root).join(&file_path);
         let base_content = std::fs::read_to_string(&path).unwrap_or_default();
-        
+
         if let Ok(parsed) = parse_conflict_markers(repo_root.clone(), file_path.clone()) {
             let mut our_content = String::new();
             let mut their_content = String::new();
@@ -142,7 +171,7 @@ pub fn get_merge_conflicts(repo_root: String) -> Result<Vec<MergeConflictFile>, 
             });
         }
     }
-    
+
     Ok(conflicts)
 }
 
@@ -152,11 +181,19 @@ mod tests {
 
     #[test]
     fn test_parse_conflict_markers() {
-        let dir = std::env::temp_dir().join(format!("merge_test_{}", std::time::UNIX_EPOCH.elapsed().unwrap().as_nanos()));
+        let dir = std::env::temp_dir().join(format!(
+            "merge_test_{}",
+            std::time::UNIX_EPOCH.elapsed().unwrap().as_nanos()
+        ));
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("test.txt"), "start\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\nend\n").unwrap();
+        std::fs::write(
+            dir.join("test.txt"),
+            "start\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\nend\n",
+        )
+        .unwrap();
 
-        let parsed = parse_conflict_markers(dir.to_string_lossy().into_owned(), "test.txt".into()).unwrap();
+        let parsed =
+            parse_conflict_markers(dir.to_string_lossy().into_owned(), "test.txt".into()).unwrap();
         assert_eq!(parsed.sections.len(), 3);
         assert!(parsed.sections[1].is_conflict);
         let block = parsed.sections[1].conflict_block.as_ref().unwrap();

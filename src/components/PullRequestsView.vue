@@ -1286,28 +1286,6 @@ watch(() => props.active, (isActive) => {
 </template>
 
 <style scoped>
-.pr-header-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-family: var(--oterm-font-ui);
-  color: var(--oterm-muted);
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--oterm-border);
-  cursor: pointer;
-  transition: all 120ms ease;
-  font-weight: 500;
-}
-
-.pr-header-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--oterm-text);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
 .pr-header-btn--primary {
   background: var(--oterm-accent-dim);
   border-color: color-mix(in srgb, var(--oterm-accent) 25%, transparent);

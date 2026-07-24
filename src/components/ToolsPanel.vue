@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { openPath } from "@tauri-apps/plugin-opener";
 import ExplorerContextMenu from "./ExplorerContextMenu.vue";
 import TerminalSyncPanel from "./TerminalSyncPanel.vue";
+import FileKindIcon from "./FileKindIcon.vue";
 import {
   getToolsDirectoryHints,
   importEnvFile,
@@ -368,26 +369,6 @@ function onDocumentClick(event: MouseEvent) {
   openWithMenuOpen.value = false;
 }
 
-function getFileExtension(name: string) {
-  const parts = name.split(".");
-  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : "";
-}
-
-function getFileType(name: string, isDir: boolean) {
-  if (isDir) return "dir";
-  const ext = getFileExtension(name);
-  if (["zip", "tar", "gz", "tgz", "rar", "7z", "bz2", "xz"].includes(ext)) {
-    return "archive";
-  }
-  if (["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "mp4", "mkv", "mov", "avi"].includes(ext)) {
-    return "media";
-  }
-  if (["js", "ts", "json", "py", "rs", "go", "c", "cpp", "h", "cs", "java", "sh", "bat", "ps1", "html", "css", "yaml", "yml", "toml", "md", "vue"].includes(ext)) {
-    return "code";
-  }
-  return "file";
-}
-
 function toggleShowHidden() {
   showHidden.value = !showHidden.value;
   void setSetting(SHOW_HIDDEN_KEY, showHidden.value ? "1" : "0");
@@ -662,6 +643,7 @@ onBeforeUnmount(() => {
           v-if="searchQuery" 
           type="button" 
           class="absolute inset-y-0 right-0 flex items-center pr-2 text-[var(--oterm-faint)] hover:text-white"
+          aria-label="Clear search"
           @click="searchQuery = ''"
         >
           ×
@@ -699,27 +681,7 @@ onBeforeUnmount(() => {
       >
         <!-- Icon -->
         <span class="shrink-0 flex items-center justify-center">
-          <svg v-if="getFileType(entry.name, entry.isDir) === 'dir'" class="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-          </svg>
-          <svg v-else-if="getFileType(entry.name, entry.isDir) === 'archive'" class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <line x1="12" y1="3" x2="12" y2="21"/>
-            <path d="M12 7h3M9 11h6M9 15h3"/>
-          </svg>
-          <svg v-else-if="getFileType(entry.name, entry.isDir) === 'media'" class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
-          </svg>
-          <svg v-else-if="getFileType(entry.name, entry.isDir) === 'code'" class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-            <polyline points="16 18 22 12 16 6"/>
-            <polyline points="8 6 2 12 8 18"/>
-          </svg>
-          <svg v-else class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-          </svg>
+          <FileKindIcon :name="entry.name" :is-dir="entry.isDir" />
         </span>
         <span class="min-w-0 flex-1 truncate font-medium" :class="isDotHidden(entry.name) ? 'text-white/60' : 'text-white/90'">{{ entry.name }}</span>
       </button>
@@ -763,27 +725,7 @@ onBeforeUnmount(() => {
         >
           <!-- Icon -->
           <span class="shrink-0 flex items-center justify-center">
-            <svg v-if="getFileType(entry.name, entry.isDir) === 'dir'" class="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-            </svg>
-            <svg v-else-if="getFileType(entry.name, entry.isDir) === 'archive'" class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <line x1="12" y1="3" x2="12" y2="21"/>
-              <path d="M12 7h3M9 11h6M9 15h3"/>
-            </svg>
-            <svg v-else-if="getFileType(entry.name, entry.isDir) === 'media'" class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
-            <svg v-else-if="getFileType(entry.name, entry.isDir) === 'code'" class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-              <polyline points="16 18 22 12 16 6"/>
-              <polyline points="8 6 2 12 8 18"/>
-            </svg>
-            <svg v-else class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-            </svg>
+            <FileKindIcon :name="entry.name" :is-dir="entry.isDir" />
           </span>
           <span class="truncate font-medium" :class="isDotHidden(entry.name) ? 'text-white/60' : 'text-white/90'">{{ entry.name }}</span>
         </button>

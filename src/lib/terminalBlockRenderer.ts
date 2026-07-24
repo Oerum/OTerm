@@ -79,12 +79,6 @@ export class TerminalBlockRenderer {
     }
   }
 
-  setEnabled(enabled: boolean): void {
-    this.enabled = enabled;
-    if (!enabled) this.clearDecorations();
-    else this.scheduleRefresh();
-  }
-
   setAlternateBuffer(active: boolean): void {
     if (this.alternateBufferActive === active) return;
     this.alternateBufferActive = active;
