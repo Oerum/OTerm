@@ -239,6 +239,9 @@ defineExpose({
   showPanelFeedback,
   clearHunkOperation,
   collapseDiffExpanded: () => setDiffExpanded(false),
+  closeDiffPane,
+  diffExpanded,
+  showDiffPane,
 });
 
 const canCommit = computed(

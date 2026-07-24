@@ -1704,7 +1704,11 @@ function onKeyDown(event: KeyboardEvent) {
     const active = document.activeElement;
     if (root && active instanceof Node && root.contains(active)) {
       consumeAppShortcut(event);
-      dismissSourceControl("escape");
+      if (sourceControlPanelRef.value?.diffExpanded || sourceControlPanelRef.value?.showDiffPane) {
+        sourceControlPanelRef.value.closeDiffPane();
+      } else {
+        dismissSourceControl("escape");
+      }
     }
   }
 }

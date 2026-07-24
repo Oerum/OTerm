@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import type { GitCommitEntry } from "../types/git";
 import type { GraphCommit } from "../types/branchManager";
 import {
@@ -55,9 +55,14 @@ const commitContextTarget = ref<string | null>(null);
 const busy = ref(false);
 
 const collapsed = ref(localStorage.getItem(STORAGE_KEY) === "1");
-const commits = ref<GraphCommit[]>([]);
-const incoming = ref<GitCommitEntry[]>([]);
-const outgoing = ref<GitCommitEntry[]>([]);
+
+// ⚡ Bolt Optimization: Use shallowRef for large arrays
+// Ref deeply proxies every property which is a massive bottleneck for thousands
+// of commit objects. shallowRef only tracks the .value reassignment, significantly
+// improving reactivity performance and memory usage.
+const commits = shallowRef<GraphCommit[]>([]);
+const incoming = shallowRef<GitCommitEntry[]>([]);
+const outgoing = shallowRef<GitCommitEntry[]>([]);
 const loading = ref(false);
 const loadingMore = ref(false);
 const hasMore = ref(true);
