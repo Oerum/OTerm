@@ -101,6 +101,7 @@ onMounted(() => {
           <select 
             v-model="item.action" 
             class="rounded-sm border border-transparent bg-transparent px-1.5 py-1 text-xs font-medium text-[var(--oterm-text)] outline-none hover:bg-white/5 focus:border-[var(--oterm-border-strong)] focus:bg-transparent"
+            aria-label="Commit action"
           >
             <option v-for="act in actions" :key="act" :value="act">{{ act }}</option>
           </select>
@@ -109,12 +110,15 @@ onMounted(() => {
             v-model="item.message" 
             class="flex-1 bg-transparent text-sm text-[var(--oterm-text)] outline-none disabled:opacity-40 disabled:cursor-not-allowed placeholder:text-[var(--oterm-faint)]" 
             :disabled="item.action !== 'reword'" 
+            aria-label="Commit message"
           />
           <div class="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
             <button 
               @click="moveUp(index)" 
               :disabled="index === 0"
               class="flex h-5 w-5 items-center justify-center rounded-sm hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent text-[var(--oterm-faint)] hover:text-[var(--oterm-text)]"
+              aria-label="Move up"
+              title="Move up"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg>
             </button>
@@ -122,6 +126,8 @@ onMounted(() => {
               @click="moveDown(index)" 
               :disabled="index === todoList.length - 1"
               class="flex h-5 w-5 items-center justify-center rounded-sm hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent text-[var(--oterm-faint)] hover:text-[var(--oterm-text)]"
+              aria-label="Move down"
+              title="Move down"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
             </button>
