@@ -9,3 +9,7 @@
 ## 2026-07-24 - ShallowRefs for Large Lists
 **Learning:** Large arrays of complex objects in Vue 3 (like thousands of git commits) cause massive reactivity overhead and memory bloat when using `ref`, because Vue deeply proxies every property.
 **Action:** Use `shallowRef` for state variables that hold large lists where the entire array is replaced rather than mutated in-place.
+
+## 2024-11-20 - SVG VDOM Patching Bottleneck on Hover
+**Learning:** In large SVG graphs with thousands of nodes, applying dynamic opacity or stroke widths based on hover state (e.g., `hoveredRowIndex`) causes Vue to re-evaluate and patch every single node on every mouse movement. This leads to severe UI lag.
+**Action:** Use Vue's `v-memo` directive in loops to explicitly declare dependencies for list items. E.g., `v-memo="[hoveredRowIndex === index, hoveredColor === row.color]"`. This instructs Vue to skip re-rendering nodes whose hover state hasn't changed.

@@ -554,6 +554,7 @@ function isSelected(hash: string): boolean {
               <path
                 v-for="(path, pathIndex) in row.paths"
                 :key="`${row.hash}:${pathIndex}`"
+                v-memo="[path, hoveredColor === null, hoveredColor === path.color]"
                 :d="path.d"
                 fill="none"
                 :stroke="path.color"
@@ -566,9 +567,11 @@ function isSelected(hash: string): boolean {
             </template>
 
             <!-- Interactive overlay nodes -->
+            <!-- ⚡ Bolt Optimization: Use v-memo to prevent re-rendering all nodes on hover -->
             <g
               v-for="(row, index) in layout.rows"
               :key="`node:${row.hash}`"
+              v-memo="[row, parsedCommits[index], isSelected(row.hash), hoveredRowIndex === null, hoveredRowIndex === index, hoveredColor === null, hoveredColor === row.color]"
               :opacity="hoveredRowIndex === null || hoveredRowIndex === index || hoveredColor === row.color ? 1 : 0.2"
               class="transition-all duration-150 ease-in-out"
             >
