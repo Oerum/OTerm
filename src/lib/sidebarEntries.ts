@@ -61,75 +61,118 @@ function paneSubtitle(pane: WorkspaceTerminalTab["panes"][number], shellLabel: s
   return `${shellLabel} · ${cwd}`;
 }
 
+type PaneGitInfo = {
+  branch: string | null;
+  isRepo: boolean;
+  changedFiles: number;
+  additions: number;
+  deletions: number;
+  repoRoot: string | null;
+  isWorktree: boolean;
+};
+
+function buildPaneEntry(
+  tab: WorkspaceTerminalTab,
+  pane: WorkspaceTerminalTab["panes"][number],
+  paneIndex: number,
+  tabIndex: number,
+  terminalTabCount: number,
+  labels: Record<string, string>,
+  activeTabId: string | null,
+  activePaneId: string | null,
+  git: PaneGitInfo | undefined,
+): TerminalSidebarEntry {
+  const shellLabel = labels[pane.shellId] ?? "Terminal";
+  const splitIndex = tab.panes.length > 1 ? paneIndex + 1 : null;
+  const baseTitle = isDefaultTabTitle(tab.title, pane.activeAgentId)
+    ? paneDisplayTitle(pane, shellLabel, null)
+    : tab.title;
+  const title = splitIndex ? `${baseTitle} (${splitIndex})` : baseTitle;
+  return {
+    entryId: `${tab.id}:${pane.id}`,
+    tabId: tab.id,
+    paneId: pane.id,
+    title,
+    subtitle: paneSubtitle(pane, shellLabel),
+    splitIndex,
+    shellId: pane.shellId,
+    shellLabel,
+    cwd: pane.cwd,
+    sessionId: pane.sessionId,
+    activeAgentId: pane.activeAgentId,
+    activeProcessName: pane.activeProcessName ?? null,
+    activeProcessCmd: pane.activeProcessCmd ?? null,
+    tabTitle: tab.title,
+    renameDefault: baseTitle,
+    tabColor: tab.color,
+    gitBranch: git?.branch ?? null,
+    gitIsRepo: git?.isRepo ?? false,
+    gitChangedFiles: git?.changedFiles ?? 0,
+    gitAdditions: git?.additions ?? 0,
+    gitDeletions: git?.deletions ?? 0,
+    gitRepoRoot: git?.repoRoot ?? null,
+    gitIsWorktree: git?.isWorktree ?? false,
+    isActive: tab.id === activeTabId && pane.id === activePaneId,
+    hasUnseenNotification: pane.hasUnseenNotification,
+    agentStatus: pane.agentStatus,
+    agentStatusSeen: pane.agentStatusSeen,
+    canMoveUp: tabIndex > 0,
+    canMoveDown: tabIndex < terminalTabCount - 1,
+    entriesBelowCount: terminalTabCount - tabIndex - 1,
+    canCloseOthers: terminalTabCount > 1,
+    terminalTabIndex: tabIndex,
+    isFirstPaneOfTab: paneIndex === 0,
+    groupId: tab.groupId,
+  };
+}
+
 export function buildTerminalEntries(
   tabs: WorkspaceTab[],
   shells: ShellProfile[],
   activeTabId: string | null,
   activePaneId: string | null,
-  gitByPane: Map<
-    string,
-    {
-      branch: string | null;
-      isRepo: boolean;
-      changedFiles: number;
-      additions: number;
-      deletions: number;
-      repoRoot: string | null;
-      isWorktree: boolean;
-    }
-  >,
+  gitByPane: Map<string, PaneGitInfo>,
 ): TerminalSidebarEntry[] {
   const labels = Object.fromEntries(shells.map((shell) => [shell.id, shell.label]));
-
   const terminalTabs = tabs.filter(isTerminalTab);
 
   return terminalTabs.flatMap((tab, tabIndex) =>
-    tab.panes.map((pane, paneIndex) => {
-      const shellLabel = labels[pane.shellId] ?? "Terminal";
-      const splitIndex = tab.panes.length > 1 ? paneIndex + 1 : null;
-      const git = gitByPane.get(pane.id);
-      const baseTitle = isDefaultTabTitle(tab.title, pane.activeAgentId)
-        ? paneDisplayTitle(pane, shellLabel, null)
-        : tab.title;
-      const title = splitIndex ? `${baseTitle} (${splitIndex})` : baseTitle;
-      return {
-        entryId: `${tab.id}:${pane.id}`,
-        tabId: tab.id,
-        paneId: pane.id,
-        title,
-        subtitle: paneSubtitle(pane, shellLabel),
-        splitIndex,
-        shellId: pane.shellId,
-        shellLabel,
-        cwd: pane.cwd,
-        sessionId: pane.sessionId,
-        activeAgentId: pane.activeAgentId,
-        activeProcessName: pane.activeProcessName ?? null,
-        activeProcessCmd: pane.activeProcessCmd ?? null,
-        tabTitle: tab.title,
-        renameDefault: baseTitle,
-        tabColor: tab.color,
-        gitBranch: git?.branch ?? null,
-        gitIsRepo: git?.isRepo ?? false,
-        gitChangedFiles: git?.changedFiles ?? 0,
-        gitAdditions: git?.additions ?? 0,
-        gitDeletions: git?.deletions ?? 0,
-        gitRepoRoot: git?.repoRoot ?? null,
-        gitIsWorktree: git?.isWorktree ?? false,
-        isActive: tab.id === activeTabId && pane.id === activePaneId,
-        hasUnseenNotification: pane.hasUnseenNotification,
-        agentStatus: pane.agentStatus,
-        agentStatusSeen: pane.agentStatusSeen,
-        canMoveUp: tabIndex > 0,
-        canMoveDown: tabIndex < terminalTabs.length - 1,
-        entriesBelowCount: terminalTabs.length - tabIndex - 1,
-        canCloseOthers: terminalTabs.length > 1,
-        terminalTabIndex: tabIndex,
-        isFirstPaneOfTab: paneIndex === 0,
-        groupId: tab.groupId,
-      };
-    }),
+    tab.panes.map((pane, paneIndex) =>
+      buildPaneEntry(
+        tab,
+        pane,
+        paneIndex,
+        tabIndex,
+        terminalTabs.length,
+        labels,
+        activeTabId,
+        activePaneId,
+        gitByPane.get(pane.id),
+      ),
+    ),
   );
+}
+
+function pushTabEntries(
+  tabList: WorkspaceTab[],
+  entries: TerminalSidebarEntry[],
+  entriesByTabId: Map<string, TerminalSidebarEntry>,
+  sections: TerminalSidebarSection[],
+) {
+  for (const tab of tabList) {
+    if (!isTerminalTab(tab)) continue;
+    const firstPane = tab.panes[0];
+    if (!firstPane) continue;
+    const entry =
+      entriesByTabId.get(tab.id) ??
+      entries.find((item) => item.tabId === tab.id && item.paneId === firstPane.id);
+    if (!entry) continue;
+    sections.push({ kind: "entry", entry });
+    for (const pane of tab.panes.slice(1)) {
+      const splitEntry = entries.find((item) => item.tabId === tab.id && item.paneId === pane.id);
+      if (splitEntry) sections.push({ kind: "entry", entry: splitEntry });
+    }
+  }
 }
 
 export function buildTerminalSidebarSections(
@@ -139,40 +182,12 @@ export function buildTerminalSidebarSections(
   shells: ShellProfile[],
   activeTabId: string | null,
   activePaneId: string | null,
-  gitByPane: Map<
-    string,
-    {
-      branch: string | null;
-      isRepo: boolean;
-      changedFiles: number;
-      additions: number;
-      deletions: number;
-      repoRoot: string | null;
-      isWorktree: boolean;
-    }
-  >,
+  gitByPane: Map<string, PaneGitInfo>,
 ): TerminalSidebarSection[] {
   const entries = buildTerminalEntries(tabs, shells, activeTabId, activePaneId, gitByPane);
   const entriesByTabId = new Map(entries.map((entry) => [entry.tabId, entry]));
   const terminalTabs = tabs.filter(isTerminalTab);
   const sections: TerminalSidebarSection[] = [];
-
-  function pushTabEntries(tabList: WorkspaceTab[]) {
-    for (const tab of tabList) {
-      if (!isTerminalTab(tab)) continue;
-      const firstPane = tab.panes[0];
-      if (!firstPane) continue;
-      const entry =
-        entriesByTabId.get(tab.id) ??
-        entries.find((item) => item.tabId === tab.id && item.paneId === firstPane.id);
-      if (!entry) continue;
-      sections.push({ kind: "entry", entry });
-      for (const pane of tab.panes.slice(1)) {
-        const splitEntry = entries.find((item) => item.tabId === tab.id && item.paneId === pane.id);
-        if (splitEntry) sections.push({ kind: "entry", entry: splitEntry });
-      }
-    }
-  }
 
   for (const group of sortGroups(groups)) {
     const groupTabs = tabsInGroup(terminalTabs, group.id);
@@ -185,19 +200,16 @@ export function buildTerminalSidebarSections(
       color: group.color || "none",
     });
     if (!collapsedGroupIds.includes(group.id)) {
-      pushTabEntries(groupTabs);
+      pushTabEntries(groupTabs, entries, entriesByTabId, sections);
     }
   }
 
   const looseTabs = ungroupedTabs(terminalTabs);
   if (looseTabs.length > 0) {
     if (groups.length > 0) {
-      sections.push({
-        kind: "ungrouped-header",
-        tabCount: looseTabs.length,
-      });
+      sections.push({ kind: "ungrouped-header", tabCount: looseTabs.length });
     }
-    pushTabEntries(looseTabs);
+    pushTabEntries(looseTabs, entries, entriesByTabId, sections);
   }
 
   return sections;

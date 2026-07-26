@@ -42,62 +42,74 @@ const RANK: Record<SessionAttention, number> = {
   none: 99,
 };
 
+function resolveAttention(
+  blocked: boolean,
+  working: boolean,
+  hasUnseenNotification: boolean,
+  processCmd: string | null,
+  dirty: boolean,
+): SessionAttention {
+  if (blocked) return "blocked-agent";
+  if (hasUnseenNotification) return "unseen-output";
+  if (working) return "working-agent";
+  if (processCmd) return "running-process";
+  if (dirty) return "dirty-git";
+  return "none";
+}
+
+function resolvePrimaryBadge(
+  attention: SessionAttention,
+  sshEndpointId?: string | null,
+): SessionRadarModel["primaryBadge"] {
+  if (attention === "blocked-agent" || attention === "working-agent") return "agent";
+  if (attention === "running-process") return "process";
+  if (attention === "dirty-git") return "git";
+  if (sshEndpointId) return "ssh";
+  return "none";
+}
+
+function resolveStatusLabel(
+  attention: SessionAttention,
+  entry: SessionRadarInput,
+  processCmd: string | null,
+  withBranch: (label: string) => string,
+): string | null {
+  switch (attention) {
+    case "blocked-agent":
+      return withBranch("blocked");
+    case "working-agent":
+      return withBranch("working");
+    case "unseen-output":
+      return withBranch("new output");
+    case "running-process":
+      return processCmd ? withBranch(processCmd) : null;
+    case "dirty-git":
+      return entry.gitBranch
+        ? `${entry.gitBranch} · ${entry.gitChangedFiles}`
+        : `${entry.gitChangedFiles} changes`;
+    default:
+      return null;
+  }
+}
+
 export function buildSessionRadar(entry: SessionRadarInput): SessionRadarModel {
   const hasAgent = Boolean(entry.activeAgentId);
   const blocked = hasAgent && entry.agentStatus === "blocked";
   const working = hasAgent && entry.agentStatus === "working";
   const processCmd = entry.activeProcessCmd?.trim() || null;
-  const dirty =
-    entry.gitIsRepo && entry.gitChangedFiles > 0;
+  const dirty = entry.gitIsRepo && entry.gitChangedFiles > 0;
 
-  let attention: SessionAttention = "none";
-  if (blocked) attention = "blocked-agent";
-  else if (entry.hasUnseenNotification) attention = "unseen-output";
-  else if (working) attention = "working-agent";
-  else if (processCmd) attention = "running-process";
-  else if (dirty) attention = "dirty-git";
-
-  let primaryBadge: SessionRadarModel["primaryBadge"] = "none";
-  if (attention === "blocked-agent" || attention === "working-agent") {
-    primaryBadge = "agent";
-  } else if (attention === "running-process") {
-    primaryBadge = "process";
-  } else if (attention === "dirty-git") {
-    primaryBadge = "git";
-  } else if (entry.sshEndpointId) {
-    primaryBadge = "ssh";
-  }
+  const attention = resolveAttention(blocked, working, entry.hasUnseenNotification, processCmd, dirty);
+  const primaryBadge = resolvePrimaryBadge(attention, entry.sshEndpointId);
 
   // When a higher attention owns the subtitle, keep branch so git context isn't lost.
   const withBranch = (label: string) =>
     dirty && entry.gitBranch ? `${label} · ${entry.gitBranch}` : label;
 
-  const agentLabel = entry.agentDisplayName?.trim() || null;
-
-  let statusLabel: string | null = null;
-  switch (attention) {
-    case "blocked-agent":
-      statusLabel = withBranch("blocked");
-      break;
-    case "working-agent":
-      statusLabel = withBranch("working");
-      break;
-    case "unseen-output":
-      statusLabel = withBranch("new output");
-      break;
-    case "running-process":
-      statusLabel = processCmd ? withBranch(processCmd) : null;
-      break;
-    case "dirty-git":
-      statusLabel = entry.gitBranch
-        ? `${entry.gitBranch} · ${entry.gitChangedFiles}`
-        : `${entry.gitChangedFiles} changes`;
-      break;
-    default:
-      statusLabel = null;
-  }
+  let statusLabel = resolveStatusLabel(attention, entry, processCmd, withBranch);
 
   // Agent identity in subtitle so the title can stay project/cwd (scannable).
+  const agentLabel = entry.agentDisplayName?.trim() || null;
   if (agentLabel) {
     statusLabel = statusLabel ? `${agentLabel} · ${statusLabel}` : withBranch(agentLabel);
   }

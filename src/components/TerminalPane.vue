@@ -1797,66 +1797,7 @@ async function mountTerminal() {
     emitNotificationIfNeeded(shouldMarkUnseenFromExplicitSignal);
   });
 
-  terminal.attachCustomKeyEventHandler((event) => {
-    const wordDeletePayload = getCtrlBackspaceWordDeletePayload(event);
-    if (wordDeletePayload) {
-      event.preventDefault();
-      return false;
-    }
-
-    const multilineEnterPayload = getMultilineEnterPayload(event, activeAgentId.value);
-    if (multilineEnterPayload) {
-      if (event.type === "keydown") {
-        void forwardTerminalInput(multilineEnterPayload);
-      }
-      event.preventDefault();
-      return false;
-    }
-
-    const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-
-    // Copy shortcut (Ctrl+C / Cmd+C when selection exists)
-    const isCopy = (isMac && event.metaKey && event.key.toLowerCase() === "c" && !event.ctrlKey && !event.altKey) ||
-                   (!isMac && event.ctrlKey && event.key.toLowerCase() === "c" && !event.metaKey && !event.altKey);
-    if (isCopy && terminal && terminal.hasSelection()) {
-      if (event.type === "keydown") {
-        void writeClipboardText(terminal.getSelection()).catch(() => {});
-      }
-      event.preventDefault();
-      return false;
-    }
-
-    if (terminal && isGeminiImagePasteShortcut(event)) {
-      if (event.type === "keydown") {
-        consumeTerminalPaste = true;
-        void handleClipboardPaste(undefined, { fromShortcut: true, geminiAltPaste: true });
-      }
-      event.preventDefault();
-      return false;
-    }
-
-    if (terminal && isTerminalPasteShortcut(event)) {
-      if (event.type === "keydown") {
-        consumeTerminalPaste = true;
-        void handleClipboardPaste(undefined, { fromShortcut: true });
-      }
-      event.preventDefault();
-      return false;
-    }
-
-    if (!suggestion.value || isSshSession.value) return true;
-    if (event.key === "Tab" && !event.shiftKey) {
-      event.preventDefault();
-      void acceptSuggestion();
-      return false;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      clearSuggestion();
-      return false;
-    }
-    return true;
-  });
+  terminal.attachCustomKeyEventHandler((event) => handleCustomTerminalKeyEvent(event));
 
   terminal.onData(async (data) => {
     await forwardTerminalInput(data);
@@ -1874,74 +1815,137 @@ async function mountTerminal() {
   }
 }
 
+function handleTerminalCopyPasteKeys(event: KeyboardEvent): boolean {
+  if (!terminal) return false;
+  const isMac =
+    typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+  const isCopy =
+    (isMac && event.metaKey && event.key.toLowerCase() === "c" && !event.ctrlKey && !event.altKey) ||
+    (!isMac && event.ctrlKey && event.key.toLowerCase() === "c" && !event.metaKey && !event.altKey);
+  if (isCopy && terminal.hasSelection()) {
+    if (event.type === "keydown") {
+      void writeClipboardText(terminal.getSelection()).catch(() => {});
+    }
+    event.preventDefault();
+    return true;
+  }
+  if (isGeminiImagePasteShortcut(event)) {
+    if (event.type === "keydown") {
+      consumeTerminalPaste = true;
+      void handleClipboardPaste(undefined, { fromShortcut: true, geminiAltPaste: true });
+    }
+    event.preventDefault();
+    return true;
+  }
+  if (isTerminalPasteShortcut(event)) {
+    if (event.type === "keydown") {
+      consumeTerminalPaste = true;
+      void handleClipboardPaste(undefined, { fromShortcut: true });
+    }
+    event.preventDefault();
+    return true;
+  }
+  return false;
+}
+
+function handleCustomTerminalKeyEvent(event: KeyboardEvent): boolean {
+  if (getCtrlBackspaceWordDeletePayload(event)) {
+    event.preventDefault();
+    return false;
+  }
+  const multilineEnterPayload = getMultilineEnterPayload(event, activeAgentId.value);
+  if (multilineEnterPayload) {
+    if (event.type === "keydown") {
+      void forwardTerminalInput(multilineEnterPayload);
+    }
+    event.preventDefault();
+    return false;
+  }
+  if (handleTerminalCopyPasteKeys(event)) return false;
+  if (!suggestion.value || isSshSession.value) return true;
+  if (event.key === "Tab" && !event.shiftKey) {
+    event.preventDefault();
+    void acceptSuggestion();
+    return false;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    clearSuggestion();
+    return false;
+  }
+  return true;
+}
+
+function onTerminalOutputEvent(event: { payload: TerminalOutputEvent }) {
+  if (event.payload.sessionId !== activeOutputSessionId() || !terminal) return;
+  hasReceivedTerminalOutput = true;
+  cancelPromptKick();
+  if (sshStartupSnippetPending) {
+    const snippet = sshStartupSnippetPending;
+    sshStartupSnippetPending = null;
+    void writeSession(event.payload.sessionId, `${snippet}\r`);
+  }
+  if (capturingResponse) responseBuffer += event.payload.data;
+  writeTerminalOutput(prepareTerminalOutput(event.payload.data));
+}
+
+function onTerminalExitEvent(event: { payload: TerminalExitEvent }) {
+  if (disposed) return;
+  if (intentionallyKilledSessions.has(event.payload.sessionId)) {
+    intentionallyKilledSessions.delete(event.payload.sessionId);
+    return;
+  }
+  const activeSessionId =
+    backendSessionId.value ?? localSessionId.value ?? bootstrappingSessionId;
+  if (event.payload.sessionId !== activeSessionId || !terminal) return;
+
+  disposed = true;
+  sessionEndedLocally.value = true;
+  bootstrapGeneration += 1;
+  pendingBootstrapInput.length = 0;
+  window.clearTimeout(sshExitFallbackTimer);
+  clearPendingAgentExitMarker();
+  const endedAgentId = activeAgentId.value;
+  if (endedAgentId) {
+    notifyAgentEnded(props.paneId, endedAgentId, "session_ended", {
+      exitCode: event.payload.exitCode,
+    });
+  }
+  resetAgentStatusTracking();
+  setActiveAgent(null);
+  agentExitConfirmPending.value = false;
+  promptClearSuppressUntil.value = 0;
+  tuiModeActive.value = false;
+  clearPathDecorations();
+  localSessionId.value = null;
+  backendSessionId.value = null;
+  bootstrappingSessionId = null;
+  bootstrapComplete.value = false;
+  void killBackendSessionIfPresent(event.payload.sessionId);
+  emit("oscTitleChanged", props.paneId, null);
+  emit("sessionEnded", props.paneId);
+}
+
+async function bindTerminalEventListeners() {
+  const [outputListener, exitListener] = await Promise.all([
+    listen<TerminalOutputEvent>("terminal-output", onTerminalOutputEvent),
+    listen<TerminalExitEvent>("terminal-exit", onTerminalExitEvent),
+  ]);
+  if (disposed) {
+    outputListener();
+    exitListener();
+    return;
+  }
+  unlistenOutput = outputListener;
+  unlistenExit = exitListener;
+}
+
 async function setupTerminalEventListeners() {
   if (unlistenOutput && unlistenExit) return;
   if (eventListenersSetup) return eventListenersSetup;
-
-  eventListenersSetup = (async () => {
-    const [outputListener, exitListener] = await Promise.all([
-      listen<TerminalOutputEvent>("terminal-output", (event) => {
-        if (event.payload.sessionId !== activeOutputSessionId() || !terminal) return;
-        hasReceivedTerminalOutput = true;
-        cancelPromptKick();
-        if (sshStartupSnippetPending) {
-          const snippet = sshStartupSnippetPending;
-          sshStartupSnippetPending = null;
-          void writeSession(event.payload.sessionId, `${snippet}\r`);
-        }
-        if (capturingResponse) responseBuffer += event.payload.data;
-        writeTerminalOutput(prepareTerminalOutput(event.payload.data));
-      }),
-      listen<TerminalExitEvent>("terminal-exit", (event) => {
-        if (disposed) return;
-        if (intentionallyKilledSessions.has(event.payload.sessionId)) {
-          intentionallyKilledSessions.delete(event.payload.sessionId);
-          return;
-        }
-        const activeSessionId =
-          backendSessionId.value ?? localSessionId.value ?? bootstrappingSessionId;
-        if (event.payload.sessionId !== activeSessionId || !terminal) return;
-
-        disposed = true;
-        sessionEndedLocally.value = true;
-        bootstrapGeneration += 1;
-        pendingBootstrapInput.length = 0;
-        window.clearTimeout(sshExitFallbackTimer);
-        clearPendingAgentExitMarker();
-        const endedAgentId = activeAgentId.value;
-        if (endedAgentId) {
-          notifyAgentEnded(props.paneId, endedAgentId, "session_ended", {
-            exitCode: event.payload.exitCode,
-          });
-        }
-        resetAgentStatusTracking();
-        setActiveAgent(null);
-        agentExitConfirmPending.value = false;
-        promptClearSuppressUntil.value = 0;
-        tuiModeActive.value = false;
-        clearPathDecorations();
-        localSessionId.value = null;
-        backendSessionId.value = null;
-        bootstrappingSessionId = null;
-        bootstrapComplete.value = false;
-        void killBackendSessionIfPresent(event.payload.sessionId);
-        emit("oscTitleChanged", props.paneId, null);
-        emit("sessionEnded", props.paneId);
-      }),
-    ]);
-
-    if (disposed) {
-      outputListener();
-      exitListener();
-      return;
-    }
-
-    unlistenOutput = outputListener;
-    unlistenExit = exitListener;
-  })().finally(() => {
+  eventListenersSetup = bindTerminalEventListeners().finally(() => {
     eventListenersSetup = null;
   });
-
   return eventListenersSetup;
 }
 

@@ -266,6 +266,40 @@ function editSelectedEndpoint() {
   void startEditEndpoint(endpoint);
 }
 
+function draftSaveValidationError(next: SshEndpoint): string | null {
+  if (!next.label.trim() || !next.host.trim() || !next.username.trim()) {
+    return "Label, host, and username are required.";
+  }
+  if (
+    next.auth.method === "password" &&
+    next.auth.savePassword &&
+    !draftPassword.value &&
+    !draftHasStoredPassword.value
+  ) {
+    return "Enter a password or disable “Save password in OS credential store”.";
+  }
+  return null;
+}
+
+async function persistDraftPassword(next: SshEndpoint): Promise<string | null> {
+  if (next.auth.method !== "password") {
+    await deleteHostPassword(next.id).catch(() => undefined);
+    return null;
+  }
+  if (!next.auth.savePassword) {
+    await deleteHostPassword(next.id).catch(() => undefined);
+    return null;
+  }
+  if (draftPassword.value) {
+    await saveHostPassword(next.id, draftPassword.value);
+    return null;
+  }
+  if (!draftHasStoredPassword.value) {
+    return "Enter a password to store in the OS credential store.";
+  }
+  return null;
+}
+
 async function saveEndpointDraft() {
   if (savingDraft.value) return;
 
@@ -274,48 +308,23 @@ async function saveEndpointDraft() {
 
   try {
     const next = cloneSshEndpoint(draft.value);
-    if (!next.label.trim() || !next.host.trim() || !next.username.trim()) {
-      const message = "Label, host, and username are required.";
-      error.value = message;
-      pushAppToast(message, "error");
+    const validationError = draftSaveValidationError(next);
+    if (validationError) {
+      error.value = validationError;
+      pushAppToast(validationError, "error");
       return;
     }
-    if (next.auth.method === "password" && next.auth.savePassword) {
-      const password = draftPassword.value;
-      if (!password && !draftHasStoredPassword.value) {
-        const message = "Enter a password or disable “Save password in OS credential store”.";
-        error.value = message;
-        pushAppToast(message, "error");
-        return;
-      }
-    }
-
-    const passwordToStore = draftPassword.value;
-
-    if (next.auth.method === "password") {
-      if (next.auth.savePassword) {
-        if (passwordToStore) {
-          await saveHostPassword(next.id, passwordToStore);
-        } else if (!draftHasStoredPassword.value) {
-          const message = "Enter a password to store in the OS credential store.";
-          error.value = message;
-          pushAppToast(message, "error");
-          return;
-        }
-      } else {
-        await deleteHostPassword(next.id).catch(() => undefined);
-      }
-    } else {
-      await deleteHostPassword(next.id).catch(() => undefined);
+    const passwordError = await persistDraftPassword(next);
+    if (passwordError) {
+      error.value = passwordError;
+      pushAppToast(passwordError, "error");
+      return;
     }
 
     const idx = library.value.endpoints.findIndex((e) => e.id === next.id);
     const isNew = idx < 0;
-    if (idx >= 0) {
-      library.value.endpoints[idx] = next;
-    } else {
-      library.value.endpoints.push(next);
-    }
+    if (idx >= 0) library.value.endpoints[idx] = next;
+    else library.value.endpoints.push(next);
 
     persist();
     selectedEndpointId.value = next.id;
@@ -384,6 +393,38 @@ function resolveSftpSecrets(ep: SshEndpoint, secretsOverride?: ConnectSecrets) {
   );
 }
 
+async function runSftpConnectionTest(
+  endpoint: SshEndpoint,
+  acceptHostKey: boolean,
+): Promise<boolean> {
+  let inputPassword: string | undefined = draftPassword.value;
+  if (inputPassword === "" && draftHasStoredPassword.value) {
+    inputPassword = undefined;
+  }
+  const resolved = await resolveSftpSecrets(endpoint, { password: inputPassword });
+  if (!resolved) return false;
+
+  const result = await sshSftpConnect(buildSftpConnectRequest(endpoint, resolved, acceptHostKey));
+  await sshSftpDisconnect(result.sessionId);
+  pushAppToast("Connection successful!", "success");
+  return true;
+}
+
+async function retryTestWithHostKeyTrust(endpoint: SshEndpoint) {
+  testingConnection.value = true;
+  setAppToastActivity("Testing connection…");
+  try {
+    await runSftpConnectionTest(endpoint, true);
+  } catch (innerErr) {
+    const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
+    error.value = msg;
+    pushAppToast(msg, "error");
+  } finally {
+    testingConnection.value = false;
+    setAppToastActivity(null);
+  }
+}
+
 async function testConnection() {
   if (testingConnection.value) return;
 
@@ -401,41 +442,11 @@ async function testConnection() {
   setAppToastActivity("Testing connection…");
   error.value = null;
 
-  async function runTest(acceptHostKey: boolean) {
-    let inputPassword: string | undefined = draftPassword.value;
-    if (inputPassword === "" && draftHasStoredPassword.value) {
-      inputPassword = undefined;
-    }
-    const resolved = await resolveSftpSecrets(endpoint, { password: inputPassword });
-    if (!resolved) return false;
-
-    const result = await sshSftpConnect(buildSftpConnectRequest(endpoint, resolved, acceptHostKey));
-
-    await sshSftpDisconnect(result.sessionId);
-    pushAppToast("Connection successful!", "success");
-    return true;
-  }
-
   try {
-    const success = await runTest(false);
+    const success = await runSftpConnectionTest(endpoint, false);
     if (!success) return;
   } catch (err) {
-    if (
-      askUnknownHostKeyTrust(endpoint, err, "test", async () => {
-        testingConnection.value = true;
-        setAppToastActivity("Testing connection…");
-        try {
-          await runTest(true);
-        } catch (innerErr) {
-          const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
-          error.value = msg;
-          pushAppToast(msg, "error");
-        } finally {
-          testingConnection.value = false;
-          setAppToastActivity(null);
-        }
-      })
-    ) {
+    if (askUnknownHostKeyTrust(endpoint, err, "test", () => retryTestWithHostKeyTrust(endpoint))) {
       return;
     }
     const msg = err instanceof Error ? err.message : String(err);

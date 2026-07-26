@@ -86,20 +86,27 @@ const renamingEntryId = ref<string | null>(null);
 const renamingGroupId = ref<string | null>(null);
 const renamingGroupDraft = ref("");
 const toastMessage = ref<string | null>(null);
-const gitByPane = ref(
-  new Map<
-    string,
-    {
-      branch: string | null;
-      isRepo: boolean;
-      changedFiles: number;
-      additions: number;
-      deletions: number;
-      repoRoot: string | null;
-      isWorktree: boolean;
-    }
-  >(),
-);
+type PaneGitInfo = {
+  branch: string | null;
+  isRepo: boolean;
+  changedFiles: number;
+  additions: number;
+  deletions: number;
+  repoRoot: string | null;
+  isWorktree: boolean;
+};
+
+const EMPTY_PANE_GIT: PaneGitInfo = {
+  branch: null,
+  isRepo: false,
+  changedFiles: 0,
+  additions: 0,
+  deletions: 0,
+  repoRoot: null,
+  isWorktree: false,
+};
+
+const gitByPane = ref(new Map<string, PaneGitInfo>());
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const featureEntries = computed(() =>
@@ -247,10 +254,10 @@ function showToast(message: string) {
   }, 1800);
 }
 
-async function refreshGitForPane(paneId: string, cwd: string) {
+async function fetchPaneGit(cwd: string): Promise<PaneGitInfo> {
   try {
     const status = await getGitStatus(cwd === "~" ? undefined : cwd);
-    gitByPane.value.set(paneId, {
+    return {
       branch: status.branch,
       isRepo: status.isRepo,
       changedFiles: status.changedFiles,
@@ -258,20 +265,15 @@ async function refreshGitForPane(paneId: string, cwd: string) {
       deletions: status.deletions,
       repoRoot: status.repoRoot ?? null,
       isWorktree: status.isWorktree ?? false,
-    });
-    gitByPane.value = new Map(gitByPane.value);
+    };
   } catch {
-    gitByPane.value.set(paneId, {
-      branch: null,
-      isRepo: false,
-      changedFiles: 0,
-      additions: 0,
-      deletions: 0,
-      repoRoot: null,
-      isWorktree: false,
-    });
-    gitByPane.value = new Map(gitByPane.value);
+    return { ...EMPTY_PANE_GIT };
   }
+}
+
+async function refreshGitForPane(paneId: string, cwd: string) {
+  gitByPane.value.set(paneId, await fetchPaneGit(cwd));
+  gitByPane.value = new Map(gitByPane.value);
 }
 
 async function refreshGitForAllPanes() {
@@ -279,49 +281,14 @@ async function refreshGitForAllPanes() {
   for (const tab of props.tabs) {
     if (!isTerminalTab(tab)) continue;
     for (const pane of tab.panes) {
-      if (pane.cwd) {
-        cwds.add(pane.cwd);
-      }
+      if (pane.cwd) cwds.add(pane.cwd);
     }
   }
 
-  const results = new Map<
-    string,
-    {
-      branch: string | null;
-      isRepo: boolean;
-      changedFiles: number;
-      additions: number;
-      deletions: number;
-      repoRoot: string | null;
-      isWorktree: boolean;
-    }
-  >();
-
+  const results = new Map<string, PaneGitInfo>();
   await Promise.all(
     Array.from(cwds).map(async (cwd) => {
-      try {
-        const status = await getGitStatus(cwd === "~" ? undefined : cwd);
-        results.set(cwd, {
-          branch: status.branch,
-          isRepo: status.isRepo,
-          changedFiles: status.changedFiles,
-          additions: status.additions,
-          deletions: status.deletions,
-          repoRoot: status.repoRoot ?? null,
-          isWorktree: status.isWorktree ?? false,
-        });
-      } catch {
-        results.set(cwd, {
-          branch: null,
-          isRepo: false,
-          changedFiles: 0,
-          additions: 0,
-          deletions: 0,
-          repoRoot: null,
-          isWorktree: false,
-        });
-      }
+      results.set(cwd, await fetchPaneGit(cwd));
     }),
   );
 
@@ -329,9 +296,7 @@ async function refreshGitForAllPanes() {
     if (!isTerminalTab(tab)) continue;
     for (const pane of tab.panes) {
       const res = results.get(pane.cwd);
-      if (res) {
-        gitByPane.value.set(pane.id, res);
-      }
+      if (res) gitByPane.value.set(pane.id, res);
     }
   }
   gitByPane.value = new Map(gitByPane.value);
@@ -432,6 +397,41 @@ function findEntry(entryId: string) {
   return terminalEntries.value.find((item) => item.entryId === entryId);
 }
 
+function closeTabsRelativeTo(
+  entry: TerminalSidebarEntryModel,
+  mode: "other" | "below",
+) {
+  openMenuEntryId.value = null;
+  if (mode === "other") {
+    const ids = props.tabs.filter((tab) => tab.id !== entry.tabId).map((tab) => tab.id);
+    if (ids.length) emit("closeMany", ids);
+    return;
+  }
+  const index = props.tabs.findIndex((tab) => tab.id === entry.tabId);
+  if (index === -1) return;
+  const ids = props.tabs.slice(index + 1).map((tab) => tab.id);
+  if (ids.length) emit("closeMany", ids);
+}
+
+function saveEntryAsProfile(entry: TerminalSidebarEntryModel) {
+  openMenuEntryId.value = null;
+  emit("saveProfile", {
+    label: entry.title,
+    shellId: entry.shellId,
+    cwd: entry.cwd,
+    color: entry.tabColor,
+  });
+  showToast(`Saved profile "${entry.title}"`);
+}
+
+function splitEntryPane(entry: TerminalSidebarEntryModel) {
+  emit("select", entry.tabId, entry.paneId);
+  nextTick(() => {
+    emit("split", entry.shellId);
+  });
+  openMenuEntryId.value = null;
+}
+
 async function onEntryAction(entryId: string, actionId: TerminalMenuActionId) {
   const entry = findEntry(entryId);
   if (!entry) return;
@@ -452,11 +452,10 @@ async function onEntryAction(entryId: string, actionId: TerminalMenuActionId) {
     case "copy-working-directory":
       await copyText(entry.cwd, "Copied working directory");
       break;
-    case "rename-tab": {
+    case "rename-tab":
       openMenuEntryId.value = null;
       renamingEntryId.value = entryId;
       break;
-    }
     case "move-up":
       emit("moveTab", entry.tabId, "up");
       openMenuEntryId.value = null;
@@ -469,39 +468,18 @@ async function onEntryAction(entryId: string, actionId: TerminalMenuActionId) {
       openMenuEntryId.value = null;
       emit("close", entry.tabId);
       break;
-    case "close-other-tabs": {
-      openMenuEntryId.value = null;
-      const ids = props.tabs.filter((tab) => tab.id !== entry.tabId).map((tab) => tab.id);
-      if (ids.length) emit("closeMany", ids);
+    case "close-other-tabs":
+      closeTabsRelativeTo(entry, "other");
       break;
-    }
-    case "close-tabs-below": {
-      openMenuEntryId.value = null;
-      const index = props.tabs.findIndex((tab) => tab.id === entry.tabId);
-      if (index === -1) break;
-      const ids = props.tabs.slice(index + 1).map((tab) => tab.id);
-      if (ids.length) emit("closeMany", ids);
+    case "close-tabs-below":
+      closeTabsRelativeTo(entry, "below");
       break;
-    }
-    case "save-as-profile": {
-      openMenuEntryId.value = null;
-      emit("saveProfile", {
-        label: entry.title,
-        shellId: entry.shellId,
-        cwd: entry.cwd,
-        color: entry.tabColor,
-      });
-      showToast(`Saved profile "${entry.title}"`);
+    case "save-as-profile":
+      saveEntryAsProfile(entry);
       break;
-    }
-    case "split-pane": {
-      emit("select", entry.tabId, entry.paneId);
-      nextTick(() => {
-        emit("split", entry.shellId);
-      });
-      openMenuEntryId.value = null;
+    case "split-pane":
+      splitEntryPane(entry);
       break;
-    }
   }
 }
 

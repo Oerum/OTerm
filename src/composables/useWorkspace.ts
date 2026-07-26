@@ -20,6 +20,71 @@ function uid(prefix: string) {
   return `${prefix}-${nextId++}`;
 }
 
+function restoreGroupsFromSnapshot(snapshot: PersistedTerminalWorkspaceV2): TerminalTabGroup[] {
+  return sortGroups(
+    snapshot.groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      order: group.order,
+      color: group.color || "none",
+      worktreeBasePath: group.worktreeBasePath ?? null,
+    })),
+  );
+}
+
+function restoreTabsFromSnapshot(
+  snapshot: PersistedTerminalWorkspaceV2,
+  validGroupIds: Set<string>,
+  resolveShellId: (shellId: string) => string,
+): WorkspaceTerminalTab[] {
+  return snapshot.tabs.map((saved) => {
+    const panes = saved.panes.map((savedPane) => ({
+      id: uid("pane"),
+      sessionId: null,
+      bootstrappingSessionId: null,
+      shellId: resolveShellId(savedPane.shellId),
+      cwd: savedPane.cwd,
+      customTitle: savedPane.customTitle,
+      activeAgentId: null,
+      oscTitle: null,
+      hasUnseenNotification: false,
+      agentStatus: "unknown" as const,
+      agentStatusSeen: true,
+      sshEndpointId: savedPane.sshEndpointId ?? null,
+    }));
+    const groupId =
+      saved.groupId && validGroupIds.has(saved.groupId) ? saved.groupId : null;
+    return {
+      kind: "terminal" as const,
+      id: uid("tab"),
+      title: saved.title,
+      color: saved.color,
+      groupId,
+      split: saved.split,
+      panes,
+    };
+  });
+}
+
+function activeFocusFromSnapshot(
+  snapshot: PersistedTerminalWorkspaceV2,
+  restoredTabs: WorkspaceTerminalTab[],
+): { activeTab: WorkspaceTerminalTab; activePaneId: string | null } {
+  const activeTabIndex = Math.max(
+    0,
+    Math.min(snapshot.activeTabIndex, restoredTabs.length - 1),
+  );
+  const activeTab = restoredTabs[activeTabIndex]!;
+  const activePaneIndex = Math.max(
+    0,
+    Math.min(snapshot.activePaneIndex, activeTab.panes.length - 1),
+  );
+  return {
+    activeTab,
+    activePaneId: activeTab.panes[activePaneIndex]?.id ?? null,
+  };
+}
+
 export function useWorkspace(getDefaultShellId: () => string) {
   const shells = ref<ShellProfile[]>([]);
   const tabs = ref<WorkspaceTab[]>([]);
@@ -734,65 +799,20 @@ export function useWorkspace(getDefaultShellId: () => string) {
     activeTabId: string;
     activePaneId: string | null;
   } {
-    terminalGroups.value = sortGroups(
-      snapshot.groups.map((group) => ({
-        id: group.id,
-        name: group.name,
-        order: group.order,
-        color: group.color || "none",
-        worktreeBasePath: group.worktreeBasePath ?? null,
-      })),
-    );
+    terminalGroups.value = restoreGroupsFromSnapshot(snapshot);
     collapsedGroupIds.value = [...snapshot.collapsedGroupIds];
 
     const validGroupIds = new Set(terminalGroups.value.map((group) => group.id));
-    const restoredTabs: WorkspaceTerminalTab[] = snapshot.tabs.map((saved) => {
-      const panes = saved.panes.map((savedPane) => ({
-        id: uid("pane"),
-        sessionId: null,
-        bootstrappingSessionId: null,
-        shellId: resolveShellId(savedPane.shellId),
-        cwd: savedPane.cwd,
-        customTitle: savedPane.customTitle,
-        activeAgentId: null,
-        oscTitle: null,
-        hasUnseenNotification: false,
-        agentStatus: "unknown" as const,
-        agentStatusSeen: true,
-        sshEndpointId: savedPane.sshEndpointId ?? null,
-      }));
-      const groupId =
-        saved.groupId && validGroupIds.has(saved.groupId) ? saved.groupId : null;
-      return {
-        kind: "terminal" as const,
-        id: uid("tab"),
-        title: saved.title,
-        color: saved.color,
-        groupId,
-        split: saved.split,
-        panes,
-      };
-    });
-
-    const activeTabIndex = Math.max(
-      0,
-      Math.min(snapshot.activeTabIndex, restoredTabs.length - 1),
-    );
-    const activeTab = restoredTabs[activeTabIndex];
-    const activePaneIndex = Math.max(
-      0,
-      Math.min(snapshot.activePaneIndex, activeTab.panes.length - 1),
-    );
-
-    const activePaneId = activeTab.panes[activePaneIndex]?.id ?? null;
-    rememberActiveTerminal(activeTab.id, activePaneId);
+    const restoredTabs = restoreTabsFromSnapshot(snapshot, validGroupIds, resolveShellId);
+    const { activeTab, activePaneId: paneId } = activeFocusFromSnapshot(snapshot, restoredTabs);
+    rememberActiveTerminal(activeTab.id, paneId);
 
     return {
       tabs: restoredTabs,
       terminalGroups: terminalGroups.value,
       collapsedGroupIds: collapsedGroupIds.value,
       activeTabId: activeTab.id,
-      activePaneId,
+      activePaneId: paneId,
     };
   }
 

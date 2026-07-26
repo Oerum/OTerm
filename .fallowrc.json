@@ -8,5 +8,16 @@
   "ignoreDependencies": [
     "tailwindcss",
     "@tauri-apps/cli"
-  ]
+  ],
+  "ignoreExports": [
+    {
+      "file": "src/lib/gitGraphLayout.ts",
+      "exports": ["GRAPH_ROW_HEIGHT", "GRAPH_LANE_WIDTH"]
+    }
+  ],
+  "health": {
+    "ignore": [
+      "**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}"
+    ]
+  }
 }

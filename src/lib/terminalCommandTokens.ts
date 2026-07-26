@@ -17,12 +17,10 @@ function isVariable(token: string): boolean {
   return VAR_PREFIXES.some((prefix) => token.startsWith(prefix));
 }
 
-/** ponytail: quote-aware split only; no shell-specific grammar. */
-export function tokenizeCommandLine(command: string): CommandTokenSpan[] {
-  const trimmed = command.trim();
-  if (!trimmed) return [];
+type RawPart = { text: string; start: number; end: number };
 
-  const parts: { text: string; start: number; end: number }[] = [];
+function splitQuotedParts(trimmed: string): RawPart[] {
+  const parts: RawPart[] = [];
   let current = "";
   let start = -1;
   let quote: "'" | '"' | null = null;
@@ -51,31 +49,38 @@ export function tokenizeCommandLine(command: string): CommandTokenSpan[] {
     if (!current) start = i;
     current += ch;
   }
-  if (current) {
-    parts.push({ text: current, start, end: trimmed.length });
+  if (current) parts.push({ text: current, start, end: trimmed.length });
+  return parts;
+}
+
+function classifyPart(
+  text: string,
+  seenCommand: boolean,
+  seenSubcommand: boolean,
+): { kind: CommandTokenKind; seenCommand: boolean; seenSubcommand: boolean } {
+  if (isVariable(text)) return { kind: "variable", seenCommand, seenSubcommand };
+  if (isOption(text)) return { kind: "option", seenCommand, seenSubcommand };
+  if (!seenCommand) return { kind: "command", seenCommand: true, seenSubcommand };
+  if (!seenSubcommand && !text.includes("=") && !text.includes("\\") && !text.includes("/")) {
+    return { kind: "subcommand", seenCommand, seenSubcommand: true };
   }
+  return { kind: "argument", seenCommand, seenSubcommand };
+}
+
+/** ponytail: quote-aware split only; no shell-specific grammar. */
+export function tokenizeCommandLine(command: string): CommandTokenSpan[] {
+  const trimmed = command.trim();
+  if (!trimmed) return [];
 
   const spans: CommandTokenSpan[] = [];
   let seenCommand = false;
   let seenSubcommand = false;
 
-  for (const part of parts) {
-    const text = part.text;
-    let kind: CommandTokenKind = "argument";
-    if (isVariable(text)) {
-      kind = "variable";
-    } else if (isOption(text)) {
-      kind = "option";
-    } else if (!seenCommand) {
-      kind = "command";
-      seenCommand = true;
-    } else if (!seenSubcommand && !text.includes("=") && !text.includes("\\") && !text.includes("/")) {
-      kind = "subcommand";
-      seenSubcommand = true;
-    } else {
-      kind = "argument";
-    }
-    spans.push({ start: part.start, end: part.end, kind, text });
+  for (const part of splitQuotedParts(trimmed)) {
+    const classified = classifyPart(part.text, seenCommand, seenSubcommand);
+    seenCommand = classified.seenCommand;
+    seenSubcommand = classified.seenSubcommand;
+    spans.push({ start: part.start, end: part.end, kind: classified.kind, text: part.text });
   }
 
   return spans;

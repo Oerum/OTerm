@@ -771,6 +771,42 @@ function onBranchContextDelete() {
   openDeleteDialog(branch);
 }
 
+async function offerRemoveWorktreeAndDelete(
+  branch: BranchRefInfo,
+  force: boolean,
+): Promise<boolean> {
+  try {
+    const worktrees = await listGitWorktrees(props.repoRoot);
+    const wt = worktrees.find((w) => w.branch === branch.name && !w.isMain);
+    if (!wt) return false;
+    requestConfirm({
+      title: "Remove worktree and delete branch?",
+      message: `The branch "${branch.name}" is checked out in a linked worktree at:\n\n${wt.path}\n\nRemove this worktree first and then delete the branch?`,
+      confirmLabel: "Remove & Delete",
+      dangerous: true,
+      onConfirm: async () => {
+        busy.value = true;
+        setAppToastActivity("Removing worktree…");
+        try {
+          await removeGitWorktree(props.repoRoot, wt.path, true);
+          await runDeleteBranch(branch, force);
+        } catch (wtErr) {
+          const wtMsg = formatGitOperationError(wtErr);
+          error.value = wtMsg;
+          pushAppToast(wtMsg, "error");
+        } finally {
+          setAppToastActivity(null);
+          busy.value = false;
+        }
+      },
+    });
+    return true;
+  } catch {
+    // ignore and fallback to standard error handling
+    return false;
+  }
+}
+
 async function runDeleteBranch(branch: BranchRefInfo, force: boolean) {
   busy.value = true;
   error.value = null;
@@ -792,37 +828,13 @@ async function runDeleteBranch(branch: BranchRefInfo, force: boolean) {
       });
       return;
     }
-    if (!force && !branch.isRemote && /checked out at/i.test(message)) {
-      try {
-        const worktrees = await listGitWorktrees(props.repoRoot);
-        const wt = worktrees.find((w) => w.branch === branch.name && !w.isMain);
-        if (wt) {
-          requestConfirm({
-            title: "Remove worktree and delete branch?",
-            message: `The branch "${branch.name}" is checked out in a linked worktree at:\n\n${wt.path}\n\nRemove this worktree first and then delete the branch?`,
-            confirmLabel: "Remove & Delete",
-            dangerous: true,
-            onConfirm: async () => {
-              busy.value = true;
-              setAppToastActivity("Removing worktree…");
-              try {
-                await removeGitWorktree(props.repoRoot, wt.path, true);
-                await runDeleteBranch(branch, force);
-              } catch (wtErr) {
-                const wtMsg = formatGitOperationError(wtErr);
-                error.value = wtMsg;
-                pushAppToast(wtMsg, "error");
-              } finally {
-                setAppToastActivity(null);
-                busy.value = false;
-              }
-            },
-          });
-          return;
-        }
-      } catch (worktreeErr) {
-        // ignore and fallback to standard error handling
-      }
+    if (
+      !force &&
+      !branch.isRemote &&
+      /checked out at/i.test(message) &&
+      (await offerRemoveWorktreeAndDelete(branch, force))
+    ) {
+      return;
     }
     error.value = message;
     pushAppToast(message, "error");
