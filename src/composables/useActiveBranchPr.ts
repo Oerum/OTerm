@@ -10,6 +10,69 @@ const prCache = new Map<
   { fetchedAt: number; refreshToken: number; prs: PullRequestSummary[] }
 >();
 
+async function loadPrsForRoot(
+  root: string,
+  token: number,
+): Promise<PullRequestSummary[] | null> {
+  const cached = prCache.get(root);
+  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS && cached.refreshToken === token) {
+    return cached.prs;
+  }
+
+  const provider = await detectPrProvider(root);
+  if (!isGithubPrCapable(provider)) return null;
+
+  const prs = provider.authOk ? await listPullRequests(root, false) : [];
+  prCache.set(root, { fetchedAt: Date.now(), refreshToken: token, prs });
+  return prs;
+}
+
+function findOpenPrForHead(prs: PullRequestSummary[], head: string): PullRequestSummary | null {
+  if (!hasOpenPrForHead(prs, head)) return null;
+  const normalized = head.toLowerCase();
+  return (
+    prs.find(
+      (pr) =>
+        pr.state.toUpperCase() === "OPEN" &&
+        pr.headRef.trim().toLowerCase() === normalized,
+    ) ?? null
+  );
+}
+
+async function refreshActiveBranchPr(
+  repoRoot: Ref<string | null>,
+  branch: Ref<string | null>,
+  refreshToken: Ref<number>,
+  loading: Ref<boolean>,
+  activePr: Ref<PullRequestSummary | null>,
+  requestId: { current: number },
+) {
+  const root = repoRoot.value;
+  const head = branch.value?.trim();
+  if (!root || !head) {
+    activePr.value = null;
+    return;
+  }
+
+  const currentRequest = ++requestId.current;
+  const token = refreshToken.value;
+  loading.value = true;
+
+  try {
+    const prs = await loadPrsForRoot(root, token);
+    if (currentRequest !== requestId.current) return;
+    if (prs === null) {
+      activePr.value = null;
+      return;
+    }
+    activePr.value = findOpenPrForHead(prs, head);
+  } catch {
+    if (currentRequest === requestId.current) activePr.value = null;
+  } finally {
+    if (currentRequest === requestId.current) loading.value = false;
+  }
+}
+
 export function useActiveBranchPr(
   repoRoot: Ref<string | null>,
   branch: Ref<string | null>,
@@ -17,63 +80,11 @@ export function useActiveBranchPr(
 ) {
   const loading = ref(false);
   const activePr = ref<PullRequestSummary | null>(null);
-
+  const requestId = { current: 0 };
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  let requestId = 0;
 
-  async function refresh() {
-    const root = repoRoot.value;
-    const head = branch.value?.trim();
-    if (!root || !head) {
-      activePr.value = null;
-      return;
-    }
-
-    const currentRequest = ++requestId;
-    const token = refreshToken.value;
-    loading.value = true;
-
-    try {
-      const cacheKey = root;
-      const cached = prCache.get(cacheKey);
-      let prs: PullRequestSummary[];
-
-      if (
-        cached &&
-        Date.now() - cached.fetchedAt < CACHE_TTL_MS &&
-        cached.refreshToken === token
-      ) {
-        prs = cached.prs;
-      } else {
-        const provider = await detectPrProvider(root);
-        if (!isGithubPrCapable(provider)) {
-          if (currentRequest === requestId) activePr.value = null;
-          return;
-        }
-
-        prs = provider.authOk ? await listPullRequests(root, false) : [];
-        prCache.set(cacheKey, { fetchedAt: Date.now(), refreshToken: token, prs });
-      }
-
-      if (currentRequest !== requestId) return;
-
-      if (!hasOpenPrForHead(prs, head)) {
-        activePr.value = null;
-        return;
-      }
-
-      const normalized = head.toLowerCase();
-      activePr.value =
-        prs.find(
-          (pr) =>
-            pr.state.toUpperCase() === "OPEN" &&
-            pr.headRef.trim().toLowerCase() === normalized,
-        ) ?? null;
-    } catch {
-      if (currentRequest === requestId) activePr.value = null;
-    } finally {
-      if (currentRequest === requestId) loading.value = false;
-    }
+  function refresh() {
+    return refreshActiveBranchPr(repoRoot, branch, refreshToken, loading, activePr, requestId);
   }
 
   function scheduleRefresh() {
@@ -86,7 +97,5 @@ export function useActiveBranchPr(
 
   watch([repoRoot, branch, refreshToken], scheduleRefresh, { immediate: true });
 
-  const hasOpenPr = computed(() => activePr.value != null);
-
-  return { loading, activePr, hasOpenPr, refresh };
+  return { loading, activePr, hasOpenPr: computed(() => activePr.value != null), refresh };
 }

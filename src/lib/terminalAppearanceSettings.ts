@@ -100,60 +100,59 @@ export async function initTerminalAppearanceSettings(): Promise<void> {
   }
 }
 
+function setActiveThemeId(themeId: string) {
+  stateRef.value = { ...stateRef.value, activeThemeId: themeId };
+}
+
+function upsertCustomTheme(theme: TerminalTheme) {
+  const customThemes = stateRef.value.customThemes.filter((item) => item.id !== theme.id);
+  customThemes.push(theme);
+  stateRef.value = { ...stateRef.value, customThemes };
+}
+
+function removeCustomTheme(themeId: string) {
+  stateRef.value = {
+    ...stateRef.value,
+    customThemes: stateRef.value.customThemes.filter((item) => item.id !== themeId),
+    activeThemeId:
+      stateRef.value.activeThemeId === themeId
+        ? BUILTIN_TERMINAL_THEMES[0]!.id
+        : stateRef.value.activeThemeId,
+  };
+}
+
+function duplicateTheme(sourceId: string, newId: string, label: string) {
+  const source = resolveTerminalTheme(sourceId, stateRef.value.customThemes);
+  upsertCustomTheme(cloneTerminalTheme(source, newId, label));
+  setActiveThemeId(newId);
+}
+
+function resetAppearanceToDefaults() {
+  stateRef.value = { ...DEFAULT_STATE };
+}
+
+async function saveAppearanceState(next: TerminalAppearanceState): Promise<void> {
+  stateRef.value = { ...next };
+  if (!hydrated) hydrated = true;
+  await setSetting(STORAGE_KEY, JSON.stringify(stateRef.value));
+}
+
+function exportTheme(themeId: string): TerminalTheme {
+  return resolveTerminalTheme(themeId, stateRef.value.customThemes);
+}
+
+function importTheme(raw: unknown): TerminalTheme | null {
+  const theme = validateTerminalThemeExport(raw);
+  if (!theme) return null;
+  upsertCustomTheme(theme);
+  return theme;
+}
+
 export function useTerminalAppearanceSettings() {
   const activeTheme = computed(() =>
     resolveTerminalTheme(stateRef.value.activeThemeId, stateRef.value.customThemes),
   );
-
   const allThemes = computed(() => listAllTerminalThemes(stateRef.value.customThemes));
-
-  function setActiveThemeId(themeId: string) {
-    stateRef.value = { ...stateRef.value, activeThemeId: themeId };
-  }
-
-  function upsertCustomTheme(theme: TerminalTheme) {
-    const customThemes = stateRef.value.customThemes.filter((item) => item.id !== theme.id);
-    customThemes.push(theme);
-    stateRef.value = { ...stateRef.value, customThemes };
-  }
-
-  function removeCustomTheme(themeId: string) {
-    stateRef.value = {
-      ...stateRef.value,
-      customThemes: stateRef.value.customThemes.filter((item) => item.id !== themeId),
-      activeThemeId:
-        stateRef.value.activeThemeId === themeId
-          ? BUILTIN_TERMINAL_THEMES[0]!.id
-          : stateRef.value.activeThemeId,
-    };
-  }
-
-  function duplicateTheme(sourceId: string, newId: string, label: string) {
-    const source = resolveTerminalTheme(sourceId, stateRef.value.customThemes);
-    upsertCustomTheme(cloneTerminalTheme(source, newId, label));
-    setActiveThemeId(newId);
-  }
-
-  function resetToDefaults() {
-    stateRef.value = { ...DEFAULT_STATE };
-  }
-
-  async function saveState(next: TerminalAppearanceState): Promise<void> {
-    stateRef.value = { ...next };
-    if (!hydrated) hydrated = true;
-    await setSetting(STORAGE_KEY, JSON.stringify(stateRef.value));
-  }
-
-  function exportTheme(themeId: string): TerminalTheme {
-    return resolveTerminalTheme(themeId, stateRef.value.customThemes);
-  }
-
-  function importTheme(raw: unknown): TerminalTheme | null {
-    const theme = validateTerminalThemeExport(raw);
-    if (!theme) return null;
-    upsertCustomTheme(theme);
-    return theme;
-  }
 
   return {
     state: stateRef,
@@ -163,8 +162,8 @@ export function useTerminalAppearanceSettings() {
     upsertCustomTheme,
     removeCustomTheme,
     duplicateTheme,
-    resetToDefaults,
-    saveState,
+    resetToDefaults: resetAppearanceToDefaults,
+    saveState: saveAppearanceState,
     exportTheme,
     importTheme,
   };
