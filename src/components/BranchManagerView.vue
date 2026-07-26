@@ -66,6 +66,8 @@ import CommitContextMenu from "./CommitContextMenu.vue";
 import CreatePullRequestDialog from "./CreatePullRequestDialog.vue";
 import MergeBranchDialog from "./MergeBranchDialog.vue";
 import GitDiffViewer from "./GitDiffViewer.vue";
+import RepoPanelHeader from "./RepoPanelHeader.vue";
+import UiGlyph from "./UiGlyph.vue";
 
 const props = defineProps<{
   repoRoot: string;
@@ -713,7 +715,11 @@ function onBranchContextSwitch() {
   void runSwitchBranch(branch);
 }
 
-function onBranchContextPull() {
+function runBranchContextRemote(
+  op: (repoRoot: string) => Promise<unknown>,
+  successMessage: string,
+  activityMessage: string,
+) {
   const branch = branchContextTarget.value;
   if (!branch || branch.isRemote) return;
   closeBranchContextMenu();
@@ -722,31 +728,18 @@ function onBranchContextPull() {
       if (!branch.isCurrent) {
         await props.switchBranch(branch.name, false, props.repoRoot);
       }
-      await pullGitRepo(props.repoRoot);
+      await op(props.repoRoot);
     },
-    {
-      successMessage: "Pulled latest changes",
-      activityMessage: "Pulling changes…",
-    },
+    { successMessage, activityMessage },
   );
 }
 
+function onBranchContextPull() {
+  runBranchContextRemote(pullGitRepo, "Pulled latest changes", "Pulling changes…");
+}
+
 function onBranchContextPush() {
-  const branch = branchContextTarget.value;
-  if (!branch || branch.isRemote) return;
-  closeBranchContextMenu();
-  void runAction(
-    async () => {
-      if (!branch.isCurrent) {
-        await props.switchBranch(branch.name, false, props.repoRoot);
-      }
-      await pushGitRepo(props.repoRoot);
-    },
-    {
-      successMessage: "Pushed to remote",
-      activityMessage: "Pushing changes…",
-    },
-  );
+  runBranchContextRemote(pushGitRepo, "Pushed to remote", "Pushing changes…");
 }
 
 function onBranchContextFetch() {
@@ -978,72 +971,61 @@ watch(() => props.active, (isActive) => {
 
 <template>
   <div class="relative flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)]">
-    <header class="flex shrink-0 items-center gap-3 border-b border-[var(--oterm-border)] px-4 py-3 bg-[var(--oterm-panel)]">
-      <div class="flex items-center gap-2 min-w-0">
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" class="text-[var(--oterm-accent)] shrink-0">
-          <path d="M5 4.5a2.5 2.5 0 100 5v2.5M11 11.5a2.5 2.5 0 100-5v-2.5M5 7h6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <h2 class="text-sm font-semibold tracking-wide flex items-center gap-1.5">
+    <RepoPanelHeader :repo-root="repoRoot" header-class="px-4 py-3 flex-wrap gap-y-2">
+      <template #icon>
+        <UiGlyph name="branch" :size="15" class="shrink-0 text-[var(--oterm-accent)]" />
+      </template>
+      <template #title>
+        <h2 class="flex items-center gap-1.5 text-sm font-semibold tracking-wide">
           Branches
-          <span v-if="loading" class="flex h-3.5 w-3.5 items-center justify-center" aria-hidden="true">
-            <svg class="animate-spin text-[var(--oterm-accent)]" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-              <circle cx="8" cy="8" r="6" stroke-opacity="0.15" stroke-width="2" />
-              <path d="M14 8a6 6 0 0 0-6-6" stroke-width="2" stroke-linecap="round" />
-            </svg>
+          <span v-if="loading" class="flex h-3.5 w-3.5 items-center justify-center text-[var(--oterm-accent)]" aria-hidden="true">
+            <UiGlyph name="spinner-ring" :size="10" />
           </span>
         </h2>
-        <span class="truncate text-xs text-[var(--oterm-faint)] font-mono max-w-[200px]" :title="repoRoot">{{ repoRoot }}</span>
+      </template>
+      <div class="relative min-w-[150px]">
+        <span class="absolute inset-y-0 left-0 flex items-center pl-2 text-[var(--oterm-faint)]">
+          <UiGlyph name="list-search" :size="10" />
+        </span>
+        <input
+          v-model="filter"
+          type="search"
+          placeholder="Filter commits…"
+          class="w-full rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 py-1.5 pl-6.5 pr-2.5 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition"
+        />
       </div>
-      
-      <div class="flex-1" />
-      
-      <div class="flex items-center gap-3 flex-wrap">
-        <div class="relative min-w-[150px]">
-          <span class="absolute inset-y-0 left-0 flex items-center pl-2 text-[var(--oterm-faint)]">
-            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-              <path d="M11.5 11.5L14.5 14.5M13 7.5a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z" stroke-width="1.5" stroke-linecap="round" />
-            </svg>
-          </span>
-          <input
-            v-model="filter"
-            type="search"
-            placeholder="Filter commits…"
-            class="w-full rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 py-1.5 pl-6.5 pr-2.5 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition"
-          />
-        </div>
-        
-        <label class="flex items-center gap-2 text-xs text-[var(--oterm-muted)] cursor-pointer select-none">
-          <input v-model="showIncomingOnly" type="checkbox" class="rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)] cursor-pointer" />
-          Incoming
-        </label>
-        
-        <label class="flex items-center gap-2 text-xs text-[var(--oterm-muted)] cursor-pointer select-none">
-          <input v-model="showOutgoingOnly" type="checkbox" class="rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)] cursor-pointer" />
-          Outgoing
-        </label>
-        
-        <div class="h-4 w-[1px] bg-[var(--oterm-border)]" />
-        
-        <button
-          type="button"
-          class="pr-header-btn"
-          title="Refresh commit history"
-          :disabled="loading"
-          @click="load"
-        >
-          Refresh
-        </button>
-        
-        <button
-          type="button"
-          class="pr-header-btn"
-          title="Close branches view"
-          @click="emit('close')"
-        >
-          Close
-        </button>
-      </div>
-    </header>
+
+      <label class="flex cursor-pointer select-none items-center gap-2 text-xs text-[var(--oterm-muted)]">
+        <input v-model="showIncomingOnly" type="checkbox" class="cursor-pointer rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)]" />
+        Incoming
+      </label>
+
+      <label class="flex cursor-pointer select-none items-center gap-2 text-xs text-[var(--oterm-muted)]">
+        <input v-model="showOutgoingOnly" type="checkbox" class="cursor-pointer rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)]" />
+        Outgoing
+      </label>
+
+      <div class="h-4 w-[1px] bg-[var(--oterm-border)]" />
+
+      <button
+        type="button"
+        class="pr-header-btn"
+        title="Refresh commit history"
+        :disabled="loading"
+        @click="load"
+      >
+        Refresh
+      </button>
+
+      <button
+        type="button"
+        class="pr-header-btn"
+        title="Close branches view"
+        @click="emit('close')"
+      >
+        Close
+      </button>
+    </RepoPanelHeader>
 
     <p v-if="error" class="px-4 py-2 text-sm text-[var(--oterm-danger)]">{{ error }}</p>
 

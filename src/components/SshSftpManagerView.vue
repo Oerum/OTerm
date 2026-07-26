@@ -5,6 +5,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { isActionKeybind } from "../lib/keybindSettings";
 import { pushAppToast, setAppToastActivity } from "../lib/appToast";
+import { pickJsonFile } from "../lib/pickJsonFile";
 import { listDirectory, userHome } from "../lib/fsApi";
 import {
   collectLocalUploadTree,
@@ -1121,11 +1122,8 @@ async function exportLibrary() {
 }
 
 async function importLibraryFile() {
-  const path = await open({
-    multiple: false,
-    filters: [{ name: "JSON", extensions: ["json"] }],
-  });
-  if (!path || Array.isArray(path)) return;
+  const path = await pickJsonFile();
+  if (!path) return;
   const data = await readFile(path);
   const text = new TextDecoder().decode(data);
   library.value = importSshLibrary(text);

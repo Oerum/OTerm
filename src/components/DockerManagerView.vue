@@ -22,6 +22,7 @@ import ConfirmDialog from "./ConfirmDialog.vue";
 import DockerNetworkIcon from "./DockerNetworkIcon.vue";
 import PanelHeaderActions from "./PanelHeaderActions.vue";
 import TrashActionButton from "./TrashActionButton.vue";
+import UiGlyph from "./UiGlyph.vue";
 import { pushAppToast } from "../lib/appToast";
 import { writeClipboardText } from "../lib/clipboard";
 import { useConfirmDialog } from "../composables/useConfirmDialog";
@@ -421,10 +422,8 @@ watch(() => props.active, (isActive) => {
       </PanelHeaderActions>
     </header>
 
-    <p v-if="error" class="px-6 py-3 text-xs text-[var(--oterm-danger)] bg-[var(--oterm-danger)]/5 border-b border-[var(--oterm-danger)]/15 shrink-0 font-medium flex items-center gap-2">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
+    <p v-if="error" class="flex shrink-0 items-center gap-2 border-b border-[var(--oterm-danger)]/15 bg-[var(--oterm-danger)]/5 px-6 py-3 text-xs font-medium text-[var(--oterm-danger)]">
+      <UiGlyph name="alert" :size="12" />
       {{ error }}
     </p>
 
@@ -435,11 +434,7 @@ watch(() => props.active, (isActive) => {
     >
       <div class="max-w-md w-full p-8 rounded-2xl border border-[var(--oterm-border-strong)] bg-[var(--oterm-panel)]/40 backdrop-blur-md shadow-2xl text-center">
         <div class="h-14 w-14 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto mb-4 animate-pulse-glow">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-rose-400">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
+          <UiGlyph name="alert" :size="28" class="text-rose-400" />
         </div>
         <h3 class="font-bold text-lg text-white">Docker Daemon Offline</h3>
         <p class="mt-2 text-xs leading-relaxed text-[var(--oterm-muted)]">
@@ -555,9 +550,7 @@ watch(() => props.active, (isActive) => {
       <div class="flex items-center gap-3 px-6 py-3 border-b border-[var(--oterm-border)] bg-[var(--oterm-panel)]/20 shrink-0">
         <div class="relative flex-1 max-w-md">
           <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-[var(--oterm-faint)]">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
+            <UiGlyph name="search" :size="14" />
           </span>
           <input
             v-model="searchFilter"
@@ -685,10 +678,7 @@ watch(() => props.active, (isActive) => {
                 title="Open Interactive Shell"
                 @click="emit('openContainerShell', container)"
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="4 17 10 11 4 5" />
-                  <line x1="12" y1="19" x2="20" y2="19" />
-                </svg>
+                <UiGlyph name="terminal" :size="13" />
               </button>
               <button
                 v-if="container.state.toLowerCase() === 'running'"

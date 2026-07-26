@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { save } from "@tauri-apps/plugin-dialog";
 import { readFile, writeFile } from "../../lib/fsTransferApi";
 import { pushAppToast } from "../../lib/appToast";
+import { pickJsonFile } from "../../lib/pickJsonFile";
 import {
   isThemeAppChromeEnabled,
   isThemeColorInput,
@@ -130,11 +131,8 @@ async function exportCurrentTheme() {
 }
 
 async function importThemeFile() {
-  const path = await open({
-    multiple: false,
-    filters: [{ name: "JSON", extensions: ["json"] }],
-  });
-  if (!path || Array.isArray(path)) return;
+  const path = await pickJsonFile();
+  if (!path) return;
   const data = await readFile(path);
   const text = new TextDecoder().decode(data);
   const parsed = JSON.parse(text) as unknown;

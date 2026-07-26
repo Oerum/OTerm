@@ -8,9 +8,12 @@ import {
 } from "../lib/issueApi";
 import { detectPrProvider } from "../lib/pullRequestApi";
 import { writeClipboardText } from "../lib/clipboard";
+import { pushAppToast } from "../lib/appToast";
 import type { IssueDetail, IssueListFilters, IssueSummary } from "../types/issue";
 import type { PrProviderInfo } from "../types/pullRequest";
 import MarkdownContent from "./MarkdownContent.vue";
+import RepoPanelHeader from "./RepoPanelHeader.vue";
+import UiGlyph from "./UiGlyph.vue";
 
 const props = defineProps<{
   repoRoot: string;
@@ -36,11 +39,9 @@ const filterAssignee = ref("");
 const search = ref("");
 const selectedNumber = ref<number | null>(null);
 const busy = ref(false);
-const toastMessage = ref<string | null>(null);
 const rootRef = ref<HTMLElement | null>(null);
 
 let filterTimer: ReturnType<typeof setTimeout> | null = null;
-let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const listFilters = computed<IssueListFilters>(() => ({
   state: includeClosed.value ? "all" : "open",
@@ -69,14 +70,6 @@ const filteredIssues = computed(() => {
 const selected = computed(
   () => issues.value.find((issue) => issue.number === selectedNumber.value) ?? null,
 );
-
-function showToast(message: string) {
-  toastMessage.value = message;
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toastMessage.value = null;
-  }, 1800);
-}
 
 async function loadIssues() {
   loading.value = true;
@@ -152,7 +145,7 @@ async function onOpen(issue: IssueSummary) {
 
 async function onCopyUrl(issue: IssueSummary) {
   await writeClipboardText(issue.url);
-  showToast("Issue URL copied");
+  pushAppToast("Issue URL copied", "success");
 }
 
 async function onCreateBranch(issue: IssueSummary) {
@@ -161,7 +154,7 @@ async function onCreateBranch(issue: IssueSummary) {
   try {
     await createBranchFromIssue(props.repoRoot, issue.number);
     emit("refreshGit");
-    showToast(`Branch created for #${issue.number}`);
+    pushAppToast(`Branch created for #${issue.number}`, "success");
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
   } finally {
@@ -193,7 +186,6 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeyDown);
   if (filterTimer) clearTimeout(filterTimer);
-  if (toastTimer) clearTimeout(toastTimer);
 });
 
 watch(() => props.repoRoot, () => {
@@ -226,57 +218,42 @@ watch(() => props.active, (isActive) => {
     tabindex="0"
     class="flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)] outline-none"
   >
-    <header
-      class="flex shrink-0 items-center gap-3 border-b border-[var(--oterm-border)] px-4 py-2 bg-[var(--oterm-panel)]"
-    >
-      <div class="flex items-center gap-2 min-w-0">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" class="text-[var(--oterm-accent)] shrink-0">
+    <RepoPanelHeader :repo-root="repoRoot" header-class="px-4 py-2">
+      <template #icon>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" class="shrink-0 text-[var(--oterm-accent)]">
           <circle cx="8" cy="8" r="6" stroke-width="1.5" />
           <path d="M8 11.5h.01M8 5v4" stroke-width="2" stroke-linecap="round" />
         </svg>
+      </template>
+      <template #title>
         <h2 class="text-sm font-semibold tracking-wide">Issues</h2>
-        <span class="truncate text-xs text-[var(--oterm-faint)] font-mono max-w-[200px]" :title="repoRoot">{{ repoRoot }}</span>
-      </div>
-      <div class="flex-1" />
-      <div class="flex items-center gap-3">
-        <label class="flex items-center gap-2 text-xs text-[var(--oterm-muted)] cursor-pointer select-none">
-          <input v-model="assignedToMe" type="checkbox" class="rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)] cursor-pointer" />
-          Assigned to me
-        </label>
-        
-        <label class="flex items-center gap-2 text-xs text-[var(--oterm-muted)] cursor-pointer select-none">
-          <input v-model="includeClosed" type="checkbox" class="rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)] cursor-pointer" />
-          Show closed
-        </label>
-        
-        <div class="h-4 w-[1px] bg-[var(--oterm-border)]" />
-        
-        <button
-          type="button"
-          class="pr-header-btn"
-          :disabled="loading"
-          @click="loadIssues"
-        >
-          Refresh
-        </button>
-        <button
-          type="button"
-          class="pr-header-btn"
-          @click="emit('close')"
-        >
-          Close
-        </button>
-      </div>
-    </header>
+      </template>
+      <label class="flex cursor-pointer select-none items-center gap-2 text-xs text-[var(--oterm-muted)]">
+        <input v-model="assignedToMe" type="checkbox" class="cursor-pointer rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)]" />
+        Assigned to me
+      </label>
+
+      <label class="flex cursor-pointer select-none items-center gap-2 text-xs text-[var(--oterm-muted)]">
+        <input v-model="includeClosed" type="checkbox" class="cursor-pointer rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)]" />
+        Show closed
+      </label>
+
+      <div class="h-4 w-[1px] bg-[var(--oterm-border)]" />
+
+      <button type="button" class="pr-header-btn" :disabled="loading" @click="loadIssues">
+        Refresh
+      </button>
+      <button type="button" class="pr-header-btn" @click="emit('close')">
+        Close
+      </button>
+    </RepoPanelHeader>
 
     <div
       class="flex flex-wrap shrink-0 items-center gap-2 border-b border-[var(--oterm-border)] px-4 py-2 bg-[var(--oterm-panel)]/35"
     >
       <div class="relative flex-1 min-w-[200px]">
         <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[var(--oterm-faint)]">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-            <path d="M11.5 11.5L14.5 14.5M13 7.5a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z" stroke-width="1.5" stroke-linecap="round" />
-          </svg>
+          <UiGlyph name="list-search" :size="12" />
         </span>
         <input
           v-model="search"
@@ -440,11 +417,5 @@ watch(() => props.active, (isActive) => {
       </section>
     </div>
 
-    <p
-      v-if="toastMessage"
-      class="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded bg-[var(--oterm-elevated)] px-3 py-1.5 text-xs text-[var(--oterm-text)] shadow-lg"
-    >
-      {{ toastMessage }}
-    </p>
   </div>
 </template>

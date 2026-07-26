@@ -8,6 +8,7 @@ import {
 import { deleteBranch } from "../lib/branchManagerApi";
 import type { GitWorktreeInfo, GitSourceControlStatus } from "../types/git";
 import { pushAppToast } from "../lib/appToast";
+import UiGlyph from "./UiGlyph.vue";
 
 const props = defineProps<{
   repoRoot: string;
@@ -110,11 +111,8 @@ async function deleteWorktree(worktree: GitWorktreeInfo, forceBranch: boolean) {
       <div class="flex flex-col min-w-0">
         <h2 class="text-sm font-semibold tracking-wide flex items-center gap-1.5">
           Worktrees
-          <span v-if="loading" class="flex h-3 w-3 items-center justify-center" aria-hidden="true">
-            <svg class="animate-spin text-[var(--oterm-accent)]" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-              <circle cx="8" cy="8" r="6" stroke-opacity="0.15" stroke-width="2" />
-              <path d="M14 8a6 6 0 0 0-6-6" stroke-width="2" stroke-linecap="round" />
-            </svg>
+          <span v-if="loading" class="flex h-3 w-3 items-center justify-center text-[var(--oterm-accent)]" aria-hidden="true">
+            <UiGlyph name="spinner-ring" :size="10" />
           </span>
         </h2>
         <p class="truncate text-xs text-[var(--oterm-muted)] font-mono max-w-[400px]" :title="repoRoot">
