@@ -1216,6 +1216,7 @@ function authorInitials(author: string): string {
                     type="button"
                     class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[var(--oterm-faint)] hover:bg-white/5 hover:text-[var(--oterm-text)]"
                     title="Unstage"
+                    aria-label="Unstage"
                     @click.stop="emit('unstage', [entry.path])"
                   >
                     <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">

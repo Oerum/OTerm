@@ -16,6 +16,7 @@ const emit = defineEmits<{
       type="button"
       class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#3dd68c] hover:bg-white/5"
       title="Stage"
+      aria-label="Stage"
       @click.stop="emit('stage', [path])"
     >
       <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
@@ -26,6 +27,7 @@ const emit = defineEmits<{
       type="button"
       class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#ff7b72] hover:bg-white/5"
       :title="secondary === 'delete' ? 'Delete' : 'Revert'"
+      :aria-label="secondary === 'delete' ? 'Delete' : 'Revert'"
       @click.stop="emit('secondary', path)"
     >
       <svg
