@@ -28,6 +28,7 @@ import GitCommitGraph from "./GitCommitGraph.vue";
 import GitDiffViewer from "./GitDiffViewer.vue";
 import GitFileEditor from "./GitFileEditor.vue";
 import SourceControlFileLabel from "./SourceControlFileLabel.vue";
+import SourceControlFileActions from "./SourceControlFileActions.vue";
 
 type PaneView = "diff" | "edit";
 type DiffPanelMode = "list" | "all" | "single";
@@ -1261,28 +1262,12 @@ function authorInitials(author: string): string {
               >
                 <span :class="statusBadgeClass(entry, false)">{{ statusLabel(entry) }}</span>
                 <SourceControlFileLabel :entry="entry" />
-                <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
-                  <button
-                    type="button"
-                    class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#3dd68c] hover:bg-white/5"
-                    title="Stage"
-                    @click.stop="emit('stage', [entry.path])"
-                  >
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M8 3v10M3 8h10" stroke-linecap="round" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#ff7b72] hover:bg-white/5"
-                    title="Revert"
-                    @click.stop="confirmRevert([entry.path], false)"
-                  >
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M3 8a5 5 0 0 1 8.5-3.5L13 6M13 3v3h-3" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                  </button>
-                </div>
+                <SourceControlFileActions
+                  :path="entry.path"
+                  secondary="revert"
+                  @stage="emit('stage', $event)"
+                  @secondary="confirmRevert([$event], false)"
+                />
               </div>
             </div>
           </section>
@@ -1322,28 +1307,12 @@ function authorInitials(author: string): string {
               >
                 <span :class="statusBadgeClass(entry, false)">U</span>
                 <SourceControlFileLabel :entry="entry" />
-                <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
-                  <button
-                    type="button"
-                    class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#3dd68c] hover:bg-white/5"
-                    title="Stage"
-                    @click.stop="emit('stage', [entry.path])"
-                  >
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M8 3v10M3 8h10" stroke-linecap="round" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[#ff7b72] hover:bg-white/5"
-                    title="Delete"
-                    @click.stop="confirmRevert([entry.path], true)"
-                  >
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M3 3l10 10M13 3L3 13" stroke-linecap="round" />
-                    </svg>
-                  </button>
-                </div>
+                <SourceControlFileActions
+                  :path="entry.path"
+                  secondary="delete"
+                  @stage="emit('stage', $event)"
+                  @secondary="confirmRevert([$event], true)"
+                />
               </div>
             </div>
           </section>

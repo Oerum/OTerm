@@ -35,6 +35,7 @@ import {
 import { exportSshLibrary, importSshLibrary } from "../lib/sshLibraryExport";
 import {
   parseSshConnectError,
+  unknownHostKeyConfirm,
   sshSftpConnect,
   sshSftpCreateDir,
   sshSftpDisconnect,
@@ -48,6 +49,7 @@ import {
   endpointAuthMethod,
   endpointDisplayLabel,
   endpointKeyPath,
+  type SshConnectRequest,
   type SshEndpoint,
   type SshGroup,
   type SshSftpEntry,
@@ -332,6 +334,38 @@ async function saveEndpointDraft() {
   }
 }
 
+function buildSftpConnectRequest(
+  endpoint: SshEndpoint,
+  resolved: { password?: string | null; keyPassphrase?: string | null },
+  acceptHostKey: boolean,
+): SshConnectRequest {
+  return {
+    host: endpoint.host,
+    port: endpoint.port,
+    username: endpoint.username,
+    authMethod: endpointAuthMethod(endpoint),
+    password: resolved.password ?? null,
+    keyPath: endpointKeyPath(endpoint, library.value.identities),
+    keyPassphrase: resolved.keyPassphrase || null,
+    acceptHostKey,
+  };
+}
+
+function askUnknownHostKeyTrust(
+  endpoint: SshEndpoint,
+  err: unknown,
+  action: "test" | "connect",
+  onConfirm: () => void | Promise<void>,
+): boolean {
+  const hostKeyError = parseSshConnectError(err instanceof Error ? err.message : String(err));
+  if (hostKeyError?.code !== "HOST_KEY_UNKNOWN") return false;
+  askConfirm({
+    ...unknownHostKeyConfirm(endpoint.host, endpoint.port, hostKeyError, action),
+    onConfirm,
+  });
+  return true;
+}
+
 function resolveSftpSecrets(ep: SshEndpoint, secretsOverride?: ConnectSecrets) {
   return resolveConnectSecrets(
     ep,
@@ -374,19 +408,7 @@ async function testConnection() {
     const resolved = await resolveSftpSecrets(endpoint, { password: inputPassword });
     if (!resolved) return false;
 
-    const auth = endpointAuthMethod(endpoint);
-    const keyPath = endpointKeyPath(endpoint, library.value.identities);
-
-    const result = await sshSftpConnect({
-      host: endpoint.host,
-      port: endpoint.port,
-      username: endpoint.username,
-      authMethod: auth,
-      password: resolved.password ?? null,
-      keyPath,
-      keyPassphrase: resolved.keyPassphrase || null,
-      acceptHostKey,
-    });
+    const result = await sshSftpConnect(buildSftpConnectRequest(endpoint, resolved, acceptHostKey));
 
     await sshSftpDisconnect(result.sessionId);
     pushAppToast("Connection successful!", "success");
@@ -397,27 +419,22 @@ async function testConnection() {
     const success = await runTest(false);
     if (!success) return;
   } catch (err) {
-    const hostKeyError = parseSshConnectError(err instanceof Error ? err.message : String(err));
-    if (hostKeyError?.code === "HOST_KEY_UNKNOWN") {
-      askConfirm({
-        title: "Trust this host?",
-        message: `The server ${endpoint.host}:${endpoint.port} is not in your known_hosts file.\n\n${hostKeyError.algorithm}\n${hostKeyError.fingerprint}\n\nTrust this host and test connection?`,
-        confirmLabel: "Trust and test",
-        onConfirm: async () => {
-          testingConnection.value = true;
-          setAppToastActivity("Testing connection…");
-          try {
-            await runTest(true);
-          } catch (innerErr) {
-            const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
-            error.value = msg;
-            pushAppToast(msg, "error");
-          } finally {
-            testingConnection.value = false;
-            setAppToastActivity(null);
-          }
-        },
-      });
+    if (
+      askUnknownHostKeyTrust(endpoint, err, "test", async () => {
+        testingConnection.value = true;
+        setAppToastActivity("Testing connection…");
+        try {
+          await runTest(true);
+        } catch (innerErr) {
+          const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
+          error.value = msg;
+          pushAppToast(msg, "error");
+        } finally {
+          testingConnection.value = false;
+          setAppToastActivity(null);
+        }
+      })
+    ) {
       return;
     }
     const msg = err instanceof Error ? err.message : String(err);
@@ -693,31 +710,14 @@ async function connectSftp(endpoint: SshEndpoint, acceptHostKey = false, secrets
   busy.value = true;
   error.value = null;
   let result: Awaited<ReturnType<typeof sshSftpConnect>> | undefined;
-  const auth = endpointAuthMethod(endpoint);
-  const keyPath = endpointKeyPath(endpoint, library.value.identities);
 
   try {
-    result = await sshSftpConnect({
-      host: endpoint.host,
-      port: endpoint.port,
-      username: endpoint.username,
-      authMethod: auth,
-      password: resolved.password ?? null,
-      keyPath,
-      keyPassphrase: resolved.keyPassphrase || null,
-      acceptHostKey,
-    });
+    result = await sshSftpConnect(buildSftpConnectRequest(endpoint, resolved, acceptHostKey));
   } catch (err) {
-    const hostKeyError = parseSshConnectError(err instanceof Error ? err.message : String(err));
-    if (hostKeyError?.code === "HOST_KEY_UNKNOWN") {
-      askConfirm({
-        title: "Trust this host?",
-        message: `The server ${endpoint.host}:${endpoint.port} is not in your known_hosts file.\n\n${hostKeyError.algorithm}\n${hostKeyError.fingerprint}\n\nOnly continue if you trust this server.`,
-        confirmLabel: "Trust and connect",
-        onConfirm: () => void connectSftp(endpoint, true, resolved),
-      });
+    if (askUnknownHostKeyTrust(endpoint, err, "connect", () => void connectSftp(endpoint, true, resolved))) {
       return;
     }
+    const hostKeyError = parseSshConnectError(err instanceof Error ? err.message : String(err));
     if (hostKeyError?.code === "HOST_KEY_CHANGED") {
       error.value =
         hostKeyError.message ??

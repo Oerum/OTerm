@@ -10,6 +10,7 @@ import {
 } from "../lib/parseUnifiedDiff";
 import { diffWords, type WordDiffChunk } from "../lib/wordDiff";
 import type { SelectedGitFile } from "../types/git";
+import DiffGutterActions from "./DiffGutterActions.vue";
 
 const SIDE_BY_SIDE_MIN_WIDTH = 960;
 
@@ -356,65 +357,16 @@ function chunkClass(chunk: WordDiffChunk) {
           >
             <div class="diff-split-pane" :class="sideCellClass(row.left)">
               <div class="diff-gutter">
-                <template v-if="sideCellCanAct(row.left)">
-                  <div
-                    class="diff-gutter-actions"
-                    :class="{ 'diff-gutter-actions--visible': sideCellBusy(row.left) }"
-                  >
-                    <button
-                      type="button"
-                      class="diff-gutter-btn diff-gutter-btn--revert"
-                      title="Discard change"
-                      aria-label="Discard change"
-                      :disabled="sideCellDisabled(row.left)"
-                      @click="onSideCellAction(hunk, row.left)"
-                    >
-                      <span v-if="sideCellBusy(row.left)" class="diff-gutter-spinner" />
-                      <svg
-                        v-else
-                        width="11"
-                        height="11"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        stroke="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path
-                          d="M3 8h7M6 5L3 8l3 3"
-                          stroke-width="1.5"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      v-if="showStageActions && row.left.kind === 'add'"
-                      type="button"
-                      class="diff-gutter-btn diff-gutter-btn--stage"
-                      title="Stage change"
-                      aria-label="Stage change"
-                      :disabled="sideCellDisabled(row.left)"
-                      @click="onStageLine(hunk, row.left.sourceLineIndex!)"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-                        <path d="M8 3v10M3 8h10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                      </svg>
-                    </button>
-                    <button
-                      v-if="showUnstageActions && row.left.kind === 'add'"
-                      type="button"
-                      class="diff-gutter-btn diff-gutter-btn--unstage"
-                      title="Unstage change"
-                      aria-label="Unstage change"
-                      :disabled="sideCellDisabled(row.left)"
-                      @click="onUnstageLine(hunk, row.left.sourceLineIndex!)"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-                        <path d="M3 8h10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                      </svg>
-                    </button>
-                  </div>
-                </template>
+                <DiffGutterActions
+                  v-if="sideCellCanAct(row.left)"
+                  :busy="sideCellBusy(row.left)"
+                  :disabled="sideCellDisabled(row.left)"
+                  :show-stage="showStageActions && row.left.kind === 'add'"
+                  :show-unstage="showUnstageActions && row.left.kind === 'add'"
+                  @revert="onSideCellAction(hunk, row.left)"
+                  @stage="onStageLine(hunk, row.left.sourceLineIndex!)"
+                  @unstage="onUnstageLine(hunk, row.left.sourceLineIndex!)"
+                />
               </div>
               <div class="diff-lnum">{{ row.left.lineNumber ?? "" }}</div>
               <div class="diff-code">
@@ -438,65 +390,16 @@ function chunkClass(chunk: WordDiffChunk) {
             <div class="diff-split-divider" aria-hidden="true" />
             <div class="diff-split-pane" :class="sideCellClass(row.right)">
               <div class="diff-gutter">
-                <template v-if="sideCellCanAct(row.right)">
-                  <div
-                    class="diff-gutter-actions"
-                    :class="{ 'diff-gutter-actions--visible': sideCellBusy(row.right) }"
-                  >
-                    <button
-                      type="button"
-                      class="diff-gutter-btn diff-gutter-btn--revert"
-                      title="Discard change"
-                      aria-label="Discard change"
-                      :disabled="sideCellDisabled(row.right)"
-                      @click="onSideCellAction(hunk, row.right)"
-                    >
-                      <span v-if="sideCellBusy(row.right)" class="diff-gutter-spinner" />
-                      <svg
-                        v-else
-                        width="11"
-                        height="11"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        stroke="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path
-                          d="M3 8h7M6 5L3 8l3 3"
-                          stroke-width="1.5"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      v-if="showStageActions && row.right.kind === 'add'"
-                      type="button"
-                      class="diff-gutter-btn diff-gutter-btn--stage"
-                      title="Stage change"
-                      aria-label="Stage change"
-                      :disabled="sideCellDisabled(row.right)"
-                      @click="onStageLine(hunk, row.right.sourceLineIndex!)"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-                        <path d="M8 3v10M3 8h10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                      </svg>
-                    </button>
-                    <button
-                      v-if="showUnstageActions && row.right.kind === 'add'"
-                      type="button"
-                      class="diff-gutter-btn diff-gutter-btn--unstage"
-                      title="Unstage change"
-                      aria-label="Unstage change"
-                      :disabled="sideCellDisabled(row.right)"
-                      @click="onUnstageLine(hunk, row.right.sourceLineIndex!)"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-                        <path d="M3 8h10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                      </svg>
-                    </button>
-                  </div>
-                </template>
+                <DiffGutterActions
+                  v-if="sideCellCanAct(row.right)"
+                  :busy="sideCellBusy(row.right)"
+                  :disabled="sideCellDisabled(row.right)"
+                  :show-stage="showStageActions && row.right.kind === 'add'"
+                  :show-unstage="showUnstageActions && row.right.kind === 'add'"
+                  @revert="onSideCellAction(hunk, row.right)"
+                  @stage="onStageLine(hunk, row.right.sourceLineIndex!)"
+                  @unstage="onUnstageLine(hunk, row.right.sourceLineIndex!)"
+                />
               </div>
               <div class="diff-lnum">{{ row.right.lineNumber ?? "" }}</div>
               <div class="diff-code">
@@ -536,68 +439,16 @@ function chunkClass(chunk: WordDiffChunk) {
             :class="lineRowClass(line.kind)"
           >
             <div class="diff-gutter">
-              <template v-if="line.kind !== 'context' && canHunkOps">
-                <div
-                  class="diff-gutter-actions"
-                  :class="{ 'diff-gutter-actions--visible': isLineBusy(hunk.index, lineIndex) }"
-                >
-                  <button
-                    type="button"
-                    class="diff-gutter-btn diff-gutter-btn--revert"
-                    title="Discard change"
-                    aria-label="Discard change"
-                    :disabled="lineActionsDisabled(hunk.index, lineIndex)"
-                    @click="onRevertLine(hunk, lineIndex)"
-                  >
-                    <span
-                      v-if="isLineBusy(hunk.index, lineIndex)"
-                      class="diff-gutter-spinner"
-                    />
-                    <svg
-                      v-else
-                      width="11"
-                      height="11"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M3 8h7M6 5L3 8l3 3"
-                        stroke-width="1.5"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </button>
-                  <button
-                    v-if="showStageActions"
-                    type="button"
-                    class="diff-gutter-btn diff-gutter-btn--stage"
-                    title="Stage change"
-                    aria-label="Stage change"
-                    :disabled="lineActionsDisabled(hunk.index, lineIndex)"
-                    @click="onStageLine(hunk, lineIndex)"
-                  >
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-                      <path d="M8 3v10M3 8h10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                  </button>
-                  <button
-                    v-if="showUnstageActions"
-                    type="button"
-                    class="diff-gutter-btn diff-gutter-btn--unstage"
-                    title="Unstage change"
-                    aria-label="Unstage change"
-                    :disabled="lineActionsDisabled(hunk.index, lineIndex)"
-                    @click="onUnstageLine(hunk, lineIndex)"
-                  >
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-                      <path d="M3 8h10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                  </button>
-                </div>
-              </template>
+              <DiffGutterActions
+                v-if="line.kind !== 'context' && canHunkOps"
+                :busy="isLineBusy(hunk.index, lineIndex)"
+                :disabled="lineActionsDisabled(hunk.index, lineIndex)"
+                :show-stage="showStageActions"
+                :show-unstage="showUnstageActions"
+                @revert="onRevertLine(hunk, lineIndex)"
+                @stage="onStageLine(hunk, lineIndex)"
+                @unstage="onUnstageLine(hunk, lineIndex)"
+              />
             </div>
             <div class="diff-lnum diff-lnum--old">{{ line.oldLine ?? "" }}</div>
             <div class="diff-lnum diff-lnum--new">{{ line.newLine ?? "" }}</div>
@@ -810,7 +661,7 @@ function chunkClass(chunk: WordDiffChunk) {
   background: color-mix(in srgb, var(--diff-editor-bg) 92%, rgba(255, 255, 255, 0.04)) !important;
 }
 
-.diff-gutter-actions {
+:deep(.diff-gutter-actions) {
   display: flex;
   align-items: center;
   gap: 1px;
@@ -819,12 +670,12 @@ function chunkClass(chunk: WordDiffChunk) {
   transition: opacity 100ms ease;
 }
 
-.group\/line:hover .diff-gutter-actions,
-.diff-gutter-actions--visible {
+.group\/line:hover :deep(.diff-gutter-actions),
+:deep(.diff-gutter-actions--visible) {
   opacity: 1;
 }
 
-.diff-gutter-btn {
+:deep(.diff-gutter-btn) {
   display: flex;
   height: 18px;
   width: 18px;
@@ -840,39 +691,39 @@ function chunkClass(chunk: WordDiffChunk) {
   cursor: pointer;
 }
 
-.diff-gutter-btn:hover:not(:disabled) {
+:deep(.diff-gutter-btn:hover:not(:disabled)) {
   transform: scale(1.08);
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.12);
 }
 
-.diff-gutter-btn:active:not(:disabled) {
+:deep(.diff-gutter-btn:active:not(:disabled)) {
   transform: scale(0.95);
 }
 
-.diff-gutter-btn--revert:hover:not(:disabled) {
+:deep(.diff-gutter-btn--revert:hover:not(:disabled)) {
   color: var(--diff-remove-text);
   background: color-mix(in srgb, var(--diff-remove-border) 15%, transparent);
   border-color: color-mix(in srgb, var(--diff-remove-border) 30%, transparent);
 }
 
-.diff-gutter-btn--stage:hover:not(:disabled) {
+:deep(.diff-gutter-btn--stage:hover:not(:disabled)) {
   color: var(--diff-insert-text);
   background: color-mix(in srgb, var(--diff-insert-border) 15%, transparent);
   border-color: color-mix(in srgb, var(--diff-insert-border) 30%, transparent);
 }
 
-.diff-gutter-btn--unstage:hover:not(:disabled) {
+:deep(.diff-gutter-btn--unstage:hover:not(:disabled)) {
   color: var(--oterm-text);
   background: rgba(255, 255, 255, 0.15);
   border-color: rgba(255, 255, 255, 0.25);
 }
 
-.diff-gutter-btn:disabled {
+:deep(.diff-gutter-btn:disabled) {
   opacity: 0.45;
 }
 
-.diff-gutter-spinner {
+:deep(.diff-gutter-spinner) {
   display: inline-block;
   height: 10px;
   width: 10px;

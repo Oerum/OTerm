@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, ref } from "vue";
 import type { GitBranchList, GitStatus } from "../types/git";
+import { useOutsideDismiss } from "../composables/useOutsideDismiss";
+import ChevronDownIcon from "./ChevronDownIcon.vue";
 
 const props = defineProps<{
   gitStatus: GitStatus;
@@ -52,30 +54,7 @@ function isCurrentLocal(branch: string) {
   return branch === props.gitStatus.branch;
 }
 
-function onDocumentMouseDown(event: MouseEvent) {
-  if (!open.value) return;
-  const target = event.target;
-  if (target instanceof Node && rootRef.value?.contains(target)) return;
-  close();
-}
-
-function onKeyDown(event: KeyboardEvent) {
-  if (!open.value) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    close();
-  }
-}
-
-onMounted(() => {
-  document.addEventListener("mousedown", onDocumentMouseDown);
-  window.addEventListener("keydown", onKeyDown);
-});
-
-onUnmounted(() => {
-  document.removeEventListener("mousedown", onDocumentMouseDown);
-  window.removeEventListener("keydown", onKeyDown);
-});
+useOutsideDismiss(() => open.value, close, [rootRef]);
 </script>
 
 <template>
@@ -111,17 +90,7 @@ onUnmounted(() => {
         />
       </svg>
       <span class="truncate">{{ currentLabel }}</span>
-      <svg
-        width="8"
-        height="8"
-        viewBox="0 0 8 8"
-        fill="none"
-        stroke="currentColor"
-        class="shrink-0 opacity-60"
-        aria-hidden="true"
-      >
-        <path d="M1.5 2.5 4 5l2.5-2.5" stroke-width="1.2" stroke-linecap="round" />
-      </svg>
+      <ChevronDownIcon />
     </button>
 
     <div

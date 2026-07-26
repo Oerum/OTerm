@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { killProcess, listProcesses } from "../lib/processManagerApi";
 import type { ProcessEntry, ProcessListSummary } from "../types/processManager";
 import ConfirmDialog from "./ConfirmDialog.vue";
+import PanelHeaderActions from "./PanelHeaderActions.vue";
 import { pushAppToast } from "../lib/appToast";
 
 import { useConfirmDialog } from "../composables/useConfirmDialog";
@@ -168,25 +169,7 @@ watch(
 
       <div class="flex-1" />
 
-      <div class="flex items-center gap-2">
-        <button type="button" class="pr-header-btn" :disabled="loading || busy" @click="load">
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            :class="{ 'animate-spin': loading }"
-          >
-            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-          </svg>
-          Refresh
-        </button>
-        <button type="button" class="pr-header-btn" @click="emit('close')">Close</button>
-      </div>
+      <PanelHeaderActions :loading="loading" :busy="busy" @refresh="load" @close="emit('close')" />
     </header>
 
     <div

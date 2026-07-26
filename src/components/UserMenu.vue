@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { useOutsideDismiss } from "../composables/useOutsideDismiss";
 import { getGitHubUserProfile } from "../lib/githubProfileApi";
 import type { GitHubUserProfile } from "../types/githubProfile";
 
@@ -72,26 +73,9 @@ async function openProfile() {
   close();
 }
 
-function onDocumentMouseDown(event: MouseEvent) {
-  if (!open.value) return;
-  const target = event.target;
-  if (!(target instanceof Node)) return;
-  if (rootRef.value?.contains(target)) return;
-  if (menuRef.value?.contains(target)) return;
-  close();
-}
-
-function onKeyDown(event: KeyboardEvent) {
-  if (!open.value) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    close();
-  }
-}
+useOutsideDismiss(() => open.value, close, [rootRef, menuRef]);
 
 onMounted(() => {
-  document.addEventListener("mousedown", onDocumentMouseDown);
-  window.addEventListener("keydown", onKeyDown);
   window.addEventListener("resize", updateMenuPosition);
   void getGitHubUserProfile()
     .then((value) => {
@@ -103,8 +87,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  document.removeEventListener("mousedown", onDocumentMouseDown);
-  window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("resize", updateMenuPosition);
 });
 </script>

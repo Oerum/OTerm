@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { handleMenuKeyDown } from "../lib/menuKeyboardNav";
+import { computed, ref } from "vue";
+import { useMenuKeyboardNav } from "../composables/useMenuKeyboardNav";
 import { useTabColor } from "../composables/useTabColor";
 import type { TerminalEntryColor } from "../types/terminal";
 
@@ -18,7 +18,6 @@ const emit = defineEmits<{
 }>();
 
 const menuRef = ref<HTMLElement | null>(null);
-const focusIndex = ref(0);
 
 const colorRef = computed(() => props.color);
 const {
@@ -50,43 +49,14 @@ function run(actionId: "rename" | "delete") {
   }
 }
 
-// fallow-ignore-next-line code-duplication
-function onKeyDown(event: KeyboardEvent) {
-  handleMenuKeyDown(event, {
-    open: props.open,
-    enabledIndices: enabledIndices.value,
-    focusIndex: focusIndex.value,
-    items: items.value,
-    onClose: () => emit("close"),
-    onFocus: (next) => {
-      focusIndex.value = next;
-      focusItem(next);
-    },
-    onRun: (id) => run(id as "delete" | "rename"),
-  });
-}
-
-function focusItem(index: number) {
-  nextTick(() => {
-    menuRef.value?.querySelectorAll<HTMLButtonElement>('[data-menu-item="true"]')[index]?.focus();
-  });
-}
-
-watch(
-  () => props.open,
-  (open) => {
-    if (!open) return;
-    focusIndex.value = 0;
-    nextTick(() => focusItem(0));
-  },
-);
-
-onMounted(() => {
-  window.addEventListener("keydown", onKeyDown);
-});
-
-onUnmounted(() => {
-  window.removeEventListener("keydown", onKeyDown);
+useMenuKeyboardNav({
+  menuRef,
+  getOpen: () => props.open,
+  getEnabledIndices: () => enabledIndices.value,
+  getItems: () => items.value,
+  onClose: () => emit("close"),
+  onRun: (id) => run(id as "delete" | "rename"),
+  initialFocus: "zero",
 });
 </script>
 

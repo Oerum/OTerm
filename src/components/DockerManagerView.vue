@@ -19,6 +19,9 @@ import type {
   DockerVolume,
 } from "../types/docker";
 import ConfirmDialog from "./ConfirmDialog.vue";
+import DockerNetworkIcon from "./DockerNetworkIcon.vue";
+import PanelHeaderActions from "./PanelHeaderActions.vue";
+import TrashActionButton from "./TrashActionButton.vue";
 import { pushAppToast } from "../lib/appToast";
 import { writeClipboardText } from "../lib/clipboard";
 import { useConfirmDialog } from "../composables/useConfirmDialog";
@@ -406,7 +409,7 @@ watch(() => props.active, (isActive) => {
       
       <div class="flex-1" />
       
-      <div class="flex items-center gap-2">
+      <PanelHeaderActions :loading="loading" :busy="busy" @refresh="load" @close="emit('close')">
         <button
           type="button"
           class="pr-header-btn hover:border-rose-500/30 hover:bg-rose-500/5 hover:text-rose-400"
@@ -415,25 +418,7 @@ watch(() => props.active, (isActive) => {
         >
           Prune System
         </button>
-        <button
-          type="button"
-          class="pr-header-btn"
-          :disabled="loading || busy"
-          @click="load"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" :class="{ 'animate-spin': loading }">
-            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-          </svg>
-          Refresh
-        </button>
-        <button
-          type="button"
-          class="pr-header-btn"
-          @click="emit('close')"
-        >
-          Close
-        </button>
-      </div>
+      </PanelHeaderActions>
     </header>
 
     <p v-if="error" class="px-6 py-3 text-xs text-[var(--oterm-danger)] bg-[var(--oterm-danger)]/5 border-b border-[var(--oterm-danger)]/15 shrink-0 font-medium flex items-center gap-2">
@@ -558,13 +543,7 @@ watch(() => props.active, (isActive) => {
           <div class="flex items-center justify-between">
             <span class="text-[10px] font-bold uppercase tracking-wider text-[var(--oterm-muted)]">Networks</span>
             <div class="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-400">
-                <rect x="16" y="16" width="6" height="6" rx="1"/>
-                <rect x="2" y="16" width="6" height="6" rx="1"/>
-                <rect x="9" y="2" width="6" height="6" rx="1"/>
-                <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/>
-                <line x1="12" y1="12" x2="12" y2="8"/>
-              </svg>
+              <DockerNetworkIcon />
             </div>
           </div>
           <div class="mt-1 text-2xl font-black text-white text-left">{{ summary.networks.length }}</div>
@@ -740,18 +719,6 @@ watch(() => props.active, (isActive) => {
               <button
                 v-if="container.state.toLowerCase() === 'running'"
                 type="button"
-                class="action-icon-btn action-icon-btn--rose"
-                title="Stop Container"
-                :disabled="busy"
-                @click="containerAction(container, 'stop')"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5">
-                  <rect x="4" y="4" width="16" height="16" rx="2" />
-                </svg>
-              </button>
-              <button
-                v-if="container.state.toLowerCase() === 'running'"
-                type="button"
                 class="action-icon-btn action-icon-btn--amber"
                 title="Restart Container"
                 :disabled="busy"
@@ -776,7 +743,7 @@ watch(() => props.active, (isActive) => {
                 </svg>
               </button>
               <button
-                v-if="container.state.toLowerCase() === 'paused'"
+                v-if="container.state.toLowerCase() === 'running' || container.state.toLowerCase() === 'paused'"
                 type="button"
                 class="action-icon-btn action-icon-btn--rose"
                 title="Stop Container"
@@ -801,19 +768,13 @@ watch(() => props.active, (isActive) => {
                   <path d="M5 3l14 9-14 9V3z" />
                 </svg>
               </button>
-              <button
+              <TrashActionButton
                 v-if="container.state.toLowerCase() !== 'running' && container.state.toLowerCase() !== 'paused'"
-                type="button"
-                class="action-icon-btn action-icon-btn--rose"
                 title="Remove Container"
+                extra-class="action-icon-btn--rose"
                 :disabled="busy"
                 @click="containerAction(container, 'remove')"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
+              />
             </div>
           </div>
         </div>
@@ -865,19 +826,12 @@ watch(() => props.active, (isActive) => {
             </div>
 
             <div class="shrink-0">
-              <button
-                type="button"
-                class="action-icon-btn action-icon-btn--rose"
-                :class="image.inUse ? 'opacity-30 cursor-not-allowed' : ''"
-                :disabled="busy || image.inUse"
+              <TrashActionButton
                 title="Remove Image"
+                :extra-class="image.inUse ? 'action-icon-btn--rose opacity-30 cursor-not-allowed' : 'action-icon-btn--rose'"
+                :disabled="busy || image.inUse"
                 @click="removeImage(image)"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
+              />
             </div>
           </div>
         </div>
@@ -916,18 +870,12 @@ watch(() => props.active, (isActive) => {
             </div>
 
             <div class="shrink-0">
-              <button
-                type="button"
-                class="action-icon-btn action-icon-btn--rose"
-                :disabled="busy"
+              <TrashActionButton
                 title="Remove Volume"
+                extra-class="action-icon-btn--rose"
+                :disabled="busy"
                 @click="removeVolume(volume)"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
+              />
             </div>
           </div>
         </div>
@@ -943,13 +891,7 @@ watch(() => props.active, (isActive) => {
             class="docker-card flex items-center gap-4 rounded-xl border border-[var(--oterm-border)] bg-[var(--oterm-panel)]/40 p-4 hover:border-amber-500/20"
           >
             <div class="h-9 w-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-amber-400">
-                <rect x="16" y="16" width="6" height="6" rx="1"/>
-                <rect x="2" y="16" width="6" height="6" rx="1"/>
-                <rect x="9" y="2" width="6" height="6" rx="1"/>
-                <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/>
-                <line x1="12" y1="12" x2="12" y2="8"/>
-              </svg>
+              <DockerNetworkIcon :size="18" />
             </div>
             
             <div class="min-w-0 flex-1">
@@ -978,19 +920,12 @@ watch(() => props.active, (isActive) => {
             </div>
 
             <div class="shrink-0">
-              <button
-                type="button"
-                class="action-icon-btn"
-                :class="isDefaultNetwork(network) ? 'opacity-20 cursor-not-allowed' : 'action-icon-btn--rose'"
-                :disabled="busy || isDefaultNetwork(network)"
+              <TrashActionButton
                 title="Remove Network"
+                :extra-class="isDefaultNetwork(network) ? 'opacity-20 cursor-not-allowed' : 'action-icon-btn--rose'"
+                :disabled="busy || isDefaultNetwork(network)"
                 @click="removeNetwork(network)"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
+              />
             </div>
           </div>
         </div>
@@ -1249,7 +1184,8 @@ watch(() => props.active, (isActive) => {
 }
 
 /* Action Icon Buttons */
-.action-icon-btn {
+.action-icon-btn,
+:deep(.action-icon-btn) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1263,14 +1199,16 @@ watch(() => props.active, (isActive) => {
   transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.action-icon-btn:hover:not(:disabled) {
+.action-icon-btn:hover:not(:disabled),
+:deep(.action-icon-btn:hover:not(:disabled)) {
   color: var(--oterm-text);
   background: rgba(255, 255, 255, 0.08);
   border-color: var(--oterm-border-strong);
   transform: translateY(-1px);
 }
 
-.action-icon-btn:disabled {
+.action-icon-btn:disabled,
+:deep(.action-icon-btn:disabled) {
   opacity: 0.35;
   cursor: not-allowed;
 }
@@ -1289,7 +1227,8 @@ watch(() => props.active, (isActive) => {
   box-shadow: 0 0 8px rgba(251, 191, 36, 0.15);
 }
 
-.action-icon-btn--rose:hover:not(:disabled) {
+.action-icon-btn--rose:hover:not(:disabled),
+:deep(.action-icon-btn--rose:hover:not(:disabled)) {
   color: #f87171;
   background: rgba(248, 113, 113, 0.12);
   border-color: rgba(248, 113, 113, 0.3);

@@ -49,33 +49,30 @@ const formatStat = (n: number): string => {
   }
   return n.toString();
 };
+
+const showStats = () => hasSyncStats() || hasDiffStats();
+
+function onClick() {
+  if (!props.readonly) emit("click");
+}
 </script>
 
 <template>
-  <span
-    v-if="gitStatus.isRepo && readonly"
+  <component
+    :is="readonly ? 'span' : 'button'"
+    v-if="gitStatus.isRepo"
+    :type="readonly ? undefined : 'button'"
     class="flex shrink-0 items-center gap-1 rounded font-mono"
-    :class="badgeClass"
-  >
-    <template v-if="hasSyncStats() || hasDiffStats()">
-      <span v-if="gitStatus.ahead > 0" class="text-[#58a6ff]">↑{{ formatStat(gitStatus.ahead) }}</span>
-      <span v-if="gitStatus.behind > 0" class="text-[#e3b341]">↓{{ formatStat(gitStatus.behind) }}</span>
-      <span v-if="gitStatus.changedFiles > 0" class="text-[var(--oterm-muted)]">{{ formatStat(gitStatus.changedFiles) }}</span>
-      <span v-if="gitStatus.additions > 0" class="text-[#3dd68c]">+{{ formatStat(gitStatus.additions) }}</span>
-      <span v-if="gitStatus.deletions > 0" class="text-[#ff7b72]">-{{ formatStat(gitStatus.deletions) }}</span>
-    </template>
-  </span>
-
-  <button
-    v-else-if="gitStatus.isRepo"
-    type="button"
-    class="no-drag flex shrink-0 items-center gap-1 rounded font-mono transition hover:bg-white/5"
-    :class="badgeClass"
-    :title="badgeTitle()"
-    :aria-label="badgeTitle()"
-    @click="emit('click')"
+    :class="[
+      badgeClass,
+      readonly ? '' : 'no-drag transition hover:bg-white/5',
+    ]"
+    :title="readonly ? undefined : badgeTitle()"
+    :aria-label="readonly ? undefined : badgeTitle()"
+    @click="onClick"
   >
     <svg
+      v-if="!readonly"
       width="11"
       height="11"
       viewBox="0 0 16 16"
@@ -89,13 +86,13 @@ const formatStat = (n: number): string => {
       <path d="M6 4.5h3.5a2 2 0 0 1 2 2V9" stroke-width="1.2" stroke-linecap="round" />
     </svg>
 
-    <template v-if="hasSyncStats() || hasDiffStats()">
+    <template v-if="showStats()">
       <span v-if="gitStatus.ahead > 0" class="text-[#58a6ff]">↑{{ formatStat(gitStatus.ahead) }}</span>
       <span v-if="gitStatus.behind > 0" class="text-[#e3b341]">↓{{ formatStat(gitStatus.behind) }}</span>
       <span v-if="gitStatus.changedFiles > 0" class="text-[var(--oterm-muted)]">{{ formatStat(gitStatus.changedFiles) }}</span>
       <span v-if="gitStatus.additions > 0" class="text-[#3dd68c]">+{{ formatStat(gitStatus.additions) }}</span>
       <span v-if="gitStatus.deletions > 0" class="text-[#ff7b72]">-{{ formatStat(gitStatus.deletions) }}</span>
     </template>
-    <span v-else-if="compact" class="text-[var(--oterm-faint)]">0</span>
-  </button>
+    <span v-else-if="!readonly && compact" class="text-[var(--oterm-faint)]">0</span>
+  </component>
 </template>
