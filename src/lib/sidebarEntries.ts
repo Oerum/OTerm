@@ -258,6 +258,76 @@ export function groupTerminalSidebarSections(
   return categories;
 }
 
+export type TerminalPathCluster = {
+  kind: "path";
+  pathKey: string;
+  label: string;
+  path: string;
+  entries: TerminalSidebarEntry[];
+};
+
+export type TerminalCategoryItem = TerminalSidebarEntry | TerminalPathCluster;
+
+export function isPathCluster(item: TerminalCategoryItem): item is TerminalPathCluster {
+  return "kind" in item && item.kind === "path";
+}
+
+/** Windows-friendly key: unify separators, strip trailing slash, lowercase. */
+export function normalizePathKey(path: string): string {
+  return path.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+}
+
+function pathDisplayFor(entry: TerminalSidebarEntry): string | null {
+  const raw = entry.gitRepoRoot || entry.cwd;
+  if (!raw || raw === "~") return null;
+  return raw;
+}
+
+export function pathClusterKey(entry: TerminalSidebarEntry): string | null {
+  const display = pathDisplayFor(entry);
+  if (!display) return null;
+  return normalizePathKey(display);
+}
+
+function pathBasename(path: string): string {
+  const parts = path.replace(/\\/g, "/").split("/").filter(Boolean);
+  return parts[parts.length - 1] || path;
+}
+
+/** Nest 2+ same-path entries into collapsible clusters; preserve encounter order. */
+export function nestEntriesByPath(entries: TerminalSidebarEntry[]): TerminalCategoryItem[] {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    const key = pathClusterKey(entry);
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  const emitted = new Set<string>();
+  const items: TerminalCategoryItem[] = [];
+
+  for (const entry of entries) {
+    const key = pathClusterKey(entry);
+    if (!key || (counts.get(key) ?? 0) < 2) {
+      items.push(entry);
+      continue;
+    }
+    if (emitted.has(key)) continue;
+    emitted.add(key);
+    const members = entries.filter((item) => pathClusterKey(item) === key);
+    const path = pathDisplayFor(members[0]!)!;
+    items.push({
+      kind: "path",
+      pathKey: key,
+      label: pathBasename(path),
+      path,
+      entries: members,
+    });
+  }
+
+  return items;
+}
+
 /** Hard-cut: tools are summonable windows, never session-list peers. */
 export function buildFeatureEntries(
   _tabs: WorkspaceTab[],

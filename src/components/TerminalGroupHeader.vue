@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
+import { shouldOpenMenuUpward } from "../lib/menuOpenUpward";
 import { entryAccentColor } from "../lib/sidebarEntries";
 import type { TerminalEntryColor } from "../types/terminal";
+import MoreMenuDotsIcon from "./MoreMenuDotsIcon.vue";
 import TerminalGroupMenu from "./TerminalGroupMenu.vue";
 
 const props = defineProps<{
@@ -66,10 +68,7 @@ watch(
   () => props.menuOpen,
   (isOpen) => {
     if (isOpen && dotMenuRef.value) {
-      const rect = dotMenuRef.value.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const spaceBelow = viewportHeight - rect.bottom;
-      openUpward.value = spaceBelow < 180 && rect.top > spaceBelow;
+      openUpward.value = shouldOpenMenuUpward(dotMenuRef.value, 180);
     }
   }
 );
@@ -189,11 +188,7 @@ watch(
           :aria-expanded="menuOpen"
           @click="onMenuClick"
         >
-          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-            <circle cx="5" cy="2" r="0.9" fill="currentColor" />
-            <circle cx="5" cy="5" r="0.9" fill="currentColor" />
-            <circle cx="5" cy="8" r="0.9" fill="currentColor" />
-          </svg>
+          <MoreMenuDotsIcon />
         </button>
 
         <Transition name="term-menu">

@@ -407,6 +407,32 @@ function onScroll() {
 function isSelected(hash: string): boolean {
   return props.selectedHash === hash;
 }
+
+const syncSections = computed(() => {
+  const sections: {
+    key: string;
+    label: string;
+    color: string;
+    entries: GitCommitEntry[];
+  }[] = [];
+  if (props.behind > 0) {
+    sections.push({
+      key: "incoming",
+      label: `Incoming (${props.behind})`,
+      color: "text-[#e3b341]",
+      entries: incoming.value,
+    });
+  }
+  if (props.ahead > 0) {
+    sections.push({
+      key: "outgoing",
+      label: `Outgoing (${props.ahead})`,
+      color: "text-[#58a6ff]",
+      entries: outgoing.value,
+    });
+  }
+  return sections;
+});
 </script>
 
 <template>
@@ -487,43 +513,20 @@ function isSelected(hash: string): boolean {
         @scroll.passive="onScroll"
       >
         <div
-          v-if="behind > 0"
+          v-for="section in syncSections"
+          :key="section.key"
           class="border-b border-[var(--oterm-border)]/60 px-3 py-2"
         >
           <p
-            class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#e3b341]"
+            class="text-[10px] font-semibold uppercase tracking-[0.08em]"
+            :class="section.color"
             style="font-family: var(--oterm-font-ui)"
           >
-            Incoming ({{ behind }})
+            {{ section.label }}
           </p>
           <button
-            v-for="entry in incoming"
-            :key="`incoming:${entry.hash}`"
-            type="button"
-            class="mt-1.5 block w-full rounded px-1 py-1.5 text-left hover:bg-white/[0.03]"
-            :class="isSelected(entry.hash) ? 'bg-white/[0.05]' : ''"
-            @click="onSelect(entry.hash)"
-            @dblclick="onDblClick(entry.hash)"
-            @contextmenu.prevent="openCommitContextMenu(entry.hash, $event)"
-          >
-            <p class="truncate text-xs leading-snug text-[var(--oterm-text)]">{{ entry.subject }}</p>
-            <p class="mt-0.5 truncate text-[10px] leading-snug text-[var(--oterm-faint)]">{{ entry.shortHash }}</p>
-          </button>
-        </div>
-
-        <div
-          v-if="ahead > 0"
-          class="border-b border-[var(--oterm-border)]/60 px-3 py-2"
-        >
-          <p
-            class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#58a6ff]"
-            style="font-family: var(--oterm-font-ui)"
-          >
-            Outgoing ({{ ahead }})
-          </p>
-          <button
-            v-for="entry in outgoing"
-            :key="`outgoing:${entry.hash}`"
+            v-for="entry in section.entries"
+            :key="`${section.key}:${entry.hash}`"
             type="button"
             class="mt-1.5 block w-full rounded px-1 py-1.5 text-left hover:bg-white/[0.03]"
             :class="isSelected(entry.hash) ? 'bg-white/[0.05]' : ''"

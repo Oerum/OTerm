@@ -2,12 +2,14 @@
 import { inject, ref, computed, watch, onUnmounted, nextTick } from "vue";
 import { hideTooltip } from "../lib/tooltipController";
 import { isTerminalRowDragBlocked } from "../composables/useTerminalTabDragReorder";
+import { shouldOpenMenuUpward } from "../lib/menuOpenUpward";
 import { entryAccentColor, isDefaultTabTitle } from "../lib/sidebarEntries";
 import { buildSessionRadar } from "../lib/sessionRadar";
 import { getCliAgentDefinition } from "../lib/terminalAgentMode";
 import type { TerminalMenuActionId, TerminalSidebarEntry, TerminalTabGroup } from "../types/terminal";
 import AgentFooterBadge from "./AgentFooterBadge.vue";
 import GitDiffBadge from "./GitDiffBadge.vue";
+import MoreMenuDotsIcon from "./MoreMenuDotsIcon.vue";
 import TerminalEntryMenu from "./TerminalEntryMenu.vue";
 
 const props = defineProps<{
@@ -359,10 +361,7 @@ watch(
   () => props.menuOpen,
   (isOpen) => {
     if (isOpen && dotMenuRef.value) {
-      const rect = dotMenuRef.value.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const spaceBelow = viewportHeight - rect.bottom;
-      openUpward.value = spaceBelow < 320 && rect.top > spaceBelow;
+      openUpward.value = shouldOpenMenuUpward(dotMenuRef.value, 320);
     }
   }
 );
@@ -569,11 +568,7 @@ watch(
               :aria-expanded="menuOpen"
               @click.stop="onMenuClick"
             >
-              <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
-                <circle cx="5" cy="2" r="0.9" fill="currentColor" />
-                <circle cx="5" cy="5" r="0.9" fill="currentColor" />
-                <circle cx="5" cy="8" r="0.9" fill="currentColor" />
-              </svg>
+              <MoreMenuDotsIcon :size="9" />
             </button>
 
             <Transition name="term-menu">

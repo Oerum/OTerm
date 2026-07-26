@@ -9,6 +9,7 @@ import {
   type AgentWorktreeLaunchConfirm,
   type AgentWorktreeLaunchMode,
 } from "../lib/agentWorktreeLaunch";
+import ChevronDownIcon from "./ChevronDownIcon.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -226,9 +227,7 @@ onUnmounted(() => {
               <span class="min-w-0 flex-1 truncate">
                 {{ workspaceMode === "current" ? "Current checkout" : "New worktree" }}
               </span>
-              <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" class="shrink-0 opacity-60" aria-hidden="true">
-                <path d="M1.5 2.5 4 5l2.5-2.5" stroke-width="1.2" stroke-linecap="round" />
-              </svg>
+              <ChevronDownIcon />
             </button>
 
             <div
@@ -317,9 +316,7 @@ onUnmounted(() => {
                   <path d="M4 2.5h5.5a1.5 1.5 0 0 1 1.5 1.5v2M4 13.5h5.5a1.5 1.5 0 0 0 1.5-1.5v-2M2.5 8h11" stroke-width="1.2" stroke-linecap="round" />
                 </svg>
                 <span class="min-w-0 flex-1 truncate">{{ refButtonLabel }}</span>
-                <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" class="shrink-0 opacity-60" aria-hidden="true">
-                  <path d="M1.5 2.5 4 5l2.5-2.5" stroke-width="1.2" stroke-linecap="round" />
-                </svg>
+                <ChevronDownIcon />
               </button>
 
               <div

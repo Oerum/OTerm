@@ -5,8 +5,13 @@ import {
   buildTerminalEntries,
   buildTerminalSidebarSections,
   groupTerminalSidebarSections,
+  isPathCluster,
+  nestEntriesByPath,
+  normalizePathKey,
   paneDisplayTitle,
+  pathClusterKey,
 } from "./sidebarEntries";
+import type { TerminalSidebarEntry } from "../types/terminal";
 
 const shells: ShellProfile[] = [
   { id: "pwsh", label: "PowerShell", program: "pwsh.exe", args: [] },
@@ -315,6 +320,185 @@ describe("groupTerminalSidebarSections", () => {
         showHeader: false,
         entries: [expect.objectContaining({ tabId: "tab-a" })],
       },
+    ]);
+  });
+});
+
+function sidebarEntry(overrides: Partial<TerminalSidebarEntry> = {}): TerminalSidebarEntry {
+  return {
+    entryId: "tab-1:pane-1",
+    tabId: "tab-1",
+    paneId: "pane-1",
+    title: "oterm",
+    subtitle: "PowerShell · C:\\Users\\Filip\\desktop\\oterm",
+    splitIndex: null,
+    shellId: "pwsh",
+    shellLabel: "PowerShell",
+    cwd: "C:\\Users\\Filip\\desktop\\oterm",
+    sessionId: "session-1",
+    activeAgentId: null,
+    tabTitle: "Terminal",
+    renameDefault: "oterm",
+    tabColor: "none",
+    gitBranch: null,
+    gitIsRepo: false,
+    gitRepoRoot: null,
+    gitIsWorktree: false,
+    gitChangedFiles: 0,
+    gitAdditions: 0,
+    gitDeletions: 0,
+    isActive: false,
+    hasUnseenNotification: false,
+    agentStatus: "unknown",
+    agentStatusSeen: true,
+    canMoveUp: false,
+    canMoveDown: false,
+    entriesBelowCount: 0,
+    canCloseOthers: false,
+    terminalTabIndex: 0,
+    isFirstPaneOfTab: true,
+    groupId: null,
+    ...overrides,
+  };
+}
+
+describe("normalizePathKey / pathClusterKey", () => {
+  it("normalizes separators, trailing slash, and case", () => {
+    expect(normalizePathKey("C:\\Users\\Filip\\desktop\\oterm\\")).toBe(
+      "c:/users/filip/desktop/oterm",
+    );
+  });
+
+  it("prefers gitRepoRoot over cwd", () => {
+    const entry = sidebarEntry({
+      cwd: "C:\\Users\\Filip\\desktop\\oterm\\src",
+      gitRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
+    });
+    expect(pathClusterKey(entry)).toBe("c:/users/filip/desktop/oterm");
+  });
+
+  it("returns null for empty or ~ paths", () => {
+    expect(pathClusterKey(sidebarEntry({ cwd: "~", gitRepoRoot: null }))).toBeNull();
+    expect(pathClusterKey(sidebarEntry({ cwd: "", gitRepoRoot: null }))).toBeNull();
+  });
+});
+
+describe("nestEntriesByPath", () => {
+  it("clusters 2+ entries with the same gitRepoRoot; leaves singles flat", () => {
+    const a = sidebarEntry({
+      entryId: "a:p",
+      tabId: "a",
+      paneId: "p",
+      gitRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
+    });
+    const b = sidebarEntry({
+      entryId: "b:p",
+      tabId: "b",
+      paneId: "p",
+      gitRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
+    });
+    const alone = sidebarEntry({
+      entryId: "c:p",
+      tabId: "c",
+      paneId: "p",
+      cwd: "C:\\other\\repo",
+      gitRepoRoot: "C:\\other\\repo",
+      title: "repo",
+    });
+
+    const items = nestEntriesByPath([a, alone, b]);
+    expect(items).toHaveLength(2);
+    expect(isPathCluster(items[0]!)).toBe(true);
+    if (isPathCluster(items[0]!)) {
+      expect(items[0].label).toBe("oterm");
+      expect(items[0].entries.map((e) => e.tabId)).toEqual(["a", "b"]);
+    }
+    expect(isPathCluster(items[1]!)).toBe(false);
+    expect((items[1] as TerminalSidebarEntry).tabId).toBe("c");
+  });
+
+  it("clusters by cwd when gitRepoRoot is missing", () => {
+    const a = sidebarEntry({ entryId: "a:p", tabId: "a", paneId: "p", gitRepoRoot: null });
+    const b = sidebarEntry({ entryId: "b:p", tabId: "b", paneId: "p", gitRepoRoot: null });
+    const items = nestEntriesByPath([a, b]);
+    expect(items).toHaveLength(1);
+    expect(isPathCluster(items[0]!)).toBe(true);
+    if (isPathCluster(items[0]!)) {
+      expect(items[0].pathKey).toBe("c:/users/filip/desktop/oterm");
+      expect(items[0].entries).toHaveLength(2);
+    }
+  });
+
+  it("does not cluster different repo roots", () => {
+    const a = sidebarEntry({
+      entryId: "a:p",
+      tabId: "a",
+      gitRepoRoot: "C:\\repo-a",
+      cwd: "C:\\repo-a",
+    });
+    const b = sidebarEntry({
+      entryId: "b:p",
+      tabId: "b",
+      gitRepoRoot: "C:\\repo-b",
+      cwd: "C:\\repo-b",
+    });
+    const items = nestEntriesByPath([a, b]);
+    expect(items.every((item) => !isPathCluster(item))).toBe(true);
+  });
+
+  it("nests path clusters inside a named group category's entries", () => {
+    const a = sidebarEntry({
+      entryId: "a:p",
+      tabId: "a",
+      groupId: "g1",
+      gitRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
+    });
+    const b = sidebarEntry({
+      entryId: "b:p",
+      tabId: "b",
+      groupId: "g1",
+      gitRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
+    });
+    const categories = groupTerminalSidebarSections([
+      {
+        kind: "group-header",
+        groupId: "g1",
+        name: "Work",
+        tabCount: 2,
+        collapsed: false,
+        color: "none",
+      },
+      { kind: "entry", entry: a },
+      { kind: "entry", entry: b },
+    ]);
+    const items = nestEntriesByPath(categories[0]!.entries);
+    expect(items).toHaveLength(1);
+    expect(isPathCluster(items[0]!)).toBe(true);
+  });
+
+  it("preserves order: cluster at first member, unrelated entries interleaved", () => {
+    const other = sidebarEntry({
+      entryId: "x:p",
+      tabId: "x",
+      cwd: "C:\\solo",
+      gitRepoRoot: null,
+      title: "solo",
+    });
+    const a = sidebarEntry({ entryId: "a:p", tabId: "a", gitRepoRoot: null });
+    const mid = sidebarEntry({
+      entryId: "y:p",
+      tabId: "y",
+      cwd: "C:\\mid",
+      gitRepoRoot: null,
+      title: "mid",
+    });
+    const b = sidebarEntry({ entryId: "b:p", tabId: "b", gitRepoRoot: null });
+
+    const items = nestEntriesByPath([other, a, mid, b]);
+    expect(items.map((item) => (isPathCluster(item) ? `path:${item.label}` : item.tabId))).toEqual([
+      "x",
+      "path:oterm",
+      "y",
     ]);
   });
 });

@@ -8,6 +8,9 @@ import {
   buildTerminalSidebarSections,
   groupTerminalSidebarSections,
   entryAccentColor,
+  isPathCluster,
+  nestEntriesByPath,
+  type TerminalCategoryItem,
   type TerminalSidebarCategory,
 } from "../lib/sidebarEntries";
 import { writeClipboardText } from "../lib/clipboard";
@@ -17,6 +20,7 @@ import type {
   ShellProfile,
   TerminalEntryColor,
   TerminalMenuActionId,
+  TerminalSidebarEntry as TerminalSidebarEntryModel,
   TerminalSidebarSection,
   TerminalTabGroup,
   WorkspaceTab,
@@ -24,7 +28,7 @@ import type {
 import { isTerminalTab } from "../types/terminal";
 import TerminalCreateMenu from "./TerminalCreateMenu.vue";
 import TerminalGroupHeader from "./TerminalGroupHeader.vue";
-import TerminalSidebarEntry from "./TerminalSidebarEntry.vue";
+import SidebarBoundEntry from "./SidebarBoundEntry.vue";
 
 const props = defineProps<{
   tabs: WorkspaceTab[];
@@ -177,8 +181,50 @@ const terminalSections = computed((): TerminalSidebarSection[] => {
 
 const terminalCategories = computed(() => groupTerminalSidebarSections(terminalSections.value));
 
+const nestedCategories = computed(() =>
+  terminalCategories.value.map((cat) => ({
+    ...cat,
+    items: nestEntriesByPath(cat.entries),
+  })),
+);
+
+/** Session-only path-cluster collapse; keyed by categoryScope::pathKey. */
+const collapsedPathKeys = ref<string[]>([]);
+
 function categoryGroupId(category: TerminalSidebarCategory): string | null {
   return category.kind === "group" ? category.groupId : null;
+}
+
+function categoryScope(category: TerminalSidebarCategory): string {
+  return category.kind === "group" ? category.groupId : "ungrouped";
+}
+
+function pathCollapseKey(category: TerminalSidebarCategory, pathKey: string): string {
+  return `${categoryScope(category)}::${pathKey}`;
+}
+
+function isPathCollapsed(category: TerminalSidebarCategory, pathKey: string): boolean {
+  return collapsedPathKeys.value.includes(pathCollapseKey(category, pathKey));
+}
+
+function togglePathCollapsed(category: TerminalSidebarCategory, pathKey: string) {
+  const key = pathCollapseKey(category, pathKey);
+  if (collapsedPathKeys.value.includes(key)) {
+    collapsedPathKeys.value = collapsedPathKeys.value.filter((id) => id !== key);
+  } else {
+    collapsedPathKeys.value = [...collapsedPathKeys.value, key];
+  }
+}
+
+function categoryShowsEntries(
+  category: (typeof nestedCategories.value)[number],
+): boolean {
+  if (category.kind === "group") return !category.collapsed;
+  return true;
+}
+
+function asSidebarEntry(item: TerminalCategoryItem): TerminalSidebarEntryModel {
+  return item as TerminalSidebarEntryModel;
 }
 
 const {
@@ -552,6 +598,41 @@ function onRenameCancel() {
   renamingEntryId.value = null;
 }
 
+function sidebarEntryBind(entry: TerminalSidebarEntryModel) {
+  return {
+    entry,
+    groups: props.terminalGroups,
+    menuOpen: openMenuEntryId.value === entry.entryId,
+    renaming: renamingEntryId.value === entry.entryId,
+    dragging: isDraggingTab(entry),
+    dropTarget: isDropTarget(entry),
+    dropTargetAfter: isDropTargetAfter(entry),
+    dragStyle: getEntryDragStyle(entry),
+    isDraggingAny: draggingTabId.value !== null,
+  };
+}
+
+function onSidebarEntryDragStart(
+  tabId: string,
+  tabIndex: number,
+  event: PointerEvent,
+  handleEl: HTMLElement,
+) {
+  onDragPointerDown(tabId, tabIndex, event, terminalListRef.value, handleEl);
+}
+
+const sidebarEntryOn = {
+  select: (tabId: string, paneId: string) => emit("select", tabId, paneId),
+  menuToggle: setMenuOpen,
+  action: onEntryAction,
+  moveToGroup: onMoveToGroup,
+  newGroupAndMove: onNewGroupAndMove,
+  colorChange: onEntryColorChange,
+  renameCommit: onRenameCommit,
+  renameCancel: onRenameCancel,
+  dragStart: onSidebarEntryDragStart,
+};
+
 onMounted(() => {
   document.addEventListener("mousedown", onDocumentClick);
 });
@@ -675,7 +756,7 @@ onBeforeUnmount(() => {
         No open terminals
       </p>
 
-      <template v-for="(category, categoryIndex) in terminalCategories" :key="`${category.kind}-${categoryIndex}`">
+      <template v-for="(category, categoryIndex) in nestedCategories" :key="`${category.kind}-${categoryIndex}`">
         <div
           class="rounded-lg border border-transparent transition-all duration-[120ms] group-category flex flex-col gap-1"
           :style="getCategoryDropStyle(category)"
@@ -714,72 +795,91 @@ onBeforeUnmount(() => {
             <span class="shrink-0 font-mono text-[10px] text-[var(--oterm-faint)]">({{ category.tabCount }})</span>
           </div>
 
-          <!-- Indented sub-container for group entries -->
           <div
-            v-if="category.kind === 'group' && !category.collapsed && category.entries.length > 0"
-            class="group-guide-line mt-0.5 ml-1.5 pl-1 flex flex-col gap-1"
-            :style="{
-              '--guide-color-base': category.color === 'none' 
-                ? 'rgba(255, 255, 255, 0.04)' 
-                : `${entryAccentColor(category.color)}12`,
-              '--guide-color-hover': category.color === 'none' 
-                ? 'rgba(255, 255, 255, 0.14)' 
-                : `${entryAccentColor(category.color)}28`
-            }"
+            v-if="categoryShowsEntries(category) && category.items.length > 0"
+            class="flex flex-col gap-1"
+            :class="
+              category.kind === 'group'
+                ? 'group-guide-line mt-0.5 ml-1.5 pl-1'
+                : ''
+            "
+            :style="
+              category.kind === 'group'
+                ? {
+                    '--guide-color-base':
+                      category.color === 'none'
+                        ? 'rgba(255, 255, 255, 0.04)'
+                        : `${entryAccentColor(category.color)}12`,
+                    '--guide-color-hover':
+                      category.color === 'none'
+                        ? 'rgba(255, 255, 255, 0.14)'
+                        : `${entryAccentColor(category.color)}28`,
+                  }
+                : undefined
+            "
           >
-            <TerminalSidebarEntry
-              v-for="entry in category.entries"
-              :key="entry.entryId"
-              :entry="entry"
-              :groups="terminalGroups"
-              :menu-open="openMenuEntryId === entry.entryId"
-              :renaming="renamingEntryId === entry.entryId"
-              :dragging="isDraggingTab(entry)"
-              :drop-target="isDropTarget(entry)"
-              :drop-target-after="isDropTargetAfter(entry)"
-              :drag-style="getEntryDragStyle(entry)"
-              :is-dragging-any="draggingTabId !== null"
-              @select="(tabId, paneId) => emit('select', tabId, paneId)"
-              @menu-toggle="setMenuOpen"
-              @action="(actionId) => onEntryAction(entry.entryId, actionId)"
-              @move-to-group="(groupId) => onMoveToGroup(entry.entryId, groupId)"
-              @new-group-and-move="onNewGroupAndMove(entry.entryId)"
-              @color-change="(color) => onEntryColorChange(entry.entryId, color)"
-              @rename-commit="onRenameCommit"
-              @rename-cancel="onRenameCancel"
-              @drag-start="
-                (tabId, tabIndex, event, handleEl) =>
-                  onDragPointerDown(tabId, tabIndex, event, terminalListRef, handleEl)
-              "
-            />
+            <template
+              v-for="item in category.items"
+              :key="isPathCluster(item) ? `path:${item.pathKey}` : item.entryId"
+            >
+              <div v-if="isPathCluster(item)" class="flex flex-col gap-0.5">
+                <button
+                  type="button"
+                  class="no-drag group/path flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left transition select-none hover:bg-white/[0.03]"
+                  :title="item.path"
+                  :aria-expanded="!isPathCollapsed(category, item.pathKey)"
+                  :aria-label="
+                    isPathCollapsed(category, item.pathKey)
+                      ? `Expand ${item.label}`
+                      : `Collapse ${item.label}`
+                  "
+                  @click="togglePathCollapsed(category, item.pathKey)"
+                >
+                  <span class="flex h-5 w-3 shrink-0 items-center justify-center text-[var(--oterm-faint)]">
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="transition-transform duration-[120ms]"
+                      :class="isPathCollapsed(category, item.pathKey) ? '' : 'rotate-90'"
+                    >
+                      <polyline points="6 3 11 8 6 13" />
+                    </svg>
+                  </span>
+                  <span
+                    class="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-[0.04em] text-[var(--oterm-muted)] group-hover/path:text-[var(--oterm-text)]"
+                  >
+                    {{ item.label }}
+                  </span>
+                  <span class="shrink-0 font-mono text-[10px] text-[var(--oterm-faint)]">
+                    {{ item.entries.length }}
+                  </span>
+                </button>
+                <div
+                  v-if="!isPathCollapsed(category, item.pathKey)"
+                  class="group-guide-line ml-1.5 pl-1 flex flex-col gap-1"
+                  style="--guide-color-base: rgba(255, 255, 255, 0.04); --guide-color-hover: rgba(255, 255, 255, 0.14)"
+                >
+                  <SidebarBoundEntry
+                    v-for="entry in item.entries"
+                    :key="entry.entryId"
+                    v-bind="sidebarEntryBind(entry)"
+                    v-on="sidebarEntryOn"
+                  />
+                </div>
+              </div>
+              <SidebarBoundEntry
+                v-else
+                v-bind="sidebarEntryBind(asSidebarEntry(item))"
+                v-on="sidebarEntryOn"
+              />
+            </template>
           </div>
-          <template v-else-if="category.kind === 'ungrouped' || category.collapsed">
-            <TerminalSidebarEntry
-              v-for="entry in category.entries"
-              :key="entry.entryId"
-              :entry="entry"
-              :groups="terminalGroups"
-              :menu-open="openMenuEntryId === entry.entryId"
-              :renaming="renamingEntryId === entry.entryId"
-              :dragging="isDraggingTab(entry)"
-              :drop-target="isDropTarget(entry)"
-              :drop-target-after="isDropTargetAfter(entry)"
-              :drag-style="getEntryDragStyle(entry)"
-              :is-dragging-any="draggingTabId !== null"
-              @select="(tabId, paneId) => emit('select', tabId, paneId)"
-              @menu-toggle="setMenuOpen"
-              @action="(actionId) => onEntryAction(entry.entryId, actionId)"
-              @move-to-group="(groupId) => onMoveToGroup(entry.entryId, groupId)"
-              @new-group-and-move="onNewGroupAndMove(entry.entryId)"
-              @color-change="(color) => onEntryColorChange(entry.entryId, color)"
-              @rename-commit="onRenameCommit"
-              @rename-cancel="onRenameCancel"
-              @drag-start="
-                (tabId, tabIndex, event, handleEl) =>
-                  onDragPointerDown(tabId, tabIndex, event, terminalListRef, handleEl)
-              "
-            />
-          </template>
         </div>
       </template>
       </div>

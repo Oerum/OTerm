@@ -18,6 +18,23 @@ export function parseSshConnectError(message: string): SshConnectError | null {
   return null;
 }
 
+export function unknownHostKeyConfirm(
+  host: string,
+  port: number,
+  error: SshConnectError,
+  action: "test" | "connect",
+): { title: string; message: string; confirmLabel: string } {
+  const footer =
+    action === "test"
+      ? "Trust this host and test connection?"
+      : "Only continue if you trust this server.";
+  return {
+    title: "Trust this host?",
+    message: `The server ${host}:${port} is not in your known_hosts file.\n\n${error.algorithm}\n${error.fingerprint}\n\n${footer}`,
+    confirmLabel: action === "test" ? "Trust and test" : "Trust and connect",
+  };
+}
+
 export function sshSftpConnect(request: SshConnectRequest): Promise<SshConnectResult> {
   return invoke<SshConnectResult>("ssh_sftp_connect", { request });
 }
