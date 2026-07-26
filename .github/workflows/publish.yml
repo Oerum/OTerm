@@ -373,7 +373,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'OTerm v__VERSION__'
-          releaseBody: 'Release generated automatically by CI/CD pipeline.'
+          generateReleaseNotes: true
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: ${{ matrix.include_updater && matrix.updater_manifest == 'latest.json' }}
@@ -389,7 +389,6 @@ jobs:
           APP_VERSION: ${{ steps.tauri.outputs.appVersion }}
           ARTIFACT_PATHS: ${{ steps.tauri.outputs.artifactPaths }}
           TAG_NAME: ${{ github.ref_name }}
-          RELEASE_BODY: Release generated automatically by CI/CD pipeline.
         run: node scripts/upload-updater-manifest.mjs
 
       - name: Verify Windows CUDA runtime bundle
