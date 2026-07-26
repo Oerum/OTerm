@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
 import FileKindIcon from "../FileKindIcon.vue";
+import UiGlyph from "../UiGlyph.vue";
 
 export type FilePaneEntry = {
   name: string;
@@ -247,9 +248,7 @@ function cancelPathEdit() {
       <div class="flex items-center gap-2">
         <div class="relative flex-1">
           <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[var(--oterm-faint)]">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
+            <UiGlyph name="search" :size="12" />
           </span>
           <input
             v-model="searchFilter"

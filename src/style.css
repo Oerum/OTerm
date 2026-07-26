@@ -533,3 +533,41 @@ input[type="password"]:focus {
   cursor: not-allowed;
 }
 
+.header-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-family: var(--oterm-font-ui);
+  font-weight: 600;
+  color: var(--oterm-muted);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--oterm-border);
+  cursor: pointer;
+  transition: all 120ms ease;
+  user-select: none;
+}
+
+.header-tool-btn:hover:not(:disabled) {
+  color: var(--oterm-text);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--oterm-border-strong);
+}
+
+.header-tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.header-tool-btn--accent {
+  color: var(--oterm-accent);
+  border-color: rgba(0, 229, 186, 0.2);
+}
+
+.header-tool-btn--accent:hover:not(:disabled) {
+  background: rgba(0, 229, 186, 0.08);
+  border-color: rgba(0, 229, 186, 0.4);
+}
+

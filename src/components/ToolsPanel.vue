@@ -4,6 +4,7 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import ExplorerContextMenu from "./ExplorerContextMenu.vue";
 import TerminalSyncPanel from "./TerminalSyncPanel.vue";
 import FileKindIcon from "./FileKindIcon.vue";
+import UiGlyph from "./UiGlyph.vue";
 import {
   getToolsDirectoryHints,
   importEnvFile,
@@ -629,9 +630,7 @@ onBeforeUnmount(() => {
       </label>
       <div class="relative mt-1.5">
         <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[var(--oterm-faint)]">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
+          <UiGlyph name="search" :size="12" />
         </span>
         <input
           v-model="searchQuery"
@@ -782,23 +781,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.header-tool-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 10px;
-  font-family: var(--oterm-font-ui);
-  font-weight: 600;
-  color: var(--oterm-muted);
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--oterm-border);
-  cursor: pointer;
-  transition: all 120ms ease;
-  user-select: none;
-}
-
 .header-tool-icon-btn {
   display: inline-flex;
   align-items: center;
@@ -821,17 +803,6 @@ onBeforeUnmount(() => {
 }
 
 .header-tool-icon-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.header-tool-btn:hover:not(:disabled) {
-  color: var(--oterm-text);
-  background: rgba(255, 255, 255, 0.06);
-  border-color: var(--oterm-border-strong);
-}
-
-.header-tool-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }

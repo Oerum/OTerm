@@ -35,6 +35,8 @@ import type {
 import GitDiffViewer from "./GitDiffViewer.vue";
 import GitHubAvatar from "./GitHubAvatar.vue";
 import MarkdownContent from "./MarkdownContent.vue";
+import RepoPanelHeader from "./RepoPanelHeader.vue";
+import UiGlyph from "./UiGlyph.vue";
 
 const props = defineProps<{
   repoRoot: string;
@@ -567,64 +569,58 @@ watch(() => props.active, (isActive) => {
 <template>
   <div class="relative flex min-h-0 flex-1 flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)]">
     <!-- Header -->
-    <header class="flex shrink-0 items-center gap-3 border-b border-[var(--oterm-border)] px-4 py-3 bg-[var(--oterm-panel)]">
-      <div class="flex items-center gap-2 min-w-0">
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" class="text-[var(--oterm-accent)] shrink-0">
-          <path d="M5 4.5a2.5 2.5 0 100 5v2.5M11 11.5a2.5 2.5 0 100-5v-2.5M5 7h6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+    <RepoPanelHeader :repo-root="repoRoot">
+      <template #icon>
+        <UiGlyph name="branch" :size="15" class="shrink-0 text-[var(--oterm-accent)]" />
+      </template>
+      <template #title>
         <h2 class="text-sm font-semibold tracking-wide">Pull Requests</h2>
-        <span class="truncate text-xs text-[var(--oterm-faint)] font-mono max-w-[200px]" :title="repoRoot">{{ repoRoot }}</span>
-      </div>
-      
-      <div class="flex-1" />
-      
-      <div class="flex items-center gap-3">
-        <label class="flex items-center gap-2 text-xs text-[var(--oterm-muted)] cursor-pointer select-none">
-          <input v-model="includeClosed" type="checkbox" class="rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)] cursor-pointer" />
-          Show closed
-        </label>
-        
-        <div class="h-4 w-[1px] bg-[var(--oterm-border)]" />
-        
-        <button
-          type="button"
-          class="pr-header-btn"
-          title="Refresh pull requests"
-          :disabled="loading"
-          @click="load"
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" :class="{ 'animate-spin': loading }">
-            <path d="M13.5 8a5.5 5.5 0 11-1.61-3.89L13.5 5.5m0 0V2m0 3.5H10" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          Refresh
-        </button>
-        
-        <button
-          type="button"
-          class="pr-header-btn pr-header-btn--primary"
-          title="Create a new pull request"
-          :disabled="!provider?.authOk || busy"
-          @click="openCreateDialog"
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-            <path d="M8 3v10M3 8h10" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          New PR
-        </button>
-        
-        <button
-          type="button"
-          class="pr-header-btn"
-          title="Close PR tab"
-          @click="emit('close')"
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-            <path d="M4 4l8 8M12 4L4 12" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          Close
-        </button>
-      </div>
-    </header>
+      </template>
+      <label class="flex cursor-pointer select-none items-center gap-2 text-xs text-[var(--oterm-muted)]">
+        <input v-model="includeClosed" type="checkbox" class="cursor-pointer rounded border-[var(--oterm-border)] bg-transparent accent-[var(--oterm-accent)]" />
+        Show closed
+      </label>
+
+      <div class="h-4 w-[1px] bg-[var(--oterm-border)]" />
+
+      <button
+        type="button"
+        class="pr-header-btn"
+        title="Refresh pull requests"
+        :disabled="loading"
+        @click="load"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" :class="{ 'animate-spin': loading }">
+          <path d="M13.5 8a5.5 5.5 0 11-1.61-3.89L13.5 5.5m0 0V2m0 3.5H10" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Refresh
+      </button>
+
+      <button
+        type="button"
+        class="pr-header-btn pr-header-btn--primary"
+        title="Create a new pull request"
+        :disabled="!provider?.authOk || busy"
+        @click="openCreateDialog"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+          <path d="M8 3v10M3 8h10" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        New PR
+      </button>
+
+      <button
+        type="button"
+        class="pr-header-btn"
+        title="Close PR tab"
+        @click="emit('close')"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+          <path d="M4 4l8 8M12 4L4 12" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Close
+      </button>
+    </RepoPanelHeader>
 
     <!-- Provider Warning -->
     <div v-if="provider && !provider.authOk" class="m-4 rounded-lg border border-[var(--oterm-border)] bg-[var(--oterm-elevated)] p-4 max-w-xl self-center shadow-md animate-fadeIn">
@@ -680,9 +676,7 @@ watch(() => props.active, (isActive) => {
         <div v-if="pullRequests.length > 0" class="sticky top-0 z-10 shrink-0 border-b border-[var(--oterm-border)] bg-[var(--oterm-panel)]/80 backdrop-blur-md px-3 py-2">
           <div class="relative">
             <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[var(--oterm-faint)]">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-                <path d="M11.5 11.5L14.5 14.5M13 7.5a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z" stroke-width="1.5" stroke-linecap="round" />
-              </svg>
+              <UiGlyph name="list-search" :size="12" />
             </span>
             <input
               v-model="prSearchQuery"
@@ -994,10 +988,8 @@ watch(() => props.active, (isActive) => {
 
           <!-- Conversation -->
           <div v-if="activeTab === 'conversation'" class="p-5 space-y-6 max-w-4xl">
-            <div v-if="detailLoading" class="flex items-center gap-2 text-xs text-[var(--oterm-faint)] py-4">
-              <svg class="animate-spin text-[var(--oterm-faint)]" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-                <path d="M13.5 8a5.5 5.5 0 11-1.61-3.89L13.5 5.5" stroke-width="1.5" stroke-linecap="round" />
-              </svg>
+            <div v-if="detailLoading" class="flex items-center gap-2 py-4 text-xs text-[var(--oterm-faint)]">
+              <UiGlyph name="spinner-arc" :size="14" class="text-[var(--oterm-faint)]" />
               <span>Loading details…</span>
             </div>
             
@@ -1084,10 +1076,8 @@ watch(() => props.active, (isActive) => {
 
           <!-- Reviews -->
           <div v-else-if="activeTab === 'reviews'" class="p-5 max-w-4xl">
-            <div v-if="detailLoading" class="flex items-center gap-2 text-xs text-[var(--oterm-faint)] py-4">
-              <svg class="animate-spin text-[var(--oterm-faint)]" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor">
-                <path d="M13.5 8a5.5 5.5 0 11-1.61-3.89L13.5 5.5" stroke-width="1.5" stroke-linecap="round" />
-              </svg>
+            <div v-if="detailLoading" class="flex items-center gap-2 py-4 text-xs text-[var(--oterm-faint)]">
+              <UiGlyph name="spinner-arc" :size="14" class="text-[var(--oterm-faint)]" />
               <span>Loading reviews…</span>
             </div>
 

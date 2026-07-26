@@ -6,6 +6,7 @@ import {
   endpointsInGroup,
 } from "../../lib/sshSftpStore";
 import { endpointDisplayLabel, type SshEndpoint, type SshGroup, type SshSftpLibrary } from "../../types/sshSftp";
+import UiGlyph from "../UiGlyph.vue";
 
 const props = defineProps<{
   library: SshSftpLibrary;
@@ -106,9 +107,7 @@ const groupRows = computed(() => renderGroups(null));
     <div class="space-y-3 border-b border-[var(--oterm-border)] p-4 bg-[var(--oterm-panel)]/60">
       <div class="relative">
         <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[var(--oterm-faint)]">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
+          <UiGlyph name="search" :size="13" />
         </span>
         <input
           :value="search"
@@ -123,7 +122,7 @@ const groupRows = computed(() => renderGroups(null));
       <div class="flex flex-wrap gap-1.5">
         <button
           type="button"
-          class="sidebar-action-btn"
+          class="header-tool-btn"
           title="Add Group folder"
           @click="emit('addGroup')"
         >
@@ -134,7 +133,7 @@ const groupRows = computed(() => renderGroups(null));
         </button>
         <button
           type="button"
-          class="sidebar-action-btn sidebar-action-btn--accent"
+          class="header-tool-btn header-tool-btn--accent"
           title="Add SSH/Mosh host"
           @click="emit('addHost')"
         >
@@ -146,7 +145,7 @@ const groupRows = computed(() => renderGroups(null));
         <div class="flex-1" />
         <button
           type="button"
-          class="sidebar-action-btn"
+          class="header-tool-btn"
           title="Export hosts"
           @click="emit('exportLibrary')"
         >
@@ -154,7 +153,7 @@ const groupRows = computed(() => renderGroups(null));
         </button>
         <button
           type="button"
-          class="sidebar-action-btn"
+          class="header-tool-btn"
           title="Import hosts file"
           @click="emit('importLibrary')"
         >
@@ -216,9 +215,7 @@ const groupRows = computed(() => renderGroups(null));
           @click="emit('update:selectedGroupId', 'uncategorized')"
         >
           <span class="flex items-center gap-1.5">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
+            <UiGlyph name="alert" :size="12" />
             Uncategorized
           </span>
           <span class="font-mono text-[10px] opacity-75">({{ endpointsInGroup(library.endpoints, null).length }})</span>
@@ -307,10 +304,7 @@ const groupRows = computed(() => renderGroups(null));
             title="Launch Terminal Session directly"
             @click.stop="emit('openTerminalDirectly', endpoint)"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="4 17 10 11 4 5" />
-              <line x1="12" y1="19" x2="20" y2="19" />
-            </svg>
+            <UiGlyph name="terminal" :size="12" />
           </button>
         </div>
         <p v-if="filteredEndpoints.length === 0" class="py-8 text-center text-xs text-[var(--oterm-faint)]">
@@ -322,38 +316,6 @@ const groupRows = computed(() => renderGroups(null));
 </template>
 
 <style scoped>
-.sidebar-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 10px;
-  font-family: var(--oterm-font-ui);
-  font-weight: 600;
-  color: var(--oterm-muted);
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--oterm-border);
-  cursor: pointer;
-  transition: all 120ms ease;
-}
-
-.sidebar-action-btn:hover {
-  color: var(--oterm-text);
-  background: rgba(255, 255, 255, 0.06);
-  border-color: var(--oterm-border-strong);
-}
-
-.sidebar-action-btn--accent {
-  color: var(--oterm-accent);
-  border-color: rgba(0, 229, 186, 0.2);
-}
-
-.sidebar-action-btn--accent:hover {
-  background: rgba(0, 229, 186, 0.08);
-  border-color: rgba(0, 229, 186, 0.4);
-}
-
 .sidebar-host-card {
   transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
