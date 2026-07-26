@@ -7,7 +7,6 @@ const token = process.env.GITHUB_TOKEN;
 const manifestName = process.env.UPDATER_MANIFEST;
 const releaseId = Number(process.env.RELEASE_ID);
 const version = process.env.APP_VERSION;
-const notes = process.env.RELEASE_BODY ?? "";
 const tagName = process.env.TAG_NAME?.replace(/^refs\/tags\//, "") ?? "";
 const artifactPaths = JSON.parse(process.env.ARTIFACT_PATHS ?? "[]");
 
@@ -49,6 +48,12 @@ async function githubApi(path, init = {}) {
     return null;
   }
   return response.json();
+}
+
+let notes = process.env.RELEASE_BODY ?? "";
+if (!notes) {
+  const release = await githubApi(`/repos/${owner}/${repo}/releases/${releaseId}`);
+  notes = release.body ?? "";
 }
 
 function targetInfo() {
