@@ -7,8 +7,8 @@ import {
 } from "../types/sshSftp";
 
 function shellQuote(value: string): string {
-  if (!/[\s"'\\$`]/.test(value)) return value;
-  return `"${value.replace(/(["\\$`])/g, "\\$1")}"`;
+  if (/^[a-zA-Z0-9_.-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function resolveJumpHost(endpoint: SshEndpoint, library: SshSftpLibrary): string | null {
