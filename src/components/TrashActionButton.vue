@@ -16,6 +16,7 @@ const emit = defineEmits<{
     class="action-icon-btn"
     :class="[extraClass]"
     :title="title"
+    :aria-label="title"
     :disabled="disabled"
     @click="emit('click')"
   >
