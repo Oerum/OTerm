@@ -127,9 +127,9 @@ onMounted(() => {
             </div>
           </div>
           <div class="stash-actions">
-            <button @click="applyStash(stash.index)" class="btn btn-ghost" title="Apply">Apply</button>
-            <button @click="popStash(stash.index)" class="btn btn-ghost" title="Pop">Pop</button>
-            <button @click="dropStash(stash.index)" class="btn btn-danger-ghost" title="Drop">Drop</button>
+            <button @click="applyStash(stash.index)" class="btn btn-ghost" title="Apply" :aria-label="`Apply stash ${stash.index}`">Apply</button>
+            <button @click="popStash(stash.index)" class="btn btn-ghost" title="Pop" :aria-label="`Pop stash ${stash.index}`">Pop</button>
+            <button @click="dropStash(stash.index)" class="btn btn-danger-ghost" title="Drop" :aria-label="`Drop stash ${stash.index}`">Drop</button>
           </div>
         </div>
       </div>
