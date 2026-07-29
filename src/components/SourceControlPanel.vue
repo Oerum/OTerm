@@ -974,6 +974,7 @@ function authorInitials(author: string): string {
                 type="button"
                 class="flex h-6 w-6 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Fetch updates from remote"
+                aria-label="Fetch updates from remote"
                 :disabled="busy"
                 @click="emit('fetch')"
               >
@@ -987,6 +988,7 @@ function authorInitials(author: string): string {
                 type="button"
                 class="flex h-6 w-6 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Pull from upstream"
+                aria-label="Pull from upstream"
                 :disabled="busy"
                 @click="emit('pull')"
               >
@@ -999,6 +1001,7 @@ function authorInitials(author: string): string {
                 type="button"
                 class="flex h-6 w-6 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Push to upstream"
+                aria-label="Push to upstream"
                 :disabled="busy"
                 @click="emit('push')"
               >
@@ -1011,6 +1014,7 @@ function authorInitials(author: string): string {
                 type="button"
                 class="flex h-6 w-6 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Sync commits (Pull rebase + Push)"
+                aria-label="Sync commits (Pull rebase + Push)"
                 :disabled="busy"
                 @click="emit('sync')"
               >
@@ -1123,6 +1127,7 @@ function authorInitials(author: string): string {
               type="button"
               class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/60 text-[var(--oterm-text)] transition hover:bg-white/5"
               title="AI Pre-flight"
+              aria-label="AI Pre-flight"
               @click="emit('open-ai-preflight')"
             >
               ✨
@@ -1482,6 +1487,7 @@ function authorInitials(author: string): string {
               type="button"
               class="rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40"
               title="Previous hunk (Alt+↑)"
+              aria-label="Previous hunk"
               :disabled="activeHunkIndex <= 0"
               @click="goToPreviousHunk"
             >
@@ -1492,6 +1498,7 @@ function authorInitials(author: string): string {
               type="button"
               class="rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:opacity-40"
               title="Next hunk (Alt+↓)"
+              aria-label="Next hunk"
               :disabled="activeHunkIndex >= hunkCount - 1"
               @click="goToNextHunk"
             >
