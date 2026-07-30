@@ -676,6 +676,7 @@ watch(() => props.active, (isActive) => {
                 type="button"
                 class="action-icon-btn action-icon-btn--sky"
                 title="Open Interactive Shell"
+                aria-label="Open Interactive Shell"
                 @click="emit('openContainerShell', container)"
               >
                 <UiGlyph name="terminal" :size="13" />
@@ -685,6 +686,7 @@ watch(() => props.active, (isActive) => {
                 type="button"
                 class="action-icon-btn action-icon-btn--emerald"
                 title="Follow Streaming Logs"
+                aria-label="Follow Streaming Logs"
                 @click="emit('openContainerLogs', container)"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -698,6 +700,7 @@ watch(() => props.active, (isActive) => {
                 type="button"
                 class="action-icon-btn action-icon-btn--amber"
                 title="Pause Container"
+                aria-label="Pause Container"
                 :disabled="busy"
                 @click="containerAction(container, 'pause')"
               >
@@ -711,6 +714,7 @@ watch(() => props.active, (isActive) => {
                 type="button"
                 class="action-icon-btn action-icon-btn--amber"
                 title="Restart Container"
+                aria-label="Restart Container"
                 :disabled="busy"
                 @click="containerAction(container, 'restart')"
               >
@@ -725,6 +729,7 @@ watch(() => props.active, (isActive) => {
                 type="button"
                 class="action-icon-btn action-icon-btn--emerald"
                 title="Resume Container"
+                aria-label="Resume Container"
                 :disabled="busy"
                 @click="containerAction(container, 'unpause')"
               >
@@ -737,6 +742,7 @@ watch(() => props.active, (isActive) => {
                 type="button"
                 class="action-icon-btn action-icon-btn--rose"
                 title="Stop Container"
+                aria-label="Stop Container"
                 :disabled="busy"
                 @click="containerAction(container, 'stop')"
               >
@@ -751,6 +757,7 @@ watch(() => props.active, (isActive) => {
                 type="button"
                 class="action-icon-btn action-icon-btn--emerald"
                 title="Start Container"
+                aria-label="Start Container"
                 :disabled="busy"
                 @click="containerAction(container, 'start')"
               >
@@ -963,6 +970,7 @@ watch(() => props.active, (isActive) => {
               class="pr-header-btn px-2.5 py-1 text-[10px]"
               @click="copyContainerLogs"
               title="Copy all logs to clipboard"
+              aria-label="Copy all logs to clipboard"
             >
               Copy logs
             </button>
@@ -991,6 +999,7 @@ watch(() => props.active, (isActive) => {
               type="button"
               class="p-1.5 rounded hover:bg-white/5 text-[var(--oterm-muted)] hover:text-[var(--oterm-text)] transition flex items-center"
               :title="isLogsMaximized ? 'Restore layout' : 'Maximize log view'"
+              :aria-label="isLogsMaximized ? 'Restore layout' : 'Maximize log view'"
               @click="isLogsMaximized = !isLogsMaximized"
             >
               <svg v-if="isLogsMaximized" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1010,6 +1019,7 @@ watch(() => props.active, (isActive) => {
               type="button"
               class="p-1 rounded hover:bg-white/5 text-[var(--oterm-muted)] hover:text-[var(--oterm-text)] transition text-sm flex items-center justify-center w-6 h-6 font-bold"
               title="Close log viewer"
+              aria-label="Close log viewer"
               @click="selectedContainer = null"
             >
               ×
