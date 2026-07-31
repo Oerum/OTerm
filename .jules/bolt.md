@@ -13,3 +13,7 @@
 ## 2024-11-20 - SVG VDOM Patching Bottleneck on Hover
 **Learning:** In large SVG graphs with thousands of nodes, applying dynamic opacity or stroke widths based on hover state (e.g., `hoveredRowIndex`) causes Vue to re-evaluate and patch every single node on every mouse movement. This leads to severe UI lag.
 **Action:** Use Vue's `v-memo` directive in loops to explicitly declare dependencies for list items. E.g., `v-memo="[hoveredRowIndex === index, hoveredColor === row.color]"`. This instructs Vue to skip re-rendering nodes whose hover state hasn't changed.
+
+## 2024-07-30 - Optimize Array.includes + String.split for file type parsing
+**Learning:** Checking file extensions with `String.prototype.split('.')` and `Array.prototype.includes()` creates significant overhead inside loops or directory traversals due to O(N) array allocation for every file name and O(N) linear lookups in extension arrays.
+**Action:** Replace `String.split('.')` with fast slicing using `String.lastIndexOf('.')`. Replace arrays with `Set.has()` lookups to achieve O(1) time complexity when checking file extensions against static predefined lists.
