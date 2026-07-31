@@ -970,7 +970,6 @@ watch(() => props.active, (isActive) => {
               class="pr-header-btn px-2.5 py-1 text-[10px]"
               @click="copyContainerLogs"
               title="Copy all logs to clipboard"
-              aria-label="Copy all logs to clipboard"
             >
               Copy logs
             </button>
