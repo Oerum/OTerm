@@ -84,10 +84,8 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-// ⚡ Bolt Optimization: Use shallowRef for large arrays
-// Ref deeply proxies every property which is a massive bottleneck for potentially
-// thousands of branch/commit/tag objects. shallowRef only tracks the .value reassignment,
-// significantly improving reactivity performance and memory usage.
+// ⚡ Bolt: Use shallowRef for large collections that are completely replaced rather than deeply mutated,
+// avoiding severe performance/memory bottlenecks from deep reactivity overhead.
 const branches = shallowRef<BranchRefInfo[]>([]);
 const graph = shallowRef<GraphCommit[]>([]);
 const selectedHash = ref<string | null>(null);
@@ -116,6 +114,7 @@ const newTagName = ref("");
 const newTagMessage = ref("");
 const pushTagToOrigin = ref(true);
 const createTagTarget = ref<{ hash: string; shortHash: string } | null>(null);
+// ⚡ Bolt: Use shallowRef to optimize reactivity cost on bulk assignment.
 const tags = shallowRef<TagRefInfo[]>([]);
 const tagsSectionCollapsed = ref(false);
 const tagContextMenuOpen = ref(false);
