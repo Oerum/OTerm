@@ -17,3 +17,6 @@
 ## 2024-07-30 - Optimize Array.includes + String.split for file type parsing
 **Learning:** Checking file extensions with `String.prototype.split('.')` and `Array.prototype.includes()` creates significant overhead inside loops or directory traversals due to O(N) array allocation for every file name and O(N) linear lookups in extension arrays.
 **Action:** Replace `String.split('.')` with fast slicing using `String.lastIndexOf('.')`. Replace arrays with `Set.has()` lookups to achieve O(1) time complexity when checking file extensions against static predefined lists.
+## 2024-05-19 - deep vs shallow ref array optimizations
+**Learning:** In Vue, rendering massive arrays (such as Git commits and branches) stored with `ref` causes extreme memory usage and performance bottlenecks due to deep reactivity proxying on every property.
+**Action:** When handling large, read-mostly datasets that are usually replaced as a whole array instead of mutated in place, always use `shallowRef` to bypass the deep proxying overhead.
