@@ -259,6 +259,7 @@ watch(() => props.active, (isActive) => {
           v-model="search"
           type="search"
           placeholder="Filter list by title, labels, assignees…"
+          aria-label="Search issues"
           class="w-full rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 py-1 pl-7.5 pr-2.5 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition duration-150"
         />
       </div>
@@ -267,18 +268,21 @@ watch(() => props.active, (isActive) => {
           v-model="filterLabel"
           type="text"
           placeholder="Label"
+          aria-label="Filter by label"
           class="w-24 rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 px-2 py-1 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition"
         />
         <input
           v-model="filterAuthor"
           type="text"
           placeholder="Author"
+          aria-label="Filter by author"
           class="w-24 rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 px-2 py-1 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition"
         />
         <input
           v-model="filterAssignee"
           type="text"
           placeholder="Assignee"
+          aria-label="Filter by assignee"
           :disabled="assignedToMe"
           class="w-24 rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 px-2 py-1 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition disabled:opacity-40"
         />
