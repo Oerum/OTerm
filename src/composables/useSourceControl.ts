@@ -1,4 +1,4 @@
-import { computed, ref, watch, onUnmounted, type Ref } from "vue";
+import { computed, ref, shallowRef, watch, onUnmounted, type Ref } from "vue";
 import {
   switchGitBranchApi,
   commitGitChanges,
@@ -44,7 +44,8 @@ const emptyBranches = (): GitBranchList => ({
 export function useSourceControl(cwd: Ref<string | undefined>) {
   const status = ref<GitSourceControlStatus>(emptyStatus());
   const branches = ref<GitBranchList>(emptyBranches());
-  const history = ref<GitCommitEntry[]>([]);
+  // ⚡ Bolt Optimization: Use shallowRef for large arrays of commits to prevent deep reactivity overhead
+  const history = shallowRef<GitCommitEntry[]>([]);
   const loadedCwd = ref<string | undefined>(undefined);
   const loading = ref(false);
   const operation = ref<GitOperation | null>(null);
