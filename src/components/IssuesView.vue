@@ -259,6 +259,7 @@ watch(() => props.active, (isActive) => {
           v-model="search"
           type="search"
           placeholder="Filter list by title, labels, assignees…"
+          aria-label="Search issues"
           class="w-full rounded border border-[var(--oterm-border)] bg-[var(--oterm-bg)]/40 py-1 pl-7.5 pr-2.5 text-xs text-[var(--oterm-text)] placeholder-[var(--oterm-faint)] outline-none focus:border-[var(--oterm-accent)]/30 transition duration-150"
         />
       </div>
