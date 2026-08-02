@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { isActionKeybind } from "../lib/keybindSettings";
 import {
   canMergeBranchLocally,
@@ -84,8 +84,10 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const branches = ref<BranchRefInfo[]>([]);
-const graph = ref<GraphCommit[]>([]);
+// ⚡ Bolt: Use shallowRef for large collections that are completely replaced rather than deeply mutated,
+// avoiding severe performance/memory bottlenecks from deep reactivity overhead.
+const branches = shallowRef<BranchRefInfo[]>([]);
+const graph = shallowRef<GraphCommit[]>([]);
 const selectedHash = ref<string | null>(null);
 const details = ref<CommitDetails | null>(null);
 const compareBase = ref("");
@@ -112,7 +114,8 @@ const newTagName = ref("");
 const newTagMessage = ref("");
 const pushTagToOrigin = ref(true);
 const createTagTarget = ref<{ hash: string; shortHash: string } | null>(null);
-const tags = ref<TagRefInfo[]>([]);
+// ⚡ Bolt: Use shallowRef to optimize reactivity cost on bulk assignment.
+const tags = shallowRef<TagRefInfo[]>([]);
 const tagsSectionCollapsed = ref(false);
 const tagContextMenuOpen = ref(false);
 const tagContextMenuX = ref(0);
