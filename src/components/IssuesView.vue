@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import {
   createBranchFromIssue,
   listIssues,
@@ -26,7 +26,7 @@ const emit = defineEmits<{
 }>();
 
 const provider = ref<PrProviderInfo | null>(null);
-const issues = ref<IssueSummary[]>([]);
+const issues = shallowRef<IssueSummary[]>([]);
 const detail = ref<IssueDetail | null>(null);
 const loading = ref(false);
 const detailLoading = ref(false);

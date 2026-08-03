@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import CreatePullRequestDialog from "./CreatePullRequestDialog.vue";
 import {
   switchPullRequestBranch,
@@ -49,7 +49,7 @@ const emit = defineEmits<{
 }>();
 
 const provider = ref<PrProviderInfo | null>(null);
-const pullRequests = ref<PullRequestSummary[]>([]);
+const pullRequests = shallowRef<PullRequestSummary[]>([]);
 const loading = ref(false);
 
 const currentBranch = ref<string | null>(null);
@@ -103,11 +103,11 @@ const mergeBusy = ref(false);
 const activeTab = ref<PullRequestTab>("conversation");
 const detail = ref<PullRequestDetail | null>(null);
 const detailLoading = ref(false);
-const commits = ref<PrCommit[]>([]);
+const commits = shallowRef<PrCommit[]>([]);
 const commitsLoading = ref(false);
-const checks = ref<PrCheck[]>([]);
+const checks = shallowRef<PrCheck[]>([]);
 const checksLoading = ref(false);
-const files = ref<PrChangedFile[]>([]);
+const files = shallowRef<PrChangedFile[]>([]);
 const filesLoading = ref(false);
 const diffContent = ref("");
 const diffLoading = ref(false);

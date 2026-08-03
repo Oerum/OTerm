@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { onMounted, ref, shallowRef, watch } from "vue";
 import {
   listGitWorktrees,
   removeGitWorktree,
@@ -21,7 +21,7 @@ const emit = defineEmits<{
   (e: "createWorktree"): void;
 }>();
 
-const worktrees = ref<GitWorktreeInfo[]>([]);
+const worktrees = shallowRef<GitWorktreeInfo[]>([]);
 const statuses = ref<Record<string, GitSourceControlStatus>>({});
 const loading = ref(true);
 const error = ref<string | null>(null);
