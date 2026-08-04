@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import {
   buildLinePatch,
   buildSideBySideRows,
@@ -11,8 +11,6 @@ import {
 import { diffWords, type WordDiffChunk } from "../lib/wordDiff";
 import type { SelectedGitFile } from "../types/git";
 import DiffGutterActions from "./DiffGutterActions.vue";
-
-const SIDE_BY_SIDE_MIN_WIDTH = 960;
 
 const props = defineProps<{
   content: string;
@@ -35,8 +33,6 @@ const emit = defineEmits<{
 }>();
 
 const hunkRefs = ref<Record<number, HTMLElement | null>>({});
-const viewerRootRef = ref<HTMLElement | null>(null);
-let resizeObserver: ResizeObserver | null = null;
 
 const parsed = computed(() => parseUnifiedDiff(props.content));
 const hunks = computed(() => parsed.value.hunks);
@@ -45,15 +41,7 @@ const sideBySideRows = computed(() =>
   hunks.value.map((hunk) => ({ hunk, rows: buildSideBySideRows(hunk) })),
 );
 
-const manualSideBySide = ref<boolean | null>(null);
-const responsiveSideBySide = ref(false);
-
-const sideBySide = computed({
-  get: () => manualSideBySide.value ?? responsiveSideBySide.value,
-  set: (val: boolean) => {
-    manualSideBySide.value = val;
-  },
-});
+const sideBySide = ref(false);
 
 // ⚡ Bolt Optimization: Replace `.filter().length` with `for` loops
 // Prevents array allocation for each hunk on every computed re-evaluation.
@@ -108,26 +96,6 @@ function sideCellClass(cell: SideBySideCell) {
   if (cell.kind === "empty") return "diff-line diff-line--empty";
   return lineRowClass(cell.kind);
 }
-
-function updateSideBySideLayout(width: number) {
-  responsiveSideBySide.value = width >= SIDE_BY_SIDE_MIN_WIDTH;
-}
-
-onMounted(() => {
-  if (!viewerRootRef.value || typeof ResizeObserver === "undefined") return;
-  updateSideBySideLayout(viewerRootRef.value.clientWidth);
-  resizeObserver = new ResizeObserver((entries) => {
-    const entry = entries[0];
-    if (!entry) return;
-    updateSideBySideLayout(entry.contentRect.width);
-  });
-  resizeObserver.observe(viewerRootRef.value);
-});
-
-onBeforeUnmount(() => {
-  resizeObserver?.disconnect();
-  resizeObserver = null;
-});
 
 function isLineBusy(hunkIndex: number, lineIndex: number) {
   return props.hunkOperationKey === lineOpKey(hunkIndex, lineIndex);
@@ -290,7 +258,7 @@ function chunkClass(chunk: WordDiffChunk) {
 </script>
 
 <template>
-  <div ref="viewerRootRef" class="diff-viewer flex min-h-0 flex-1 flex-col">
+  <div class="diff-viewer flex min-h-0 flex-1 flex-col">
     <div
       v-if="!loading && !error && content.trim() && hunks.length"
       class="diff-toolbar flex items-center justify-between border-b border-[var(--oterm-border)] px-3 py-1.5 bg-white/[0.01] text-[11px] text-[var(--oterm-muted)]"
