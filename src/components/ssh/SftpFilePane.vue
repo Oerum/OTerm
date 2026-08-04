@@ -172,6 +172,7 @@ function cancelPathEdit() {
           :class="viewMode === 'list' ? 'bg-white/10 text-white' : ''"
           title="List view"
           aria-label="List view"
+          :aria-pressed="viewMode === 'list'"
           @click="viewMode = 'list'"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -185,6 +186,7 @@ function cancelPathEdit() {
           :class="viewMode === 'grid' ? 'bg-white/10 text-white' : ''"
           title="Grid view"
           aria-label="Grid view"
+          :aria-pressed="viewMode === 'grid'"
           @click="viewMode = 'grid'"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
