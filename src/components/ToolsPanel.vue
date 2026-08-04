@@ -460,6 +460,7 @@ onBeforeUnmount(() => {
           class="no-drag header-tool-icon-btn"
           :class="showHidden ? 'bg-white/10 text-white border-white/20' : ''"
           title="Show dot-prefixed hidden files and folders"
+          aria-label="Show dot-prefixed hidden files and folders"
           @click="toggleShowHidden"
         >
           <svg v-if="showHidden" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">

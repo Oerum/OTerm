@@ -139,6 +139,7 @@ async function deleteWorktree(worktree: GitWorktreeInfo, forceBranch: boolean) {
           type="button"
           class="rounded-md p-1.5 text-[var(--oterm-muted)] transition hover:bg-white/10 hover:text-[var(--oterm-text)] focus:outline-none focus:ring-2 focus:ring-white/20"
           title="Close tab"
+          aria-label="Close tab"
           @click="emit('close')"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor">

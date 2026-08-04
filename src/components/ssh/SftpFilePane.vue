@@ -171,6 +171,7 @@ function cancelPathEdit() {
           class="p-1 rounded hover:bg-white/5 text-[var(--oterm-muted)] hover:text-white transition"
           :class="viewMode === 'list' ? 'bg-white/10 text-white' : ''"
           title="List view"
+          aria-label="List view"
           @click="viewMode = 'list'"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -183,6 +184,7 @@ function cancelPathEdit() {
           class="p-1 rounded hover:bg-white/5 text-[var(--oterm-muted)] hover:text-white transition"
           :class="viewMode === 'grid' ? 'bg-white/10 text-white' : ''"
           title="Grid view"
+          aria-label="Grid view"
           @click="viewMode = 'grid'"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -201,6 +203,7 @@ function cancelPathEdit() {
           class="nav-btn"
           :disabled="busy || path === '.' || path === '/' || /^[A-Za-z]:\\?$/.test(path)"
           title="Up one folder"
+          aria-label="Up one folder"
           @click="emit('up')"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">

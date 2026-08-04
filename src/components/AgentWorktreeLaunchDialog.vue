@@ -370,6 +370,7 @@ onUnmounted(() => {
                     :class="startFromOrigin ? 'bg-[var(--oterm-accent)]/40' : 'bg-white/10'"
                     role="switch"
                     :aria-checked="startFromOrigin"
+                    aria-label="Toggle start from origin"
                     @click="startFromOrigin = !startFromOrigin"
                   >
                     <span

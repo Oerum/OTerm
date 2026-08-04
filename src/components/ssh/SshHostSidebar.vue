@@ -302,6 +302,7 @@ const groupRows = computed(() => renderGroups(null));
             type="button"
             class="h-6 w-6 rounded-md hover:bg-white/5 flex items-center justify-center text-[var(--oterm-muted)] hover:text-[var(--oterm-accent)] transition shrink-0 ml-2"
             title="Launch Terminal Session directly"
+            aria-label="Launch Terminal Session directly"
             @click.stop="emit('openTerminalDirectly', endpoint)"
           >
             <UiGlyph name="terminal" :size="12" />
