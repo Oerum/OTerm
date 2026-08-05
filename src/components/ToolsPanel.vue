@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { openPath } from "@tauri-apps/plugin-opener";
 import ExplorerContextMenu from "./ExplorerContextMenu.vue";
 import TerminalSyncPanel from "./TerminalSyncPanel.vue";
@@ -59,9 +59,11 @@ const emit = defineEmits<{
 }>();
 
 const explorerPath = ref("");
-const entries = ref<FsEntry[]>([]);
+// ⚡ Bolt: Use shallowRef for file entries array since it is always fully replaced
+// rather than deeply mutated, avoiding deep reactivity performance overhead on large folders
+const entries = shallowRef<FsEntry[]>([]);
 const searchQuery = ref("");
-const searchResults = ref<FsEntry[]>([]);
+const searchResults = shallowRef<FsEntry[]>([]);
 const loading = ref(false);
 const searchLoading = ref(false);
 
