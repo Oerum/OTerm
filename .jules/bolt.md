@@ -20,3 +20,6 @@
 ## 2024-05-19 - deep vs shallow ref array optimizations
 **Learning:** In Vue, rendering massive arrays (such as Git commits and branches) stored with `ref` causes extreme memory usage and performance bottlenecks due to deep reactivity proxying on every property.
 **Action:** When handling large, read-mostly datasets that are usually replaced as a whole array instead of mutated in place, always use `shallowRef` to bypass the deep proxying overhead.
+## 2026-08-05 - File list rendering performance
+**Learning:** The `ToolsPanel.vue` file explorer previously used `ref` for `entries` and `searchResults` which could hold large directories, causing significant Vue deep-reactivity proxy overhead.
+**Action:** Replaced `ref` with `shallowRef` for lists of filesystem entries that are bulk replaced. Same principle as git commits and branch arrays.
