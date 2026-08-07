@@ -23,6 +23,6 @@
 ## 2026-08-05 - File list rendering performance
 **Learning:** The `ToolsPanel.vue` file explorer previously used `ref` for `entries` and `searchResults` which could hold large directories, causing significant Vue deep-reactivity proxy overhead.
 **Action:** Replaced `ref` with `shallowRef` for lists of filesystem entries that are bulk replaced. Same principle as git commits and branch arrays.
-## 2024-05-18 - Avoid deep reactivity for large arrays in Vue
+## 2026-08-07 - Avoid deep reactivity for large arrays in Vue
 **Learning:** For large datasets in Vue components (e.g., git commit graphs, branch lists, file entries), prefer `shallowRef` over `ref` to prevent deep reactivity performance and memory bottlenecks, provided the arrays are completely reassigned rather than mutated in-place.
 **Action:** When creating new components handling large lists or large responses, explicitly choose `shallowRef` unless deep reactivity is required. Always check `ref` usages for opportunities to change to `shallowRef`.
