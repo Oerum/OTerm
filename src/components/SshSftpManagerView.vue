@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { useConfirmDialog } from "../composables/useConfirmDialog";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
@@ -107,9 +107,9 @@ const search = ref("");
 const busy = ref(false);
 const error = ref<string | null>(null);
 const panel = ref<"browse" | "edit">("browse");
-const activeSession = ref<ActiveSession | null>(null);
+const activeSession = shallowRef<ActiveSession | null>(null);
 const localPath = ref(".");
-const localEntries = ref<FilePaneEntry[]>([]);
+const localEntries = shallowRef<FilePaneEntry[]>([]);
 const selectedLocalEntry = ref<FilePaneEntry | null>(null);
 const selectedRemoteEntry = ref<FilePaneEntry | null>(null);
 const focusedPane = ref<"local" | "remote">("remote");
