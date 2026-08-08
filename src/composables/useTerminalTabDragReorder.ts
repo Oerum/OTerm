@@ -1,4 +1,4 @@
-import { ref, type Ref } from "vue";
+import { computed, ref, type Ref } from "vue";
 import type { TerminalSidebarEntry } from "../types/terminal";
 
 const DRAG_THRESHOLD_PX = 4;
@@ -308,7 +308,7 @@ export function useTerminalTabDragReorder(
         return;
       }
 
-      const tabCount = terminalTabCount();
+      const tabCount = terminalTabCount.value;
       let targetIndex = beforeIndex;
       if (targetIndex > terminalTabIndex) targetIndex -= 1;
 
@@ -331,13 +331,13 @@ export function useTerminalTabDragReorder(
     handle.addEventListener("pointercancel", onEnd);
   }
 
-  function terminalTabCount() {
+  const terminalTabCount = computed(() => {
     let count = 0;
     for (const e of entriesRef.value) {
       if (e.isFirstPaneOfTab) count++;
     }
     return count;
-  }
+  });
 
   function isDropTarget(entry: TerminalSidebarEntry) {
     return (
@@ -350,7 +350,7 @@ export function useTerminalTabDragReorder(
 
   function isDropTargetAfter(entry: TerminalSidebarEntry) {
     const beforeIndex = dropBeforeIndex.value;
-    const tabCount = terminalTabCount();
+    const tabCount = terminalTabCount.value;
     return (
       beforeIndex != null &&
       dropShowsInsertLine.value &&
