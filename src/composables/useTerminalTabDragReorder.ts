@@ -67,11 +67,14 @@ function indexBeforeGroup(
   groupId: string | null,
   excludeTabId: string,
 ): number {
-  const tabs = entries.filter((entry) => entry.isFirstPaneOfTab && entry.tabId !== excludeTabId);
-  for (let i = 0; i < tabs.length; i++) {
-    if (tabs[i]!.groupId === groupId) return i;
+  let index = 0;
+  for (const entry of entries) {
+    if (entry.isFirstPaneOfTab && entry.tabId !== excludeTabId) {
+      if (entry.groupId === groupId) return index;
+      index++;
+    }
   }
-  return tabs.length;
+  return index;
 }
 
 function getVisualTabs(listEl: HTMLElement) {
@@ -329,7 +332,11 @@ export function useTerminalTabDragReorder(
   }
 
   function terminalTabCount() {
-    return entriesRef.value.filter((e) => e.isFirstPaneOfTab).length;
+    let count = 0;
+    for (const e of entriesRef.value) {
+      if (e.isFirstPaneOfTab) count++;
+    }
+    return count;
   }
 
   function isDropTarget(entry: TerminalSidebarEntry) {

@@ -819,11 +819,17 @@ const paletteItems = computed(() => {
   const library = loadSshSftpLibrary();
   return buildCommandPaletteItems({
     terminalEntries,
-    groups: terminalGroups.value.map((g) => ({
-      id: g.id,
-      name: g.name,
-      tabCount: tabs.value.filter((t) => isTerminalTab(t) && t.groupId === g.id).length,
-    })),
+    groups: terminalGroups.value.map((g) => {
+      let tabCount = 0;
+      for (const t of tabs.value) {
+        if (isTerminalTab(t) && t.groupId === g.id) tabCount++;
+      }
+      return {
+        id: g.id,
+        name: g.name,
+        tabCount,
+      };
+    }),
     hasUngroupedTabs: tabs.value.some((t) => isTerminalTab(t) && !t.groupId),
     sshEndpoints: library.endpoints.map((e) => ({
       id: e.id,
