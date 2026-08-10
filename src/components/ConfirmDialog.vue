@@ -53,7 +53,7 @@ useDialogEscapeFocus(() => props.open, () => emit("cancel"), "confirm-dialog-con
       <div class="flex justify-end gap-2 border-t border-[var(--oterm-border)] px-4 py-3">
         <button
           type="button"
-          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
+          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
           @click="emit('cancel')"
         >
           {{ cancelLabel }}
@@ -61,7 +61,7 @@ useDialogEscapeFocus(() => props.open, () => emit("cancel"), "confirm-dialog-con
         <button
           id="confirm-dialog-confirm"
           type="button"
-          class="rounded-md px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
+          class="rounded-md px-3 py-1.5 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
           :class="
             dangerous
               ? 'bg-[var(--oterm-danger)]/15 text-[var(--oterm-danger)] hover:bg-[var(--oterm-danger)]/25'
