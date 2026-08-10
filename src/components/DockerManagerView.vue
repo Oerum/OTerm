@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import {
   fetchDockerContainerLogs,
   getDockerSummary,
@@ -49,7 +49,9 @@ const emptySummary = (): DockerSummary => ({
   networks: [],
 });
 
-const summary = ref<DockerSummary>(emptySummary());
+// ⚡ Bolt: Use shallowRef for the summary state to prevent deep proxy overhead.
+// The summary is a large object that is entirely replaced on load.
+const summary = shallowRef<DockerSummary>(emptySummary());
 const loading = ref(false);
 const busy = ref(false);
 const error = ref<string | null>(null);

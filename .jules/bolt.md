@@ -26,3 +26,7 @@
 ## 2026-08-07 - Avoid deep reactivity for large arrays in Vue
 **Learning:** For large datasets in Vue components (e.g., git commit graphs, branch lists, file entries), prefer `shallowRef` over `ref` to prevent deep reactivity performance and memory bottlenecks, provided the arrays are completely reassigned rather than mutated in-place.
 **Action:** When creating new components handling large lists or large responses, explicitly choose `shallowRef` unless deep reactivity is required. Always check `ref` usages for opportunities to change to `shallowRef`.
+
+## 2025-02-12 - Prevent deep reactivity overhead on large Docker responses
+**Learning:** Found that Docker state (containers, images, volumes, networks) were stored in a deeply reactive `ref` inside `src/components/DockerManagerView.vue`, leading to substantial unnecessary proxy overhead during loading and interactions, especially with large numbers of images or containers.
+**Action:** Used `shallowRef` for large state objects that are completely reassigned during fetches instead of being deeply mutated.
