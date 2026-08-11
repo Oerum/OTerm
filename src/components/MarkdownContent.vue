@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { renderMarkdown } from "../lib/markdown";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../lib/secureOpenUrl";
 
 const props = withDefaults(
   defineProps<{
@@ -23,16 +23,7 @@ function handleLinkClick(event: MouseEvent) {
     const href = anchor.getAttribute("href");
     if (href) {
       event.preventDefault();
-      try {
-        const parsed = new URL(href, window.location.href);
-        if (["http:", "https:", "mailto:"].includes(parsed.protocol.toLowerCase())) {
-          void openUrl(href);
-        } else {
-          console.warn("Blocked attempt to open unsafe URL scheme:", parsed.protocol);
-        }
-      } catch {
-        // Ignore invalid URLs
-      }
+      void openUrl(href);
     }
   }
 }
