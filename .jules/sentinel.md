@@ -12,3 +12,8 @@
 **Vulnerability:** The `shellQuote` function in `src/lib/sshOpenSshArgs.ts` used a weak regex `!/[\s"'\\$\`]/` that did not escape critical shell metacharacters like `;`, `&`, `|`, `<` and `>`. This allowed for potential command injection if user-controlled input (like environment variables or proxy hosts) contained these characters when building SSH/mosh commands.
 **Learning:** Shell escaping must cover all metacharacters or use a completely safe approach like wrapping everything in single quotes (`'`) and escaping internal single quotes. A blacklist of characters is often incomplete and unsafe.
 **Prevention:** Always use a single-quote based quoting mechanism for shell strings instead of trying to selectively escape or double-quote strings, because double-quotes still allow some forms of interpolation and metacharacters if not perfectly escaped.
+
+## 2025-02-14 - Arbitrary URI Scheme Execution via openUrl
+**Vulnerability:** Calls to `@tauri-apps/plugin-opener` `openUrl` lacked protocol validation in multiple components.
+**Learning:** By default, OS-level URL openers will attempt to handle any URI scheme passed to them (e.g., `file://`, custom handlers), which can lead to arbitrary program execution if user-controlled inputs (like PR check links) are passed.
+**Prevention:** Centralize URL opening into a secure wrapper (`src/lib/secureOpenUrl.ts`) that explicitly allows only safe schemes (like `http:`, `https:`, and `mailto:`). Use this wrapper universally instead of importing the Tauri plugin directly.

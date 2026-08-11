@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../lib/secureOpenUrl";
 import { useOutsideDismiss } from "../composables/useOutsideDismiss";
 import { getGitHubUserProfile } from "../lib/githubProfileApi";
 import type { GitHubUserProfile } from "../types/githubProfile";

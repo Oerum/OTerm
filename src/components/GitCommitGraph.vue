@@ -24,7 +24,7 @@ import {
   squashCommits,
 } from "../lib/branchManagerApi";
 import { gitRemoteBrowserUrl } from "../lib/pullRequestApi";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../lib/secureOpenUrl";
 import { pushAppToast } from "../lib/appToast";
 import { formatGitOperationError } from "../lib/formatGitError";
 import { writeClipboardText } from "../lib/clipboard";
