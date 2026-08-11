@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../lib/secureOpenUrl";
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import {
   createBranchFromIssue,
