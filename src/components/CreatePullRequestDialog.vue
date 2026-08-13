@@ -83,6 +83,7 @@ useDialogKeyNav(
             Compare (head)
             <select
               :value="head"
+              aria-label="Compare (head)"
               class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2.5 py-1.5 text-sm text-[var(--oterm-text)] outline-none transition focus:border-[var(--oterm-accent)]/50 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="!hasBranches || busy"
               @change="emit('update:head', ($event.target as HTMLSelectElement).value)"
@@ -98,6 +99,7 @@ useDialogKeyNav(
             Base
             <select
               :value="base"
+              aria-label="Base"
               class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2.5 py-1.5 text-sm text-[var(--oterm-text)] outline-none transition focus:border-[var(--oterm-accent)]/50 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="!hasBranches || busy"
               @change="emit('update:base', ($event.target as HTMLSelectElement).value)"
@@ -116,6 +118,7 @@ useDialogKeyNav(
             ref="titleRef"
             :value="title"
             type="text"
+            aria-label="Title"
             placeholder="PR title"
             class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2.5 py-1.5 text-sm text-[var(--oterm-text)] outline-none transition focus:border-[var(--oterm-accent)]/50"
             :disabled="busy"
@@ -128,6 +131,7 @@ useDialogKeyNav(
           <textarea
             :value="body"
             rows="4"
+            aria-label="Description"
             placeholder="What does this change do?"
             class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-2.5 py-1.5 text-sm text-[var(--oterm-text)] outline-none transition focus:border-[var(--oterm-accent)]/50"
             :disabled="busy"
@@ -139,6 +143,7 @@ useDialogKeyNav(
           <input
             :checked="draft"
             type="checkbox"
+            aria-label="Create as draft"
             class="accent-[var(--oterm-accent)]"
             :disabled="busy"
             @change="emit('update:draft', ($event.target as HTMLInputElement).checked)"

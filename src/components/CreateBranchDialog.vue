@@ -141,6 +141,7 @@ onUnmounted(() => {
             ref="inputRef"
             :value="name"
             type="text"
+            aria-label="Branch name"
             placeholder="feature/my-branch"
             :class="fieldClass"
             @input="emit('update:name', ($event.target as HTMLInputElement).value)"
@@ -152,6 +153,7 @@ onUnmounted(() => {
           <div ref="sourcePickerRef" class="relative min-w-0">
             <button
               type="button"
+              aria-label="Source branch"
               :class="[fieldClass, 'flex items-center gap-2 text-left']"
               :disabled="!hasSourceOptions"
               aria-haspopup="listbox"
