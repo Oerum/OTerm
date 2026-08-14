@@ -215,6 +215,7 @@ onUnmounted(() => {
             <button
               type="button"
               :class="[fieldClass, 'flex items-center gap-2 text-left']"
+              :aria-label="`Workspace: ${workspaceMode === 'current' ? 'Current checkout' : 'New worktree'}`"
               aria-haspopup="listbox"
               :aria-expanded="workspaceOpen"
               :disabled="busy"
@@ -293,6 +294,7 @@ onUnmounted(() => {
               <button
                 type="button"
                 class="shrink-0 rounded-md border border-[var(--oterm-border)] px-2.5 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5 disabled:opacity-40"
+                aria-label="Browse for base path"
                 :disabled="busy"
                 @click="browseBasePath"
               >
@@ -307,6 +309,7 @@ onUnmounted(() => {
               <button
                 type="button"
                 :class="[fieldClass, 'flex items-center gap-2 text-left']"
+                :aria-label="`Branch: ${refButtonLabel}`"
                 aria-haspopup="listbox"
                 :aria-expanded="refOpen"
                 :disabled="busy"
