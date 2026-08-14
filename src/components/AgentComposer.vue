@@ -716,7 +716,7 @@ defineExpose({
                 type="button"
                 class="rounded-md border border-red-500/40 px-2 py-0.5 text-red-300 btn-premium hover:bg-red-500/10"
                 title="Stop and transcribe (Ctrl+F)"
-                aria-label="Stop recording"
+                aria-label="Stop and transcribe"
                 @click="toggleDictation"
               >
                 Stop
