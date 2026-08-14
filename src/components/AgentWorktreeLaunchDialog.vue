@@ -215,6 +215,7 @@ onUnmounted(() => {
             <button
               type="button"
               :class="[fieldClass, 'flex items-center gap-2 text-left']"
+              aria-label="Select workspace"
               aria-haspopup="listbox"
               :aria-expanded="workspaceOpen"
               :disabled="busy"
@@ -293,6 +294,7 @@ onUnmounted(() => {
               <button
                 type="button"
                 class="shrink-0 rounded-md border border-[var(--oterm-border)] px-2.5 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5 disabled:opacity-40"
+                aria-label="Browse for base path"
                 :disabled="busy"
                 @click="browseBasePath"
               >
@@ -307,6 +309,7 @@ onUnmounted(() => {
               <button
                 type="button"
                 :class="[fieldClass, 'flex items-center gap-2 text-left']"
+                aria-label="Select branch"
                 aria-haspopup="listbox"
                 :aria-expanded="refOpen"
                 :disabled="busy"
@@ -389,6 +392,7 @@ onUnmounted(() => {
         <button
           type="button"
           class="no-drag rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5"
+          aria-label="Cancel launch"
           :disabled="busy"
           @mousedown.stop
           @click.stop="cancel"
@@ -399,6 +403,7 @@ onUnmounted(() => {
           ref="launchRef"
           type="button"
           class="no-drag rounded-md bg-[var(--oterm-accent)]/15 px-3 py-1.5 text-xs font-medium text-[var(--oterm-accent)] transition hover:bg-[var(--oterm-accent)]/25 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Launch worktree"
           :disabled="!canLaunch"
           @mousedown.stop
           @click.stop="submit"

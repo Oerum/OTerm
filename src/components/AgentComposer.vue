@@ -570,6 +570,7 @@ defineExpose({
           type="button"
           class="ml-auto rounded px-2 py-0.5 text-[var(--oterm-faint)] btn-premium"
           title="Close composer (Escape)"
+          aria-label="Close composer"
           @click="emit('close')"
         >
           Close
@@ -715,6 +716,7 @@ defineExpose({
                 type="button"
                 class="rounded-md border border-red-500/40 px-2 py-0.5 text-red-300 btn-premium hover:bg-red-500/10"
                 title="Stop and transcribe (Ctrl+F)"
+                aria-label="Stop recording"
                 @click="toggleDictation"
               >
                 Stop
@@ -723,6 +725,7 @@ defineExpose({
                 type="button"
                 class="rounded-md px-2 py-0.5 text-[var(--oterm-faint)] btn-premium hover:text-[var(--oterm-text)]"
                 title="Cancel recording"
+                aria-label="Cancel recording"
                 @click="cancelDictation"
               >
                 Cancel
