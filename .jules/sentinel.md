@@ -17,3 +17,9 @@
 **Vulnerability:** Calls to `@tauri-apps/plugin-opener` `openUrl` lacked protocol validation in multiple components.
 **Learning:** By default, OS-level URL openers will attempt to handle any URI scheme passed to them (e.g., `file://`, custom handlers), which can lead to arbitrary program execution if user-controlled inputs (like PR check links) are passed.
 **Prevention:** Centralize URL opening into a secure wrapper (`src/lib/secureOpenUrl.ts`) that explicitly allows only safe schemes (like `http:`, `https:`, and `mailto:`). Use this wrapper universally instead of importing the Tauri plugin directly.
+
+## 2026-08-16 - Restrict global DOMPurify attribute injection
+**Vulnerability:** The global DOMPurify `ADD_ATTR` configuration permitted arbitrary attribute injection on any element.
+**Learning:** Adding attributes to the global `ADD_ATTR` list, even relatively safe ones like `target` and `rel`, allows them to be applied to any HTML tag during markdown rendering. This can introduce subtle HTML injection vectors.
+**Prevention:** Instead of using global attribute allowlists, use DOMPurify hooks (e.g., `afterSanitizeAttributes`) to explicitly restrict attributes like `target="_blank"` and `rel="noopener noreferrer"` to specific elements (e.g., `<a>`).
+
