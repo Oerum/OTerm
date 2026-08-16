@@ -43,5 +43,18 @@ describe("renderMarkdown", () => {
     expect(html).toContain('type="checkbox"');
     expect(html).toContain("checked");
   });
+
+  it("strips target and rel attributes from non-anchor elements", () => {
+    const html = renderMarkdown('<div target="_blank" rel="noopener">test</div>');
+    expect(html).toContain("<div>test</div>");
+    expect(html).not.toContain("target=");
+    expect(html).not.toContain("rel=");
+  });
+
+  it("neutralizes non-checkbox input elements", () => {
+    const html = renderMarkdown('<input type="text" value="secret">');
+    expect(html).toContain('type="checkbox"');
+    expect(html).toContain('disabled="true"');
+  });
 });
 
