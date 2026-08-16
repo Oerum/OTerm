@@ -22,20 +22,25 @@ export function renderMarkdown(source: string): string {
       "tagName" in currentNode && typeof currentNode.tagName === "string"
         ? currentNode.tagName.toLowerCase()
         : "";
-    if (tagName !== "input") {
-      return;
+    if (tagName === "input") {
+      const input = currentNode as HTMLInputElement;
+      if (input.getAttribute("type") !== "checkbox") {
+        input.setAttribute("type", "checkbox");
+      }
+      input.setAttribute("disabled", "true");
+    } else if (tagName === "a") {
+      const anchor = currentNode as HTMLAnchorElement;
+      const target = anchor.getAttribute("target");
+      if (target === "_blank") {
+        anchor.setAttribute("rel", "noopener noreferrer");
+      }
     }
-    const input = currentNode as HTMLInputElement;
-    if (input.getAttribute("type") !== "checkbox") {
-      input.setAttribute("type", "checkbox");
-    }
-    input.setAttribute("disabled", "true");
   };
   DOMPurify.addHook("uponSanitizeElement", hook);
   const clean = DOMPurify.sanitize(raw, {
     USE_PROFILES: { html: true },
     ADD_TAGS: ["input"],
-    ADD_ATTR: ["target", "rel", "disabled", "checked", "type"],
+    ADD_ATTR: ["target", "rel"],
   });
   DOMPurify.removeHook("uponSanitizeElement");
   return clean;
