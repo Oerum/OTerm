@@ -20,15 +20,14 @@ export function isPlausiblePromptCwd(cwd: string): boolean {
   if (!trimmed || trimmed === "~") return false;
   if (WINDOWS_CWD.test(trimmed)) return true;
   if (!trimmed.startsWith("/")) return false;
-    // ⚡ Bolt Optimization: Use manual loop to count path segments
-  // instead of allocating arrays with .split('/').filter(Boolean) on hot PTY path.
   let segments = 0;
   for (let i = 0; i < trimmed.length; i++) {
-    if (trimmed[i] !== '/' && (i === 0 || trimmed[i - 1] === '/')) {
+    if (trimmed[i] !== "/" && (i === 0 || trimmed[i - 1] === "/")) {
       segments++;
+      if (segments >= 2) return true;
     }
   }
-  return segments >= 2;
+  return false;
 }
 
 /** user@host:/path$ or user@host:/path# */
