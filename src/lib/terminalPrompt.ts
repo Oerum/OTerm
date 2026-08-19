@@ -20,7 +20,14 @@ export function isPlausiblePromptCwd(cwd: string): boolean {
   if (!trimmed || trimmed === "~") return false;
   if (WINDOWS_CWD.test(trimmed)) return true;
   if (!trimmed.startsWith("/")) return false;
-  return trimmed.split("/").filter(Boolean).length >= 2;
+  let segments = 0;
+  for (let i = 0; i < trimmed.length; i++) {
+    if (trimmed[i] !== "/" && (i === 0 || trimmed[i - 1] === "/")) {
+      segments++;
+      if (segments >= 2) return true;
+    }
+  }
+  return false;
 }
 
 /** user@host:/path$ or user@host:/path# */

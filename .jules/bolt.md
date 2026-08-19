@@ -30,3 +30,6 @@
 ## 2025-02-12 - Prevent deep reactivity overhead on large Docker responses
 **Learning:** Found that Docker state (containers, images, volumes, networks) were stored in a deeply reactive `ref` inside `src/components/DockerManagerView.vue`, leading to substantial unnecessary proxy overhead during loading and interactions, especially with large numbers of images or containers.
 **Action:** Used `shallowRef` for large state objects that are completely reassigned during fetches instead of being deeply mutated.
+## 2026-08-19 - Micro-optimizations on Small Datasets
+**Learning:** Replacing concise declarative array methods (like `.filter().length`) with manual loops on very small datasets (e.g., 5-100 items like Docker containers or images) yields practically zero performance benefit while significantly degrading code readability and maintainability.
+**Action:** Avoid micro-optimizations that sacrifice readability on small collections. Reserve manual loops and character indexing optimizations strictly for hot paths (e.g., PTY parsing, massive lists, rendering loops) where the performance impact is measurable.

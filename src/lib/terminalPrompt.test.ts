@@ -111,12 +111,19 @@ describe("isPlausiblePromptCwd", () => {
     expect(isPlausiblePromptCwd("C:\\Users\\Filip\\Desktop\\oterm")).toBe(true);
     expect(isPlausiblePromptCwd("/home/user/projects")).toBe(true);
     expect(isPlausiblePromptCwd("/var/www")).toBe(true);
+    expect(isPlausiblePromptCwd("/var//www/")).toBe(true);
   });
 
-  it("rejects markup-like single-segment Unix paths", () => {
+  it("rejects markup-like single-segment Unix paths and edge cases", () => {
     expect(isPlausiblePromptCwd("/div")).toBe(false);
     expect(isPlausiblePromptCwd("/span")).toBe(false);
     expect(isPlausiblePromptCwd("/p")).toBe(false);
+    expect(isPlausiblePromptCwd("")).toBe(false);
+    expect(isPlausiblePromptCwd("~")).toBe(false);
+    expect(isPlausiblePromptCwd("/")).toBe(false);
+    expect(isPlausiblePromptCwd("///")).toBe(false);
+    expect(isPlausiblePromptCwd("/foo/")).toBe(false);
+    expect(isPlausiblePromptCwd("relative/path")).toBe(false);
   });
 });
 
