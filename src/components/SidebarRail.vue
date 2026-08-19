@@ -8,7 +8,8 @@ import {
   buildTerminalSidebarSections,
   groupTerminalSidebarSections,
   entryAccentColor,
-  isPathCluster,
+  isRepoCluster,
+  isWorktreeCluster,
   nestEntriesByPath,
   type TerminalCategoryItem,
   type TerminalSidebarCategory,
@@ -93,6 +94,7 @@ type PaneGitInfo = {
   additions: number;
   deletions: number;
   repoRoot: string | null;
+  mainRepoRoot: string | null;
   isWorktree: boolean;
 };
 
@@ -103,6 +105,7 @@ const EMPTY_PANE_GIT: PaneGitInfo = {
   additions: 0,
   deletions: 0,
   repoRoot: null,
+  mainRepoRoot: null,
   isWorktree: false,
 };
 
@@ -195,8 +198,10 @@ const nestedCategories = computed(() =>
   })),
 );
 
-/** Session-only path-cluster collapse; keyed by categoryScope::pathKey. */
-const collapsedPathKeys = ref<string[]>([]);
+/** Session-only repo-cluster collapse; keyed by categoryScope::repoKey. */
+const collapsedRepoKeys = ref<string[]>([]);
+/** Session-only worktree-cluster collapse; keyed by categoryScope::repoKey::worktreeKey. */
+const collapsedWorktreeKeys = ref<string[]>([]);
 
 function categoryGroupId(category: TerminalSidebarCategory): string | null {
   return category.kind === "group" ? category.groupId : null;
@@ -206,20 +211,49 @@ function categoryScope(category: TerminalSidebarCategory): string {
   return category.kind === "group" ? category.groupId : "ungrouped";
 }
 
-function pathCollapseKey(category: TerminalSidebarCategory, pathKey: string): string {
-  return `${categoryScope(category)}::${pathKey}`;
+function repoCollapseKey(category: TerminalSidebarCategory, repoKey: string): string {
+  return `${categoryScope(category)}::repo::${repoKey}`;
 }
 
-function isPathCollapsed(category: TerminalSidebarCategory, pathKey: string): boolean {
-  return collapsedPathKeys.value.includes(pathCollapseKey(category, pathKey));
+function isRepoCollapsed(category: TerminalSidebarCategory, repoKey: string): boolean {
+  return collapsedRepoKeys.value.includes(repoCollapseKey(category, repoKey));
 }
 
-function togglePathCollapsed(category: TerminalSidebarCategory, pathKey: string) {
-  const key = pathCollapseKey(category, pathKey);
-  if (collapsedPathKeys.value.includes(key)) {
-    collapsedPathKeys.value = collapsedPathKeys.value.filter((id) => id !== key);
+function toggleRepoCollapsed(category: TerminalSidebarCategory, repoKey: string) {
+  const key = repoCollapseKey(category, repoKey);
+  if (collapsedRepoKeys.value.includes(key)) {
+    collapsedRepoKeys.value = collapsedRepoKeys.value.filter((id) => id !== key);
   } else {
-    collapsedPathKeys.value = [...collapsedPathKeys.value, key];
+    collapsedRepoKeys.value = [...collapsedRepoKeys.value, key];
+  }
+}
+
+function worktreeCollapseKey(
+  category: TerminalSidebarCategory,
+  repoKey: string,
+  worktreeKey: string,
+): string {
+  return `${categoryScope(category)}::wt::${repoKey}::${worktreeKey}`;
+}
+
+function isWorktreeCollapsed(
+  category: TerminalSidebarCategory,
+  repoKey: string,
+  worktreeKey: string,
+): boolean {
+  return collapsedWorktreeKeys.value.includes(worktreeCollapseKey(category, repoKey, worktreeKey));
+}
+
+function toggleWorktreeCollapsed(
+  category: TerminalSidebarCategory,
+  repoKey: string,
+  worktreeKey: string,
+) {
+  const key = worktreeCollapseKey(category, repoKey, worktreeKey);
+  if (collapsedWorktreeKeys.value.includes(key)) {
+    collapsedWorktreeKeys.value = collapsedWorktreeKeys.value.filter((id) => id !== key);
+  } else {
+    collapsedWorktreeKeys.value = [...collapsedWorktreeKeys.value, key];
   }
 }
 
@@ -264,6 +298,7 @@ async function fetchPaneGit(cwd: string): Promise<PaneGitInfo> {
       additions: status.additions,
       deletions: status.deletions,
       repoRoot: status.repoRoot ?? null,
+      mainRepoRoot: status.mainRepoRoot ?? status.repoRoot ?? null,
       isWorktree: status.isWorktree ?? false,
     };
   } catch {
@@ -798,20 +833,27 @@ onBeforeUnmount(() => {
           >
             <template
               v-for="item in category.items"
-              :key="isPathCluster(item) ? `path:${item.pathKey}` : item.entryId"
+              :key="
+                isRepoCluster(item)
+                  ? `repo:${item.repoKey}`
+                  : isWorktreeCluster(item)
+                    ? `wt:${item.worktreeKey}`
+                    : item.entryId
+              "
             >
-              <div v-if="isPathCluster(item)" class="flex flex-col gap-0.5">
+              <!-- 1. Repository Cluster Header -->
+              <div v-if="isRepoCluster(item)" class="flex flex-col gap-1 first:mt-0 mt-2.5 mb-1.5">
                 <button
                   type="button"
-                  class="no-drag group/path flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left transition select-none hover:bg-white/[0.03]"
+                  class="no-drag group/repo flex w-full items-center gap-1 rounded-md px-1 py-1 text-left transition select-none hover:bg-white/[0.03]"
                   :title="item.path"
-                  :aria-expanded="!isPathCollapsed(category, item.pathKey)"
+                  :aria-expanded="!isRepoCollapsed(category, item.repoKey)"
                   :aria-label="
-                    isPathCollapsed(category, item.pathKey)
+                    isRepoCollapsed(category, item.repoKey)
                       ? `Expand ${item.label}`
                       : `Collapse ${item.label}`
                   "
-                  @click="togglePathCollapsed(category, item.pathKey)"
+                  @click="toggleRepoCollapsed(category, item.repoKey)"
                 >
                   <span class="flex h-5 w-3 shrink-0 items-center justify-center text-[var(--oterm-faint)]">
                     <svg
@@ -824,7 +866,134 @@ onBeforeUnmount(() => {
                       stroke-linecap="round"
                       stroke-linejoin="round"
                       class="transition-transform duration-[120ms]"
-                      :class="isPathCollapsed(category, item.pathKey) ? '' : 'rotate-90'"
+                      :class="isRepoCollapsed(category, item.repoKey) ? '' : 'rotate-90'"
+                    >
+                      <polyline points="6 3 11 8 6 13" />
+                    </svg>
+                  </span>
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="shrink-0 text-[var(--oterm-muted)]"
+                  >
+                    <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 2h4.5A1.5 1.5 0 0 1 14 6.5v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-8z" />
+                  </svg>
+                  <span
+                    class="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-[0.04em] text-[var(--oterm-muted)] group-hover/repo:text-[var(--oterm-text)]"
+                  >
+                    {{ item.label }}
+                  </span>
+                  <span class="shrink-0 font-mono text-[10px] text-[var(--oterm-faint)]">
+                    {{ item.totalCount }}
+                  </span>
+                </button>
+
+                <!-- Repo Sub-Items (Worktrees + Direct entries) -->
+                <div
+                  v-if="!isRepoCollapsed(category, item.repoKey)"
+                  class="group-guide-line ml-1.5 pl-1 flex flex-col gap-1 mt-0.5"
+                  style="--guide-color-base: rgba(255, 255, 255, 0.04); --guide-color-hover: rgba(255, 255, 255, 0.14)"
+                >
+                  <template
+                    v-for="subItem in item.items"
+                    :key="isWorktreeCluster(subItem) ? `wt:${subItem.worktreeKey}` : subItem.entryId"
+                  >
+                    <!-- Worktree Sub-Group -->
+                    <div v-if="isWorktreeCluster(subItem)" class="flex flex-col gap-0.5 first:mt-0 mt-1">
+                      <button
+                        type="button"
+                        class="no-drag group/wt flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left transition select-none hover:bg-white/[0.03]"
+                        :title="subItem.path"
+                        :aria-expanded="!isWorktreeCollapsed(category, item.repoKey, subItem.worktreeKey)"
+                        :aria-label="
+                          isWorktreeCollapsed(category, item.repoKey, subItem.worktreeKey)
+                            ? `Expand ${subItem.label}`
+                            : `Collapse ${subItem.label}`
+                        "
+                        @click="toggleWorktreeCollapsed(category, item.repoKey, subItem.worktreeKey)"
+                      >
+                        <span class="flex h-5 w-3 shrink-0 items-center justify-center text-[var(--oterm-faint)]">
+                          <svg
+                            width="9"
+                            height="9"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            class="transition-transform duration-[120ms]"
+                            :class="isWorktreeCollapsed(category, item.repoKey, subItem.worktreeKey) ? '' : 'rotate-90'"
+                          >
+                            <polyline points="6 3 11 8 6 13" />
+                          </svg>
+                        </span>
+                        <span
+                          class="min-w-0 flex-1 truncate text-[10.5px] font-medium tracking-[0.03em] text-[var(--oterm-muted)] group-hover/wt:text-[var(--oterm-text)]"
+                        >
+                          {{ subItem.label }}
+                        </span>
+                        <span class="shrink-0 font-mono text-[9.5px] text-[var(--oterm-faint)]">
+                          {{ subItem.entries.length }}
+                        </span>
+                      </button>
+
+                      <div
+                        v-if="!isWorktreeCollapsed(category, item.repoKey, subItem.worktreeKey)"
+                        class="group-guide-line ml-1.5 pl-1 flex flex-col gap-1"
+                        style="--guide-color-base: rgba(255, 255, 255, 0.04); --guide-color-hover: rgba(255, 255, 255, 0.14)"
+                      >
+                        <SidebarBoundEntry
+                          v-for="entry in subItem.entries"
+                          :key="entry.entryId"
+                          v-bind="sidebarEntryBind(entry)"
+                          v-on="sidebarEntryOn"
+                        />
+                      </div>
+                    </div>
+
+                    <!-- Direct Leaf Entry inside Repo -->
+                    <SidebarBoundEntry
+                      v-else
+                      v-bind="sidebarEntryBind(asSidebarEntry(subItem))"
+                      v-on="sidebarEntryOn"
+                    />
+                  </template>
+                </div>
+              </div>
+
+              <!-- 2. Standalone Worktree/Path Cluster (e.g. non-git directory with multiple entries) -->
+              <div v-else-if="isWorktreeCluster(item)" class="flex flex-col gap-1 first:mt-0 mt-2 mb-1">
+                <button
+                  type="button"
+                  class="no-drag group/path flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left transition select-none hover:bg-white/[0.03]"
+                  :title="item.path"
+                  :aria-expanded="!isWorktreeCollapsed(category, 'standalone', item.worktreeKey)"
+                  :aria-label="
+                    isWorktreeCollapsed(category, 'standalone', item.worktreeKey)
+                      ? `Expand ${item.label}`
+                      : `Collapse ${item.label}`
+                  "
+                  @click="toggleWorktreeCollapsed(category, 'standalone', item.worktreeKey)"
+                >
+                  <span class="flex h-5 w-3 shrink-0 items-center justify-center text-[var(--oterm-faint)]">
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="transition-transform duration-[120ms]"
+                      :class="isWorktreeCollapsed(category, 'standalone', item.worktreeKey) ? '' : 'rotate-90'"
                     >
                       <polyline points="6 3 11 8 6 13" />
                     </svg>
@@ -839,7 +1008,7 @@ onBeforeUnmount(() => {
                   </span>
                 </button>
                 <div
-                  v-if="!isPathCollapsed(category, item.pathKey)"
+                  v-if="!isWorktreeCollapsed(category, 'standalone', item.worktreeKey)"
                   class="group-guide-line ml-1.5 pl-1 flex flex-col gap-1"
                   style="--guide-color-base: rgba(255, 255, 255, 0.04); --guide-color-hover: rgba(255, 255, 255, 0.14)"
                 >
@@ -851,6 +1020,8 @@ onBeforeUnmount(() => {
                   />
                 </div>
               </div>
+
+              <!-- 3. Standalone Single Terminal Entry -->
               <SidebarBoundEntry
                 v-else
                 v-bind="sidebarEntryBind(asSidebarEntry(item))"

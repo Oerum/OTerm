@@ -1,6 +1,7 @@
 export interface GitStatus {
   isRepo: boolean;
   repoRoot?: string | null;
+  mainRepoRoot?: string | null;
   isWorktree?: boolean;
   branch: string | null;
   upstream: string | null;
