@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { ShellProfile, WorkspaceTerminalTab } from "../types/terminal";
+import type { ShellProfile, WorkspaceTerminalTab, TerminalSidebarEntry } from "../types/terminal";
 import {
   buildFeatureEntries,
   buildTerminalEntries,
   buildTerminalSidebarSections,
   groupTerminalSidebarSections,
-  isPathCluster,
+  isRepoCluster,
+  isWorktreeCluster,
   nestEntriesByPath,
-  normalizePathKey,
   paneDisplayTitle,
   pathClusterKey,
+  worktreeClusterKey,
 } from "./sidebarEntries";
-import type { TerminalSidebarEntry } from "../types/terminal";
 
 const shells: ShellProfile[] = [
   { id: "pwsh", label: "PowerShell", program: "pwsh.exe", args: [] },
@@ -335,21 +335,22 @@ function sidebarEntry(overrides: Partial<TerminalSidebarEntry> = {}): TerminalSi
     shellId: "pwsh",
     shellLabel: "PowerShell",
     cwd: "C:\\Users\\Filip\\desktop\\oterm",
-    sessionId: "session-1",
+    sessionId: null,
     activeAgentId: null,
     tabTitle: "Terminal",
     renameDefault: "oterm",
     tabColor: "none",
-    gitBranch: null,
-    gitIsRepo: false,
-    gitRepoRoot: null,
+    gitBranch: "main",
+    gitIsRepo: true,
+    gitRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
+    gitMainRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
     gitIsWorktree: false,
     gitChangedFiles: 0,
     gitAdditions: 0,
     gitDeletions: 0,
-    isActive: false,
+    isActive: true,
     hasUnseenNotification: false,
-    agentStatus: "unknown",
+    agentStatus: "idle",
     agentStatusSeen: true,
     canMoveUp: false,
     canMoveDown: false,
@@ -362,40 +363,57 @@ function sidebarEntry(overrides: Partial<TerminalSidebarEntry> = {}): TerminalSi
   };
 }
 
-describe("normalizePathKey / pathClusterKey", () => {
-  it("normalizes separators, trailing slash, and case", () => {
-    expect(normalizePathKey("C:\\Users\\Filip\\desktop\\oterm\\")).toBe(
-      "c:/users/filip/desktop/oterm",
-    );
+describe("sidebarEntries helpers", () => {
+  it("computes pathClusterKey using mainRepoRoot, repoRoot, then cwd", () => {
+    expect(pathClusterKey(sidebarEntry())).toBe("c:/users/filip/desktop/oterm");
+    expect(
+      pathClusterKey(
+        sidebarEntry({
+          gitMainRepoRoot: "C:\\BoundCore-PS",
+          gitRepoRoot: "C:\\BoundCore-PS\\.worktrees\\dps-simc",
+          cwd: "C:\\BoundCore-PS\\.worktrees\\dps-simc",
+        }),
+      ),
+    ).toBe("c:/boundcore-ps");
   });
 
-  it("prefers gitRepoRoot over cwd", () => {
-    const entry = sidebarEntry({
-      cwd: "C:\\Users\\Filip\\desktop\\oterm\\src",
-      gitRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
-    });
-    expect(pathClusterKey(entry)).toBe("c:/users/filip/desktop/oterm");
+  it("computes worktreeClusterKey using repoRoot, then cwd", () => {
+    expect(
+      worktreeClusterKey(
+        sidebarEntry({
+          gitMainRepoRoot: "C:\\BoundCore-PS",
+          gitRepoRoot: "C:\\BoundCore-PS\\.worktrees\\dps-simc",
+          cwd: "C:\\BoundCore-PS\\.worktrees\\dps-simc",
+        }),
+      ),
+    ).toBe("c:/boundcore-ps/.worktrees/dps-simc");
   });
 
   it("returns null for empty or ~ paths", () => {
-    expect(pathClusterKey(sidebarEntry({ cwd: "~", gitRepoRoot: null }))).toBeNull();
-    expect(pathClusterKey(sidebarEntry({ cwd: "", gitRepoRoot: null }))).toBeNull();
+    expect(
+      pathClusterKey(sidebarEntry({ cwd: "~", gitRepoRoot: null, gitMainRepoRoot: null })),
+    ).toBeNull();
+    expect(
+      pathClusterKey(sidebarEntry({ cwd: "", gitRepoRoot: null, gitMainRepoRoot: null })),
+    ).toBeNull();
   });
 });
 
 describe("nestEntriesByPath", () => {
-  it("clusters 2+ entries with the same gitRepoRoot; leaves singles flat", () => {
+  it("clusters 2+ entries with the same repo root into a TerminalRepoCluster; leaves singles flat", () => {
     const a = sidebarEntry({
       entryId: "a:p",
       tabId: "a",
       paneId: "p",
       gitRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
+      gitMainRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
     });
     const b = sidebarEntry({
       entryId: "b:p",
       tabId: "b",
       paneId: "p",
       gitRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
+      gitMainRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
     });
     const alone = sidebarEntry({
       entryId: "c:p",
@@ -403,29 +421,90 @@ describe("nestEntriesByPath", () => {
       paneId: "p",
       cwd: "C:\\other\\repo",
       gitRepoRoot: "C:\\other\\repo",
+      gitMainRepoRoot: "C:\\other\\repo",
       title: "repo",
     });
 
     const items = nestEntriesByPath([a, alone, b]);
     expect(items).toHaveLength(2);
-    expect(isPathCluster(items[0]!)).toBe(true);
-    if (isPathCluster(items[0]!)) {
+    expect(isRepoCluster(items[0]!)).toBe(true);
+    if (isRepoCluster(items[0]!)) {
       expect(items[0].label).toBe("oterm");
-      expect(items[0].entries.map((e) => e.tabId)).toEqual(["a", "b"]);
+      expect(items[0].totalCount).toBe(2);
+      expect((items[0].items as TerminalSidebarEntry[]).map((e) => e.tabId)).toEqual(["a", "b"]);
     }
-    expect(isPathCluster(items[1]!)).toBe(false);
+    expect(isRepoCluster(items[1]!)).toBe(false);
     expect((items[1] as TerminalSidebarEntry).tabId).toBe("c");
   });
 
-  it("clusters by cwd when gitRepoRoot is missing", () => {
-    const a = sidebarEntry({ entryId: "a:p", tabId: "a", paneId: "p", gitRepoRoot: null });
-    const b = sidebarEntry({ entryId: "b:p", tabId: "b", paneId: "p", gitRepoRoot: null });
+  it("creates global repo header with nested worktree cluster when worktree has 2+ entries", () => {
+    const wtA = sidebarEntry({
+      entryId: "wt1:p",
+      tabId: "wt1",
+      paneId: "p",
+      gitMainRepoRoot: "C:\\BoundCore-PS",
+      gitRepoRoot: "C:\\BoundCore-PS\\.worktrees\\dps-simc",
+      cwd: "C:\\BoundCore-PS\\.worktrees\\dps-simc",
+    });
+    const wtB = sidebarEntry({
+      entryId: "wt2:p",
+      tabId: "wt2",
+      paneId: "p",
+      gitMainRepoRoot: "C:\\BoundCore-PS",
+      gitRepoRoot: "C:\\BoundCore-PS\\.worktrees\\dps-simc",
+      cwd: "C:\\BoundCore-PS\\.worktrees\\dps-simc",
+    });
+    const mainSolo = sidebarEntry({
+      entryId: "main:p",
+      tabId: "main",
+      paneId: "p",
+      gitMainRepoRoot: "C:\\BoundCore-PS",
+      gitRepoRoot: "C:\\BoundCore-PS",
+      cwd: "C:\\BoundCore-PS",
+    });
+
+    const items = nestEntriesByPath([wtA, wtB, mainSolo]);
+    expect(items).toHaveLength(1);
+    expect(isRepoCluster(items[0]!)).toBe(true);
+    if (isRepoCluster(items[0]!)) {
+      expect(items[0].label).toBe("BoundCore-PS");
+      expect(items[0].totalCount).toBe(3);
+      expect(items[0].items).toHaveLength(2);
+
+      const subCluster = items[0].items[0]!;
+      expect(isWorktreeCluster(subCluster)).toBe(true);
+      if (isWorktreeCluster(subCluster)) {
+        expect(subCluster.label).toBe("dps-simc");
+        expect(subCluster.entries.map((e) => e.tabId)).toEqual(["wt1", "wt2"]);
+      }
+
+      const soloLeaf = items[0].items[1]!;
+      expect(isWorktreeCluster(soloLeaf)).toBe(false);
+      expect((soloLeaf as TerminalSidebarEntry).tabId).toBe("main");
+    }
+  });
+
+  it("clusters by cwd when git repo info is missing", () => {
+    const a = sidebarEntry({
+      entryId: "a:p",
+      tabId: "a",
+      paneId: "p",
+      gitRepoRoot: null,
+      gitMainRepoRoot: null,
+    });
+    const b = sidebarEntry({
+      entryId: "b:p",
+      tabId: "b",
+      paneId: "p",
+      gitRepoRoot: null,
+      gitMainRepoRoot: null,
+    });
     const items = nestEntriesByPath([a, b]);
     expect(items).toHaveLength(1);
-    expect(isPathCluster(items[0]!)).toBe(true);
-    if (isPathCluster(items[0]!)) {
-      expect(items[0].pathKey).toBe("c:/users/filip/desktop/oterm");
-      expect(items[0].entries).toHaveLength(2);
+    expect(isRepoCluster(items[0]!)).toBe(true);
+    if (isRepoCluster(items[0]!)) {
+      expect(items[0].repoKey).toBe("c:/users/filip/desktop/oterm");
+      expect(items[0].totalCount).toBe(2);
     }
   });
 
@@ -434,30 +513,34 @@ describe("nestEntriesByPath", () => {
       entryId: "a:p",
       tabId: "a",
       gitRepoRoot: "C:\\repo-a",
+      gitMainRepoRoot: "C:\\repo-a",
       cwd: "C:\\repo-a",
     });
     const b = sidebarEntry({
       entryId: "b:p",
       tabId: "b",
       gitRepoRoot: "C:\\repo-b",
+      gitMainRepoRoot: "C:\\repo-b",
       cwd: "C:\\repo-b",
     });
     const items = nestEntriesByPath([a, b]);
-    expect(items.every((item) => !isPathCluster(item))).toBe(true);
+    expect(items.every((item) => !isRepoCluster(item))).toBe(true);
   });
 
-  it("nests path clusters inside a named group category's entries", () => {
+  it("nests repo clusters inside a named group category's entries", () => {
     const a = sidebarEntry({
       entryId: "a:p",
       tabId: "a",
       groupId: "g1",
       gitRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
+      gitMainRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
     });
     const b = sidebarEntry({
       entryId: "b:p",
       tabId: "b",
       groupId: "g1",
       gitRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
+      gitMainRepoRoot: "C:\\Users\\Filip\\desktop\\oterm",
     });
     const categories = groupTerminalSidebarSections([
       {
@@ -473,7 +556,7 @@ describe("nestEntriesByPath", () => {
     ]);
     const items = nestEntriesByPath(categories[0]!.entries);
     expect(items).toHaveLength(1);
-    expect(isPathCluster(items[0]!)).toBe(true);
+    expect(isRepoCluster(items[0]!)).toBe(true);
   });
 
   it("preserves order: cluster at first member, unrelated entries interleaved", () => {
@@ -482,23 +565,35 @@ describe("nestEntriesByPath", () => {
       tabId: "x",
       cwd: "C:\\solo",
       gitRepoRoot: null,
+      gitMainRepoRoot: null,
       title: "solo",
     });
-    const a = sidebarEntry({ entryId: "a:p", tabId: "a", gitRepoRoot: null });
+    const a = sidebarEntry({
+      entryId: "a:p",
+      tabId: "a",
+      gitRepoRoot: null,
+      gitMainRepoRoot: null,
+    });
     const mid = sidebarEntry({
       entryId: "y:p",
       tabId: "y",
       cwd: "C:\\mid",
       gitRepoRoot: null,
+      gitMainRepoRoot: null,
       title: "mid",
     });
-    const b = sidebarEntry({ entryId: "b:p", tabId: "b", gitRepoRoot: null });
+    const b = sidebarEntry({
+      entryId: "b:p",
+      tabId: "b",
+      gitRepoRoot: null,
+      gitMainRepoRoot: null,
+    });
 
     const items = nestEntriesByPath([other, a, mid, b]);
-    expect(items.map((item) => (isPathCluster(item) ? `path:${item.label}` : item.tabId))).toEqual([
-      "x",
-      "path:oterm",
-      "y",
-    ]);
+    expect(
+      items.map((item) =>
+        isRepoCluster(item) ? `repo:${item.label}` : (item as TerminalSidebarEntry).tabId,
+      ),
+    ).toEqual(["x", "repo:oterm", "y"]);
   });
 });

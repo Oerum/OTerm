@@ -20,6 +20,7 @@ use crate::process::{git_program, hidden_command, hidden_command_with_stdin};
 pub struct GitStatus {
     pub is_repo: bool,
     pub repo_root: Option<String>,
+    pub main_repo_root: Option<String>,
     pub is_worktree: bool,
     pub branch: Option<String>,
     pub upstream: Option<String>,
@@ -465,9 +466,15 @@ pub(crate) fn read_git_status(cwd: &Path) -> GitStatus {
         .as_ref()
         .map(|root| Path::new(root).join(".git").is_file())
         .unwrap_or(false);
+    let main_repo_root = sc
+        .repo_root
+        .as_ref()
+        .and_then(|root| find_main_repo_root(Path::new(root)))
+        .map(|p| p.to_string_lossy().into_owned());
     GitStatus {
         is_repo: sc.is_repo,
         repo_root: sc.repo_root,
+        main_repo_root,
         is_worktree,
         branch: sc.branch,
         upstream: sc.upstream,
@@ -650,6 +657,39 @@ pub(crate) fn find_git_root(mut current: PathBuf) -> Option<PathBuf> {
             return None;
         }
     }
+}
+
+pub(crate) fn find_main_repo_root(repo_root: &Path) -> Option<PathBuf> {
+    let git_path = repo_root.join(".git");
+    if git_path.is_dir() {
+        return Some(repo_root.to_path_buf());
+    }
+    if git_path.is_file() {
+        if let Ok(content) = std::fs::read_to_string(&git_path) {
+            for line in content.lines() {
+                let trimmed = line.trim();
+                if let Some(rest) = trimmed.strip_prefix("gitdir:") {
+                    let gitdir_str = rest.trim();
+                    let gitdir_path = PathBuf::from(gitdir_str);
+                    let abs_gitdir = if gitdir_path.is_absolute() {
+                        gitdir_path
+                    } else {
+                        repo_root.join(gitdir_path)
+                    };
+                    if let Some(worktree_dir) = abs_gitdir.parent() {
+                        if worktree_dir.file_name().and_then(|n| n.to_str()) == Some("worktrees") {
+                            if let Some(dot_git) = worktree_dir.parent() {
+                                if let Some(main_repo) = dot_git.parent() {
+                                    return Some(main_repo.to_path_buf());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 fn resolve_repo_path(repo_root: &Path, path: &str) -> Result<PathBuf, String> {
@@ -1047,5 +1087,34 @@ mod tests {
         assert_eq!(second.content, "second");
 
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn find_main_repo_root_resolves_main_and_worktrees() {
+        use std::fs;
+
+        let base = std::env::temp_dir().join(format!("oterm-git-main-root-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        let main_repo = base.join("main-repo");
+        let worktree = base.join("worktree-1");
+        fs::create_dir_all(main_repo.join(".git")).unwrap();
+        fs::create_dir_all(main_repo.join(".git").join("worktrees").join("worktree-1")).unwrap();
+        fs::create_dir_all(&worktree).unwrap();
+
+        let gitdir_target = main_repo
+            .join(".git")
+            .join("worktrees")
+            .join("worktree-1")
+            .to_string_lossy()
+            .into_owned();
+        fs::write(worktree.join(".git"), format!("gitdir: {gitdir_target}\n")).unwrap();
+
+        let resolved_main = find_main_repo_root(&main_repo);
+        assert_eq!(resolved_main.as_deref(), Some(main_repo.as_path()));
+
+        let resolved_wt = find_main_repo_root(&worktree);
+        assert_eq!(resolved_wt.as_deref(), Some(main_repo.as_path()));
+
+        let _ = fs::remove_dir_all(&base);
     }
 }

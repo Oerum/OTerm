@@ -68,6 +68,7 @@ type PaneGitInfo = {
   additions: number;
   deletions: number;
   repoRoot: string | null;
+  mainRepoRoot: string | null;
   isWorktree: boolean;
 };
 
@@ -111,6 +112,7 @@ function buildPaneEntry(
     gitAdditions: git?.additions ?? 0,
     gitDeletions: git?.deletions ?? 0,
     gitRepoRoot: git?.repoRoot ?? null,
+    gitMainRepoRoot: git?.mainRepoRoot ?? git?.repoRoot ?? null,
     gitIsWorktree: git?.isWorktree ?? false,
     isActive: tab.id === activeTabId && pane.id === activePaneId,
     hasUnseenNotification: pane.hasUnseenNotification,
@@ -270,18 +272,42 @@ export function groupTerminalSidebarSections(
   return categories;
 }
 
-export type TerminalPathCluster = {
-  kind: "path";
-  pathKey: string;
+export type TerminalWorktreeCluster = {
+  kind: "worktree";
+  worktreeKey: string;
   label: string;
   path: string;
   entries: TerminalSidebarEntry[];
 };
 
-export type TerminalCategoryItem = TerminalSidebarEntry | TerminalPathCluster;
+export type TerminalRepoCluster = {
+  kind: "repo";
+  repoKey: string;
+  label: string;
+  path: string;
+  totalCount: number;
+  items: (TerminalSidebarEntry | TerminalWorktreeCluster)[];
+};
 
+export type TerminalCategoryItem =
+  | TerminalSidebarEntry
+  | TerminalWorktreeCluster
+  | TerminalRepoCluster;
+
+export function isRepoCluster(item: TerminalCategoryItem): item is TerminalRepoCluster {
+  return "kind" in item && item.kind === "repo";
+}
+
+export function isWorktreeCluster(
+  item: TerminalCategoryItem | TerminalSidebarEntry,
+): item is TerminalWorktreeCluster {
+  return "kind" in item && item.kind === "worktree";
+}
+
+/** Backward compatibility alias for path/worktree clusters */
+export type TerminalPathCluster = TerminalWorktreeCluster;
 export function isPathCluster(item: TerminalCategoryItem): item is TerminalPathCluster {
-  return "kind" in item && item.kind === "path";
+  return isWorktreeCluster(item);
 }
 
 /** Windows-friendly key: unify separators, strip trailing slash, lowercase. */
@@ -289,14 +315,26 @@ export function normalizePathKey(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
 }
 
-function pathDisplayFor(entry: TerminalSidebarEntry): string | null {
+function repoDisplayFor(entry: TerminalSidebarEntry): string | null {
+  const raw = entry.gitMainRepoRoot || entry.gitRepoRoot || entry.cwd;
+  if (!raw || raw === "~") return null;
+  return raw;
+}
+
+function worktreeDisplayFor(entry: TerminalSidebarEntry): string | null {
   const raw = entry.gitRepoRoot || entry.cwd;
   if (!raw || raw === "~") return null;
   return raw;
 }
 
 export function pathClusterKey(entry: TerminalSidebarEntry): string | null {
-  const display = pathDisplayFor(entry);
+  const display = repoDisplayFor(entry);
+  if (!display) return null;
+  return normalizePathKey(display);
+}
+
+export function worktreeClusterKey(entry: TerminalSidebarEntry): string | null {
+  const display = worktreeDisplayFor(entry);
   if (!display) return null;
   return normalizePathKey(display);
 }
@@ -306,34 +344,84 @@ function pathBasename(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
-/** Nest 2+ same-path entries into collapsible clusters; preserve encounter order. */
+/**
+ * Nest entries by global repository / folder hierarchy:
+ * 1. Global Repository Header if 2+ entries share the same gitMainRepoRoot/repoRoot/cwd.
+ * 2. Inside the repo cluster, worktrees with 2+ entries form sub-clusters.
+ * 3. Worktrees with 1 entry or single entries sit directly under the repo cluster or top level.
+ */
 export function nestEntriesByPath(entries: TerminalSidebarEntry[]): TerminalCategoryItem[] {
-  const counts = new Map<string, number>();
+  const repoCounts = new Map<string, number>();
   for (const entry of entries) {
     const key = pathClusterKey(entry);
     if (!key) continue;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    repoCounts.set(key, (repoCounts.get(key) ?? 0) + 1);
   }
 
-  const emitted = new Set<string>();
+  const emittedRepos = new Set<string>();
   const items: TerminalCategoryItem[] = [];
 
   for (const entry of entries) {
-    const key = pathClusterKey(entry);
-    if (!key || (counts.get(key) ?? 0) < 2) {
+    const repoKey = pathClusterKey(entry);
+    if (!repoKey || (repoCounts.get(repoKey) ?? 0) < 2) {
       items.push(entry);
       continue;
     }
-    if (emitted.has(key)) continue;
-    emitted.add(key);
-    const members = entries.filter((item) => pathClusterKey(item) === key);
-    const path = pathDisplayFor(members[0]!)!;
+    if (emittedRepos.has(repoKey)) continue;
+    emittedRepos.add(repoKey);
+
+    const members = entries.filter((item) => pathClusterKey(item) === repoKey);
+    const repoPath = repoDisplayFor(members[0]!)!;
+    const repoLabel = pathBasename(repoPath);
+
+    // Group members by their individual worktree/folder path
+    const wtCounts = new Map<string, number>();
+    for (const member of members) {
+      const wtKey = worktreeClusterKey(member);
+      if (!wtKey) continue;
+      wtCounts.set(wtKey, (wtCounts.get(wtKey) ?? 0) + 1);
+    }
+
+    const distinctWtKeys = Array.from(wtCounts.keys());
+    const isSingleMainWorktreeOnly =
+      distinctWtKeys.length === 1 && distinctWtKeys[0] === repoKey;
+
+    const repoItems: (TerminalSidebarEntry | TerminalWorktreeCluster)[] = [];
+
+    if (isSingleMainWorktreeOnly) {
+      repoItems.push(...members);
+    } else {
+      const emittedWts = new Set<string>();
+      for (const member of members) {
+        const wtKey = worktreeClusterKey(member);
+        if (!wtKey || (wtCounts.get(wtKey) ?? 0) < 2) {
+          repoItems.push(member);
+          continue;
+        }
+        if (emittedWts.has(wtKey)) continue;
+        emittedWts.add(wtKey);
+
+        const wtMembers = members.filter((m) => worktreeClusterKey(m) === wtKey);
+        const wtPath = worktreeDisplayFor(wtMembers[0]!)!;
+        const wtLabel = pathBasename(wtPath);
+
+        repoItems.push({
+          kind: "worktree",
+          worktreeKey: wtKey,
+          label: wtLabel,
+          path: wtPath,
+          entries: wtMembers,
+        });
+      }
+    }
+
     items.push({
-      kind: "path",
-      pathKey: key,
-      label: pathBasename(path),
-      path,
-      entries: members,
+      kind: "repo",
+      repoKey,
+      label: repoLabel,
+      path: repoPath,
+      totalCount: members.length,
+      items: repoItems,
     });
   }
 

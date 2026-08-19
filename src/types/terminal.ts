@@ -216,6 +216,7 @@ export interface TerminalSidebarEntry {
   gitBranch: string | null;
   gitIsRepo: boolean;
   gitRepoRoot: string | null;
+  gitMainRepoRoot?: string | null;
   gitIsWorktree: boolean;
   gitChangedFiles: number;
   gitAdditions: number;
