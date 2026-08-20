@@ -66,7 +66,9 @@ dist/
 .tern-port
 .vscode-test
 .pnpm-store
+pnpm-lock.yaml
 .pnp.*
+yarn.lock
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
