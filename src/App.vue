@@ -80,6 +80,7 @@ import {
 import { getSetting, setSetting } from "./lib/settingsStore";
 import { loadPersistedTerminalWorkspace } from "./lib/workspaceStore";
 import type { DockerContainer } from "./types/docker";
+import { shellQuote } from "./lib/shellQuote";
 import {
   endpointDisplayLabel,
   type SshConnectError,
@@ -1271,8 +1272,8 @@ function openDockerContainerTerminal(
 
   const command =
     mode === "logs"
-      ? `docker logs -f --tail 200 ${container.id}`
-      : `docker exec -it ${container.id} sh`;
+      ? `docker logs -f --tail 200 ${shellQuote(container.id)}`
+      : `docker exec -it ${shellQuote(container.id)} sh`;
   pendingTerminalCommands.set(pane.id, `${command}\r`);
 
   selectTab(tab.id);
