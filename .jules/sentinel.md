@@ -23,3 +23,8 @@
 **Learning:** Adding attributes to the global `ADD_ATTR` list, even relatively safe ones like `target` and `rel`, allows them to be applied to any HTML tag during markdown rendering. This can introduce subtle HTML injection vectors.
 **Prevention:** Instead of using global attribute allowlists, use DOMPurify hooks (e.g., `afterSanitizeAttributes`) to explicitly restrict attributes like `target="_blank"` and `rel="noopener noreferrer"` to specific elements (e.g., `<a>`).
 
+
+## 2024-05-18 - Docker Exec Command Injection
+**Vulnerability:** The application was concatenating an externally-provided ID (`container.id`) directly into shell commands (`docker logs ...` and `docker exec ...`) without proper sanitization.
+**Learning:** Even internal or local identifiers like Docker container IDs should not be trusted if they come from an external process, as a crafted name or ID might contain shell characters allowing command injection.
+**Prevention:** Always quote and escape external values using a function like `shellQuote` before passing them to the shell.

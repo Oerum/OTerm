@@ -5,11 +5,7 @@ import {
   type SshEndpoint,
   type SshSftpLibrary,
 } from "../types/sshSftp";
-
-function shellQuote(value: string): string {
-  if (/^[a-zA-Z0-9_.-]+$/.test(value)) return value;
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
+import { shellQuote } from "./shellQuote";
 
 function resolveJumpHost(endpoint: SshEndpoint, library: SshSftpLibrary): string | null {
   if (!endpoint.jumpHostId) return null;
