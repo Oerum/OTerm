@@ -1826,10 +1826,14 @@ function onTerminalProcessChanged(
 async function openPathInTerminal(path: string) {
   const pane = activePane.value;
   if (!pane?.sessionId) return;
-  const command =
-    pane.shellId === "cmd"
-      ? `cd /d "${path}"`
-      : `Set-Location -LiteralPath '${path.replace(/'/g, "''")}'`;
+  let command = "";
+  if (pane.shellId === "cmd") {
+    command = `cd /d "${path.replace(/"/g, "")}"`;
+  } else if (pane.shellId === "pwsh" || pane.shellId === "powershell") {
+    command = `Set-Location -LiteralPath '${path.replace(/'/g, "''")}'`;
+  } else {
+    command = `cd ${shellQuote(path)}`;
+  }
   const payload = `${command}${shellLineEnding()}`;
   if (pane.sshEndpointId) {
     await sshTerminalWrite(pane.sessionId, payload);
