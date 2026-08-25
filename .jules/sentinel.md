@@ -28,3 +28,7 @@
 **Vulnerability:** The application was concatenating an externally-provided ID (`container.id`) directly into shell commands (`docker logs ...` and `docker exec ...`) without proper sanitization.
 **Learning:** Even internal or local identifiers like Docker container IDs should not be trusted if they come from an external process, as a crafted name or ID might contain shell characters allowing command injection.
 **Prevention:** Always quote and escape external values using a function like `shellQuote` before passing them to the shell.
+## 2026-08-24 - [HIGH] Command Injection in Terminal Navigation
+**Vulnerability:** Command injection in `openPathInTerminal` in `src/App.vue`. The path was directly interpolated into the `cd` command without proper quoting or escaping.
+**Learning:** Shell commands constructed by string interpolation must be carefully sanitized based on the target shell. What's safe for `pwsh` is not necessarily safe for `cmd` or `bash`. Additionally, newlines must be stripped to prevent multi-line execution in terminal PTY payloads.
+**Prevention:** Always use `shellQuote` for POSIX shells, shell-specific escaping (like stripping quotes for `cmd`, or using `-LiteralPath` for PowerShell), and strip newlines (`[\r\n]`) when passing user-controlled data to terminal inputs.

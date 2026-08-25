@@ -81,6 +81,7 @@ import { getSetting, setSetting } from "./lib/settingsStore";
 import { loadPersistedTerminalWorkspace } from "./lib/workspaceStore";
 import type { DockerContainer } from "./types/docker";
 import { shellQuote } from "./lib/shellQuote";
+import { buildTerminalCdCommand } from "./lib/terminalCdCommand";
 import {
   endpointDisplayLabel,
   type SshConnectError,
@@ -1826,10 +1827,8 @@ function onTerminalProcessChanged(
 async function openPathInTerminal(path: string) {
   const pane = activePane.value;
   if (!pane?.sessionId) return;
-  const command =
-    pane.shellId === "cmd"
-      ? `cd /d "${path}"`
-      : `Set-Location -LiteralPath '${path.replace(/'/g, "''")}'`;
+  const command = buildTerminalCdCommand(path, pane.shellId);
+  if (!command) return;
   const payload = `${command}${shellLineEnding()}`;
   if (pane.sshEndpointId) {
     await sshTerminalWrite(pane.sessionId, payload);
