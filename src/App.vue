@@ -81,6 +81,7 @@ import { getSetting, setSetting } from "./lib/settingsStore";
 import { loadPersistedTerminalWorkspace } from "./lib/workspaceStore";
 import type { DockerContainer } from "./types/docker";
 import { shellQuote } from "./lib/shellQuote";
+import { buildTerminalCdCommand } from "./lib/terminalCdCommand";
 import {
   endpointDisplayLabel,
   type SshConnectError,
@@ -1826,14 +1827,8 @@ function onTerminalProcessChanged(
 async function openPathInTerminal(path: string) {
   const pane = activePane.value;
   if (!pane?.sessionId) return;
-  let command = "";
-  if (pane.shellId === "cmd") {
-    command = `cd /d "${path.replace(/"/g, "")}"`;
-  } else if (pane.shellId === "pwsh" || pane.shellId === "powershell") {
-    command = `Set-Location -LiteralPath '${path.replace(/'/g, "''")}'`;
-  } else {
-    command = `cd ${shellQuote(path)}`;
-  }
+  const command = buildTerminalCdCommand(path, pane.shellId);
+  if (!command) return;
   const payload = `${command}${shellLineEnding()}`;
   if (pane.sshEndpointId) {
     await sshTerminalWrite(pane.sessionId, payload);
