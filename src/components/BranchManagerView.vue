@@ -223,7 +223,7 @@ function applyDefaultCollapsedFolders() {
       }
     }
   }
-  collapsedFolders.value = new Set(next);
+  collapsedFolders.value = next;
   collapsedDefaultsApplied.value = true;
 }
 
@@ -509,7 +509,7 @@ function toggleFolder(section: string, label: string) {
   const next = new Set(collapsedFolders.value);
   if (next.has(key)) next.delete(key);
   else next.add(key);
-  collapsedFolders.value = new Set(next);
+  collapsedFolders.value = next;
 }
 
 function isFolder(item: BranchRefInfo | BranchFolderGroup): item is BranchFolderGroup {

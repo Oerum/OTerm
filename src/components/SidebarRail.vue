@@ -307,8 +307,9 @@ async function fetchPaneGit(cwd: string): Promise<PaneGitInfo> {
 }
 
 async function refreshGitForPane(paneId: string, cwd: string) {
-  gitByPane.value = new Map(gitByPane.value).set(paneId, await fetchPaneGit(cwd));
-  // gitByPane.value = new Map(gitByPane.value);
+  const next = new Map(gitByPane.value);
+  next.set(paneId, await fetchPaneGit(cwd));
+  gitByPane.value = next;
 }
 
 async function refreshGitForAllPanes() {
@@ -327,14 +328,15 @@ async function refreshGitForAllPanes() {
     }),
   );
 
+  const next = new Map(gitByPane.value);
   for (const tab of props.tabs) {
     if (!isTerminalTab(tab)) continue;
     for (const pane of tab.panes) {
       const res = results.get(pane.cwd);
-      if (res) gitByPane.value = new Map(gitByPane.value).set(pane.id, res);
+      if (res) next.set(pane.id, res);
     }
   }
-  // gitByPane.value = new Map(gitByPane.value);
+  gitByPane.value = next;
 }
 
 const paneCwdSignature = computed(() =>

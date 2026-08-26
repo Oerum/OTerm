@@ -72,7 +72,7 @@ function toggleGroupCollapse(groupId: string) {
   const next = new Set(collapsedGroups.value);
   if (next.has(groupId)) next.delete(groupId);
   else next.add(groupId);
-  collapsedGroups.value = new Set(next);
+  collapsedGroups.value = next;
 }
 
 function endpointSubtitle(endpoint: SshEndpoint) {

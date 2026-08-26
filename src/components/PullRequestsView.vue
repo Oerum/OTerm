@@ -288,8 +288,10 @@ async function loadConversation(number: number) {
     const res = await viewPullRequest(props.repoRoot, number);
     if (selectedNumber.value === number) {
       detail.value = res;
-      loadedTabs.value = new Set(loadedTabs.value).add("conversation");
-      loadedTabs.value = new Set(loadedTabs.value).add("reviews");
+      const nextTabs = new Set(loadedTabs.value);
+      nextTabs.add("conversation");
+      nextTabs.add("reviews");
+      loadedTabs.value = nextTabs;
     }
   } catch (err) {
     if (selectedNumber.value === number) {
@@ -526,7 +528,9 @@ async function onSubmitComment() {
   try {
     await commentOnPullRequest(props.repoRoot, number, body);
     commentBody.value = "";
-    loadedTabs.value.delete("conversation");
+    const nextTabs = new Set(loadedTabs.value);
+    nextTabs.delete("conversation");
+    loadedTabs.value = nextTabs;
     await loadConversation(number);
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
