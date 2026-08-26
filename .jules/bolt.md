@@ -33,3 +33,7 @@
 ## 2026-08-19 - Micro-optimizations on Small Datasets
 **Learning:** Replacing concise declarative array methods (like `.filter().length`) with manual loops on very small datasets (e.g., 5-100 items like Docker containers or images) yields practically zero performance benefit while significantly degrading code readability and maintainability.
 **Action:** Avoid micro-optimizations that sacrifice readability on small collections. Reserve manual loops and character indexing optimizations strictly for hot paths (e.g., PTY parsing, massive lists, rendering loops) where the performance impact is measurable.
+
+## 2026-08-26 - Fix reactivity issues with shallowRef on Vue collections
+**Learning:** Using `shallowRef` to optimize large collections (like `Map` and `Set`) bypasses deep proxying but means that mutations via `.add()`, `.set()`, `.delete()`, or array `.push()` are no longer tracked. Vue requires explicit re-assignment (e.g., `mySet.value = new Set(mySet.value)`) for components to re-render.
+**Action:** When migrating `ref` to `shallowRef` for collections, audit all call sites. Replace direct mutations with explicit reassignments (e.g., `map.value = new Map(map.value).set(...)`).

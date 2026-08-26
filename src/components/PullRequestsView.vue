@@ -115,7 +115,7 @@ const selectedFilePath = ref<string | null>(null);
 const commentBody = ref("");
 const commentBusy = ref(false);
 
-const loadedTabs = ref<Set<PullRequestTab>>(new Set());
+const loadedTabs = shallowRef<Set<PullRequestTab>>(new Set());
 
 const selected = computed(() =>
   pullRequests.value.find((pr) => pr.number === selectedNumber.value) ?? null,
@@ -288,8 +288,10 @@ async function loadConversation(number: number) {
     const res = await viewPullRequest(props.repoRoot, number);
     if (selectedNumber.value === number) {
       detail.value = res;
-      loadedTabs.value.add("conversation");
-      loadedTabs.value.add("reviews");
+      const nextTabs = new Set(loadedTabs.value);
+      nextTabs.add("conversation");
+      nextTabs.add("reviews");
+      loadedTabs.value = nextTabs;
     }
   } catch (err) {
     if (selectedNumber.value === number) {
@@ -310,7 +312,7 @@ async function loadCommitsTab(number: number) {
     const res = await listPrCommits(props.repoRoot, number);
     if (selectedNumber.value === number) {
       commits.value = res;
-      loadedTabs.value.add("commits");
+      loadedTabs.value = new Set(loadedTabs.value).add("commits");
     }
   } catch (err) {
     if (selectedNumber.value === number) {
@@ -331,7 +333,7 @@ async function loadChecksTab(number: number) {
     const res = await listPrChecks(props.repoRoot, number);
     if (selectedNumber.value === number) {
       checks.value = res;
-      loadedTabs.value.add("checks");
+      loadedTabs.value = new Set(loadedTabs.value).add("checks");
     }
   } catch (err) {
     if (selectedNumber.value === number) {
@@ -359,7 +361,7 @@ async function loadFilesTab(number: number) {
       diffContent.value = diff;
       const slices = splitUnifiedDiffByFile(diff);
       selectedFilePath.value = fileList[0]?.path ?? slices[0]?.path ?? null;
-      loadedTabs.value.add("files");
+      loadedTabs.value = new Set(loadedTabs.value).add("files");
     }
   } catch (err) {
     if (selectedNumber.value === number) {
@@ -526,7 +528,9 @@ async function onSubmitComment() {
   try {
     await commentOnPullRequest(props.repoRoot, number, body);
     commentBody.value = "";
-    loadedTabs.value.delete("conversation");
+    const nextTabs = new Set(loadedTabs.value);
+    nextTabs.delete("conversation");
+    loadedTabs.value = nextTabs;
     await loadConversation(number);
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
