@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useTerminalTabDragReorder } from "../composables/useTerminalTabDragReorder";
 import { getGitStatus } from "../lib/gitApi";
 import {
@@ -109,7 +109,7 @@ const EMPTY_PANE_GIT: PaneGitInfo = {
   isWorktree: false,
 };
 
-const gitByPane = ref(new Map<string, PaneGitInfo>());
+const gitByPane = shallowRef(new Map<string, PaneGitInfo>());
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const featureEntries = computed(() =>
@@ -199,9 +199,9 @@ const nestedCategories = computed(() =>
 );
 
 /** Session-only repo-cluster collapse; keyed by categoryScope::repoKey. */
-const collapsedRepoKeys = ref<string[]>([]);
+const collapsedRepoKeys = shallowRef<string[]>([]);
 /** Session-only worktree-cluster collapse; keyed by categoryScope::repoKey::worktreeKey. */
-const collapsedWorktreeKeys = ref<string[]>([]);
+const collapsedWorktreeKeys = shallowRef<string[]>([]);
 
 function categoryGroupId(category: TerminalSidebarCategory): string | null {
   return category.kind === "group" ? category.groupId : null;
@@ -307,8 +307,8 @@ async function fetchPaneGit(cwd: string): Promise<PaneGitInfo> {
 }
 
 async function refreshGitForPane(paneId: string, cwd: string) {
-  gitByPane.value.set(paneId, await fetchPaneGit(cwd));
-  gitByPane.value = new Map(gitByPane.value);
+  gitByPane.value = new Map(gitByPane.value).set(paneId, await fetchPaneGit(cwd));
+  // gitByPane.value = new Map(gitByPane.value);
 }
 
 async function refreshGitForAllPanes() {
@@ -331,10 +331,10 @@ async function refreshGitForAllPanes() {
     if (!isTerminalTab(tab)) continue;
     for (const pane of tab.panes) {
       const res = results.get(pane.cwd);
-      if (res) gitByPane.value.set(pane.id, res);
+      if (res) gitByPane.value = new Map(gitByPane.value).set(pane.id, res);
     }
   }
-  gitByPane.value = new Map(gitByPane.value);
+  // gitByPane.value = new Map(gitByPane.value);
 }
 
 const paneCwdSignature = computed(() =>

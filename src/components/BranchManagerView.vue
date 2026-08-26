@@ -102,8 +102,8 @@ const filter = ref("");
 const branchFilter = ref("");
 const showIncomingOnly = ref(false);
 const showOutgoingOnly = ref(false);
-const incomingHashes = ref<Set<string>>(new Set());
-const outgoingHashes = ref<Set<string>>(new Set());
+const incomingHashes = shallowRef<Set<string>>(new Set());
+const outgoingHashes = shallowRef<Set<string>>(new Set());
 const resetMenuOpen = ref(false);
 const createDialogOpen = ref(false);
 const newBranchName = ref("");
@@ -125,7 +125,7 @@ const commitContextMenuOpen = ref(false);
 const commitContextMenuX = ref(0);
 const commitContextMenuY = ref(0);
 const commitContextTarget = ref<GraphCommit | null>(null);
-const collapsedFolders = ref<Set<string>>(new Set());
+const collapsedFolders = shallowRef<Set<string>>(new Set());
 const collapsedDefaultsApplied = ref(false);
 const confirmOpen = ref(false);
 const pendingConfirm = ref<{
@@ -223,7 +223,7 @@ function applyDefaultCollapsedFolders() {
       }
     }
   }
-  collapsedFolders.value = next;
+  collapsedFolders.value = new Set(next);
   collapsedDefaultsApplied.value = true;
 }
 
@@ -509,7 +509,7 @@ function toggleFolder(section: string, label: string) {
   const next = new Set(collapsedFolders.value);
   if (next.has(key)) next.delete(key);
   else next.add(key);
-  collapsedFolders.value = next;
+  collapsedFolders.value = new Set(next);
 }
 
 function isFolder(item: BranchRefInfo | BranchFolderGroup): item is BranchFolderGroup {

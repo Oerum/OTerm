@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, shallowRef } from "vue";
 import {
   childGroups,
   collectAllTags,
@@ -28,7 +28,7 @@ const emit = defineEmits<{
   openTerminalDirectly: [endpoint: SshEndpoint];
 }>();
 
-const collapsedGroups = ref<Set<string>>(new Set());
+const collapsedGroups = shallowRef<Set<string>>(new Set());
 
 const allTags = computed(() => collectAllTags(props.library));
 
@@ -72,7 +72,7 @@ function toggleGroupCollapse(groupId: string) {
   const next = new Set(collapsedGroups.value);
   if (next.has(groupId)) next.delete(groupId);
   else next.add(groupId);
-  collapsedGroups.value = next;
+  collapsedGroups.value = new Set(next);
 }
 
 function endpointSubtitle(endpoint: SshEndpoint) {
