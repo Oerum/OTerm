@@ -24,9 +24,10 @@ const emit = defineEmits<{
   >
     <button
       type="button"
-      class="min-w-0 flex-1 rounded px-2 py-1 hover:bg-white/5 flex items-center justify-between gap-1.5"
+      class="min-w-0 flex-1 rounded px-2 py-1 hover:bg-white/5 flex items-center justify-between gap-1.5 focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]"
       :class="branch.isCurrent ? 'text-[var(--oterm-accent)] font-semibold' : ''"
       :title="branch.name"
+      :aria-label="`Switch to branch ${branch.name}`"
       @click="emit('switch')"
     >
       <span class="flex items-center gap-1.5 min-w-0">
@@ -43,8 +44,9 @@ const emit = defineEmits<{
     </button>
     <button
       type="button"
-      class="shrink-0 rounded px-1 text-[10px] text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]"
+      class="shrink-0 rounded px-1 text-[10px] text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]"
       title="Create branch from this branch"
+      aria-label="Create branch from this branch"
       :disabled="busy"
       @click.stop="emit('create')"
     >
@@ -52,8 +54,9 @@ const emit = defineEmits<{
     </button>
     <button
       type="button"
-      class="shrink-0 rounded px-1 text-[10px] text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]"
+      class="shrink-0 rounded px-1 text-[10px] text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]"
       title="Merge into another branch"
+      aria-label="Merge into another branch"
       :disabled="busy"
       @click.stop="emit('merge')"
     >
@@ -61,8 +64,9 @@ const emit = defineEmits<{
     </button>
     <button
       type="button"
-      class="shrink-0 rounded px-1 text-[10px] text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-danger)] disabled:cursor-not-allowed disabled:opacity-30"
+      class="shrink-0 rounded px-1 text-[10px] text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-danger)] disabled:cursor-not-allowed disabled:opacity-30 focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-danger)]"
       :title="branch.isCurrent ? 'Cannot delete current branch' : 'Delete branch'"
+      :aria-label="branch.isCurrent ? 'Cannot delete current branch' : 'Delete branch'"
       :disabled="busy || branch.isCurrent"
       @click.stop="emit('delete')"
     >
