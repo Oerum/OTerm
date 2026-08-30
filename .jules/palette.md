@@ -1,3 +1,3 @@
-## 2024-07-25 - [Accessibility gap in Interactive Rebase Builder]
-**Learning:** Found an accessibility issue pattern in the Rebase Builder component where critical form elements (`<select>`, `<input>`) inside a list loop lack `aria-label`s, preventing screen readers from identifying them properly.
-**Action:** Applied standard `aria-label` attributes to the dynamic dropdown and text input. Will keep a lookout for other form-heavy components (like lists or tables with inline editing) that might have similar accessibility gaps in this design system.
+## 2025-02-28 - Missing ARIA Labels on Empty State Buttons
+**Learning:** Found that some buttons in empty states or error states within the `DockerManagerView` lacked descriptive labels, which could confuse screen reader users trying to understand the purpose of actions like "Retry Connection".
+**Action:** Always ensure that call-to-action buttons, especially in error recovery or empty states, have appropriate `aria-label` attributes if their visual text isn't sufficiently descriptive out of context.

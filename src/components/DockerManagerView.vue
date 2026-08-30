@@ -415,6 +415,7 @@ watch(() => props.active, (isActive) => {
       <PanelHeaderActions :loading="loading" :busy="busy" @refresh="load" @close="emit('close')">
         <button
           type="button"
+          aria-label="Prune System"
           class="pr-header-btn hover:border-rose-500/30 hover:bg-rose-500/5 hover:text-rose-400"
           :disabled="loading || busy || !summary.info.available"
           @click="pruneAllUnused"
@@ -445,6 +446,7 @@ watch(() => props.active, (isActive) => {
         <div class="mt-6 flex justify-center gap-3">
           <button
             type="button"
+            aria-label="Retry Connection"
             class="px-4 py-2 text-xs font-semibold rounded-lg bg-[var(--oterm-accent)] text-[var(--oterm-bg)] hover:opacity-90 transition duration-150"
             @click="load"
           >
