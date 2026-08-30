@@ -5,6 +5,7 @@ import {
   onMounted,
   onUnmounted,
   ref,
+  shallowRef,
   watch,
   provide,
   type ComponentPublicInstance,
@@ -518,12 +519,14 @@ const activePaneGit = computed(() => {
 let promptGitRefreshTimer: number | undefined;
 const sourceControlPanelRef = ref<InstanceType<typeof SourceControlPanel> | null>(null);
 const gitBranchSwitchBusy = ref(false);
-const gitWorktrees = ref<GitWorktreeInfo[]>([]);
+// ⚡ Bolt Optimization: Use shallowRef for completely reassigned arrays to prevent deep reactivity overhead
+const gitWorktrees = shallowRef<GitWorktreeInfo[]>([]);
 const worktreeDialogOpen = ref(false);
 const worktreeRepoRoot = ref<string | null>(null);
 const worktreeDialogBusy = ref(false);
 const worktreeDialogError = ref<string | null>(null);
-const worktreeBranchRefs = ref<BranchRefInfo[]>([]);
+// ⚡ Bolt Optimization: Use shallowRef for completely reassigned branch list to prevent deep reactivity overhead
+const worktreeBranchRefs = shallowRef<BranchRefInfo[]>([]);
 const worktreeLauncherAvailable = ref(false);
 let worktreeDialogSuppressUntil = 0;
 

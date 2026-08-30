@@ -37,3 +37,7 @@
 ## 2026-08-26 - Fix reactivity issues with shallowRef on Vue collections
 **Learning:** Using `shallowRef` to optimize large collections (like `Map` and `Set`) bypasses deep proxying but means that mutations via `.add()`, `.set()`, `.delete()`, or array `.push()` are no longer tracked. Vue requires explicit re-assignment (e.g., `mySet.value = new Set(mySet.value)`) for components to re-render.
 **Action:** When migrating `ref` to `shallowRef` for collections, audit all call sites. Replace direct mutations with explicit reassignments (e.g., `map.value = new Map(map.value).set(...)`).
+## 2024-05-19 - Using shallowRef for array properties in Vue components
+
+**Learning:** When fetching large lists of objects (like branches, commits, or stashes) and reassigning the entire array without mutating individual element properties, using `shallowRef` instead of `ref` drastically reduces Vue's deep reactivity overhead. This ensures a noticeable performance boost for large repositories with many branch references or items in list components.
+**Action:** Always prefer `shallowRef` over `ref` when managing lists that are completely reassigned from backend API calls (e.g., from Tauri commands) unless deep reactivity on list items is functionally required.

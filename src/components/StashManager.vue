@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, shallowRef, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
 const emit = defineEmits<{
@@ -17,7 +17,8 @@ interface StashEntry {
   date: string
 }
 
-const stashes = ref<StashEntry[]>([])
+// ⚡ Bolt Optimization: Use shallowRef for completely reassigned stash list to prevent deep reactivity overhead
+const stashes = shallowRef<StashEntry[]>([])
 const newStashMessage = ref('')
 const loading = ref(false)
 

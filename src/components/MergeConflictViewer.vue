@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, shallowRef, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
 const emit = defineEmits<{
@@ -10,7 +10,8 @@ const props = defineProps<{
   repoRoot: string | null;
 }>()
 
-const conflicts = ref<any[]>([])
+// ⚡ Bolt Optimization: Use shallowRef for completely reassigned conflicts list to prevent deep reactivity overhead
+const conflicts = shallowRef<any[]>([])
 const selectedConflict = ref<any | null>(null)
 const resolutionContent = ref('')
 
