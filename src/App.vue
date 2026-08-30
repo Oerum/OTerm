@@ -81,7 +81,7 @@ import {
 import { getSetting, setSetting } from "./lib/settingsStore";
 import { loadPersistedTerminalWorkspace } from "./lib/workspaceStore";
 import type { DockerContainer } from "./types/docker";
-import { shellQuote } from "./lib/shellQuote";
+import { quoteForShell } from "./lib/shellQuote";
 import { buildTerminalCdCommand } from "./lib/terminalCdCommand";
 import {
   endpointDisplayLabel,
@@ -1266,7 +1266,8 @@ function openDockerContainerTerminal(
   mode: "logs" | "shell",
 ) {
   dismissToolWindow();
-  const tab = createTab(resolveDefaultShellId());
+  const shellId = resolveDefaultShellId();
+  const tab = createTab(shellId);
   if (!tab || !isTerminalTab(tab)) return;
   const pane = tab.panes[0];
   if (!pane) return;
@@ -1276,8 +1277,8 @@ function openDockerContainerTerminal(
 
   const command =
     mode === "logs"
-      ? `docker logs -f --tail 200 ${shellQuote(container.id)}`
-      : `docker exec -it ${shellQuote(container.id)} sh`;
+      ? `docker logs -f --tail 200 ${quoteForShell(container.id, shellId)}`
+      : `docker exec -it ${quoteForShell(container.id, shellId)} sh`;
   pendingTerminalCommands.set(pane.id, `${command}\r`);
 
   selectTab(tab.id);
