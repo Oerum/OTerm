@@ -75,7 +75,7 @@ function buildEnvPrefix(
     return parts.length ? `${parts.join("; ")}; ` : "";
   }
   const parts = Object.entries(env).map(
-    ([key, value]) => `${key}=${shellQuote(value)}`,
+    ([key, value]) => `${key}=${quoteForShell(value, shellId)}`,
   );
   return parts.length ? `${parts.join(" ")} ` : "";
 }
