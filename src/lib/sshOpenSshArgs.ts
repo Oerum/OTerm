@@ -63,10 +63,6 @@ function buildOpenSshArgs(endpoint: SshEndpoint, library: SshSftpLibrary): strin
   return args;
 }
 
-function powershellQuote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
 function buildEnvPrefix(
   env: Record<string, string>,
   shellId?: string,
@@ -74,7 +70,7 @@ function buildEnvPrefix(
   const usePowerShell = shellId === "pwsh" || shellId === "powershell";
   if (usePowerShell) {
     const parts = Object.entries(env).map(
-      ([key, value]) => `$env:${key}=${powershellQuote(value)}`,
+      ([key, value]) => `$env:${key}=${quoteForShell(value, "pwsh")}`,
     );
     return parts.length ? `${parts.join("; ")}; ` : "";
   }

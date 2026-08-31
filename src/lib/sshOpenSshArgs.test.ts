@@ -41,4 +41,38 @@ describe("buildTerminalLaunchCommand", () => {
     const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary);
     expect(cmd).toContain("QUOTE='it'\\''s working'");
   });
+
+  it("formats environment variables and quotes arguments for PowerShell", () => {
+    const endpoint = defaultSshEndpoint({
+      id: "test-pwsh",
+      label: "PWSH Server",
+      host: "example.com",
+      username: "root",
+      port: 2222,
+      auth: { method: "agent" },
+      environment: {
+        VAR_ONE: "val'1",
+      },
+      startupSnippet: "echo hello",
+    });
+    const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary, "pwsh");
+    expect(cmd).toContain("$env:VAR_ONE='val''1'; ");
+    expect(cmd).toContain("ssh '-p' '2222'");
+    expect(cmd).toContain("-t 'bash -lc ''echo hello'''");
+  });
+
+  it("quotes arguments with double quotes for cmd.exe", () => {
+    const endpoint = defaultSshEndpoint({
+      id: "test-cmd",
+      label: "CMD Server",
+      host: "example.com",
+      username: "root",
+      port: 2222,
+      auth: { method: "agent" },
+      startupSnippet: "echo hello",
+    });
+    const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary, "cmd");
+    expect(cmd).toContain('ssh "-p" "2222"');
+    expect(cmd).toContain('-t "bash -lc \'echo hello\'"');
+  });
 });
