@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shellQuote } from "./shellQuote";
+import { shellQuote, quoteForShell } from "./shellQuote";
 
 describe("shellQuote", () => {
   it("leaves safe alphanumeric strings, dots, dashes, and underscores unquoted", () => {
@@ -34,5 +34,37 @@ describe("shellQuote", () => {
 
   it("quotes strings with double quotes without escaping them inside single quotes", () => {
     expect(shellQuote('container "name"')).toBe("'container \"name\"'");
+  });
+});
+
+describe("quoteForShell", () => {
+  describe("cmd.exe", () => {
+    it("wraps in double quotes and strips internal double quotes", () => {
+      expect(quoteForShell("my container", "cmd")).toBe('"my container"');
+      expect(quoteForShell('foo" && calc.exe && "', "cmd")).toBe('"foo && calc.exe && "');
+      expect(quoteForShell("safe_name", "cmd")).toBe('"safe_name"');
+      expect(quoteForShell("", "cmd")).toBe('""');
+    });
+  });
+
+  describe("PowerShell", () => {
+    it("wraps in single quotes and doubles internal single quotes", () => {
+      expect(quoteForShell("my container", "pwsh")).toBe("'my container'");
+      expect(quoteForShell("it's a test", "pwsh")).toBe("'it''s a test'");
+      expect(quoteForShell("my container", "powershell")).toBe("'my container'");
+      expect(quoteForShell("it's a test", "powershell")).toBe("'it''s a test'");
+      expect(quoteForShell("$env:PATH; rm -rf", "pwsh")).toBe("'$env:PATH; rm -rf'");
+      expect(quoteForShell("", "pwsh")).toBe("''");
+    });
+  });
+
+  describe("POSIX shells and default fallback", () => {
+    it("delegates to shellQuote for bash, zsh, and undefined", () => {
+      expect(quoteForShell("simple", "bash")).toBe("simple");
+      expect(quoteForShell("simple")).toBe("simple");
+      expect(quoteForShell("with space", "bash")).toBe("'with space'");
+      expect(quoteForShell("it's", "zsh")).toBe("'it'\\''s'");
+      expect(quoteForShell("")).toBe("''");
+    });
   });
 });

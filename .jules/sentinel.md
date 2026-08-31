@@ -32,3 +32,8 @@
 **Vulnerability:** Command injection in `openPathInTerminal` in `src/App.vue`. The path was directly interpolated into the `cd` command without proper quoting or escaping.
 **Learning:** Shell commands constructed by string interpolation must be carefully sanitized based on the target shell. What's safe for `pwsh` is not necessarily safe for `cmd` or `bash`. Additionally, newlines must be stripped to prevent multi-line execution in terminal PTY payloads.
 **Prevention:** Always use `shellQuote` for POSIX shells, shell-specific escaping (like stripping quotes for `cmd`, or using `-LiteralPath` for PowerShell), and strip newlines (`[\r\n]`) when passing user-controlled data to terminal inputs.
+
+## 2024-10-24 - OS-Specific Command Injection in Terminal Payloads
+**Vulnerability:** Shell commands (e.g. `docker logs` and SSH launches) interpolated values using a POSIX-only `shellQuote` method (single quotes) which failed to protect against command injection when executed in Windows `cmd.exe` or PowerShell environments via PTY inputs.
+**Learning:** Quoting strategies must be aware of the target shell environment. While single-quoting is robust for POSIX, `cmd.exe` only respects double quotes, and PowerShell has different single-quote escaping (`''`). Passing POSIX-quoted strings into a Windows PTY allows trivial command breakout.
+**Prevention:** Implement and use a shell-aware quoting utility (like `quoteForShell`) that takes the target `shellId` into account when sanitizing values destined for terminal commands.

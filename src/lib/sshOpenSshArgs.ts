@@ -5,7 +5,7 @@ import {
   type SshEndpoint,
   type SshSftpLibrary,
 } from "../types/sshSftp";
-import { shellQuote } from "./shellQuote";
+import { shellQuote, quoteForShell } from "./shellQuote";
 
 function resolveJumpHost(endpoint: SshEndpoint, library: SshSftpLibrary): string | null {
   if (!endpoint.jumpHostId) return null;
@@ -63,10 +63,6 @@ function buildOpenSshArgs(endpoint: SshEndpoint, library: SshSftpLibrary): strin
   return args;
 }
 
-function powershellQuote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
 function buildEnvPrefix(
   env: Record<string, string>,
   shellId?: string,
@@ -74,7 +70,7 @@ function buildEnvPrefix(
   const usePowerShell = shellId === "pwsh" || shellId === "powershell";
   if (usePowerShell) {
     const parts = Object.entries(env).map(
-      ([key, value]) => `$env:${key}=${powershellQuote(value)}`,
+      ([key, value]) => `$env:${key}=${quoteForShell(value, "pwsh")}`,
     );
     return parts.length ? `${parts.join("; ")}; ` : "";
   }
@@ -98,11 +94,13 @@ function buildOpenSshCommand(
     endpoint.startupSnippet.trim() || null,
   ].filter(Boolean);
 
-  let command = `${envPrefix}ssh ${args.map(shellQuote).join(" ")}`;
+  let command = `${envPrefix}ssh ${args.map(arg => quoteForShell(arg, shellId)).join(" ")}`;
 
   if (snippets.length) {
     const remoteCommand = snippets.join("; ");
-    command = `${command} -t ${shellQuote(`bash -lc ${shellQuote(remoteCommand)}`)}`;
+    // Note: the inner shellQuote for remoteCommand remains POSIX style because it's run via bash on the remote,
+    // but the outer argument provided to -t needs quoting according to the local shellId.
+    command = `${command} -t ${quoteForShell(`bash -lc ${shellQuote(remoteCommand)}`, shellId)}`;
   }
 
   return command;
@@ -116,9 +114,11 @@ function buildMoshCommand(
   const sshArgs = buildOpenSshArgs(endpoint, library);
   const env = { ...encodingEnv(endpoint.encoding), ...endpoint.environment };
   const envPrefix = buildEnvPrefix(env, shellId);
-  const sshCommand = `${envPrefix}ssh ${sshArgs.map(shellQuote).join(" ")}`;
+  // Note: outer quoting according to shellId, but inner ssh command might need specific quoting if mosh passes it to sh.
+  // We'll quote it for the local shell to safely pass to mosh.
+  const sshCommand = `${envPrefix}ssh ${sshArgs.map(arg => quoteForShell(arg, shellId)).join(" ")}`;
   const target = `${endpoint.username}@${endpoint.host}`;
-  return `mosh ${shellQuote(target)} --ssh=${shellQuote(sshCommand)}`;
+  return `mosh ${quoteForShell(target, shellId)} --ssh=${quoteForShell(sshCommand, shellId)}`;
 }
 
 export function buildTerminalLaunchCommand(
