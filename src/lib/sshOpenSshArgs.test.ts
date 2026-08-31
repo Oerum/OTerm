@@ -61,7 +61,7 @@ describe("buildTerminalLaunchCommand", () => {
     expect(cmd).toContain("-t 'bash -lc ''echo hello'''");
   });
 
-  it("quotes arguments with double quotes for cmd.exe", () => {
+  it("quotes arguments and formats environment variables for cmd.exe", () => {
     const endpoint = defaultSshEndpoint({
       id: "test-cmd",
       label: "CMD Server",
@@ -69,9 +69,13 @@ describe("buildTerminalLaunchCommand", () => {
       username: "root",
       port: 2222,
       auth: { method: "agent" },
+      environment: {
+        VAR_CMD: 'test"value',
+      },
       startupSnippet: "echo hello",
     });
     const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary, "cmd");
+    expect(cmd).toContain('set "VAR_CMD=testvalue" && ');
     expect(cmd).toContain('ssh "-p" "2222"');
     expect(cmd).toContain('-t "bash -lc \'echo hello\'"');
   });
