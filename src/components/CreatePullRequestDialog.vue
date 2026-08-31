@@ -155,7 +155,7 @@ useDialogKeyNav(
       <div class="flex justify-end gap-2 border-t border-[var(--oterm-border)] px-4 py-3">
         <button
           type="button"
-          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5"
+          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
           :disabled="busy"
           @click="emit('cancel')"
         >
@@ -163,9 +163,19 @@ useDialogKeyNav(
         </button>
         <button
           type="submit"
-          class="rounded-md bg-[var(--oterm-accent)] px-3 py-1.5 text-xs text-black disabled:opacity-50"
+          class="flex items-center gap-1.5 rounded-md bg-[var(--oterm-accent)] px-3 py-1.5 text-xs text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
           :disabled="busy || !title.trim() || !base || !head || base === head"
         >
+          <svg
+            v-if="busy"
+            class="h-3.5 w-3.5 animate-spin"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-opacity="0.25" />
+            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+          </svg>
           {{ busy ? "Creating…" : "Create PR" }}
         </button>
       </div>
