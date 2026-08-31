@@ -74,6 +74,12 @@ function buildEnvPrefix(
     );
     return parts.length ? `${parts.join("; ")}; ` : "";
   }
+  if (shellId === "cmd") {
+    const parts = Object.entries(env).map(
+      ([key, value]) => `set "${key}=${value.replace(/"/g, "")}"`,
+    );
+    return parts.length ? `${parts.join(" && ")} && ` : "";
+  }
   const parts = Object.entries(env).map(
     ([key, value]) => `${key}=${quoteForShell(value, shellId)}`,
   );
