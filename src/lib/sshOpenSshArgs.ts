@@ -36,17 +36,22 @@ function buildOpenSshArgs(endpoint: SshEndpoint, library: SshSftpLibrary): strin
   if (jump) args.push("-J", jump);
 
   if (endpoint.proxy.type !== "none" && endpoint.proxy.host.trim()) {
-    const proxyHost = endpoint.proxy.host.trim();
-    const proxyPort = endpoint.proxy.port || (endpoint.proxy.type === "http" ? 8080 : 1080);
-    if (endpoint.proxy.type === "socks5") {
-      args.push("-o", `ProxyCommand=connect -S ${proxyHost}:${proxyPort} %h %p`);
-    } else {
-      args.push("-o", `ProxyCommand=nc -X connect -x ${proxyHost}:${proxyPort} %h %p`);
+    // Sanitize proxy host to prevent command injection in ProxyCommand shell execution
+    const proxyHost = endpoint.proxy.host.trim().replace(/[^\w.:-]/g, "");
+    if (proxyHost) {
+      const proxyPort = endpoint.proxy.port || (endpoint.proxy.type === "http" ? 8080 : 1080);
+      if (endpoint.proxy.type === "socks5") {
+        args.push("-o", `ProxyCommand=connect -S ${proxyHost}:${proxyPort} %h %p`);
+      } else {
+        args.push("-o", `ProxyCommand=nc -X connect -x ${proxyHost}:${proxyPort} %h %p`);
+      }
     }
   }
 
   const env = { ...encodingEnv(endpoint.encoding), ...endpoint.environment };
-  for (const key of Object.keys(env)) {
+  // SendEnv passes the environment variable through to the remote host. We only send valid names.
+  const validEnvKeys = Object.keys(env).filter(key => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key));
+  for (const key of validEnvKeys) {
     args.push("-o", `SendEnv=${key}`);
   }
 
@@ -68,19 +73,23 @@ function buildEnvPrefix(
   shellId?: string,
 ): string {
   const usePowerShell = shellId === "pwsh" || shellId === "powershell";
+
+  // Sanitize keys to prevent command injection via malicious environment variable names
+  const validEntries = Object.entries(env).filter(([key]) => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key));
+
   if (usePowerShell) {
-    const parts = Object.entries(env).map(
+    const parts = validEntries.map(
       ([key, value]) => `$env:${key}=${quoteForShell(value, "pwsh")}`,
     );
     return parts.length ? `${parts.join("; ")}; ` : "";
   }
   if (shellId === "cmd") {
-    const parts = Object.entries(env).map(
+    const parts = validEntries.map(
       ([key, value]) => `set "${key}=${value.replace(/"/g, "")}"`,
     );
     return parts.length ? `${parts.join(" && ")} && ` : "";
   }
-  const parts = Object.entries(env).map(
+  const parts = validEntries.map(
     ([key, value]) => `${key}=${quoteForShell(value, shellId)}`,
   );
   return parts.length ? `${parts.join(" ")} ` : "";
