@@ -51,17 +51,21 @@ describe("buildTerminalLaunchCommand", () => {
       auth: { method: "agent" },
       environment: {
         "EVIL; calc": "value",
-        "GOOD_KEY": "good",
+        "INVALID-KEY": "value",
+        "$ANOTHER": "value",
+        "GOOD_KEY": "good\r\nmalicious",
       },
       proxy: {
         type: "socks5",
         host: "evil.com; calc",
         port: 1080,
-      }
+      },
     });
     const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary);
     expect(cmd).not.toContain("EVIL; calc");
-    expect(cmd).toContain("GOOD_KEY=good");
+    expect(cmd).not.toContain("INVALID-KEY");
+    expect(cmd).not.toContain("$ANOTHER");
+    expect(cmd).toContain("GOOD_KEY=goodmalicious");
     expect(cmd).toContain("ProxyCommand=connect -S evil.comcalc:1080 %h %p");
   });
 
