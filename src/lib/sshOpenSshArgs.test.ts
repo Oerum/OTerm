@@ -42,6 +42,33 @@ describe("buildTerminalLaunchCommand", () => {
     expect(cmd).toContain("QUOTE='it'\\''s working'");
   });
 
+  it("sanitizes environment variable keys and proxy hosts to prevent command injection", () => {
+    const endpoint = defaultSshEndpoint({
+      id: "test-inj",
+      label: "Test Injection",
+      host: "example.com",
+      username: "root",
+      auth: { method: "agent" },
+      environment: {
+        "EVIL; calc": "value",
+        "INVALID-KEY": "value",
+        "$ANOTHER": "value",
+        "GOOD_KEY": "good\r\nmalicious",
+      },
+      proxy: {
+        type: "socks5",
+        host: "evil.com; calc",
+        port: 1080,
+      },
+    });
+    const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary);
+    expect(cmd).not.toContain("EVIL; calc");
+    expect(cmd).not.toContain("INVALID-KEY");
+    expect(cmd).not.toContain("$ANOTHER");
+    expect(cmd).toContain("GOOD_KEY=goodmalicious");
+    expect(cmd).toContain("ProxyCommand=connect -S evil.comcalc:1080 %h %p");
+  });
+
   it("formats environment variables and quotes arguments for PowerShell", () => {
     const endpoint = defaultSshEndpoint({
       id: "test-pwsh",

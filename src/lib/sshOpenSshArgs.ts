@@ -27,6 +27,8 @@ function encodingEnv(encoding: SshEndpoint["encoding"]): Record<string, string> 
   return { LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" };
 }
 
+const VALID_ENV_KEY = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
 function buildOpenSshArgs(endpoint: SshEndpoint, library: SshSftpLibrary): string[] {
   const args: string[] = [];
   if (endpoint.port !== 22) args.push("-p", String(endpoint.port));
@@ -36,17 +38,25 @@ function buildOpenSshArgs(endpoint: SshEndpoint, library: SshSftpLibrary): strin
   if (jump) args.push("-J", jump);
 
   if (endpoint.proxy.type !== "none" && endpoint.proxy.host.trim()) {
-    const proxyHost = endpoint.proxy.host.trim();
-    const proxyPort = endpoint.proxy.port || (endpoint.proxy.type === "http" ? 8080 : 1080);
-    if (endpoint.proxy.type === "socks5") {
-      args.push("-o", `ProxyCommand=connect -S ${proxyHost}:${proxyPort} %h %p`);
-    } else {
-      args.push("-o", `ProxyCommand=nc -X connect -x ${proxyHost}:${proxyPort} %h %p`);
+    // Sanitize proxy host to prevent command injection in ProxyCommand shell execution
+    const proxyHost = endpoint.proxy.host.trim().replace(/[^\w.:-]/g, "");
+    if (proxyHost) {
+      const parsedPort = Number(endpoint.proxy.port);
+      const proxyPort = Number.isInteger(parsedPort) && parsedPort > 0
+        ? parsedPort
+        : (endpoint.proxy.type === "http" ? 8080 : 1080);
+      if (endpoint.proxy.type === "socks5") {
+        args.push("-o", `ProxyCommand=connect -S ${proxyHost}:${proxyPort} %h %p`);
+      } else {
+        args.push("-o", `ProxyCommand=nc -X connect -x ${proxyHost}:${proxyPort} %h %p`);
+      }
     }
   }
 
   const env = { ...encodingEnv(endpoint.encoding), ...endpoint.environment };
-  for (const key of Object.keys(env)) {
+  // SendEnv passes the environment variable through to the remote host. We only send valid names.
+  const validEnvKeys = Object.keys(env).filter((key) => VALID_ENV_KEY.test(key));
+  for (const key of validEnvKeys) {
     args.push("-o", `SendEnv=${key}`);
   }
 
@@ -68,19 +78,25 @@ function buildEnvPrefix(
   shellId?: string,
 ): string {
   const usePowerShell = shellId === "pwsh" || shellId === "powershell";
+
+  // Sanitize keys and strip newlines from values to prevent command injection in terminal payloads
+  const validEntries = Object.entries(env)
+    .filter(([key]) => VALID_ENV_KEY.test(key))
+    .map(([key, value]) => [key, value.replace(/[\r\n]/g, "")] as const);
+
   if (usePowerShell) {
-    const parts = Object.entries(env).map(
+    const parts = validEntries.map(
       ([key, value]) => `$env:${key}=${quoteForShell(value, "pwsh")}`,
     );
     return parts.length ? `${parts.join("; ")}; ` : "";
   }
   if (shellId === "cmd") {
-    const parts = Object.entries(env).map(
+    const parts = validEntries.map(
       ([key, value]) => `set "${key}=${value.replace(/"/g, "")}"`,
     );
     return parts.length ? `${parts.join(" && ")} && ` : "";
   }
-  const parts = Object.entries(env).map(
+  const parts = validEntries.map(
     ([key, value]) => `${key}=${quoteForShell(value, shellId)}`,
   );
   return parts.length ? `${parts.join(" ")} ` : "";
