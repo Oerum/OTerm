@@ -29,7 +29,7 @@ function encodingEnv(encoding: SshEndpoint["encoding"]): Record<string, string> 
 
 const VALID_ENV_KEY = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
-function buildOpenSshArgs(endpoint: SshEndpoint, library: SshSftpLibrary): string[] {
+function buildOpenSshOptions(endpoint: SshEndpoint, library: SshSftpLibrary): string[] {
   const args: string[] = [];
   if (endpoint.port !== 22) args.push("-p", String(endpoint.port));
   if (endpoint.agentForwarding) args.push("-A");
@@ -69,7 +69,6 @@ function buildOpenSshArgs(endpoint: SshEndpoint, library: SshSftpLibrary): strin
     args.push("-o", "IdentitiesOnly=yes");
   }
 
-  args.push(`${endpoint.username}@${endpoint.host}`);
   return args;
 }
 
@@ -107,7 +106,7 @@ function buildOpenSshCommand(
   library: SshSftpLibrary,
   shellId?: string,
 ): string {
-  const args = buildOpenSshArgs(endpoint, library);
+  const options = buildOpenSshOptions(endpoint, library);
   const env = { ...encodingEnv(endpoint.encoding), ...endpoint.environment };
   const envPrefix = buildEnvPrefix(env, shellId);
 
@@ -116,16 +115,25 @@ function buildOpenSshCommand(
     endpoint.startupSnippet.trim() || null,
   ].filter(Boolean);
 
-  let command = `${envPrefix}ssh ${args.map(arg => quoteForShell(arg, shellId)).join(" ")}`;
+  if (snippets.length) {
+    options.push("-t");
+  }
+
+  const destination = `${endpoint.username}@${endpoint.host}`;
+  const parts = [
+    ...options.map((arg) => quoteForShell(arg, shellId)),
+    quoteForShell("--", shellId),
+    quoteForShell(destination, shellId),
+  ];
 
   if (snippets.length) {
     const remoteCommand = snippets.join("; ");
     // Note: the inner shellQuote for remoteCommand remains POSIX style because it's run via bash on the remote,
     // but the outer argument provided to -t needs quoting according to the local shellId.
-    command = `${command} -t ${quoteForShell(`bash -lc ${shellQuote(remoteCommand)}`, shellId)}`;
+    parts.push(quoteForShell(`bash -lc ${shellQuote(remoteCommand)}`, shellId));
   }
 
-  return command;
+  return `${envPrefix}ssh ${parts.join(" ")}`;
 }
 
 function buildMoshCommand(
@@ -133,14 +141,13 @@ function buildMoshCommand(
   library: SshSftpLibrary,
   shellId?: string,
 ): string {
-  const sshArgs = buildOpenSshArgs(endpoint, library);
+  const sshOptions = buildOpenSshOptions(endpoint, library);
   const env = { ...encodingEnv(endpoint.encoding), ...endpoint.environment };
   const envPrefix = buildEnvPrefix(env, shellId);
-  // Note: outer quoting according to shellId, but inner ssh command might need specific quoting if mosh passes it to sh.
-  // We'll quote it for the local shell to safely pass to mosh.
-  const sshCommand = `${envPrefix}ssh ${sshArgs.map(arg => quoteForShell(arg, shellId)).join(" ")}`;
+  const sshParts = sshOptions.map((arg) => quoteForShell(arg, shellId));
+  const sshCommand = `${envPrefix}ssh${sshParts.length ? ` ${sshParts.join(" ")}` : ""}`;
   const target = `${endpoint.username}@${endpoint.host}`;
-  return `mosh ${quoteForShell(target, shellId)} --ssh=${quoteForShell(sshCommand, shellId)}`;
+  return `mosh --ssh=${quoteForShell(sshCommand, shellId)} -- ${quoteForShell(target, shellId)}`;
 }
 
 export function buildTerminalLaunchCommand(

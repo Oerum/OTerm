@@ -85,7 +85,7 @@ describe("buildTerminalLaunchCommand", () => {
     const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary, "pwsh");
     expect(cmd).toContain("$env:VAR_ONE='val''1'; ");
     expect(cmd).toContain("ssh '-p' '2222'");
-    expect(cmd).toContain("-t 'bash -lc ''echo hello'''");
+    expect(cmd).toContain("'-t' '--' 'root@example.com' 'bash -lc ''echo hello'''");
   });
 
   it("quotes arguments and formats environment variables for cmd.exe", () => {
@@ -104,6 +104,48 @@ describe("buildTerminalLaunchCommand", () => {
     const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary, "cmd");
     expect(cmd).toContain('set "VAR_CMD=testvalue" && ');
     expect(cmd).toContain('ssh "-p" "2222"');
-    expect(cmd).toContain('-t "bash -lc \'echo hello\'"');
+    expect(cmd).toContain('"-t" "--" "root@example.com" "bash -lc \'echo hello\'"');
+  });
+
+  it("places -- before destination to prevent command-line option injection", () => {
+    const endpoint = defaultSshEndpoint({
+      id: "test-inj",
+      label: "Option Injection",
+      host: "example.com",
+      username: "-oProxyCommand=calc",
+      auth: { method: "agent" },
+    });
+    const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary);
+    expect(cmd).toContain("-- '-oProxyCommand=calc@example.com'");
+  });
+
+  it("places -t before -- when remote snippets exist so OpenSSH allocates a tty", () => {
+    const endpoint = defaultSshEndpoint({
+      id: "test-snippet",
+      label: "Snippet Test",
+      host: "example.com",
+      username: "-oProxyCommand=calc",
+      startupSnippet: "echo injected",
+      auth: { method: "agent" },
+    });
+    const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary);
+    expect(cmd).toContain("-t -- '-oProxyCommand=calc@example.com' 'bash -lc");
+  });
+
+  it("formats mosh launch command with -- before destination and clean --ssh options", () => {
+    const endpoint = defaultSshEndpoint({
+      id: "test-mosh",
+      label: "Mosh Server",
+      connectionType: "mosh",
+      host: "example.com",
+      username: "-oProxyCommand=calc",
+      port: 2222,
+      auth: { method: "agent" },
+    });
+    const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary);
+    expect(cmd).toContain("mosh --ssh=");
+    expect(cmd).toContain("-p 2222");
+    expect(cmd).not.toContain("-p 2222 --");
+    expect(cmd).toContain("-- '-oProxyCommand=calc@example.com'");
   });
 });
