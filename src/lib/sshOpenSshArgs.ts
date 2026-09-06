@@ -69,7 +69,7 @@ function buildOpenSshArgs(endpoint: SshEndpoint, library: SshSftpLibrary): strin
     args.push("-o", "IdentitiesOnly=yes");
   }
 
-  args.push(`${endpoint.username}@${endpoint.host}`);
+  args.push("--", `${endpoint.username}@${endpoint.host}`);
   return args;
 }
 
