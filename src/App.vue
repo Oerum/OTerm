@@ -1513,7 +1513,8 @@ function launchAgent(agentId: CliAgentId) {
   if (!pane) return;
 
   // Keep default tab title so sidebar shows project/cwd; agent brand is badge + radar subtitle.
-  const command = agent.commandPrefixes[0] || agent.id;
+  const rawCommand = agent.commandPrefixes[0] || agent.id;
+  const command = quoteForShell(rawCommand, shellId);
   pendingTerminalCommands.set(pane.id, `${command}\r`);
 
   agentsViewOpen.value = false;
