@@ -320,14 +320,14 @@ async function openExternal(url: string) {
       <div class="flex flex-wrap gap-2">
         <button
           type="button"
-          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5"
+          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
           @click="openExternal(RELEASES_URL)"
         >
           View releases
         </button>
         <button
           type="button"
-          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5"
+          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
           @click="openExternal(GITHUB_REPO_URL)"
         >
           GitHub repository

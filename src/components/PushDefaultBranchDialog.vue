@@ -43,14 +43,14 @@ useDialogEscapeFocus(() => props.open, () => emit("cancel"), "push-default-dialo
       <div class="flex justify-end gap-2 border-t border-[var(--oterm-border)] px-4 py-3 bg-[var(--oterm-bg)]/30">
         <button
           type="button"
-          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5"
+          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
           @click="emit('cancel')"
         >
           Cancel
         </button>
         <button
           type="button"
-          class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-danger)]/15 px-3 py-1.5 text-xs font-medium text-[var(--oterm-danger)] transition hover:bg-[var(--oterm-danger)]/25"
+          class="rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-danger)]/15 px-3 py-1.5 text-xs font-medium text-[var(--oterm-danger)] transition hover:bg-[var(--oterm-danger)]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
           @click="emit('pushAnyway')"
         >
           Push Anyway
@@ -58,7 +58,7 @@ useDialogEscapeFocus(() => props.open, () => emit("cancel"), "push-default-dialo
         <button
           id="push-default-dialog-create"
           type="button"
-          class="rounded-md bg-[var(--oterm-accent)]/15 px-3 py-1.5 text-xs font-medium text-[var(--oterm-accent)] transition hover:bg-[var(--oterm-accent)]/25"
+          class="rounded-md bg-[var(--oterm-accent)]/15 px-3 py-1.5 text-xs font-medium text-[var(--oterm-accent)] transition hover:bg-[var(--oterm-accent)]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
           @click="emit('createBranch')"
         >
           Create Branch
