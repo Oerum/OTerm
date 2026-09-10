@@ -238,7 +238,7 @@ async function openExternal(url: string) {
         <div class="flex flex-wrap gap-2">
           <button
             type="button"
-            class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+            class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="checking || installing"
             @click="onCheck()"
           >
@@ -247,7 +247,7 @@ async function openExternal(url: string) {
           <button
             v-if="pendingUpdate"
             type="button"
-            class="rounded-md bg-[var(--oterm-accent)] px-3 py-1.5 text-xs font-medium text-[var(--oterm-bg)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            class="rounded-md bg-[var(--oterm-accent)] px-3 py-1.5 text-xs font-medium text-[var(--oterm-bg)] transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="installing"
             @click="onInstall"
           >
