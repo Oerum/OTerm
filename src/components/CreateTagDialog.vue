@@ -113,7 +113,7 @@ useDialogKeyNav(
       <div class="flex justify-end gap-2 border-t border-[var(--oterm-border)] px-5 py-4">
         <button
           type="button"
-          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5"
+          class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-xs text-[var(--oterm-text)] transition hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
           :disabled="submitDisabled"
           @click="emit('cancel')"
         >
@@ -121,7 +121,7 @@ useDialogKeyNav(
         </button>
         <button
           type="submit"
-          class="rounded-md bg-[var(--oterm-accent)]/15 px-3 py-1.5 text-xs font-medium text-[var(--oterm-accent)] transition hover:bg-[var(--oterm-accent)]/25 disabled:cursor-not-allowed disabled:opacity-40"
+          class="rounded-md bg-[var(--oterm-accent)]/15 px-3 py-1.5 text-xs font-medium text-[var(--oterm-accent)] transition hover:bg-[var(--oterm-accent)]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)] disabled:cursor-not-allowed disabled:opacity-40"
           :disabled="submitDisabled || !name.trim()"
         >
           {{ hasOrigin && pushToOrigin ? "Create & push" : "Create tag" }}
