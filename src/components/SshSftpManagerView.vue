@@ -805,6 +805,12 @@ async function onRemoteOpen(entry: FilePaneEntry) {
     void loadRemoteDir(entry.path);
     return;
   }
+
+  if (entry.name.includes("/") || entry.name.includes("\\") || entry.name === ".." || entry.name === ".") {
+    pushAppToast("Invalid file name from remote server.", "error");
+    return;
+  }
+
   const session = activeSession.value;
   if (!session) return;
 
