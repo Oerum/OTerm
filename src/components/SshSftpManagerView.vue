@@ -11,6 +11,7 @@ import {
   collectLocalUploadTree,
   collectRemoteDownloadTree,
   createDir,
+  isSafePathSegment,
   joinPath,
   mapWithConcurrency,
   parentPath,
@@ -805,6 +806,12 @@ async function onRemoteOpen(entry: FilePaneEntry) {
     void loadRemoteDir(entry.path);
     return;
   }
+
+  if (!isSafePathSegment(entry.name)) {
+    pushAppToast("Invalid file name from remote server.", "error");
+    return;
+  }
+
   const session = activeSession.value;
   if (!session) return;
 
@@ -920,6 +927,10 @@ async function isLocalPathDir(path: string): Promise<boolean> {
 }
 
 async function transferRemote(entry: FilePaneEntry) {
+  if (!isSafePathSegment(entry.name)) {
+    pushAppToast("Invalid file name from remote server.", "error");
+    return;
+  }
   const session = activeSession.value;
   if (!session) return;
   await runBusy(async () => {

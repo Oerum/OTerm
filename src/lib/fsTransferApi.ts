@@ -1,5 +1,20 @@
 import { createDir, listDirectory, readFile, removePath, writeFile } from "./fsApi";
 
+export function isSafePathSegment(name: string): boolean {
+  if (!name || typeof name !== "string") return false;
+  const trimmed = name.trim();
+  if (!trimmed || /^\.+$/.test(trimmed)) return false;
+  if (
+    trimmed.includes("/") ||
+    trimmed.includes("\\") ||
+    trimmed.includes(":") ||
+    /[\x00-\x1f]/.test(trimmed)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function joinPath(base: string, name: string): string {
   const normalized = base.replace(/[/\\]+$/, "");
   if (!normalized) return name;
@@ -13,13 +28,13 @@ export function parentPath(path: string): string {
   const parts = path.split(/[/\\]/).filter(Boolean);
   if (parts.length <= 1) {
     if (/^[A-Za-z]:/.test(path)) return `${path.slice(0, 2)}\\`;
-    return sep === "/" ? "/" : ".";
+    return path.startsWith("/") ? "/" : ".";
   }
   parts.pop();
   if (/^[A-Za-z]:/.test(path)) {
-    return `${path.slice(0, 2)}\\${parts.join("\\")}`;
+    return parts.length === 1 ? `${parts[0]}\\` : parts.join("\\");
   }
-  return `${sep}${parts.join(sep)}`;
+  return path.startsWith("/") ? `/${parts.join("/")}` : parts.join(sep);
 }
 
 function assertWithinMaxFileSize(
@@ -102,11 +117,20 @@ export async function collectRemoteDownloadTree(
   localParentDir: string,
   folderName: string,
 ): Promise<{ localDirs: string[]; files: RemoteFileDownloadJob[] }> {
+  if (!isSafePathSegment(folderName)) {
+    throw new Error(`Invalid folder name: "${folderName}"`);
+  }
   const localDirPath = joinPath(localParentDir, folderName);
   const localDirs = [localDirPath];
   const files: RemoteFileDownloadJob[] = [];
   const remoteEntries = await listRemoteDir(remotePath);
   for (const entry of remoteEntries) {
+    if (entry.name === "." || entry.name === "..") {
+      continue;
+    }
+    if (!isSafePathSegment(entry.name)) {
+      throw new Error(`Invalid remote entry name: "${entry.name}"`);
+    }
     if (entry.isDir) {
       const nested = await collectRemoteDownloadTree(
         listRemoteDir,
@@ -150,6 +174,9 @@ export async function transferRemoteToLocal(
   localDir: string,
   fileName: string,
 ): Promise<void> {
+  if (!isSafePathSegment(fileName)) {
+    throw new Error(`Invalid transfer file name: "${fileName}"`);
+  }
   const data = await download(remotePath);
   await writeFile(joinPath(localDir, fileName), data);
 }
