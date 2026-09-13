@@ -1210,6 +1210,13 @@ watch(() => props.active, (isActive) => {
   transform: translateY(-1px);
 }
 
+.action-icon-btn:focus-visible,
+:deep(.action-icon-btn:focus-visible) {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 229, 186, 0.5);
+  border-color: var(--oterm-accent);
+}
+
 .action-icon-btn:disabled,
 :deep(.action-icon-btn:disabled) {
   opacity: 0.35;
