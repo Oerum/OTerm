@@ -528,6 +528,12 @@ input[type="password"]:focus {
   border-color: rgba(255, 255, 255, 0.1);
 }
 
+.pr-header-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--oterm-accent) 50%, transparent);
+  border-color: var(--oterm-accent);
+}
+
 .pr-header-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -554,6 +560,12 @@ input[type="password"]:focus {
   color: var(--oterm-text);
   background: rgba(255, 255, 255, 0.06);
   border-color: var(--oterm-border-strong);
+}
+
+.header-tool-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--oterm-accent) 50%, transparent);
+  border-color: var(--oterm-accent);
 }
 
 .header-tool-btn:disabled {

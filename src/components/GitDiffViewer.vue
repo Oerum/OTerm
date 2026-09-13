@@ -470,6 +470,12 @@ function chunkClass(chunk: WordDiffChunk) {
   color: var(--oterm-text);
 }
 
+.diff-toolbar-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--oterm-accent) 50%, transparent);
+  border-color: var(--oterm-accent);
+}
+
 .diff-toolbar-btn--active {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.15);

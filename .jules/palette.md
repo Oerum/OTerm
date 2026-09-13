@@ -10,3 +10,6 @@
 **Learning:** Found that several standard dialogs (like `CreateBranchDialog`, `CreateTagDialog`, `MergeBranchDialog`, etc.) have buttons lacking consistent `focus-visible` styles which were present on `ConfirmDialog` and `CreatePullRequestDialog`. This makes keyboard navigation less clear and less accessible.
 **Action:** Applied the standard tailwind focus classes (`focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]`) to all dialog buttons for consistent keyboard accessibility.
 
+## 2024-05-24 - Headless Browser UI Verification
+**Learning:** The Vite dev server (`http://localhost:1420`) may load a blank screen during headless Playwright tests because the Vue application heavily depends on Tauri backend APIs (like window state, fs, etc.) which aren't available in a standard browser environment.
+**Action:** Do not rely on visual screenshots from the raw Vite server for layout/focus verification unless mock data or a Tauri-compatible testing harness is explicitly set up. Rely on reading the code and running unit tests.
