@@ -1213,7 +1213,7 @@ watch(() => props.active, (isActive) => {
 .action-icon-btn:focus-visible,
 :deep(.action-icon-btn:focus-visible) {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(0, 229, 186, 0.5);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--oterm-accent) 50%, transparent);
   border-color: var(--oterm-accent);
 }
 
