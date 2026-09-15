@@ -40,7 +40,8 @@ const emit = defineEmits<{
     </span>
     <button
       type="button"
-      class="rounded px-2 py-1 text-[11px] text-[var(--oterm-accent)] hover:bg-white/5"
+      class="rounded px-2 py-1 text-[11px] text-[var(--oterm-accent)] hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-panel)]"
+      :aria-label="`Jump to ${row.title}`"
       @click="emit('jump', row.tabId, row.paneId)"
     >
       Jump
