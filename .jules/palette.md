@@ -13,3 +13,7 @@
 ## 2024-05-24 - Headless Browser UI Verification
 **Learning:** The Vite dev server (`http://localhost:1420`) may load a blank screen during headless Playwright tests because the Vue application heavily depends on Tauri backend APIs (like window state, fs, etc.) which aren't available in a standard browser environment.
 **Action:** Do not rely on visual screenshots from the raw Vite server for layout/focus verification unless mock data or a Tauri-compatible testing harness is explicitly set up. Rely on reading the code and running unit tests.
+
+## 2025-02-26 - Add focus state and aria-label to Jump button
+**Learning:** Found an opportunity to improve accessibility on a Jump button for the `AgentOpsRow` component. The button previously had no focus indicator, which is confusing for keyboard users, and lacked an ARIA label.
+**Action:** Always add keyboard focus states (`focus-visible`) and descriptive `aria-label` attributes to interactive elements, especially icon-like or context-specific buttons that might not be fully self-explanatory from text alone. Use `var(--oterm-accent)` consistently for the ring color.
