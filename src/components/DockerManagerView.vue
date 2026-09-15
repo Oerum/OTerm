@@ -66,20 +66,29 @@ const isLogsMaximized = ref(false);
 const wrapLogs = ref(true);
 const logsContainerRef = ref<HTMLPreElement | null>(null);
 
-const activeContainers = computed(() =>
-  summary.value.containers.filter((container) => container.state === "running"),
-);
-const pausedContainers = computed(() =>
-  summary.value.containers.filter((container) => container.state === "paused"),
-);
-const stoppedContainers = computed(() =>
-  summary.value.containers.filter(
-    (container) => container.state !== "running" && container.state !== "paused",
-  ),
-);
+// ⚡ Bolt Optimization: Use single-pass loops for calculating counts
+// Avoids garbage collection overhead from chaining array .filter() when only lengths are needed.
+const containerStats = computed(() => {
+  let active = 0;
+  let paused = 0;
+  let stopped = 0;
+  for (const c of summary.value.containers) {
+    if (c.state === "running") active++;
+    else if (c.state === "paused") paused++;
+    else stopped++;
+  }
+  return { active, paused, stopped };
+});
 
-const inUseImages = computed(() => summary.value.images.filter((image) => image.inUse));
-const unusedImages = computed(() => summary.value.images.filter((image) => !image.inUse));
+const imageStats = computed(() => {
+  let inUse = 0;
+  let unused = 0;
+  for (const img of summary.value.images) {
+    if (img.inUse) inUse++;
+    else unused++;
+  }
+  return { inUse, unused };
+});
 
 const selectedIsLive = computed(
   () =>
@@ -479,10 +488,10 @@ watch(() => props.active, (isActive) => {
           </div>
           <div class="mt-1 text-2xl font-black text-white text-left">{{ summary.containers.length }}</div>
           <div class="mt-2 flex items-center gap-1.5 text-[10px] text-[var(--oterm-faint)] text-left font-mono">
-            <span class="text-emerald-400 font-semibold">{{ activeContainers.length }} active</span>
-            <span v-if="pausedContainers.length > 0" class="text-amber-400 font-semibold">· {{ pausedContainers.length }} paused</span>
+            <span class="text-emerald-400 font-semibold">{{ containerStats.active }} active</span>
+            <span v-if="containerStats.paused > 0" class="text-amber-400 font-semibold">· {{ containerStats.paused }} paused</span>
             <span>·</span>
-            <span>{{ stoppedContainers.length }} idle</span>
+            <span>{{ containerStats.stopped }} idle</span>
           </div>
         </button>
 
@@ -505,9 +514,9 @@ watch(() => props.active, (isActive) => {
           </div>
           <div class="mt-1 text-2xl font-black text-white text-left">{{ summary.images.length }}</div>
           <div class="mt-2 flex items-center gap-1.5 text-[10px] text-[var(--oterm-faint)] text-left font-mono">
-            <span class="text-indigo-400 font-semibold">{{ inUseImages.length }} used</span>
+            <span class="text-indigo-400 font-semibold">{{ imageStats.inUse }} used</span>
             <span>·</span>
-            <span>{{ unusedImages.length }} unused</span>
+            <span>{{ imageStats.unused }} unused</span>
           </div>
         </button>
 
@@ -567,22 +576,22 @@ watch(() => props.active, (isActive) => {
         
         <!-- Tab-specific prune actions -->
         <button
-          v-if="activeTab === 'containers' && stoppedContainers.length"
+          v-if="activeTab === 'containers' && containerStats.stopped > 0"
           type="button"
           class="pr-tab-action-btn"
           :disabled="busy"
           @click="pruneUnused('containers', 'Prune Stopped Containers', 'Delete all stopped Docker containers?')"
         >
-          Prune Stopped ({{ stoppedContainers.length }})
+          Prune Stopped ({{ containerStats.stopped }})
         </button>
         <button
-          v-if="activeTab === 'images' && unusedImages.length"
+          v-if="activeTab === 'images' && imageStats.unused > 0"
           type="button"
           class="pr-tab-action-btn"
           :disabled="busy"
           @click="pruneUnused('images', 'Prune Unused Images', 'Delete all dangling and unreferenced Docker images?')"
         >
-          Prune Unused ({{ unusedImages.length }})
+          Prune Unused ({{ imageStats.unused }})
         </button>
         <button
           v-if="activeTab === 'volumes' && summary.volumes.length"
