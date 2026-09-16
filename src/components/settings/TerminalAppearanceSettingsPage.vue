@@ -256,35 +256,35 @@ function onRemoveCustom() {
     <div class="flex flex-wrap gap-2">
       <button
         type="button"
-        class="rounded-md bg-[var(--oterm-accent)] px-3 py-1.5 text-sm font-medium text-black"
+        class="rounded-md bg-[var(--oterm-accent)] px-3 py-1.5 text-sm font-medium text-black focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
         @click="applyDraft"
       >
         Apply theme
       </button>
       <button
         type="button"
-        class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-sm"
+        class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
         @click="saveAsCustom"
       >
         Save copy
       </button>
       <button
         type="button"
-        class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-sm"
+        class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
         @click="onDuplicatePreset"
       >
         Duplicate
       </button>
       <button
         type="button"
-        class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-sm"
+        class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
         @click="exportCurrentTheme"
       >
         Export JSON
       </button>
       <button
         type="button"
-        class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-sm"
+        class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
         @click="importThemeFile"
       >
         Import JSON
@@ -292,14 +292,14 @@ function onRemoveCustom() {
       <button
         v-if="!isBuiltin"
         type="button"
-        class="rounded-md border border-[var(--oterm-danger)]/40 px-3 py-1.5 text-sm text-[var(--oterm-danger)]"
+        class="rounded-md border border-[var(--oterm-danger)]/40 px-3 py-1.5 text-sm text-[var(--oterm-danger)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
         @click="onRemoveCustom"
       >
         Delete custom theme
       </button>
       <button
         type="button"
-        class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-sm text-[var(--oterm-muted)]"
+        class="rounded-md border border-[var(--oterm-border)] px-3 py-1.5 text-sm text-[var(--oterm-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
         @click="onResetDefaults"
       >
         Reset defaults
