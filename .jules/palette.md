@@ -17,3 +17,6 @@
 ## 2025-02-26 - Add focus state and aria-label to Jump button
 **Learning:** Found an opportunity to improve accessibility on a Jump button for the `AgentOpsRow` component. The button previously had no focus indicator, which is confusing for keyboard users, and lacked an ARIA label.
 **Action:** Always add keyboard focus states (`focus-visible`) and descriptive `aria-label` attributes to interactive elements, especially icon-like or context-specific buttons that might not be fully self-explanatory from text alone. Use `var(--oterm-accent)` consistently for the ring color.
+## 2024-09-20 - Adding focus states in GitCommitGraph.vue
+**Learning:** Found multiple interactive `<button>` elements that were styled as rows but lacked explicit keyboard focus indicators (no outline). Also learned that when using `focus-visible:ring`, it's important to match the ring-offset color to the container's background color (e.g. `var(--oterm-panel)`) for the best visual appearance. Added `aria-controls` for better screen reader mapping of collapsible content.
+**Action:** Always check that pseudo-list item buttons in custom components have appropriate `focus-visible` styling applied.

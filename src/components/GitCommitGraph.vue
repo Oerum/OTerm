@@ -440,8 +440,9 @@ const syncSections = computed(() => {
     <div class="flex w-full items-center gap-1 px-3 pb-1.5">
       <button
         type="button"
-        class="flex min-w-0 flex-1 items-center gap-1 text-left"
+        class="flex min-w-0 flex-1 items-center gap-1 rounded text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-panel)]"
         :aria-expanded="!collapsed"
+        aria-controls="git-commit-graph-content"
         @click="toggleCollapsed"
       >
         <svg
@@ -451,6 +452,7 @@ const syncSections = computed(() => {
           fill="currentColor"
           class="shrink-0 text-[var(--oterm-faint)] transition"
           :class="collapsed ? '-rotate-90' : ''"
+          aria-hidden="true"
         >
           <path d="M3 1.5 7.5 5 3 8.5z" />
         </svg>
@@ -471,7 +473,7 @@ const syncSections = computed(() => {
         </span>
         <button
           type="button"
-          class="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+          class="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-panel)]"
           :title="graphExpanded ? 'Reset graph height' : 'Expand graph'"
           :aria-label="graphExpanded ? 'Reset graph height' : 'Expand graph'"
           @click="toggleGraphExpanded"
@@ -503,7 +505,7 @@ const syncSections = computed(() => {
       </div>
     </div>
 
-    <div v-if="!collapsed">
+    <div v-if="!collapsed" id="git-commit-graph-content">
       <p v-if="error" class="px-3 pb-2 text-xs text-[var(--oterm-danger)]">{{ error }}</p>
 
       <div
@@ -528,7 +530,7 @@ const syncSections = computed(() => {
             v-for="entry in section.entries"
             :key="`${section.key}:${entry.hash}`"
             type="button"
-            class="mt-1.5 block w-full rounded px-1 py-1.5 text-left hover:bg-white/[0.03]"
+            class="mt-1.5 block w-full rounded px-1 py-1.5 text-left hover:bg-white/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-panel)]"
             :class="isSelected(entry.hash) ? 'bg-white/[0.05]' : ''"
             @click="onSelect(entry.hash)"
             @dblclick="onDblClick(entry.hash)"
@@ -633,7 +635,7 @@ const syncSections = computed(() => {
             v-for="(commit, index) in commits"
             :key="commit.hash"
             type="button"
-            class="relative flex w-full items-stretch gap-2 pr-3 text-left hover:bg-white/[0.03]"
+            class="relative flex w-full items-stretch gap-2 rounded pr-3 text-left hover:bg-white/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-panel)]"
             :class="isSelected(commit.hash) ? 'bg-white/[0.05]' : ''"
             :style="{ minHeight: `${GRAPH_ROW_HEIGHT}px` }"
             @click="onSelect(commit.hash)"
