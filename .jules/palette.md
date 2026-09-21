@@ -20,3 +20,6 @@
 ## 2026-09-20 - Adding focus states in GitCommitGraph.vue
 **Learning:** Found multiple interactive `<button>` elements that were styled as rows but lacked explicit keyboard focus indicators (no outline). Also learned that when using `focus-visible:ring`, it's important to match the ring-offset color to the container's background color (e.g. `var(--oterm-panel)`) for the best visual appearance. Added `aria-controls` for better screen reader mapping of collapsible content.
 **Action:** Always check that pseudo-list item buttons in custom components have appropriate `focus-visible` styling applied.
+## 2026-09-21 - Add focus states to btn-premium buttons
+**Learning:** Found that `.btn-premium` buttons (used for Sidebar items and tools) had missing keyboard focus indicators (`focus-visible`). This makes keyboard navigation difficult.
+**Action:** Always add keyboard focus states (`focus-visible`) for all button classes. I have updated `.btn-premium` class to have a proper `focus-visible` styling that aligns with the rest of the app's standard focus rings.

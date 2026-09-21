@@ -363,6 +363,11 @@ body {
   transition-duration: 60ms !important;
 }
 
+.btn-premium:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--oterm-accent) 50%, transparent) !important;
+}
+
 /* Sidebar lists custom headers */
 .sidebar-header-tracking {
   letter-spacing: 0.12em;
