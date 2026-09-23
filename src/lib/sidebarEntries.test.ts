@@ -484,6 +484,38 @@ describe("nestEntriesByPath", () => {
     }
   });
 
+  it.each([0, 2])("keeps a single-entry worktree grouped with %i sibling terminals", (siblingCount) => {
+    const mainRepoRoot = "C:\\CleanQuoteCore";
+    const worktreePath = `${mainRepoRoot}\\.worktree\\cq-1558`;
+    const solo = sidebarEntry({
+      gitMainRepoRoot: mainRepoRoot,
+      gitRepoRoot: worktreePath,
+      cwd: worktreePath,
+      gitIsWorktree: true,
+    });
+    const siblingPath = `${mainRepoRoot}\\.worktree\\cq-1551`;
+    const siblings = Array.from({ length: siblingCount }, (_, index) => ({
+      ...solo,
+      entryId: `sibling-${index}:pane`,
+      tabId: `sibling-${index}`,
+      gitRepoRoot: siblingPath,
+      cwd: siblingPath,
+    }));
+
+    expect(nestEntriesByPath([...siblings, solo])).toMatchObject([{
+      kind: "repo",
+      label: "CleanQuoteCore",
+      totalCount: siblingCount + 1,
+      items: expect.arrayContaining([{
+        kind: "worktree",
+        worktreeKey: "c:/cleanquotecore/.worktree/cq-1558",
+        label: "cq-1558",
+        path: worktreePath,
+        entries: [solo],
+      }]),
+    }]);
+  });
+
   it("clusters by cwd when git repo info is missing", () => {
     const a = sidebarEntry({
       entryId: "a:p",

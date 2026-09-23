@@ -7,15 +7,15 @@ describe("nextSourceControlPresentation", () => {
     expect(nextSourceControlPresentation("ephemeral", "toggle")).toBe("hidden");
   });
 
-  it("dismisses on escape, committed, pushed, leave-repo", () => {
-    for (const event of ["escape", "committed", "pushed", "leave-repo"] as const) {
+  it("dismisses on escape and leave-repo", () => {
+    for (const event of ["escape", "leave-repo"] as const) {
       expect(nextSourceControlPresentation("ephemeral", event)).toBe("hidden");
       expect(nextSourceControlPresentation("hidden", event)).toBe("hidden");
     }
   });
 
-  it("leaves presentation unchanged on open-palette", () => {
-    expect(nextSourceControlPresentation("ephemeral", "open-palette")).toBe("ephemeral");
-    expect(nextSourceControlPresentation("hidden", "open-palette")).toBe("hidden");
+  it.each(["committed", "pushed", "open-palette"] as const)("leaves presentation unchanged on %s", (event) => {
+    expect(nextSourceControlPresentation("ephemeral", event)).toBe("ephemeral");
+    expect(nextSourceControlPresentation("hidden", event)).toBe("hidden");
   });
 });
