@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -88,6 +88,40 @@ function ensureWindowsLibClang(env) {
     process.exit(1);
   }
   env.LIBCLANG_PATH = libClangPath;
+  // libclang may not locate its builtin headers when loaded by a Cargo build script.
+  const resourceDir = execFileSync(join(libClangPath, "clang.exe"), ["-print-resource-dir"], {
+    encoding: "utf8",
+    windowsHide: true,
+  }).trim();
+  if (!existsSync(join(resourceDir, "include", "stdbool.h"))) {
+    throw new Error(`LLVM builtin headers are missing from ${resourceDir}. Reinstall LLVM.`);
+  }
+  // LLVM may not discover newer Visual Studio installations on its own.
+  let includes = env.INCLUDE;
+  if (!includes) {
+    const vswhere = join(env["ProgramFiles(x86)"] || "C:\\Program Files (x86)",
+      "Microsoft Visual Studio", "Installer", "vswhere.exe");
+    const visualStudio = execFileSync(vswhere, [
+      "-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+      "-property", "installationPath",
+    ], { encoding: "utf8", windowsHide: true }).trim();
+    if (!visualStudio) {
+      throw new Error("Install Visual Studio C++ build tools and a Windows SDK, then retry.");
+    }
+    const devCommand = join(visualStudio, "Common7", "Tools", "VsDevCmd.bat");
+    const output = execFileSync("cmd.exe", [
+      "/d", "/s", "/c", `"call "${devCommand}" -no_logo >nul && set INCLUDE"`,
+    ], { encoding: "utf8", windowsHide: true, windowsVerbatimArguments: true });
+    includes = output.match(/^INCLUDE=(.*)$/mi)?.[1].trim();
+    if (!includes) {
+      throw new Error("Visual Studio did not provide C/C++ header paths. Check the Windows SDK installation.");
+    }
+  }
+  env.BINDGEN_EXTRA_CLANG_ARGS = [
+    `-resource-dir="${resourceDir.replaceAll("\\", "/")}"`,
+    ...includes.split(";").filter(Boolean).map((path) => `-isystem "${path.replaceAll("\\", "/")}"`),
+    env.BINDGEN_EXTRA_CLANG_ARGS,
+  ].filter(Boolean).join(" ");
 }
 
 function ensureWindowsVulkanEnv(env) {
