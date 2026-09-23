@@ -16,10 +16,10 @@ export function nextSourceControlPresentation(
     case "toggle":
       return current === "hidden" ? "ephemeral" : "hidden";
     case "escape":
-    case "committed":
-    case "pushed":
     case "leave-repo":
       return "hidden";
+    case "committed":
+    case "pushed":
     case "open-palette":
       return current;
   }

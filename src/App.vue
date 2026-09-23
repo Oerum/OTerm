@@ -660,8 +660,7 @@ async function maybeOfferCreatePrAfterPush() {
     }
 
     prepareCreatePrForm();
-    // Ephemeral SC collapses after push; surface PR offer via toast + banner if reopened.
-    pushAppToast("Branch pushed. Reopen Source Control to create a PR.", "info");
+    pushAppToast("Branch pushed. Create a PR from Source Control.", "info");
     createPrBannerVisible.value = true;
   } catch {
     // Optional flow — ignore detection failures.
@@ -708,7 +707,7 @@ async function onPushGit() {
   }
   try {
     await runGitActionWithFeedback(() => pushGitRepo(repoRoot));
-    dismissSourceControl("pushed");
+    setSourceControlPresentation("pushed");
     pushAppToast("Pushed", "success");
     await maybeOfferCreatePrAfterPush();
   } catch {
@@ -719,7 +718,7 @@ async function onPushGit() {
 async function onCommitGit(message: string) {
   try {
     await runGitAction(() => commitGitChanges(message));
-    dismissSourceControl("committed");
+    setSourceControlPresentation("committed");
     pushAppToast("Committed", "success");
   } catch (err) {
     notifyGitError(err);
@@ -782,7 +781,7 @@ function toggleSourceControl() {
 }
 
 function dismissSourceControl(
-  event: "escape" | "committed" | "pushed" | "leave-repo",
+  event: "escape" | "leave-repo",
 ) {
   setSourceControlPresentation(event);
 }

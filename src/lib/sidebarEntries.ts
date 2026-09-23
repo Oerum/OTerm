@@ -344,12 +344,7 @@ function pathBasename(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
-/**
- * Nest entries by global repository / folder hierarchy:
- * 1. Global Repository Header if 2+ entries share the same gitMainRepoRoot/repoRoot/cwd.
- * 2. Inside the repo cluster, worktrees with 2+ entries form sub-clusters.
- * 3. Worktrees with 1 entry or single entries sit directly under the repo cluster or top level.
- */
+/** Nest shared repositories and keep linked-worktree folders visible, even for one entry. */
 export function nestEntriesByPath(entries: TerminalSidebarEntry[]): TerminalCategoryItem[] {
   const repoCounts = new Map<string, number>();
   for (const entry of entries) {
@@ -363,7 +358,7 @@ export function nestEntriesByPath(entries: TerminalSidebarEntry[]): TerminalCate
 
   for (const entry of entries) {
     const repoKey = pathClusterKey(entry);
-    if (!repoKey || (repoCounts.get(repoKey) ?? 0) < 2) {
+    if (!repoKey || ((repoCounts.get(repoKey) ?? 0) < 2 && worktreeClusterKey(entry) === repoKey)) {
       items.push(entry);
       continue;
     }
@@ -394,7 +389,7 @@ export function nestEntriesByPath(entries: TerminalSidebarEntry[]): TerminalCate
       const emittedWts = new Set<string>();
       for (const member of members) {
         const wtKey = worktreeClusterKey(member);
-        if (!wtKey || (wtCounts.get(wtKey) ?? 0) < 2) {
+        if (!wtKey || (wtKey === repoKey && (wtCounts.get(wtKey) ?? 0) < 2)) {
           repoItems.push(member);
           continue;
         }
