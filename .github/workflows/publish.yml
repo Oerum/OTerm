@@ -104,7 +104,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Vulkan SDK
         if: matrix.install_vulkan
@@ -133,14 +133,14 @@ jobs:
 
       - name: Install CUDA toolkit (Windows)
         if: matrix.install_cuda && contains(matrix.platform, 'windows')
-        uses: Jimver/cuda-toolkit@v0.2.35
+        uses: Jimver/cuda-toolkit@v0.2.36
         with:
           cuda: '13.2.0'
           method: network
 
       - name: Install CUDA toolkit (Linux)
         if: matrix.install_cuda && matrix.platform == 'ubuntu-22.04'
-        uses: Jimver/cuda-toolkit@v0.2.35
+        uses: Jimver/cuda-toolkit@v0.2.36
         with:
           cuda: '13.2.0'
           method: network
@@ -204,7 +204,7 @@ jobs:
         run: echo "CARGO_TARGET_DIR=C:/oterm-t" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: 'npm'
@@ -365,7 +365,7 @@ jobs:
 
       - name: Build and upload Tauri bundle
         id: tauri
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || secrets.TAURI_PRIVATE_KEY }}
