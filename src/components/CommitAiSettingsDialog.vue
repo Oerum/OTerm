@@ -89,7 +89,8 @@ function onResetCommitPrompt() {
         </h2>
         <button
           type="button"
-          class="text-xs text-[var(--oterm-faint)] transition hover:text-[var(--oterm-muted)]"
+          class="text-xs text-[var(--oterm-faint)] transition hover:text-[var(--oterm-muted)] rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
+          aria-label="Close"
           @click="emit('close')"
         >
           ✕
