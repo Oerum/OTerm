@@ -41,3 +41,6 @@
 
 **Learning:** When fetching large lists of objects (like branches, commits, or stashes) and reassigning the entire array without mutating individual element properties, using `shallowRef` instead of `ref` drastically reduces Vue's deep reactivity overhead. This ensures a noticeable performance boost for large repositories with many branch references or items in list components.
 **Action:** Always prefer `shallowRef` over `ref` when managing lists that are completely reassigned from backend API calls (e.g., from Tauri commands) unless deep reactivity on list items is functionally required.
+## 2024-10-02 - Vue Computed Chained Filters Bottleneck
+**Learning:** Chaining `.filter()` array methods inside Vue `computed` properties for large datasets (e.g., git commit graphs with 10k+ rows) creates significant performance bottlenecks due to intermediate array allocations and subsequent garbage collection spikes on every re-evaluation (such as typing in a search bar).
+**Action:** When filtering large arrays in Vue `computed` properties, use a single `for` loop that evaluates all conditions and pushes to a single result array to avoid intermediate allocations and reduce CPU cycles.
