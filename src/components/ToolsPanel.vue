@@ -744,6 +744,7 @@ onBeforeUnmount(() => {
           type="button"
           class="flex w-full items-center gap-1.5 px-4 py-2 text-left select-none group/title bg-[var(--oterm-panel)]/30 hover:bg-white/5 transition"
           :aria-expanded="!syncCollapsed"
+          aria-label="Toggle Terminal Sync"
           @click="syncCollapsed = !syncCollapsed"
         >
           <svg

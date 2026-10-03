@@ -24,3 +24,6 @@
 ## 2026-09-21 - Add focus states to btn-premium buttons
 **Learning:** Found that `.btn-premium` buttons (used for Sidebar items and tools) had missing keyboard focus indicators (`focus-visible`). This makes keyboard navigation difficult.
 **Action:** Always add keyboard focus states (`focus-visible`) for all button classes. I have updated `.btn-premium` class to have a proper `focus-visible` styling that aligns with the rest of the app's standard focus rings.
+## 2024-10-24 - Accessibility improvements for toggle buttons
+**Learning:** Adding aria-labels to collapsible accordion-style toggle buttons enhances the screen reader experience significantly by giving clear context to the action being performed. The state (`aria-expanded`) provides context, but an explicit action label completes the interaction model.
+**Action:** Always ensure that icon-only toggle buttons or sections headers used as toggle buttons include an explicit `aria-label` describing the action (e.g., "Toggle Section Name") in addition to their expanded/collapsed state.
