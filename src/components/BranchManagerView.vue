@@ -181,31 +181,30 @@ const defaultMergeTarget = computed(() => {
 // ⚡ Bolt Optimization: Replace chained `.filter()` calls with a single `for` loop
 // Prevents array allocation for intermediate arrays on every computed re-evaluation,
 // especially during search filtering on large commit graphs.
-// Measurement: Reduces filtering time on 10k rows by ~15% and eliminates GC spikes.
 const filteredGraph = computed(() => {
-  const q = filter.value.trim().toLowerCase();
-
-  if (!showIncomingOnly.value && !showOutgoingOnly.value && !q) {
-    return graph.value;
-  }
-
-  const result = [];
   const rows = graph.value;
+  const q = filter.value.trim().toLowerCase();
+  const incomingOnly = showIncomingOnly.value;
+  const outgoingOnly = showOutgoingOnly.value;
+
+  if (!incomingOnly && !outgoingOnly && !q) return rows;
+
+  const incoming = incomingHashes.value;
+  const outgoing = outgoingHashes.value;
+  const result: GraphCommit[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const c = rows[i];
-
-    if (showIncomingOnly.value && !incomingHashes.value.has(c.hash)) continue;
-    if (showOutgoingOnly.value && !outgoingHashes.value.has(c.hash)) continue;
-
-    if (q) {
-      if (!c.subject.toLowerCase().includes(q) &&
-          !c.shortHash.includes(q) &&
-          !c.author.toLowerCase().includes(q)) {
-        continue;
-      }
+    if (incomingOnly && !incoming.has(c.hash)) continue;
+    if (outgoingOnly && !outgoing.has(c.hash)) continue;
+    if (
+      q &&
+      !c.subject.toLowerCase().includes(q) &&
+      !c.shortHash.includes(q) &&
+      !c.author.toLowerCase().includes(q)
+    ) {
+      continue;
     }
-
     result.push(c);
   }
 
