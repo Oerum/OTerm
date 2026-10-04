@@ -107,6 +107,7 @@ function onKeydown(event: KeyboardEvent) {
         <input
           ref="inputRef"
           v-model="localQuery"
+          aria-label="Command search"
           class="w-full bg-transparent text-sm text-[var(--oterm-text)] outline-none placeholder:text-[var(--oterm-faint)]"
           placeholder="Type a command…"
           @keydown="onKeydown"
