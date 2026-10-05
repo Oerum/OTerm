@@ -18,6 +18,7 @@ export function renderMarkdown(source: string): string {
   if (!trimmed) return "";
   const raw = marked.parse(trimmed, { async: false }) as string;
   const hook: ElementHook = (currentNode) => {
+    if (currentNode.nodeType !== 1 || !currentNode.tagName) return; // Only process elements
     const tagName = currentNode.tagName.toLowerCase();
     if (tagName === "input") {
       const input = currentNode as HTMLInputElement;
