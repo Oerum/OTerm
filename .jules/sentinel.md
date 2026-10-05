@@ -51,3 +51,7 @@
 **Vulnerability:** Path traversal in `onRemoteOpen` and remote file/folder downloads (`transferRemote`, `transferRemoteToLocal`, `collectRemoteDownloadTree`) when downloading remote files via SFTP to local directories. Untrusted file or folder names from the remote server were used directly in local path construction.
 **Learning:** File and folder names obtained from untrusted or remote sources (like SFTP servers) must be validated before being used in local file system paths to prevent directory traversal and arbitrary file overwrite.
 **Prevention:** Validate all remote file and folder names using a shared validator (`isSafePathSegment`) checking for directory separators (`/`, `\`), colons (`:`), control characters, and relative navigation (`.`, `..`) across all transfer entry points and download routines before constructing local paths.
+## 2023-10-24 - [DOMPurify TypeError DoS]
+**Vulnerability:** DOMPurify hooks (like `afterSanitizeAttributes`) threw a `TypeError` when processing non-element nodes (like Text nodes) because they unconditionally called `currentNode.tagName.toLowerCase()`.
+**Learning:** Malicious markdown could contain nodes without a `tagName` property, triggering runtime exceptions in the rendering logic and leading to a Denial of Service.
+**Prevention:** Always verify `currentNode.nodeType === 1` and `currentNode.tagName` before accessing element-specific properties in DOMPurify hooks.
