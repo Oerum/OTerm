@@ -44,3 +44,7 @@
 ## 2024-10-02 - Vue Computed Chained Filters Bottleneck
 **Learning:** Chaining `.filter()` array methods inside Vue `computed` properties for large datasets (e.g., git commit graphs with 10k+ rows) creates significant performance bottlenecks due to intermediate array allocations and subsequent garbage collection spikes on every re-evaluation (such as typing in a search bar).
 **Action:** When filtering large arrays in Vue `computed` properties, use a single `for` loop that evaluates all conditions and pushes to a single result array to avoid intermediate allocations and reduce CPU cycles.
+
+## 2024-11-20 - Avoid array and string allocations in list searches
+**Learning:** For searching or filtering large lists inside a Vue `computed` property, mapping fields to an array and calling `.join(" ").toLowerCase()` on every iteration causes massive string allocations and spikes garbage collection overhead.
+**Action:** When filtering lists against a query string, avoid temporary arrays or concatenations. Instead, check each string field individually using short-circuiting logic (`||`) so the search can exit immediately on a match.
