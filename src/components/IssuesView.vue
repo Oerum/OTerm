@@ -50,21 +50,27 @@ const listFilters = computed<IssueListFilters>(() => ({
   assignee: assignedToMe.value ? "@me" : (filterAssignee.value.trim() || null),
 }));
 
+// ⚡ Bolt Optimization: Replace slow array mapping/joining with short-circuiting checks
+// This prevents large string allocations and allows the search to exit early on match,
+// speeding up filtering on large issue lists significantly while keeping the code readable.
 const filteredIssues = computed(() => {
   const q = search.value.trim().toLowerCase();
   if (!q) return issues.value;
-  return issues.value.filter((issue) => {
-    const haystack = [
-      issue.number.toString(),
-      issue.title,
-      issue.author,
-      ...issue.labels,
-      ...issue.assignees,
-    ]
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(q);
-  });
+
+  const result: IssueSummary[] = [];
+  for (let i = 0; i < issues.value.length; i++) {
+    const issue = issues.value[i];
+    if (
+      issue.title.toLowerCase().includes(q) ||
+      issue.number.toString().includes(q) ||
+      issue.author.toLowerCase().includes(q) ||
+      issue.labels.some(l => l.toLowerCase().includes(q)) ||
+      issue.assignees.some(a => a.toLowerCase().includes(q))
+    ) {
+      result.push(issue);
+    }
+  }
+  return result;
 });
 
 const selected = computed(
