@@ -168,7 +168,7 @@ function cancelPathEdit() {
       <div class="flex items-center gap-1">
         <button
           type="button"
-          class="p-1 rounded hover:bg-white/5 text-[var(--oterm-muted)] hover:text-white transition"
+          class="p-1 rounded hover:bg-white/5 text-[var(--oterm-muted)] hover:text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
           :class="viewMode === 'list' ? 'bg-white/10 text-white' : ''"
           title="List view"
           aria-label="List view"
@@ -182,7 +182,7 @@ function cancelPathEdit() {
         </button>
         <button
           type="button"
-          class="p-1 rounded hover:bg-white/5 text-[var(--oterm-muted)] hover:text-white transition"
+          class="p-1 rounded hover:bg-white/5 text-[var(--oterm-muted)] hover:text-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
           :class="viewMode === 'grid' ? 'bg-white/10 text-white' : ''"
           title="Grid view"
           aria-label="Grid view"
@@ -447,6 +447,13 @@ function cancelPathEdit() {
   border-color: var(--oterm-border-strong);
 }
 
+.nav-btn:focus-visible,
+:deep(.nav-btn:focus-visible) {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--oterm-accent) 50%, transparent);
+  border-color: var(--oterm-accent);
+}
+
 .nav-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
@@ -474,6 +481,13 @@ function cancelPathEdit() {
   border-color: var(--oterm-border-strong);
 }
 
+.pane-action-btn:focus-visible,
+:deep(.pane-action-btn:focus-visible) {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--oterm-accent) 50%, transparent);
+  border-color: var(--oterm-accent);
+}
+
 .pane-action-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -494,6 +508,13 @@ function cancelPathEdit() {
 .entry-action-btn:hover {
   background: rgba(0, 229, 186, 0.08);
   border-color: rgba(0, 229, 186, 0.4);
+}
+
+.entry-action-btn:focus-visible,
+:deep(.entry-action-btn:focus-visible) {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--oterm-accent) 50%, transparent);
+  border-color: var(--oterm-accent);
 }
 
 .entry-action-btn--danger {
