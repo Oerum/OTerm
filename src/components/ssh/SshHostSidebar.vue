@@ -32,33 +32,31 @@ const collapsedGroups = shallowRef<Set<string>>(new Set());
 
 const allTags = computed(() => collectAllTags(props.library));
 
+// ⚡ Bolt Optimization: Use single-pass loop for filtering
+// Avoids garbage collection overhead from chaining array .filter() methods.
 const filteredEndpoints = computed(() => {
-  let rows = props.library.endpoints;
-  if (props.selectedGroupId === "uncategorized") {
-    rows = rows.filter((e) => !e.groupId);
-  } else if (props.selectedGroupId !== "all") {
-    rows = rows.filter((e) => e.groupId === props.selectedGroupId);
-  }
-  if (props.selectedTagFilters.length) {
-    rows = rows.filter((e) =>
-      props.selectedTagFilters.some((tag) => e.tags.includes(tag)),
-    );
-  }
+  const result = [];
   const q = props.search.trim().toLowerCase();
-  if (!q) {
-    return [...rows].sort((a, b) =>
-      endpointDisplayLabel(a).localeCompare(endpointDisplayLabel(b)),
-    );
+
+  for (const e of props.library.endpoints) {
+    if (props.selectedGroupId === "uncategorized" && e.groupId) continue;
+    if (props.selectedGroupId !== "all" && props.selectedGroupId !== "uncategorized" && e.groupId !== props.selectedGroupId) continue;
+
+    if (props.selectedTagFilters.length && !props.selectedTagFilters.some((tag) => e.tags.includes(tag))) continue;
+
+    if (q) {
+      if (!(endpointDisplayLabel(e).toLowerCase().includes(q) ||
+            e.host.toLowerCase().includes(q) ||
+            e.username.toLowerCase().includes(q) ||
+            e.tags.some((tag) => tag.toLowerCase().includes(q)))) {
+        continue;
+      }
+    }
+
+    result.push(e);
   }
-  return rows
-    .filter(
-      (e) =>
-        endpointDisplayLabel(e).toLowerCase().includes(q) ||
-        e.host.toLowerCase().includes(q) ||
-        e.username.toLowerCase().includes(q) ||
-        e.tags.some((tag) => tag.toLowerCase().includes(q)),
-    )
-    .sort((a, b) => endpointDisplayLabel(a).localeCompare(endpointDisplayLabel(b)));
+
+  return result.sort((a, b) => endpointDisplayLabel(a).localeCompare(endpointDisplayLabel(b)));
 });
 
 function toggleTag(tag: string) {
