@@ -35,22 +35,26 @@ const allTags = computed(() => collectAllTags(props.library));
 // ⚡ Bolt Optimization: Use single-pass loop for filtering
 // Avoids garbage collection overhead from chaining array .filter() methods.
 const filteredEndpoints = computed(() => {
-  const result = [];
-  const q = props.search.trim().toLowerCase();
+  const { selectedGroupId, selectedTagFilters, search, library } = props;
+  const result: SshEndpoint[] = [];
+  const q = search.trim().toLowerCase();
+  const isUncategorized = selectedGroupId === "uncategorized";
+  const isSpecificGroup = selectedGroupId !== "all" && !isUncategorized;
+  const tagFilterSet = selectedTagFilters.length ? new Set(selectedTagFilters) : null;
 
-  for (const e of props.library.endpoints) {
-    if (props.selectedGroupId === "uncategorized" && e.groupId) continue;
-    if (props.selectedGroupId !== "all" && props.selectedGroupId !== "uncategorized" && e.groupId !== props.selectedGroupId) continue;
+  for (const e of library.endpoints) {
+    if (isUncategorized && e.groupId) continue;
+    if (isSpecificGroup && e.groupId !== selectedGroupId) continue;
 
-    if (props.selectedTagFilters.length && !props.selectedTagFilters.some((tag) => e.tags.includes(tag))) continue;
+    if (tagFilterSet && !e.tags.some((tag) => tagFilterSet.has(tag))) continue;
 
     if (q) {
-      if (!(endpointDisplayLabel(e).toLowerCase().includes(q) ||
-            e.host.toLowerCase().includes(q) ||
-            e.username.toLowerCase().includes(q) ||
-            e.tags.some((tag) => tag.toLowerCase().includes(q)))) {
-        continue;
-      }
+      const match =
+        endpointDisplayLabel(e).toLowerCase().includes(q) ||
+        e.host.toLowerCase().includes(q) ||
+        e.username.toLowerCase().includes(q) ||
+        e.tags.some((tag) => tag.toLowerCase().includes(q));
+      if (!match) continue;
     }
 
     result.push(e);
