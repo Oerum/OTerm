@@ -48,3 +48,7 @@
 ## 2024-11-20 - Avoid array and string allocations in list searches
 **Learning:** For searching or filtering large lists inside a Vue `computed` property, mapping fields to an array and calling `.join(" ").toLowerCase()` on every iteration causes massive string allocations and spikes garbage collection overhead.
 **Action:** When filtering lists against a query string, avoid temporary arrays or concatenations. Instead, check each string field individually using short-circuiting logic (`||`) so the search can exit immediately on a match.
+
+## 2024-11-20 - Avoid chained filter array methods inside computed properties
+**Learning:** Chaining array methods like `.filter()` creates multiple intermediate arrays and can cause performance bottlenecks and unnecessary garbage collection overhead when filtering lists within Vue `computed` properties, especially if evaluated frequently (e.g., during text search input).
+**Action:** When performing multiple filters on an array in a `computed` property, replace chained `.filter()` methods with a single-pass `for` loop that uses early `continue` statements to exclude items and pushes matches to a single result array.

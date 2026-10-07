@@ -32,33 +32,35 @@ const collapsedGroups = shallowRef<Set<string>>(new Set());
 
 const allTags = computed(() => collectAllTags(props.library));
 
+// ⚡ Bolt Optimization: Use single-pass loop for filtering
+// Avoids garbage collection overhead from chaining array .filter() methods.
 const filteredEndpoints = computed(() => {
-  let rows = props.library.endpoints;
-  if (props.selectedGroupId === "uncategorized") {
-    rows = rows.filter((e) => !e.groupId);
-  } else if (props.selectedGroupId !== "all") {
-    rows = rows.filter((e) => e.groupId === props.selectedGroupId);
-  }
-  if (props.selectedTagFilters.length) {
-    rows = rows.filter((e) =>
-      props.selectedTagFilters.some((tag) => e.tags.includes(tag)),
-    );
-  }
-  const q = props.search.trim().toLowerCase();
-  if (!q) {
-    return [...rows].sort((a, b) =>
-      endpointDisplayLabel(a).localeCompare(endpointDisplayLabel(b)),
-    );
-  }
-  return rows
-    .filter(
-      (e) =>
+  const { selectedGroupId, selectedTagFilters, search, library } = props;
+  const result: SshEndpoint[] = [];
+  const q = search.trim().toLowerCase();
+  const isUncategorized = selectedGroupId === "uncategorized";
+  const isSpecificGroup = selectedGroupId !== "all" && !isUncategorized;
+  const tagFilterSet = selectedTagFilters.length ? new Set(selectedTagFilters) : null;
+
+  for (const e of library.endpoints) {
+    if (isUncategorized && e.groupId) continue;
+    if (isSpecificGroup && e.groupId !== selectedGroupId) continue;
+
+    if (tagFilterSet && !e.tags.some((tag) => tagFilterSet.has(tag))) continue;
+
+    if (q) {
+      const match =
         endpointDisplayLabel(e).toLowerCase().includes(q) ||
         e.host.toLowerCase().includes(q) ||
         e.username.toLowerCase().includes(q) ||
-        e.tags.some((tag) => tag.toLowerCase().includes(q)),
-    )
-    .sort((a, b) => endpointDisplayLabel(a).localeCompare(endpointDisplayLabel(b)));
+        e.tags.some((tag) => tag.toLowerCase().includes(q));
+      if (!match) continue;
+    }
+
+    result.push(e);
+  }
+
+  return result.sort((a, b) => endpointDisplayLabel(a).localeCompare(endpointDisplayLabel(b)));
 });
 
 function toggleTag(tag: string) {
