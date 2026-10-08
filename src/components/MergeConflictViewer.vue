@@ -57,8 +57,9 @@ onMounted(() => {
   <div class="flex h-full flex-col bg-[var(--oterm-bg)] text-[var(--oterm-text)] font-sans">
     <div class="flex shrink-0 items-center justify-between border-b border-[var(--oterm-border)] px-4 py-3 bg-[var(--oterm-bg)]">
       <div class="flex items-center gap-3">
-        <button 
-          class="rounded-sm border border-[var(--oterm-border)] bg-transparent px-2.5 py-1 text-xs font-medium text-[var(--oterm-text)] hover:border-[var(--oterm-border-strong)] hover:bg-white/5 transition-colors"
+        <button
+          type="button"
+          class="rounded-sm border border-[var(--oterm-border)] bg-transparent px-2.5 py-1 text-xs font-medium text-[var(--oterm-text)] hover:border-[var(--oterm-border-strong)] hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-bg)]"
           @click="$emit('close')"
         >
           Close
@@ -100,9 +101,10 @@ onMounted(() => {
             <div class="flex flex-col rounded-sm border border-[var(--oterm-border)] bg-[var(--oterm-panel)]/30 overflow-hidden">
               <div class="flex items-center justify-between border-b border-[var(--oterm-border)] bg-white/5 px-3 py-1.5">
                 <span class="text-xs font-medium text-[var(--oterm-muted)]">Our Changes</span>
-                <button 
+                <button
+                  type="button"
                   @click="resolveConflict(selectedConflict.ourContent)"
-                  class="rounded-sm border border-[var(--oterm-border)] bg-transparent px-2 py-0.5 text-[11px] font-medium text-[var(--oterm-text)] hover:border-[var(--oterm-border-strong)] hover:bg-white/5 transition-colors"
+                  class="rounded-sm border border-[var(--oterm-border)] bg-transparent px-2 py-0.5 text-[11px] font-medium text-[var(--oterm-text)] hover:border-[var(--oterm-border-strong)] hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-bg)]"
                 >
                   Accept Ours
                 </button>
@@ -115,9 +117,10 @@ onMounted(() => {
             <div class="flex flex-col rounded-sm border border-[var(--oterm-border)] bg-[var(--oterm-panel)]/30 overflow-hidden">
               <div class="flex items-center justify-between border-b border-[var(--oterm-border)] bg-white/5 px-3 py-1.5">
                 <span class="text-xs font-medium text-[var(--oterm-muted)]">Incoming Changes</span>
-                <button 
+                <button
+                  type="button"
                   @click="resolveConflict(selectedConflict.theirContent)"
-                  class="rounded-sm border border-[var(--oterm-border)] bg-transparent px-2 py-0.5 text-[11px] font-medium text-[var(--oterm-text)] hover:border-[var(--oterm-border-strong)] hover:bg-white/5 transition-colors"
+                  class="rounded-sm border border-[var(--oterm-border)] bg-transparent px-2 py-0.5 text-[11px] font-medium text-[var(--oterm-text)] hover:border-[var(--oterm-border-strong)] hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-bg)]"
                 >
                   Accept Theirs
                 </button>
@@ -131,9 +134,10 @@ onMounted(() => {
           <div class="flex flex-col rounded-sm border border-[var(--oterm-border)] bg-[var(--oterm-bg)] overflow-hidden">
             <div class="flex items-center justify-between border-b border-[var(--oterm-border)] bg-white/5 px-3 py-1.5">
               <span class="text-xs font-medium text-[var(--oterm-muted)]">Manual Resolution</span>
-              <button 
+              <button
+                type="button"
                 @click="resolveConflict(resolutionContent)"
-                class="rounded-sm border border-[var(--oterm-border)] bg-transparent px-2.5 py-1 text-xs font-medium text-[var(--oterm-text)] hover:border-[var(--oterm-border-strong)] hover:bg-white/5 transition-colors"
+                class="rounded-sm border border-[var(--oterm-border)] bg-transparent px-2.5 py-1 text-xs font-medium text-[var(--oterm-text)] hover:border-[var(--oterm-border-strong)] hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-bg)]"
               >
                 Save Resolution
               </button>
