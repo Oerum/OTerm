@@ -806,6 +806,12 @@ onBeforeUnmount(() => {
   border-color: var(--oterm-border-strong);
 }
 
+.header-tool-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--oterm-accent) 50%, transparent);
+  border-color: var(--oterm-accent);
+}
+
 .header-tool-icon-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -833,6 +839,12 @@ onBeforeUnmount(() => {
   background: rgba(16, 185, 129, 0.12);
   border-color: rgba(16, 185, 129, 0.4);
   box-shadow: 0 0 8px rgba(16, 185, 129, 0.1);
+}
+
+.env-import-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #10b981 50%, transparent);
+  border-color: #10b981;
 }
 
 .env-import-btn:disabled {
