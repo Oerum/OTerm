@@ -30,8 +30,13 @@ export function renderMarkdown(source: string): string {
       const anchor = currentNode as HTMLAnchorElement;
       anchor.setAttribute("target", "_blank");
       anchor.setAttribute("rel", "noopener noreferrer");
-    } else if (currentNode.hasAttribute("rel")) {
-      currentNode.removeAttribute("rel");
+    } else {
+      if (currentNode.hasAttribute("target")) {
+        currentNode.removeAttribute("target");
+      }
+      if (currentNode.hasAttribute("rel")) {
+        currentNode.removeAttribute("rel");
+      }
     }
   };
   DOMPurify.addHook("afterSanitizeAttributes", hook);
