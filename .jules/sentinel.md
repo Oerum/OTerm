@@ -55,3 +55,7 @@
 **Vulnerability:** DOMPurify hooks (like `afterSanitizeAttributes`) threw a `TypeError` when processing non-element nodes (like Text nodes) because they unconditionally called `currentNode.tagName.toLowerCase()`.
 **Learning:** Malicious markdown could contain nodes without a `tagName` property, triggering runtime exceptions in the rendering logic and leading to a Denial of Service.
 **Prevention:** Always verify `currentNode.nodeType === 1` and `currentNode.tagName` before accessing element-specific properties in DOMPurify hooks.
+## 2026-10-09 - Fix reverse tabnabbing and attribute injection gap in DOMPurify Markdown rendering
+**Vulnerability:** DOMPurify's `afterSanitizeAttributes` hook securely enforced `target="_blank"` on anchor tags and stripped the `rel` attribute from non-anchor tags, but it inadvertently allowed the `target` attribute to remain on non-anchor tags (like `<form>`, `<area>`, or `<base>`).
+**Learning:** When sanitizing attributes using DOMPurify hooks, removing one dangerous attribute (like `rel`) isn't enough if another dangerous attribute (like `target`) is allowed on unexpected elements. This could allow non-anchor tags to exploit window-opening behaviors if `target` is not globally restricted in the DOMPurify config.
+**Prevention:** Explicitly strip both `target` and `rel` from all non-anchor tags in the `afterSanitizeAttributes` hook to ensure defense-in-depth and prevent attributes from leaking into unauthorized tags.

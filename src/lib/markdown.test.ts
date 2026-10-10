@@ -45,8 +45,9 @@ describe("renderMarkdown", () => {
   });
 
   it("strips target and rel attributes from non-anchor elements", () => {
-    const html = renderMarkdown('<div target="_blank" rel="noopener">test</div>');
+    const html = renderMarkdown('<div target="_blank" rel="noopener">test</div><input type="checkbox" target="_blank" rel="noopener">');
     expect(html).toContain("<div>test</div>");
+    expect(html).toContain('type="checkbox"');
     expect(html).not.toContain("target=");
     expect(html).not.toContain("rel=");
   });
