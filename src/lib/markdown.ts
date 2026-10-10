@@ -20,13 +20,7 @@ export function renderMarkdown(source: string): string {
   const hook: ElementHook = (currentNode) => {
     if (currentNode.nodeType !== 1 || !currentNode.tagName) return; // Only process elements
     const tagName = currentNode.tagName.toLowerCase();
-    if (tagName === "input") {
-      const input = currentNode as HTMLInputElement;
-      if (input.getAttribute("type") !== "checkbox") {
-        input.setAttribute("type", "checkbox");
-      }
-      input.setAttribute("disabled", "true");
-    } else if (tagName === "a") {
+    if (tagName === "a") {
       const anchor = currentNode as HTMLAnchorElement;
       anchor.setAttribute("target", "_blank");
       anchor.setAttribute("rel", "noopener noreferrer");
@@ -36,6 +30,13 @@ export function renderMarkdown(source: string): string {
       }
       if (currentNode.hasAttribute("rel")) {
         currentNode.removeAttribute("rel");
+      }
+      if (tagName === "input") {
+        const input = currentNode as HTMLInputElement;
+        if (input.getAttribute("type") !== "checkbox") {
+          input.setAttribute("type", "checkbox");
+        }
+        input.setAttribute("disabled", "true");
       }
     }
   };
