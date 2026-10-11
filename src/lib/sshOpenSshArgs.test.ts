@@ -42,7 +42,7 @@ describe("buildTerminalLaunchCommand", () => {
     expect(cmd).toContain("QUOTE='it'\\''s working'");
   });
 
-  it("sanitizes environment variable keys and proxy hosts to prevent command injection", () => {
+  it("sanitizes environment variable keys to prevent command injection", () => {
     const endpoint = defaultSshEndpoint({
       id: "test-inj",
       label: "Test Injection",
@@ -55,18 +55,64 @@ describe("buildTerminalLaunchCommand", () => {
         "$ANOTHER": "value",
         "GOOD_KEY": "good\r\nmalicious",
       },
-      proxy: {
-        type: "socks5",
-        host: "evil.com; calc",
-        port: 1080,
-      },
     });
     const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary);
     expect(cmd).not.toContain("EVIL; calc");
     expect(cmd).not.toContain("INVALID-KEY");
     expect(cmd).not.toContain("$ANOTHER");
     expect(cmd).toContain("GOOD_KEY=goodmalicious");
-    expect(cmd).toContain("ProxyCommand=connect -S evil.comcalc:1080 %h %p");
+  });
+
+  it("throws when proxy host contains shell injection characters", () => {
+    const endpoint = defaultSshEndpoint({
+      id: "test-inj",
+      label: "Test Injection",
+      host: "example.com",
+      username: "root",
+      auth: { method: "agent" },
+      proxy: {
+        type: "socks5",
+        host: "evil.com; calc",
+        port: 1080,
+      },
+    });
+    expect(() => buildTerminalLaunchCommand(endpoint, mockLibrary)).toThrow(
+      "Invalid characters in proxy host",
+    );
+  });
+
+  it("throws when target host contains shell injection characters", () => {
+    const endpoint = defaultSshEndpoint({
+      id: "test-inj",
+      label: "Test Injection",
+      host: "example.com; calc",
+      username: "root",
+      auth: { method: "agent" },
+    });
+    expect(() => buildTerminalLaunchCommand(endpoint, mockLibrary)).toThrow(
+      "Invalid characters in target host",
+    );
+  });
+
+  it("throws when jump host contains shell injection characters", () => {
+    const jump = defaultSshEndpoint({
+      id: "jump-1",
+      host: "example.com; calc",
+      username: "root",
+      auth: { method: "agent" },
+    });
+    const endpoint = defaultSshEndpoint({
+      id: "test-inj",
+      label: "Test Injection",
+      host: "example.com",
+      username: "root",
+      jumpHostId: "jump-1",
+      auth: { method: "agent" },
+    });
+    const libraryWithJump = { ...mockLibrary, endpoints: [jump] };
+    expect(() => buildTerminalLaunchCommand(endpoint, libraryWithJump)).toThrow(
+      "Invalid characters in jump host",
+    );
   });
 
   it("formats environment variables and quotes arguments for PowerShell", () => {
