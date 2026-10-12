@@ -126,7 +126,7 @@ function buildOpenSshCommand(
     options.push("-t");
   }
 
-  const destination = `${endpoint.username}@${endpoint.host}`;
+  const destination = `${endpoint.username}@${endpoint.host.trim()}`;
   const parts = [
     ...options.map((arg) => quoteForShell(arg, shellId)),
     quoteForShell("--", shellId),
@@ -153,7 +153,7 @@ function buildMoshCommand(
   const envPrefix = buildEnvPrefix(env, shellId);
   const sshParts = sshOptions.map((arg) => quoteForShell(arg, shellId));
   const sshCommand = `${envPrefix}ssh${sshParts.length ? ` ${sshParts.join(" ")}` : ""}`;
-  const target = `${endpoint.username}@${endpoint.host}`;
+  const target = `${endpoint.username}@${endpoint.host.trim()}`;
   return `mosh --ssh=${quoteForShell(sshCommand, shellId)} -- ${quoteForShell(target, shellId)}`;
 }
 

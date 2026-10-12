@@ -115,6 +115,58 @@ describe("buildTerminalLaunchCommand", () => {
     );
   });
 
+  it("allows valid IPv6 target, jump, and proxy hosts with brackets and zone IDs", () => {
+    const jump = defaultSshEndpoint({
+      id: "jump-v6",
+      host: "[2001:db8::1]",
+      username: "admin",
+      auth: { method: "agent" },
+    });
+    const endpoint = defaultSshEndpoint({
+      id: "test-v6",
+      label: "IPv6 Server",
+      host: "fe80::1%eth0",
+      username: "root",
+      jumpHostId: "jump-v6",
+      auth: { method: "agent" },
+      proxy: {
+        type: "socks5",
+        host: "[::1]",
+        port: 1080,
+      },
+    });
+    const library = { ...mockLibrary, endpoints: [jump] };
+    const cmd = buildTerminalLaunchCommand(endpoint, library);
+    expect(cmd).toContain("ProxyCommand=connect -S [::1]:1080 %h %p");
+    expect(cmd).toContain("-J 'admin@[2001:db8::1]'");
+    expect(cmd).toContain("-- 'root@fe80::1%eth0'");
+  });
+
+  it("trims whitespace from host and destination", () => {
+    const endpoint = defaultSshEndpoint({
+      id: "test-trim",
+      label: "Trim Test",
+      host: "   example.com   ",
+      username: "root",
+      auth: { method: "agent" },
+    });
+    const cmd = buildTerminalLaunchCommand(endpoint, mockLibrary);
+    expect(cmd).toContain("-- 'root@example.com'");
+  });
+
+  it("throws when target host is empty or only whitespace", () => {
+    const endpoint = defaultSshEndpoint({
+      id: "test-empty",
+      label: "Empty Host",
+      host: "   ",
+      username: "root",
+      auth: { method: "agent" },
+    });
+    expect(() => buildTerminalLaunchCommand(endpoint, mockLibrary)).toThrow(
+      "Invalid characters in target host",
+    );
+  });
+
   it("formats environment variables and quotes arguments for PowerShell", () => {
     const endpoint = defaultSshEndpoint({
       id: "test-pwsh",
