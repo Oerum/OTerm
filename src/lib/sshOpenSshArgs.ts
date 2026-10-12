@@ -7,12 +7,19 @@ import {
 } from "../types/sshSftp";
 import { shellQuote, quoteForShell } from "./shellQuote";
 
+function assertValidHostname(host: string, label: string = "Hostname"): void {
+  if (!host || !/^[\w.:\[\]%-]+$/.test(host.trim())) {
+    throw new Error(`Invalid characters in ${label} to prevent shell injection.`);
+  }
+}
+
 function resolveJumpHost(endpoint: SshEndpoint, library: SshSftpLibrary): string | null {
   if (!endpoint.jumpHostId) return null;
   const jump = library.endpoints.find((item) => item.id === endpoint.jumpHostId);
   if (!jump) return null;
+  assertValidHostname(jump.host, "jump host");
   const port = jump.port === 22 ? "" : `:${jump.port}`;
-  return `${jump.username}@${jump.host}${port}`;
+  return `${jump.username}@${jump.host.trim()}${port}`;
 }
 
 function backspaceSnippet(mode: SshEndpoint["backspace"]): string | null {
@@ -38,8 +45,8 @@ function buildOpenSshOptions(endpoint: SshEndpoint, library: SshSftpLibrary): st
   if (jump) args.push("-J", jump);
 
   if (endpoint.proxy.type !== "none" && endpoint.proxy.host.trim()) {
-    // Sanitize proxy host to prevent command injection in ProxyCommand shell execution
-    const proxyHost = endpoint.proxy.host.trim().replace(/[^\w.:-]/g, "");
+    assertValidHostname(endpoint.proxy.host, "proxy host");
+    const proxyHost = endpoint.proxy.host.trim();
     if (proxyHost) {
       const parsedPort = Number(endpoint.proxy.port);
       const proxyPort = Number.isInteger(parsedPort) && parsedPort > 0
@@ -119,7 +126,7 @@ function buildOpenSshCommand(
     options.push("-t");
   }
 
-  const destination = `${endpoint.username}@${endpoint.host}`;
+  const destination = `${endpoint.username}@${endpoint.host.trim()}`;
   const parts = [
     ...options.map((arg) => quoteForShell(arg, shellId)),
     quoteForShell("--", shellId),
@@ -146,7 +153,7 @@ function buildMoshCommand(
   const envPrefix = buildEnvPrefix(env, shellId);
   const sshParts = sshOptions.map((arg) => quoteForShell(arg, shellId));
   const sshCommand = `${envPrefix}ssh${sshParts.length ? ` ${sshParts.join(" ")}` : ""}`;
-  const target = `${endpoint.username}@${endpoint.host}`;
+  const target = `${endpoint.username}@${endpoint.host.trim()}`;
   return `mosh --ssh=${quoteForShell(sshCommand, shellId)} -- ${quoteForShell(target, shellId)}`;
 }
 
@@ -155,6 +162,7 @@ export function buildTerminalLaunchCommand(
   library: SshSftpLibrary,
   shellId?: string,
 ): string {
+  assertValidHostname(endpoint.host, "target host");
   if (endpoint.connectionType === "mosh") {
     return buildMoshCommand(endpoint, library, shellId);
   }

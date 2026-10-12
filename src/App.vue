@@ -1220,12 +1220,16 @@ async function openSshTerminal(endpoint: SshEndpoint) {
   const shellId = resolveDefaultShellId();
 
   if (!usesNativeSshTerminal(endpoint)) {
+    let launchCmd: string;
+    try {
+      launchCmd = `${buildTerminalLaunchCommand(endpoint, library, shellId)}\r`;
+    } catch (err) {
+      pushAppToast(err instanceof Error ? err.message : String(err), "error");
+      return;
+    }
     const res = initSshTab(shellId, endpoint);
     if (!res) return;
-    pendingTerminalCommands.set(
-      res.pane.id,
-      `${buildTerminalLaunchCommand(endpoint, library, shellId)}\r`,
-    );
+    pendingTerminalCommands.set(res.pane.id, launchCmd);
     selectTab(res.tab.id);
     selectPane(res.pane.id);
     return;
