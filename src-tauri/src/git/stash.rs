@@ -1,6 +1,5 @@
 use crate::process::git_program;
 use std::path::PathBuf;
-use std::process::Command;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
