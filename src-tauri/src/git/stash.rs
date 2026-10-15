@@ -1,6 +1,5 @@
 use crate::process::git_program;
 use std::path::PathBuf;
-use std::process::Command;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -11,7 +10,7 @@ pub struct StashInfo {
 
 pub fn git_stash_list(repo_root: String) -> Result<Vec<StashInfo>, String> {
     let root = PathBuf::from(repo_root);
-    let mut cmd = Command::new(git_program());
+    let mut cmd = crate::process::hidden_command(&git_program());
     cmd.current_dir(&root);
     cmd.arg("stash").arg("list").arg("--format=%gd|%gs");
 
@@ -49,7 +48,7 @@ pub fn git_stash_save(
     include_untracked: bool,
 ) -> Result<(), String> {
     let root = PathBuf::from(repo_root);
-    let mut cmd = Command::new(git_program());
+    let mut cmd = crate::process::hidden_command(&git_program());
     cmd.current_dir(&root);
     cmd.arg("stash").arg("push");
     if include_untracked {
@@ -67,7 +66,7 @@ pub fn git_stash_save(
 
 pub fn git_stash_apply(repo_root: String, index: u32) -> Result<(), String> {
     let root = PathBuf::from(repo_root);
-    let mut cmd = Command::new(git_program());
+    let mut cmd = crate::process::hidden_command(&git_program());
     cmd.current_dir(&root);
     cmd.arg("stash")
         .arg("apply")
@@ -83,7 +82,7 @@ pub fn git_stash_apply(repo_root: String, index: u32) -> Result<(), String> {
 
 pub fn git_stash_pop(repo_root: String, index: u32) -> Result<(), String> {
     let root = PathBuf::from(repo_root);
-    let mut cmd = Command::new(git_program());
+    let mut cmd = crate::process::hidden_command(&git_program());
     cmd.current_dir(&root);
     cmd.arg("stash")
         .arg("pop")
@@ -99,7 +98,7 @@ pub fn git_stash_pop(repo_root: String, index: u32) -> Result<(), String> {
 
 pub fn git_stash_drop(repo_root: String, index: u32) -> Result<(), String> {
     let root = PathBuf::from(repo_root);
-    let mut cmd = Command::new(git_program());
+    let mut cmd = crate::process::hidden_command(&git_program());
     cmd.current_dir(&root);
     cmd.arg("stash")
         .arg("drop")

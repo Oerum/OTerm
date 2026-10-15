@@ -63,3 +63,8 @@
 **Vulnerability:** Shell command injection via unsanitized hostnames injected into the SSH `ProxyCommand` directive (`%h`).
 **Learning:** OpenSSH internally executes `ProxyCommand` via the OS's system shell (`/bin/sh` or `cmd.exe`) without escaping `%h`. Dynamically shell-quoting the token using an outer shell's `shellId` (like `pwsh`) is vulnerable because it misses the system shell context inside OpenSSH. Silent sanitization (like stripping characters) can break legitimate features (like IPv6 brackets or zone indices) or allow bypasses.
 **Prevention:** Strictly validate SSH hostnames (targets, jump hosts, and proxy hosts) against an explicit allowlist regex (e.g., `/^[\w.:\[\]%-]+$/`) and throw an error for invalid inputs before constructing the command string.
+
+## 2026-10-14 - Hiding Command Windows for Git Processes
+**Vulnerability:** Shell processes spawned via `std::process::Command::new` natively on Windows inside a Tauri application trigger temporary command prompt windows to flash visually on the screen.
+**Learning:** This is not only a major UX bug but also a subtle security weakness. Unhidden console windows can potentially leak sensitive arguments (like file paths, repository info, or usernames) to shoulder surfers or screen recording software, and may inadvertently allow malicious interference if a user types or clicks into the rapidly appearing window before it exits.
+**Prevention:** Instead of using standard `Command::new` in Rust Tauri backends, always utilize the custom wrapper `crate::process::hidden_command` (or `hidden_command_with_stdin`), which natively applies the `CREATE_NO_WINDOW` flag to hide the console completely and optionally nullifies standard input to prevent hijacking.
