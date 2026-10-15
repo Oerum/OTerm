@@ -11,7 +11,7 @@ pub struct RebaseTodoInfo {
 }
 
 pub fn get_rebase_todo(repo_root: String) -> Result<Vec<RebaseTodoInfo>, String> {
-    let mut cmd = Command::new(git_program());
+    let mut cmd = crate::process::hidden_command(&git_program());
     cmd.current_dir(&repo_root);
     cmd.arg("rev-parse").arg("--git-path").arg("rebase-merge");
     let out = cmd.output().map_err(|e| e.to_string())?;
@@ -39,7 +39,7 @@ pub fn get_rebase_todo(repo_root: String) -> Result<Vec<RebaseTodoInfo>, String>
 }
 
 pub fn set_rebase_todo(repo_root: String, todos: Vec<RebaseTodoInfo>) -> Result<(), String> {
-    let mut cmd = Command::new(git_program());
+    let mut cmd = crate::process::hidden_command(&git_program());
     cmd.current_dir(&repo_root);
     cmd.arg("rev-parse").arg("--git-path").arg("rebase-merge");
     let out = cmd.output().map_err(|e| e.to_string())?;
@@ -56,7 +56,7 @@ pub fn set_rebase_todo(repo_root: String, todos: Vec<RebaseTodoInfo>) -> Result<
 
 pub fn git_rebase_action(repo_root: String, action: String) -> Result<(), String> {
     let root = PathBuf::from(repo_root);
-    let mut cmd = Command::new(git_program());
+    let mut cmd = crate::process::hidden_command(&git_program());
     cmd.current_dir(&root);
     cmd.arg("rebase").arg(format!("--{}", action));
 
@@ -80,7 +80,7 @@ mod tests {
         ));
         std::fs::create_dir_all(dir.join(".git/rebase-merge")).unwrap();
 
-        let _ = Command::new(git_program())
+        let _ = crate::process::hidden_command(&git_program())
             .arg("init")
             .current_dir(&dir)
             .output();

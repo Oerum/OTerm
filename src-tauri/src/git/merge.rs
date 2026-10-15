@@ -133,7 +133,7 @@ pub fn resolve_conflict(
 }
 
 pub fn get_merge_conflicts(repo_root: String) -> Result<Vec<MergeConflictFile>, String> {
-    let mut cmd = std::process::Command::new(git_program());
+    let mut cmd = crate::process::hidden_command(&git_program());
     cmd.current_dir(&repo_root);
     cmd.arg("diff").arg("--name-only").arg("--diff-filter=U");
 
