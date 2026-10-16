@@ -655,11 +655,14 @@ defineExpose({
           <span class="truncate" :title="path">{{ attachmentDisplayName(path) }}</span>
           <button
             type="button"
-            class="shrink-0 text-[var(--oterm-faint)] transition-colors hover:text-[var(--oterm-text)]"
+            class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[var(--oterm-faint)] transition-colors hover:bg-white/10 hover:text-[var(--oterm-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
             :title="`Remove ${attachmentDisplayName(path)}`"
+            :aria-label="`Remove ${attachmentDisplayName(path)}`"
             @click="removeAttachment(path)"
           >
-            ×
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="m3 3 10 10M13 3 3 13" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
           </button>
         </div>
       </div>
