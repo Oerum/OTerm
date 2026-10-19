@@ -93,7 +93,7 @@ const agentStatusText = computed(() =>
       <button
         v-if="pane"
         type="button"
-        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]"
         :class="agentComposerOpen ? 'text-[var(--oterm-accent)]' : ''"
         :title="composerTooltip"
         aria-label="Open composer"
@@ -112,7 +112,7 @@ const agentStatusText = computed(() =>
 
       <button
         type="button"
-        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]"
         :class="agentsViewOpen ? 'text-[var(--oterm-accent)]' : ''"
         title="Toggle Agent Ops"
         aria-label="Toggle Agent Ops"
@@ -142,7 +142,7 @@ const agentStatusText = computed(() =>
 
       <button
         type="button"
-        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]"
         :class="terminalSidebarOpen ? 'text-[var(--oterm-accent)]' : ''"
         title="Toggle terminals sidebar"
         aria-label="Toggle terminals sidebar"
@@ -160,7 +160,7 @@ const agentStatusText = computed(() =>
 
       <button
         type="button"
-        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+        class="no-drag flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 transition hover:bg-white/5 hover:text-[var(--oterm-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]"
         :class="toolsOpen ? 'text-[var(--oterm-accent)]' : ''"
         title="Toggle file explorer"
         aria-label="Toggle file explorer"

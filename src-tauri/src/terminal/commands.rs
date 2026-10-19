@@ -54,14 +54,14 @@ pub fn terminal_kill_all(manager: State<'_, PtyManager>) {
 }
 
 #[tauri::command]
-pub fn terminal_drain_output(
+pub fn terminal_attach_output(
     manager: State<'_, PtyManager>,
     session_id: String,
-) -> Result<String, String> {
-    manager.drain_output(&session_id)
+) -> Result<crate::terminal::output::Attachment, String> {
+    manager.attach_output(&session_id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn terminal_query_active_agent(
     manager: State<'_, PtyManager>,
     session_id: String,

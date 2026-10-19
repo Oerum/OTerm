@@ -194,7 +194,7 @@ onBeforeUnmount(() => {
       <UserMenu :app-version="appVersion" class="mx-0.5" @open-settings="emit('openSettings')" />
       <button
         type="button"
-        class="flex h-9 w-11 items-center justify-center text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+        class="flex h-9 w-11 items-center justify-center text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] focus-visible:outline-none focus-visible:bg-white/10"
         aria-label="Minimize"
         @click="appWindow.minimize()"
       >
@@ -204,7 +204,7 @@ onBeforeUnmount(() => {
       </button>
       <button
         type="button"
-        class="flex h-9 w-11 items-center justify-center text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+        class="flex h-9 w-11 items-center justify-center text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] focus-visible:outline-none focus-visible:bg-white/10"
         aria-label="Maximize"
         @click="appWindow.toggleMaximize()"
       >
@@ -214,7 +214,7 @@ onBeforeUnmount(() => {
       </button>
       <button
         type="button"
-        class="flex h-9 w-11 items-center justify-center rounded-tr-lg text-[var(--oterm-muted)] transition hover:bg-[var(--oterm-danger)] hover:text-white"
+        class="flex h-9 w-11 items-center justify-center rounded-tr-lg text-[var(--oterm-muted)] transition hover:bg-[var(--oterm-danger)] hover:text-white focus-visible:outline-none focus-visible:bg-[var(--oterm-danger)] focus-visible:text-white"
         aria-label="Close"
         @click="void appWindow.close()"
       >

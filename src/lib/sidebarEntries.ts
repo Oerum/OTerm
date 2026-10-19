@@ -304,14 +304,8 @@ export function isWorktreeCluster(
   return "kind" in item && item.kind === "worktree";
 }
 
-/** Backward compatibility alias for path/worktree clusters */
-export type TerminalPathCluster = TerminalWorktreeCluster;
-export function isPathCluster(item: TerminalCategoryItem): item is TerminalPathCluster {
-  return isWorktreeCluster(item);
-}
-
 /** Windows-friendly key: unify separators, strip trailing slash, lowercase. */
-export function normalizePathKey(path: string): string {
+function normalizePathKey(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
 }
 

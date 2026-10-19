@@ -16,28 +16,104 @@ import SourceControlPanel from "./components/SourceControlPanel.vue";
 import StatusBar from "./components/StatusBar.vue";
 import TerminalPane from "./components/TerminalPane.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
-import PushDefaultBranchDialog from "./components/PushDefaultBranchDialog.vue";
-import SshSecretPrompt from "./components/ssh/SshSecretPrompt.vue";
-import BranchManagerView from "./components/BranchManagerView.vue";
-import WorktreeManagerView from "./components/WorktreeManagerView.vue";
-import DockerManagerView from "./components/DockerManagerView.vue";
-import ProcessManagerView from "./components/ProcessManagerView.vue";
-import SshSftpManagerView from "./components/SshSftpManagerView.vue";
-import CreatePullRequestDialog from "./components/CreatePullRequestDialog.vue";
-import PullRequestsView from "./components/PullRequestsView.vue";
-import IssuesView from "./components/IssuesView.vue";
-import RebaseBuilder from "./components/RebaseBuilder.vue";
-import MergeConflictViewer from "./components/MergeConflictViewer.vue";
-import StashManager from "./components/StashManager.vue";
-import AiPreflight from "./components/AiPreflight.vue";
-import SettingsView from "./components/SettingsView.vue";
 import TitleBar from "./components/TitleBar.vue";
-import AgentsView from "./components/AgentsView.vue";
-import AgentWorktreeLaunchDialog from "./components/AgentWorktreeLaunchDialog.vue";
-import { getCliAgentDefinition } from "./lib/terminalAgentMode";
 import TooltipLayer from "./components/TooltipLayer.vue";
 import AppToastLayer from "./components/AppToastLayer.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
+import { pushAppToast } from "./lib/appToast";
+
+import { defineLazyView } from "./lib/lazyView";
+
+const PushDefaultBranchDialog = defineLazyView(
+  () => import("./components/PushDefaultBranchDialog.vue"),
+  "Push Default Branch Dialog",
+  () => handlePushDefaultBranchDecision('cancel'),
+);
+const SshSecretPrompt = defineLazyView(
+  () => import("./components/ssh/SshSecretPrompt.vue"),
+  "SSH Secret Prompt",
+  () => cancelSshSecret(),
+);
+const BranchManagerView = defineLazyView(
+  () => import("./components/BranchManagerView.vue"),
+  "Branch Manager",
+  () => dismissFailedToolWindow('branchManager'),
+);
+const WorktreeManagerView = defineLazyView(
+  () => import("./components/WorktreeManagerView.vue"),
+  "Worktree Manager",
+  () => dismissFailedToolWindow('worktreeManager'),
+);
+const DockerManagerView = defineLazyView(
+  () => import("./components/DockerManagerView.vue"),
+  "Docker Manager",
+  () => dismissFailedToolWindow('docker'),
+);
+const ProcessManagerView = defineLazyView(
+  () => import("./components/ProcessManagerView.vue"),
+  "Process Manager",
+  () => dismissFailedToolWindow('process'),
+);
+const SshSftpManagerView = defineLazyView(
+  () => import("./components/SshSftpManagerView.vue"),
+  "SSH / SFTP Manager",
+  () => dismissFailedToolWindow('sshSftp'),
+);
+const CreatePullRequestDialog = defineLazyView(
+  () => import("./components/CreatePullRequestDialog.vue"),
+  "Create Pull Request Dialog",
+  () => closeCreatePrDialog(),
+);
+const PullRequestsView = defineLazyView(
+  () => import("./components/PullRequestsView.vue"),
+  "Pull Requests",
+  () => dismissFailedToolWindow('pullRequests'),
+);
+const IssuesView = defineLazyView(
+  () => import("./components/IssuesView.vue"),
+  "Issues",
+  () => dismissFailedToolWindow('issues'),
+);
+const RebaseBuilder = defineLazyView(
+  () => import("./components/RebaseBuilder.vue"),
+  "Rebase Builder",
+  () => dismissFailedToolWindow('rebase'),
+);
+const MergeConflictViewer = defineLazyView(
+  () => import("./components/MergeConflictViewer.vue"),
+  "Merge Conflict Viewer",
+  () => dismissFailedToolWindow('merge'),
+);
+const StashManager = defineLazyView(
+  () => import("./components/StashManager.vue"),
+  "Stash Manager",
+  () => dismissFailedToolWindow('stash'),
+);
+const AiPreflight = defineLazyView(
+  () => import("./components/AiPreflight.vue"),
+  "AI Preflight",
+  () => dismissFailedToolWindow('aiPreflight'),
+);
+const SettingsView = defineLazyView(
+  () => import("./components/SettingsView.vue"),
+  "Settings",
+  () => dismissFailedToolWindow('settings'),
+);
+const AgentsView = defineLazyView(
+  () => import("./components/AgentsView.vue"),
+  "Agent Launcher",
+  () => { agentsViewOpen.value = false; },
+);
+const AgentWorktreeLaunchDialog = defineLazyView(
+  () => import("./components/AgentWorktreeLaunchDialog.vue"),
+  "Agent Worktree Launch Dialog",
+  () => closeWorktreeDialog(),
+);
+
+import {
+  buildAgentLaunchCommand,
+  type AgentLaunchRequest,
+} from "./lib/terminalAgentMode";
 import { useActiveBranchPr } from "./composables/useActiveBranchPr";
 import { useCreatePullRequestForm } from "./composables/useCreatePullRequestForm";
 import { useCommandPalette } from "./composables/useCommandPalette";
@@ -134,7 +210,6 @@ import {
 } from "./lib/systemNotification";
 import { findNextCyclableTabId } from "./lib/terminalGroups";
 import { formatGitOperationError } from "./lib/formatGitError";
-import { pushAppToast } from "./lib/appToast";
 import { writeClipboardText } from "./lib/clipboard";
 import { listGitWorktrees, createGitWorktree, getGitStatus } from "./lib/gitApi";
 import { listBranchRefs } from "./lib/branchManagerApi";
@@ -280,6 +355,9 @@ function toggleActiveAgentComposer() {
 const terminalSidebarOpen = ref(true);
 const toolsOpen = ref(false);
 const agentsViewOpen = ref(false);
+const agentLaunchPending = ref(false);
+const agentLaunchPendingPaneId = ref<string | null>(null);
+const agentLaunchError = ref<string | null>(null);
 const sourceControlPresentation = ref<SourceControlPresentation>("hidden");
 const sourceControlOpen = computed(() => sourceControlPresentation.value !== "hidden");
 const sourceControlShellRef = ref<HTMLElement | null>(null);
@@ -426,11 +504,6 @@ watch(
 );
 
 useWorkspacePersistence(
-  tabs,
-  activeTabId,
-  activePaneId,
-  terminalGroups,
-  collapsedGroupIds,
   serializeTerminalWorkspace,
   {
     beforeDestroy: killAllTerminalSessionsForClose,
@@ -942,7 +1015,7 @@ async function runPaletteItem(item: CommandPaletteItem) {
       else if (a.surface === "merge") openMerge();
       return;
     case "launch-agent":
-      launchAgent(a.agentId);
+      launchAgent({ agentId: a.agentId, runtime: "native" });
       return;
     case "run-history":
       if (!activePane.value?.sessionId) {
@@ -1378,6 +1451,11 @@ async function closeTabs(tabIds: string[]) {
         rememberClosedTab(tab);
         for (const pane of terminalPanes) {
           clearPendingSshTerminalLaunch(pane.id);
+          if (agentLaunchPendingPaneId.value === pane.id) {
+            agentLaunchPending.value = false;
+            agentLaunchPendingPaneId.value = null;
+          }
+          pendingTerminalCommands.delete(pane.id);
         }
         if (terminalPanes.length > 0) {
           await Promise.all(terminalPanes.map((pane) => killPaneSession(pane)));
@@ -1403,6 +1481,10 @@ function showToolWindow(id: ToolWindowId, repoRoot: string | null = null) {
   agentsViewOpen.value = false;
   closeAllFeatureTabs();
   toolWindow.value = openToolWindow(toolWindow.value, id, repoRoot);
+}
+
+function dismissFailedToolWindow(id: ToolWindowId) {
+  if (toolWindow.value.openId === id) dismissToolWindow();
 }
 
 function dismissToolWindow() {
@@ -1508,15 +1590,35 @@ async function openWorktreeDialog() {
   }
 }
 
-function launchAgent(agentId: CliAgentId) {
-  const agent = getCliAgentDefinition(agentId);
+function launchAgent(target: AgentLaunchRequest | CliAgentId) {
+  if (agentLaunchPending.value) return;
+  agentLaunchError.value = null;
+
+  const request: AgentLaunchRequest =
+    typeof target === "string" ? { agentId: target, runtime: "native" } : target;
+  let command: string;
+  try {
+    command = buildAgentLaunchCommand(request);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to launch agent";
+    agentLaunchError.value = msg;
+    pushAppToast(msg, "error");
+    return;
+  }
   const shellId = resolveDefaultShellId();
   const tab = createTab(shellId);
   const pane = tab.panes[0];
-  if (!pane) return;
+  if (!pane) {
+    const msg = "Failed to create terminal pane";
+    agentLaunchError.value = msg;
+    pushAppToast(msg, "error");
+    return;
+  }
+
+  agentLaunchPending.value = true;
+  agentLaunchPendingPaneId.value = pane.id;
 
   // Keep default tab title so sidebar shows project/cwd; agent brand is badge + radar subtitle.
-  const command = agent.commandPrefixes[0] || agent.id;
   pendingTerminalCommands.set(pane.id, `${command}\r`);
 
   agentsViewOpen.value = false;
@@ -1605,7 +1707,7 @@ function onSessionBootstrapping(paneId: string, sessionId: string) {
   setPaneBootstrappingSession(paneId, sessionId);
 }
 
-function onSessionCreated(paneId: string, sessionId: string) {
+async function onSessionCreated(paneId: string, sessionId: string) {
   if (!sessionId) return;
   clearPaneBootstrappingSession(paneId);
   setPaneSession(paneId, sessionId);
@@ -1617,7 +1719,30 @@ function onSessionCreated(paneId: string, sessionId: string) {
   const command = pendingTerminalCommands.get(paneId);
   if (!command) return;
   pendingTerminalCommands.delete(paneId);
-  void writeTerminal(sessionId, command);
+  try {
+    await writeTerminal(sessionId, command);
+    if (agentLaunchPendingPaneId.value === paneId) {
+      agentLaunchPending.value = false;
+      agentLaunchPendingPaneId.value = null;
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to send launch command to terminal";
+    if (agentLaunchPendingPaneId.value === paneId) {
+      agentLaunchPending.value = false;
+      agentLaunchPendingPaneId.value = null;
+      agentLaunchError.value = msg;
+    }
+    pushAppToast(msg, "error");
+  }
+}
+
+function onSessionLaunchFailed(paneId: string, message: string) {
+  if (agentLaunchPendingPaneId.value === paneId) {
+    agentLaunchPending.value = false;
+    agentLaunchPendingPaneId.value = null;
+    agentLaunchError.value = message;
+  }
+  pushAppToast(`Session launch failed: ${message}`, "error");
 }
 
 function onSessionReleased(paneId: string) {
@@ -1626,6 +1751,13 @@ function onSessionReleased(paneId: string) {
 }
 
 function onSessionEnded(paneId: string) {
+  if (agentLaunchPendingPaneId.value === paneId) {
+    agentLaunchPending.value = false;
+    agentLaunchPendingPaneId.value = null;
+    if (!agentLaunchError.value) {
+      agentLaunchError.value = "Session ended before agent command could complete";
+    }
+  }
   const tab = tabs.value.find((t) => isTerminalTab(t) && t.panes.some((p) => p.id === paneId));
   if (!tab || !isTerminalTab(tab)) {
     clearPaneSession(paneId);
@@ -1713,6 +1845,11 @@ function onKeyDown(event: KeyboardEvent) {
   if (event.key === "Escape" && paletteOpen.value) {
     consumeAppShortcut(event);
     closePalette();
+    return;
+  }
+  if (event.key === "Escape" && agentsViewOpen.value) {
+    consumeAppShortcut(event);
+    agentsViewOpen.value = false;
     return;
   }
   if (event.key === "Escape" && toolWindowOpen.value) {
@@ -2058,6 +2195,8 @@ onUnmounted(() => {
             v-if="agentsViewOpen"
             :tabs="tabs"
             :active="agentsViewOpen"
+            :launch-pending="agentLaunchPending"
+            :launch-error="agentLaunchError"
             @close="agentsViewOpen = false"
             @launch-agent="launchAgent"
             @select-tab="selectTab"
@@ -2181,6 +2320,7 @@ onUnmounted(() => {
                   :theme-id="terminalPaneThemes[pane.id] ?? null"
                   :ssh-endpoint-id="pane.sshEndpointId"
                   @session-created="onSessionCreated"
+                  @session-launch-failed="onSessionLaunchFailed"
                   @session-bootstrapping="onSessionBootstrapping"
                   @session-ended="onSessionEnded"
                   @session-released="onSessionReleased"
@@ -2424,6 +2564,7 @@ onUnmounted(() => {
       @cancel="resolveSshConfirm(false)"
     />
     <PushDefaultBranchDialog
+      v-if="pushDefaultBranchDialogOpen"
       :open="pushDefaultBranchDialogOpen"
       :branch="pushDefaultBranchBranchName"
       @createBranch="handlePushDefaultBranchDecision('createBranch')"
@@ -2431,6 +2572,7 @@ onUnmounted(() => {
       @cancel="handlePushDefaultBranchDecision('cancel')"
     />
     <CreatePullRequestDialog
+      v-if="createPrOpen"
       :open="createPrOpen"
       :branches="gitBranches"
       :title="createPrTitle"
@@ -2449,6 +2591,7 @@ onUnmounted(() => {
       @cancel="closeCreatePrDialog"
     />
     <AgentWorktreeLaunchDialog
+      v-if="worktreeDialogOpen"
       :open="worktreeDialogOpen"
       :repo-root="worktreeRepoRoot ?? gitRepoRoot ?? ''"
       :current-branch="sourceControlStatus.branch"

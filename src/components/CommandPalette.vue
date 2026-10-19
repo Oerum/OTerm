@@ -97,7 +97,7 @@ function onKeydown(event: KeyboardEvent) {
 <template>
   <div
     v-if="open"
-    class="absolute inset-0 z-40 flex items-start justify-center bg-black/55 pt-[12vh] backdrop-blur-[2px]"
+    class="absolute inset-0 z-40 flex items-start justify-center bg-black/60 pt-[12vh]"
     @click.self="emit('close')"
   >
     <div

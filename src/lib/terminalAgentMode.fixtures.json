@@ -1,0 +1,1227 @@
+[
+  {
+    "command": "claude",
+    "argv": [
+      "claude"
+    ],
+    "expected": "claude"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\claude.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\claude.EXE",
+      "--help"
+    ],
+    "expected": "claude"
+  },
+  {
+    "command": "npx --yes claude --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "claude",
+      "--model",
+      "claude"
+    ],
+    "expected": "claude"
+  },
+  {
+    "command": "npx --yes @anthropic-ai/claude-code --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@anthropic-ai/claude-code",
+      "--model",
+      "claude"
+    ],
+    "expected": "claude"
+  },
+  {
+    "command": "gemini",
+    "argv": [
+      "gemini"
+    ],
+    "expected": "gemini"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\gemini.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\gemini.EXE",
+      "--help"
+    ],
+    "expected": "gemini"
+  },
+  {
+    "command": "npx --yes gemini --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "gemini",
+      "--model",
+      "claude"
+    ],
+    "expected": "gemini"
+  },
+  {
+    "command": "npx --yes @google/gemini-cli --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@google/gemini-cli",
+      "--model",
+      "claude"
+    ],
+    "expected": "gemini"
+  },
+  {
+    "command": "agy",
+    "argv": [
+      "agy"
+    ],
+    "expected": "agy"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\agy.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\agy.EXE",
+      "--help"
+    ],
+    "expected": "agy"
+  },
+  {
+    "command": "npx --yes agy --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "agy",
+      "--model",
+      "claude"
+    ],
+    "expected": "agy"
+  },
+  {
+    "command": "codex",
+    "argv": [
+      "codex"
+    ],
+    "expected": "codex"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\codex.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\codex.EXE",
+      "--help"
+    ],
+    "expected": "codex"
+  },
+  {
+    "command": "npx --yes codex --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "codex",
+      "--model",
+      "claude"
+    ],
+    "expected": "codex"
+  },
+  {
+    "command": "npx --yes @openai/codex --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@openai/codex",
+      "--model",
+      "claude"
+    ],
+    "expected": "codex"
+  },
+  {
+    "command": "opencode",
+    "argv": [
+      "opencode"
+    ],
+    "expected": "opencode"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\opencode.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\opencode.EXE",
+      "--help"
+    ],
+    "expected": "opencode"
+  },
+  {
+    "command": "npx --yes opencode --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "opencode",
+      "--model",
+      "claude"
+    ],
+    "expected": "opencode"
+  },
+  {
+    "command": "npx --yes opencode-ai --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "opencode-ai",
+      "--model",
+      "claude"
+    ],
+    "expected": "opencode"
+  },
+  {
+    "command": "copilot",
+    "argv": [
+      "copilot"
+    ],
+    "expected": "copilot"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\copilot.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\copilot.EXE",
+      "--help"
+    ],
+    "expected": "copilot"
+  },
+  {
+    "command": "npx --yes copilot --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "copilot",
+      "--model",
+      "claude"
+    ],
+    "expected": "copilot"
+  },
+  {
+    "command": "npx --yes @github/copilot --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@github/copilot",
+      "--model",
+      "claude"
+    ],
+    "expected": "copilot"
+  },
+  {
+    "command": "agent",
+    "argv": [
+      "agent"
+    ],
+    "expected": "cursor"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\agent.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\agent.EXE",
+      "--help"
+    ],
+    "expected": "cursor"
+  },
+  {
+    "command": "npx --yes cursor --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "cursor",
+      "--model",
+      "claude"
+    ],
+    "expected": "cursor"
+  },
+  {
+    "command": "amp",
+    "argv": [
+      "amp"
+    ],
+    "expected": "amp"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\amp.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\amp.EXE",
+      "--help"
+    ],
+    "expected": "amp"
+  },
+  {
+    "command": "npx --yes amp --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "amp",
+      "--model",
+      "claude"
+    ],
+    "expected": "amp"
+  },
+  {
+    "command": "npx --yes @sourcegraph/amp --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@sourcegraph/amp",
+      "--model",
+      "claude"
+    ],
+    "expected": "amp"
+  },
+  {
+    "command": "droid",
+    "argv": [
+      "droid"
+    ],
+    "expected": "droid"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\droid.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\droid.EXE",
+      "--help"
+    ],
+    "expected": "droid"
+  },
+  {
+    "command": "npx --yes droid --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "droid",
+      "--model",
+      "claude"
+    ],
+    "expected": "droid"
+  },
+  {
+    "command": "pi",
+    "argv": [
+      "pi"
+    ],
+    "expected": "pi"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\pi.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\pi.EXE",
+      "--help"
+    ],
+    "expected": "pi"
+  },
+  {
+    "command": "npx --yes pi --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "pi",
+      "--model",
+      "claude"
+    ],
+    "expected": "pi"
+  },
+  {
+    "command": "npx --yes @mariozechner/pi-coding-agent --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@mariozechner/pi-coding-agent",
+      "--model",
+      "claude"
+    ],
+    "expected": "pi"
+  },
+  {
+    "command": "npx --yes @earendil-works/pi-coding-agent --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@earendil-works/pi-coding-agent",
+      "--model",
+      "claude"
+    ],
+    "expected": "pi"
+  },
+  {
+    "command": "auggie",
+    "argv": [
+      "auggie"
+    ],
+    "expected": "auggie"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\auggie.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\auggie.EXE",
+      "--help"
+    ],
+    "expected": "auggie"
+  },
+  {
+    "command": "npx --yes auggie --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "auggie",
+      "--model",
+      "claude"
+    ],
+    "expected": "auggie"
+  },
+  {
+    "command": "npx --yes @augmentcode/auggie --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@augmentcode/auggie",
+      "--model",
+      "claude"
+    ],
+    "expected": "auggie"
+  },
+  {
+    "command": "goose",
+    "argv": [
+      "goose"
+    ],
+    "expected": "goose"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\goose.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\goose.EXE",
+      "--help"
+    ],
+    "expected": "goose"
+  },
+  {
+    "command": "npx --yes goose --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "goose",
+      "--model",
+      "claude"
+    ],
+    "expected": "goose"
+  },
+  {
+    "command": "hermes",
+    "argv": [
+      "hermes"
+    ],
+    "expected": "hermes"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\hermes.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\hermes.EXE",
+      "--help"
+    ],
+    "expected": "hermes"
+  },
+  {
+    "command": "npx --yes hermes --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "hermes",
+      "--model",
+      "claude"
+    ],
+    "expected": "hermes"
+  },
+  {
+    "command": "vibe",
+    "argv": [
+      "vibe"
+    ],
+    "expected": "vibe"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\vibe.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\vibe.EXE",
+      "--help"
+    ],
+    "expected": "vibe"
+  },
+  {
+    "command": "vibe-acp",
+    "argv": [
+      "vibe-acp"
+    ],
+    "expected": "vibe"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\vibe-acp.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\vibe-acp.EXE",
+      "--help"
+    ],
+    "expected": "vibe"
+  },
+  {
+    "command": "npx --yes vibe --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "vibe",
+      "--model",
+      "claude"
+    ],
+    "expected": "vibe"
+  },
+  {
+    "command": "cline",
+    "argv": [
+      "cline"
+    ],
+    "expected": "cline"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\cline.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\cline.EXE",
+      "--help"
+    ],
+    "expected": "cline"
+  },
+  {
+    "command": "npx --yes cline --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "cline",
+      "--model",
+      "claude"
+    ],
+    "expected": "cline"
+  },
+  {
+    "command": "aider",
+    "argv": [
+      "aider"
+    ],
+    "expected": "aider"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\aider.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\aider.EXE",
+      "--help"
+    ],
+    "expected": "aider"
+  },
+  {
+    "command": "npx --yes aider --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "aider",
+      "--model",
+      "claude"
+    ],
+    "expected": "aider"
+  },
+  {
+    "command": "npx --yes aider-chat --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "aider-chat",
+      "--model",
+      "claude"
+    ],
+    "expected": "aider"
+  },
+  {
+    "command": "kilo",
+    "argv": [
+      "kilo"
+    ],
+    "expected": "kilo"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\kilo.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\kilo.EXE",
+      "--help"
+    ],
+    "expected": "kilo"
+  },
+  {
+    "command": "npx --yes kilo --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "kilo",
+      "--model",
+      "claude"
+    ],
+    "expected": "kilo"
+  },
+  {
+    "command": "npx --yes @kilocode/cli --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@kilocode/cli",
+      "--model",
+      "claude"
+    ],
+    "expected": "kilo"
+  },
+  {
+    "command": "kimi",
+    "argv": [
+      "kimi"
+    ],
+    "expected": "kimi"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\kimi.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\kimi.EXE",
+      "--help"
+    ],
+    "expected": "kimi"
+  },
+  {
+    "command": "npx --yes kimi --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "kimi",
+      "--model",
+      "claude"
+    ],
+    "expected": "kimi"
+  },
+  {
+    "command": "npx --yes @moonshot-ai/kimi-code --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@moonshot-ai/kimi-code",
+      "--model",
+      "claude"
+    ],
+    "expected": "kimi"
+  },
+  {
+    "command": "kiro-cli",
+    "argv": [
+      "kiro-cli"
+    ],
+    "expected": "kiro"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\kiro-cli.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\kiro-cli.EXE",
+      "--help"
+    ],
+    "expected": "kiro"
+  },
+  {
+    "command": "npx --yes kiro-cli --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "kiro-cli",
+      "--model",
+      "claude"
+    ],
+    "expected": "kiro"
+  },
+  {
+    "command": "qwen",
+    "argv": [
+      "qwen"
+    ],
+    "expected": "qwen"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\qwen.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\qwen.EXE",
+      "--help"
+    ],
+    "expected": "qwen"
+  },
+  {
+    "command": "npx --yes qwen --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "qwen",
+      "--model",
+      "claude"
+    ],
+    "expected": "qwen"
+  },
+  {
+    "command": "npx --yes @qwen-code/qwen-code --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@qwen-code/qwen-code",
+      "--model",
+      "claude"
+    ],
+    "expected": "qwen"
+  },
+  {
+    "command": "cn",
+    "argv": [
+      "cn"
+    ],
+    "expected": "continue"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\cn.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\cn.EXE",
+      "--help"
+    ],
+    "expected": "continue"
+  },
+  {
+    "command": "npx --yes cn --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "cn",
+      "--model",
+      "claude"
+    ],
+    "expected": "continue"
+  },
+  {
+    "command": "npx --yes @continuedev/cli --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@continuedev/cli",
+      "--model",
+      "claude"
+    ],
+    "expected": "continue"
+  },
+  {
+    "command": "codebuff",
+    "argv": [
+      "codebuff"
+    ],
+    "expected": "codebuff"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\codebuff.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\codebuff.EXE",
+      "--help"
+    ],
+    "expected": "codebuff"
+  },
+  {
+    "command": "npx --yes codebuff --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "codebuff",
+      "--model",
+      "claude"
+    ],
+    "expected": "codebuff"
+  },
+  {
+    "command": "crush",
+    "argv": [
+      "crush"
+    ],
+    "expected": "crush"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\crush.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\crush.EXE",
+      "--help"
+    ],
+    "expected": "crush"
+  },
+  {
+    "command": "npx --yes crush --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "crush",
+      "--model",
+      "claude"
+    ],
+    "expected": "crush"
+  },
+  {
+    "command": "npx --yes @charmland/crush --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@charmland/crush",
+      "--model",
+      "claude"
+    ],
+    "expected": "crush"
+  },
+  {
+    "command": "acli rovodev run",
+    "argv": [
+      "acli",
+      "rovodev",
+      "run"
+    ],
+    "expected": "rovodev"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\acli.EXE\" rovodev run --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\acli.EXE",
+      "rovodev",
+      "run",
+      "--help"
+    ],
+    "expected": "rovodev"
+  },
+  {
+    "command": "omp",
+    "argv": [
+      "omp"
+    ],
+    "expected": "omp"
+  },
+  {
+    "command": "\"C:\\Program Files\\Agent\\omp.EXE\" --help",
+    "argv": [
+      "C:\\Program Files\\Agent\\omp.EXE",
+      "--help"
+    ],
+    "expected": "omp"
+  },
+  {
+    "command": "npx --yes omp --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "omp",
+      "--model",
+      "claude"
+    ],
+    "expected": "omp"
+  },
+  {
+    "command": "npx --yes @oh-my-pi/pi-coding-agent --model claude",
+    "argv": [
+      "npx",
+      "--yes",
+      "@oh-my-pi/pi-coding-agent",
+      "--model",
+      "claude"
+    ],
+    "expected": "omp"
+  },
+  {
+    "command": "unsloth start claude",
+    "argv": [
+      "unsloth",
+      "start",
+      "claude"
+    ],
+    "expected": "claude"
+  },
+  {
+    "command": "unsloth start codex --persist",
+    "argv": [
+      "unsloth",
+      "start",
+      "codex",
+      "--persist"
+    ],
+    "expected": "codex"
+  },
+  {
+    "command": "unsloth start opencode",
+    "argv": [
+      "unsloth",
+      "start",
+      "opencode"
+    ],
+    "expected": "opencode"
+  },
+  {
+    "command": "unsloth start hermes --persist",
+    "argv": [
+      "unsloth",
+      "start",
+      "hermes",
+      "--persist"
+    ],
+    "expected": "hermes"
+  },
+  {
+    "command": "unsloth start pi --persist",
+    "argv": [
+      "unsloth",
+      "start",
+      "pi",
+      "--persist"
+    ],
+    "expected": "pi"
+  },
+  {
+    "command": "pnpm dlx opencode",
+    "argv": [
+      "pnpm",
+      "dlx",
+      "opencode"
+    ],
+    "expected": "opencode"
+  },
+  {
+    "command": "bunx @sourcegraph/amp",
+    "argv": [
+      "bunx",
+      "@sourcegraph/amp"
+    ],
+    "expected": "amp"
+  },
+  {
+    "command": "bun agy --model gemini",
+    "argv": [
+      "bun",
+      "agy",
+      "--model",
+      "gemini"
+    ],
+    "expected": "agy"
+  },
+  {
+    "command": "node node_modules/.bin/opencode",
+    "argv": [
+      "node",
+      "node_modules/.bin/opencode"
+    ],
+    "expected": "opencode"
+  },
+  {
+    "command": "node /path/to/@anthropic-ai/claude-code/cli.js",
+    "argv": [
+      "node",
+      "/path/to/@anthropic-ai/claude-code/cli.js"
+    ],
+    "expected": "claude"
+  },
+  {
+    "command": "node /path/to/agy/cli.js --model gemini",
+    "argv": [
+      "node",
+      "/path/to/agy/cli.js",
+      "--model",
+      "gemini"
+    ],
+    "expected": "agy"
+  },
+  {
+    "command": "node /opt/node_modules/@google/gemini-cli/dist/index.js",
+    "argv": [
+      "node",
+      "/opt/node_modules/@google/gemini-cli/dist/index.js"
+    ],
+    "expected": "gemini"
+  },
+  {
+    "command": "node C:\\node_modules\\@mariozechner\\pi-coding-agent\\dist\\cli.js",
+    "argv": [
+      "node",
+      "C:\\node_modules\\@mariozechner\\pi-coding-agent\\dist\\cli.js"
+    ],
+    "expected": "pi"
+  },
+  {
+    "command": "node /opt/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
+    "argv": [
+      "node",
+      "/opt/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js"
+    ],
+    "expected": "pi"
+  },
+  {
+    "command": "python -m aider",
+    "argv": [
+      "python",
+      "-m",
+      "aider"
+    ],
+    "expected": "aider"
+  },
+  {
+    "command": "python3 /opt/aider/__main__.py",
+    "argv": [
+      "python3",
+      "/opt/aider/__main__.py"
+    ],
+    "expected": "aider"
+  },
+  {
+    "command": "node server.js --model codex",
+    "argv": [
+      "node",
+      "server.js",
+      "--model",
+      "codex"
+    ],
+    "expected": null
+  },
+  {
+    "command": "python train.py --model claude",
+    "argv": [
+      "python",
+      "train.py",
+      "--model",
+      "claude"
+    ],
+    "expected": null
+  },
+  {
+    "command": "python -c print(\"claude\")",
+    "argv": [
+      "python",
+      "-c",
+      "print(\"claude\")"
+    ],
+    "expected": null
+  },
+  {
+    "command": "node --eval claude",
+    "argv": [
+      "node",
+      "--eval",
+      "claude"
+    ],
+    "expected": null
+  },
+  {
+    "command": "node /workspace/codex/server.js",
+    "argv": [
+      "node",
+      "/workspace/codex/server.js"
+    ],
+    "expected": null
+  },
+  {
+    "command": "node /workspace/gemini/tool.js",
+    "argv": [
+      "node",
+      "/workspace/gemini/tool.js"
+    ],
+    "expected": null
+  },
+  {
+    "command": "node /opt/node_modules/unrelated/server.js claude",
+    "argv": [
+      "node",
+      "/opt/node_modules/unrelated/server.js",
+      "claude"
+    ],
+    "expected": null
+  },
+  {
+    "command": "npx unrelated codex",
+    "argv": [
+      "npx",
+      "unrelated",
+      "codex"
+    ],
+    "expected": null
+  },
+  {
+    "command": "npx unrelated-codex",
+    "argv": [
+      "npx",
+      "unrelated-codex"
+    ],
+    "expected": null
+  },
+  {
+    "command": "pnpm dlx server --model claude",
+    "argv": [
+      "pnpm",
+      "dlx",
+      "server",
+      "--model",
+      "claude"
+    ],
+    "expected": null
+  },
+  {
+    "command": "cb copy foo",
+    "argv": [
+      "cb",
+      "copy",
+      "foo"
+    ],
+    "expected": null
+  },
+  {
+    "command": "acli jira",
+    "argv": [
+      "acli",
+      "jira"
+    ],
+    "expected": null
+  },
+  {
+    "command": "acli rovodev auth",
+    "argv": [
+      "acli",
+      "rovodev",
+      "auth"
+    ],
+    "expected": null
+  },
+  {
+    "command": "unsloth studio",
+    "argv": [
+      "unsloth",
+      "studio"
+    ],
+    "expected": null
+  },
+  {
+    "command": "unsloth start gemini",
+    "argv": [
+      "unsloth",
+      "start",
+      "gemini"
+    ],
+    "expected": null
+  },
+  {
+    "command": "unsloth start unknown",
+    "argv": [
+      "unsloth",
+      "start",
+      "unknown"
+    ],
+    "expected": null
+  },
+  {
+    "command": "qwen-code",
+    "argv": [
+      "qwen-code"
+    ],
+    "expected": null
+  },
+  {
+    "command": "kilocode",
+    "argv": [
+      "kilocode"
+    ],
+    "expected": null
+  },
+  {
+    "command": "kimi-cli",
+    "argv": [
+      "kimi-cli"
+    ],
+    "expected": null
+  },
+  {
+    "command": "kiro",
+    "argv": [
+      "kiro"
+    ],
+    "expected": null
+  },
+  {
+    "command": "continue",
+    "argv": [
+      "continue"
+    ],
+    "expected": null
+  },
+  {
+    "command": "freebuff",
+    "argv": [
+      "freebuff"
+    ],
+    "expected": null
+  },
+  {
+    "command": "git status",
+    "argv": [
+      "git",
+      "status"
+    ],
+    "expected": null
+  },
+  {
+    "command": "echo claude",
+    "argv": [
+      "echo",
+      "claude"
+    ],
+    "expected": null
+  },
+  {
+    "command": "pwsh.exe",
+    "argv": [
+      "pwsh.exe"
+    ],
+    "expected": null
+  },
+  {
+    "command": "npm install codex",
+    "argv": [
+      "npm",
+      "install",
+      "codex"
+    ],
+    "expected": null
+  },
+  {
+    "command": "python /workspace/codex/main.py",
+    "argv": [
+      "python",
+      "/workspace/codex/main.py"
+    ],
+    "expected": null
+  },
+  {
+    "command": "node /workspace/gemini/index.js",
+    "argv": [
+      "node",
+      "/workspace/gemini/index.js"
+    ],
+    "expected": null
+  },
+  {
+    "command": "node /workspace/agy/index.js",
+    "argv": [
+      "node",
+      "/workspace/agy/index.js"
+    ],
+    "expected": null
+  },
+  {
+    "command": "python /workspace/aider/main.py",
+    "argv": [
+      "python",
+      "/workspace/aider/main.py"
+    ],
+    "expected": null
+  }
+]

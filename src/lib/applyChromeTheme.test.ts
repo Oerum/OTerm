@@ -33,8 +33,38 @@ describe("applyChromeTheme", () => {
     applyChromeTheme(tokens, root);
     expect(root.style.getPropertyValue("--oterm-bg")).toBe("#282a36");
     expect(root.style.getPropertyValue("--oterm-accent")).toBe("#bd93f9");
+    expect(root.style.getPropertyValue("--oterm-surface")).toBe("#343746");
+    expect(root.style.getPropertyValue("--oterm-titlebar")).toBe(tokens.bg);
+    expect(root.style.getPropertyValue("--oterm-sidebar")).toBe(tokens.bg);
+    expect(root.style.getPropertyValue("--oterm-border-strong")).toBe(tokens.border);
+    expect(root.style.getPropertyValue("--oterm-line")).toBe(tokens.border);
+    expect(root.style.getPropertyValue("--oterm-accent-dim")).toBe(
+      "color-mix(in srgb, #bd93f9 12%, transparent)",
+    );
+    expect(root.style.getPropertyValue("--oterm-faint")).toBe(
+      "color-mix(in srgb, #f8f8f2 60%, #282a36)",
+    );
     applyChromeTheme(null, root);
     expect(root.style.getPropertyValue("--oterm-bg")).toBe("");
+    expect(root.style.getPropertyValue("--oterm-titlebar")).toBe("");
+    expect(root.style.getPropertyValue("--oterm-sidebar")).toBe("");
+    expect(root.style.getPropertyValue("--oterm-border-strong")).toBe("");
+    expect(root.style.getPropertyValue("--oterm-line")).toBe("");
+    expect(root.style.getPropertyValue("--oterm-surface")).toBe("");
+    expect(root.style.getPropertyValue("--oterm-accent-dim")).toBe("");
+    expect(root.style.getPropertyValue("--oterm-faint")).toBe("");
+  });
+
+  it("keeps light custom-theme chrome and secondary surfaces on the selected background", () => {
+    const root = fakeRoot();
+    const tokens = chromeTokensFromTerminalColors({ background: "#ffffff", foreground: "#111111", cursor: "#006644" })!;
+    applyChromeTheme(tokens, root);
+    for (const name of ["bg", "titlebar", "sidebar", "panel", "elevated", "surface"]) {
+      expect(root.style.getPropertyValue(`--oterm-${name}`)).toBe("#ffffff");
+    }
+    expect(root.style.getPropertyValue("--oterm-text")).toBe("#111111");
+    expect(root.style.getPropertyValue("--oterm-border-strong")).toBe(tokens.border);
+    expect(root.style.getPropertyValue("--oterm-faint")).toBe("color-mix(in srgb, #111111 60%, #ffffff)");
   });
 
   it("derives tokens from terminal colors when background is opaque", () => {
@@ -44,6 +74,8 @@ describe("applyChromeTheme", () => {
       cursor: "#93a1a1",
     });
     expect(tokens?.bg).toBe("#002b36");
+    expect(tokens?.panel).toBe("#002b36");
+    expect(tokens?.elevated).toBe("#002b36");
     expect(chromeTokensFromTerminalColors({ background: "transparent" })).toBeNull();
   });
 });

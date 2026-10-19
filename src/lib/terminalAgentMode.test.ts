@@ -1,6 +1,10 @@
+import { submitStrategyForAgent } from "./agentComposerSubmit";
+import parityCases from "./terminalAgentMode.fixtures.json";
 import { describe, expect, it } from "vitest";
 import {
   CLI_AGENTS,
+  buildAgentLaunchCommand,
+  supportsUnslothRuntime,
   detectCliAgent,
   isAgentExitCommand,
   isAgentLaunchCommand,
@@ -39,7 +43,7 @@ describe("detectCliAgent", () => {
       expect(ids.has(id)).toBe(true);
     }
     expect(ids.has("agy")).toBe(true);
-    expect(ids.size).toBe(oterm_AGENT_IDS.length + 1);
+    expect(ids.size).toBe(25);
   });
 
   it("maps vibe-acp to vibe", () => {
@@ -114,4 +118,28 @@ describe("isAgentExitCommand", () => {
     expect(isAgentExitCommand("exit")).toBe(true);
     expect(isAgentExitCommand("agy")).toBe(false);
   });
+});
+
+describe("shared native/frontend command detection", () => {
+  it.each(parityCases)("$command -> $expected", ({ command, expected }) => {
+    expect(detectCliAgent(command)).toBe(expected);
+  });
+  it("builds fixed commands for all 25 agents and supported runtimes", () => {
+    for (const agent of CLI_AGENTS) {
+      expect(detectCliAgent(buildAgentLaunchCommand({ agentId: agent.id }))).toBe(agent.id);
+      if (supportsUnslothRuntime(agent.id)) {
+        const command = buildAgentLaunchCommand({ agentId: agent.id, runtime: "unsloth" });
+        expect(detectCliAgent(command)).toBe(agent.id);
+        expect(command.endsWith(" --persist")).toBe(["codex", "hermes", "pi"].includes(agent.id));
+      } else {
+        expect(() => buildAgentLaunchCommand({ agentId: agent.id, runtime: "unsloth" })).toThrow();
+      }
+    }
+  });
+});
+
+it("new agents retain the existing default submit strategy", () => {
+  for (const id of ["cline", "aider", "kilo", "kimi", "kiro", "qwen", "continue", "codebuff", "crush", "rovodev", "omp"] as const) {
+    expect(submitStrategyForAgent(id)).toBe("inline");
+  }
 });

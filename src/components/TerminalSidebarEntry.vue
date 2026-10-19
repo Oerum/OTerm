@@ -384,7 +384,7 @@ watch(
     />
 
     <div
-      class="no-drag group relative flex items-center gap-2.5 rounded-lg border py-1.5 px-1.5 transition-all duration-[150ms] select-none"
+      class="no-drag group relative flex items-center gap-2.5 rounded-lg border py-1.5 px-1.5 transition-colors duration-150 select-none"
       :class="[
         entry.splitIndex != null && entry.splitIndex > 1
           ? 'w-[94%] ml-[6%] border-l border-white/[0.05] pl-2.5 py-1'
@@ -408,7 +408,7 @@ watch(
     >
       <!-- Left edge indicator pill (attention overrides tab color when urgent) -->
       <span 
-        class="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r transition-all duration-[150ms]"
+        class="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r transition-[height] duration-150"
         :class="entry.isActive || attentionAccent ? 'h-3/5' : 'h-0 group-hover:h-2/5'"
         :style="{
           backgroundColor: attentionAccent

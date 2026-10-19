@@ -1,3 +1,11 @@
 {
-    "tailwindCSS.lint.suggestCanonicalClasses": "ignore"
+    "tailwindCSS.lint.suggestCanonicalClasses": "ignore",
+    "rust-analyzer.cargo.buildScripts.overrideCommand": [
+        "node", "../scripts/cargo.mjs", "check", "--quiet", "--workspace",
+        "--message-format=json", "--all-targets", "--keep-going"
+    ],
+    "rust-analyzer.check.overrideCommand": [
+        "node", "../scripts/cargo.mjs", "check", "--quiet", "--workspace",
+        "--message-format=json", "--all-targets", "--keep-going"
+    ]
 }

@@ -186,7 +186,7 @@ onUnmounted(() => {
   <Teleport to="body">
     <div
       v-if="props.open"
-      class="no-drag fixed inset-0 z-[10001] flex min-w-0 items-center justify-center bg-black/55 p-4 backdrop-blur-[2px]"
+      class="no-drag fixed inset-0 z-[10001] flex min-w-0 items-center justify-center bg-black/60 p-4"
       @click.self="cancel"
     >
       <form
