@@ -27,7 +27,7 @@
     "@xterm/xterm": "6.0.0",
     "isomorphic-dompurify": "^4.3.0",
     "marked": "^18.0.14",
-    "vue": "3.5.43"
+    "vue": "^3.5.44"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
