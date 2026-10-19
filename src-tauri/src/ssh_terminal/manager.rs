@@ -1,9 +1,9 @@
 use crate::ssh_client::{connect_and_auth, ConnectRequest, SshHandle};
+use crate::terminal::output::{Attachment, SessionOutput};
 use russh::ChannelMsg;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -17,22 +17,7 @@ type ShellWriteHalf = russh::ChannelWriteHalf<russh::client::Msg>;
 struct SshTerminalSession {
     write_half: Mutex<ShellWriteHalf>,
     _handle: SshHandle,
-    exit_emitted: AtomicBool,
-    read_cancel: AtomicBool,
-}
-
-#[derive(Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TerminalOutputEvent {
-    session_id: String,
-    data: String,
-}
-
-#[derive(Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TerminalExitEvent {
-    session_id: String,
-    exit_code: Option<i32>,
+    output: Arc<SessionOutput>,
 }
 
 impl SshTerminalManager {
@@ -68,14 +53,12 @@ impl SshTerminalManager {
 
         let (read_half, write_half) = channel.split();
         let session_id = Uuid::new_v4().to_string();
-        let exit_emitted = AtomicBool::new(false);
-        let read_cancel = AtomicBool::new(false);
+        let output = SessionOutput::for_app(app.clone(), session_id.clone());
 
         let session = Arc::new(SshTerminalSession {
             write_half: Mutex::new(write_half),
             _handle: handle,
-            exit_emitted,
-            read_cancel,
+            output,
         });
 
         self.sessions
@@ -83,7 +66,7 @@ impl SshTerminalManager {
             .await
             .insert(session_id.clone(), Arc::clone(&session));
 
-        spawn_reader(app, session_id.clone(), read_half, Arc::clone(&session));
+        spawn_reader(read_half, Arc::clone(&session));
 
         Ok(session_id)
     }
@@ -95,6 +78,10 @@ impl SshTerminalManager {
             .get(session_id)
             .cloned()
             .ok_or_else(|| format!("Unknown session: {session_id}"))
+    }
+
+    pub async fn attach_output(&self, session_id: &str) -> Result<Attachment, String> {
+        self.session(session_id).await?.output.attach()
     }
 
     pub async fn write(&self, session_id: &str, data: &str) -> Result<(), String> {
@@ -142,70 +129,157 @@ impl SshTerminalManager {
     }
 
     async fn teardown_session(session: Arc<SshTerminalSession>) {
-        session.read_cancel.store(true, Ordering::Relaxed);
-        session.exit_emitted.store(true, Ordering::Relaxed);
+        session.output.cancel();
         let write_half = session.write_half.lock().await;
         let _ = write_half.close().await;
     }
 }
 
-fn spawn_reader(
-    app: AppHandle,
-    session_id: String,
-    mut read_half: russh::ChannelReadHalf,
-    session: Arc<SshTerminalSession>,
-) {
+fn spawn_reader(mut read_half: russh::ChannelReadHalf, session: Arc<SshTerminalSession>) {
     tauri::async_runtime::spawn(async move {
-        loop {
-            if session.read_cancel.load(Ordering::Relaxed) {
-                break;
-            }
-
-            let msg = read_half.wait().await;
-
-            match msg {
-                Some(ChannelMsg::Data { data }) => {
-                    let text = String::from_utf8_lossy(&data).to_string();
-                    emit_output(&app, &session_id, text);
-                }
-                Some(ChannelMsg::ExtendedData { data, .. }) => {
-                    let text = String::from_utf8_lossy(&data).to_string();
-                    emit_output(&app, &session_id, text);
-                }
-                Some(ChannelMsg::ExitStatus { exit_status }) => {
-                    emit_exit(&app, &session_id, Some(exit_status as i32), &session);
-                    break;
-                }
-                Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None => {
-                    emit_exit(&app, &session_id, None, &session);
-                    break;
-                }
-                _ => {}
-            }
-        }
+        run_reader(&session.output, &mut read_half).await;
     });
 }
 
-fn emit_output(app: &AppHandle, session_id: &str, data: String) {
-    let payload = TerminalOutputEvent {
-        session_id: session_id.to_string(),
-        data,
-    };
-    let _ = app.emit("terminal-output", payload);
+async fn wait_deadline(output: &SessionOutput) {
+    match output.status_deadline() {
+        Some(deadline) => tokio::time::sleep_until(tokio::time::Instant::from_std(deadline)).await,
+        None => std::future::pending().await,
+    }
 }
 
-fn emit_exit(
-    app: &AppHandle,
-    session_id: &str,
-    exit_code: Option<i32>,
-    session: &SshTerminalSession,
-) {
-    if session.exit_emitted.swap(true, Ordering::Relaxed) {
-        return;
+trait ChannelReader {
+    fn next(&mut self) -> impl std::future::Future<Output = Option<ChannelMsg>> + Send;
+}
+
+impl ChannelReader for russh::ChannelReadHalf {
+    async fn next(&mut self) -> Option<ChannelMsg> {
+        self.wait().await
     }
-    let payload = TerminalExitEvent {
-        session_id: session_id.to_string(),
-        exit_code,
-    };
-    let _ = app.emit("terminal-exit", payload);
+}
+
+async fn run_reader(output: &SessionOutput, reader: &mut impl ChannelReader) {
+    loop {
+        let msg = tokio::select! {
+            _ = output.wait_stopped() => break,
+            _ = wait_deadline(output) => { output.finish(); break; },
+            msg = async {
+                if output.wait_until_readable_async().await { reader.next().await } else { None }
+            } => msg,
+        };
+        match msg {
+            Some(ChannelMsg::Data { data }) => output.push(0, &data),
+            Some(ChannelMsg::ExtendedData { data, .. }) => output.push(1, &data),
+            Some(ChannelMsg::ExitStatus { exit_status }) => {
+                output.record_status(exit_status as i32)
+            }
+            Some(ChannelMsg::Eof) => output.record_eof(),
+            Some(ChannelMsg::Close) | None => {
+                output.finish();
+                break;
+            }
+            _ => {}
+        }
+        if output.ready_to_finish() {
+            output.finish();
+            break;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::terminal::output::OutputSink;
+    use std::sync::Mutex as StdMutex;
+    use std::time::Duration;
+    #[derive(Default)]
+    struct Sink(StdMutex<Vec<String>>);
+    impl OutputSink for Sink {
+        fn output(&self, data: &str) -> Result<(), String> {
+            self.0.lock().unwrap().push(format!("out:{data}"));
+            Ok(())
+        }
+        fn exit(&self, code: Option<i32>) -> Result<(), String> {
+            self.0.lock().unwrap().push(format!("exit:{code:?}"));
+            Ok(())
+        }
+    }
+    struct Messages {
+        messages: std::collections::VecDeque<ChannelMsg>,
+        stay_open: bool,
+    }
+    impl ChannelReader for Messages {
+        async fn next(&mut self) -> Option<ChannelMsg> {
+            if let Some(msg) = self.messages.pop_front() {
+                return Some(msg);
+            }
+            if self.stay_open {
+                std::future::pending().await
+            } else {
+                None
+            }
+        }
+    }
+    #[tokio::test]
+    async fn eof_before_exit_status_is_a_half_close() {
+        let sink = Arc::new(Sink::default());
+        let output = SessionOutput::new(sink.clone());
+        output.attach().unwrap();
+        let mut messages = Messages {
+            messages: std::collections::VecDeque::from([
+                ChannelMsg::Data {
+                    data: b"last".to_vec().into(),
+                },
+                ChannelMsg::Eof,
+                ChannelMsg::ExitStatus { exit_status: 9 },
+            ]),
+            stay_open: false,
+        };
+        run_reader(&output, &mut messages).await;
+        assert_eq!(*sink.0.lock().unwrap(), ["out:last", "exit:Some(9)"]);
+    }
+    #[tokio::test]
+    async fn status_drains_later_data_and_open_channel_has_a_bounded_exit() {
+        let sink = Arc::new(Sink::default());
+        let output = SessionOutput::new(sink.clone());
+        output.attach().unwrap();
+        let mut messages = Messages {
+            messages: std::collections::VecDeque::from([
+                ChannelMsg::ExitStatus { exit_status: 3 },
+                ChannelMsg::Data {
+                    data: b"after status".to_vec().into(),
+                },
+            ]),
+            stay_open: true,
+        };
+        tokio::time::timeout(Duration::from_secs(2), run_reader(&output, &mut messages))
+            .await
+            .unwrap();
+        assert_eq!(
+            *sink.0.lock().unwrap(),
+            ["out:after status", "exit:Some(3)"]
+        );
+    }
+    #[tokio::test]
+    async fn kill_wakes_a_blocked_remote_reader() {
+        let output = SessionOutput::new(Arc::new(Sink::default()));
+        let reader = output.clone();
+        let task = tokio::spawn(async move {
+            run_reader(
+                &reader,
+                &mut Messages {
+                    messages: std::collections::VecDeque::new(),
+                    stay_open: true,
+                },
+            )
+            .await;
+        });
+        tokio::task::yield_now().await;
+        output.cancel();
+        tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap();
+    }
 }

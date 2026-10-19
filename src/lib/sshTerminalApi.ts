@@ -34,3 +34,7 @@ export function sshTerminalKill(sessionId: string): Promise<void> {
 export function sshTerminalKillAll(): Promise<void> {
   return invoke("ssh_terminal_kill_all");
 }
+
+export function attachSshTerminalOutput(sessionId: string): Promise<{ ended: boolean }> {
+  return invoke("ssh_terminal_attach_output", { sessionId });
+}

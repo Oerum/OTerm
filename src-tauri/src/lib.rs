@@ -68,12 +68,12 @@ use ssh_sftp::commands::{
 };
 use ssh_sftp::session::SftpManager;
 use ssh_terminal::commands::{
-    ssh_terminal_kill, ssh_terminal_kill_all, ssh_terminal_resize, ssh_terminal_spawn,
-    ssh_terminal_write,
+    ssh_terminal_attach_output, ssh_terminal_kill, ssh_terminal_kill_all, ssh_terminal_resize,
+    ssh_terminal_spawn, ssh_terminal_write,
 };
 use ssh_terminal::SshTerminalManager;
 use terminal::commands::{
-    terminal_default_shell_id, terminal_drain_output, terminal_kill, terminal_kill_all,
+    terminal_attach_output, terminal_default_shell_id, terminal_kill, terminal_kill_all,
     terminal_list_shells, terminal_query_active_agent, terminal_resize, terminal_spawn,
     terminal_write,
 };
@@ -186,7 +186,7 @@ pub fn run() {
             terminal_resize,
             terminal_kill,
             terminal_kill_all,
-            terminal_drain_output,
+            terminal_attach_output,
             terminal_query_active_agent,
             fs_list_directory,
             fs_user_home,
@@ -301,6 +301,7 @@ pub fn run() {
             ssh_sftp_download,
             ssh_sftp_upload,
             ssh_terminal_spawn,
+            ssh_terminal_attach_output,
             ssh_terminal_write,
             ssh_terminal_resize,
             ssh_terminal_kill,

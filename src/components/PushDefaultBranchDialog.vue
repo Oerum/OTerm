@@ -18,7 +18,7 @@ useDialogEscapeFocus(() => props.open, () => emit("cancel"), "push-default-dialo
 <template>
   <div
     v-if="open"
-    class="absolute inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-[2px]"
+    class="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
     @click.self="emit('cancel')"
   >
     <div

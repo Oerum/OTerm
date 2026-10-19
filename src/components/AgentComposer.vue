@@ -552,7 +552,7 @@ defineExpose({
     @mousedown.stop
   >
     <div
-      class="mx-auto flex w-full max-w-4xl flex-col gap-2 overflow-hidden rounded-2xl border bg-[var(--oterm-bg)] px-3 py-2.5 transition-all duration-200"
+      class="mx-auto flex w-full max-w-4xl flex-col gap-2 overflow-hidden rounded-2xl border bg-[var(--oterm-bg)] px-3 py-2.5 transition-colors duration-150"
       :class="[
         dragActive 
           ? 'border-[var(--oterm-accent)] ring-1 ring-[var(--oterm-accent)]/20 shadow-[0_0_15px_rgba(0,229,186,0.15)]' 
@@ -579,7 +579,7 @@ defineExpose({
       <!-- Mention Autocomplete Popover -->
       <div
         v-if="mentionActive"
-        class="relative z-30 flex max-h-60 w-full flex-col overflow-hidden rounded-xl border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.45)] backdrop-blur-md"
+        class="relative z-30 flex max-h-60 w-full flex-col overflow-hidden rounded-xl border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
       >
         <div class="flex items-center justify-between px-2.5 py-1.5 text-[11px] font-medium text-[var(--oterm-faint)] border-b border-[var(--oterm-border)]/50">
           <span class="flex items-center gap-1.5">

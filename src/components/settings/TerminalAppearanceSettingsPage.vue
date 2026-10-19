@@ -10,7 +10,7 @@ import {
   setThemeAppChromeEnabled,
   useTerminalAppearanceSettings,
 } from "../../lib/terminalAppearanceSettings";
-import { BUILTIN_TERMINAL_THEMES } from "../../lib/terminalThemes";
+import { BUILTIN_TERMINAL_THEMES, cloneTerminalTheme } from "../../lib/terminalThemes";
 import type { TerminalTheme } from "../../types/terminalTheme";
 
 const {
@@ -26,7 +26,7 @@ const {
   importTheme,
 } = useTerminalAppearanceSettings();
 
-const draft = ref<TerminalTheme>(structuredClone(activeTheme.value));
+const draft = ref<TerminalTheme>(cloneTerminalTheme(activeTheme.value, activeTheme.value.id, activeTheme.value.label));
 const saveError = ref<string | null>(null);
 const themeAppChrome = ref(isThemeAppChromeEnabled());
 
@@ -39,14 +39,14 @@ async function onThemeAppChromeChange(event: Event) {
 watch(
   () => state.value.activeThemeId,
   () => {
-    draft.value = structuredClone(activeTheme.value);
+    draft.value = cloneTerminalTheme(activeTheme.value, activeTheme.value.id, activeTheme.value.label);
   },
 );
 
 watch(
   activeTheme,
   (theme) => {
-    draft.value = structuredClone(theme);
+    draft.value = cloneTerminalTheme(theme, theme.id, theme.label);
   },
   { immediate: true },
 );
@@ -103,16 +103,14 @@ function applyDraft() {
     pushAppToast("Preset applied", "success");
     return;
   }
-  upsertCustomTheme(structuredClone(draft.value));
+  upsertCustomTheme(cloneTerminalTheme(draft.value, draft.value.id, draft.value.label));
   setActiveThemeId(draft.value.id);
   pushAppToast("Theme saved", "success");
 }
 
 function saveAsCustom() {
   const id = `custom-${Date.now()}`;
-  const next = structuredClone(draft.value);
-  next.id = id;
-  next.label = `${draft.value.label} copy`;
+  const next = cloneTerminalTheme(draft.value, id, `${draft.value.label} copy`);
   draft.value = next;
   upsertCustomTheme(next);
   setActiveThemeId(id);
@@ -141,7 +139,7 @@ async function importThemeFile() {
     saveError.value = "Invalid theme file.";
     return;
   }
-  draft.value = structuredClone(theme);
+  draft.value = cloneTerminalTheme(theme, theme.id, theme.label);
   setActiveThemeId(theme.id);
   saveError.value = null;
   pushAppToast("Theme imported", "success");
@@ -150,19 +148,19 @@ async function importThemeFile() {
 function onDuplicatePreset() {
   const id = `custom-${Date.now()}`;
   duplicateTheme(draft.value.id, id, `${draft.value.label} copy`);
-  draft.value = structuredClone(activeTheme.value);
+  draft.value = cloneTerminalTheme(activeTheme.value, activeTheme.value.id, activeTheme.value.label);
 }
 
 function onResetDefaults() {
   resetToDefaults();
-  draft.value = structuredClone(activeTheme.value);
+  draft.value = cloneTerminalTheme(activeTheme.value, activeTheme.value.id, activeTheme.value.label);
   pushAppToast("Terminal appearance reset", "success");
 }
 
 function onRemoveCustom() {
   if (isBuiltin.value) return;
   removeCustomTheme(draft.value.id);
-  draft.value = structuredClone(activeTheme.value);
+  draft.value = cloneTerminalTheme(activeTheme.value, activeTheme.value.id, activeTheme.value.label);
 }
 </script>
 
@@ -256,7 +254,7 @@ function onRemoveCustom() {
     <div class="flex flex-wrap gap-2">
       <button
         type="button"
-        class="rounded-md bg-[var(--oterm-accent)] px-3 py-1.5 text-sm font-medium text-black focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
+        class="rounded-md border border-[var(--oterm-accent)] bg-[var(--oterm-accent-dim)] px-3 py-1.5 text-sm font-medium text-[var(--oterm-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-elevated)]"
         @click="applyDraft"
       >
         Apply theme

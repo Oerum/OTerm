@@ -25,7 +25,18 @@ export type CliAgentId =
   | "goose"
   | "hermes"
   | "vibe"
-  | "agy";
+  | "agy"
+  | "cline"
+  | "aider"
+  | "kilo"
+  | "kimi"
+  | "kiro"
+  | "qwen"
+  | "continue"
+  | "codebuff"
+  | "crush"
+  | "rovodev"
+  | "omp";
 
 export interface CliAgentDefinition {
   id: CliAgentId;
@@ -33,7 +44,9 @@ export interface CliAgentDefinition {
   displayName: string;
   brandColor: string;
   logoFile: string | null;
-  /** Substring hints for npx/pnpm/bunx package invocations */
+  launchCommand?: string;
+  docsUrl?: string;
+  /** Exact package names for supported package runners. */
   packageHints: readonly string[];
 }
 
@@ -44,7 +57,7 @@ export const CLI_AGENTS: readonly CliAgentDefinition[] = [
     displayName: "Claude Code",
     brandColor: "#D97757",
     logoFile: claudeLogo,
-    packageHints: ["claude"],
+    packageHints: ["claude", "@anthropic-ai/claude-code"],
   },
   {
     id: "gemini",
@@ -52,7 +65,7 @@ export const CLI_AGENTS: readonly CliAgentDefinition[] = [
     displayName: "Gemini",
     brandColor: "#4285F4",
     logoFile: geminiLogo,
-    packageHints: ["gemini"],
+    packageHints: ["gemini", "@google/gemini-cli"],
   },
   {
     id: "agy",
@@ -68,7 +81,7 @@ export const CLI_AGENTS: readonly CliAgentDefinition[] = [
     displayName: "Codex",
     brandColor: "#000000",
     logoFile: openaiLogo,
-    packageHints: ["codex"],
+    packageHints: ["codex", "@openai/codex"],
   },
   {
     id: "opencode",
@@ -76,7 +89,7 @@ export const CLI_AGENTS: readonly CliAgentDefinition[] = [
     displayName: "OpenCode",
     brandColor: "#808080",
     logoFile: opencodeLogo,
-    packageHints: ["opencode"],
+    packageHints: ["opencode", "opencode-ai"],
   },
   {
     id: "copilot",
@@ -84,7 +97,7 @@ export const CLI_AGENTS: readonly CliAgentDefinition[] = [
     displayName: "Copilot",
     brandColor: "#8534F3",
     logoFile: copilotLogo,
-    packageHints: ["copilot"],
+    packageHints: ["copilot", "@github/copilot"],
   },
   {
     id: "cursor",
@@ -100,7 +113,7 @@ export const CLI_AGENTS: readonly CliAgentDefinition[] = [
     displayName: "Amp",
     brandColor: "#F34E3F",
     logoFile: ampLogo,
-    packageHints: ["amp"],
+    packageHints: ["amp", "@sourcegraph/amp"],
   },
   {
     id: "droid",
@@ -116,7 +129,7 @@ export const CLI_AGENTS: readonly CliAgentDefinition[] = [
     displayName: "Pi",
     brandColor: "#FFFFFF",
     logoFile: piLogo,
-    packageHints: ["pi"],
+    packageHints: ["pi", "@mariozechner/pi-coding-agent", "@earendil-works/pi-coding-agent"],
   },
   {
     id: "auggie",
@@ -124,7 +137,7 @@ export const CLI_AGENTS: readonly CliAgentDefinition[] = [
     displayName: "Auggie",
     brandColor: "#FFFFFF",
     logoFile: auggieLogo,
-    packageHints: ["auggie"],
+    packageHints: ["auggie", "@augmentcode/auggie"],
   },
   {
     id: "goose",
@@ -150,6 +163,106 @@ export const CLI_AGENTS: readonly CliAgentDefinition[] = [
     logoFile: null,
     packageHints: ["vibe"],
   },
+  {
+    id: "cline",
+    commandPrefixes: ["cline"],
+    displayName: "Cline",
+    brandColor: "#808080",
+    logoFile: null,
+    packageHints: ["cline"],
+    docsUrl: "https://docs.cline.bot/getting-started/installing-cline",
+  },
+  {
+    id: "aider",
+    commandPrefixes: ["aider"],
+    displayName: "Aider",
+    brandColor: "#808080",
+    logoFile: null,
+    packageHints: ["aider", "aider-chat"],
+    docsUrl: "https://aider.chat/docs/install.html",
+  },
+  {
+    id: "kilo",
+    commandPrefixes: ["kilo"],
+    displayName: "Kilo Code",
+    brandColor: "#808080",
+    logoFile: null,
+    packageHints: ["kilo", "@kilocode/cli"],
+    docsUrl: "https://kilo.ai/docs/code-with-ai/platforms/cli",
+  },
+  {
+    id: "kimi",
+    commandPrefixes: ["kimi"],
+    displayName: "Kimi Code",
+    brandColor: "#808080",
+    logoFile: null,
+    packageHints: ["kimi", "@moonshot-ai/kimi-code"],
+    docsUrl: "https://moonshotai.github.io/kimi-code/en/guides/getting-started",
+  },
+  {
+    id: "kiro",
+    commandPrefixes: ["kiro-cli"],
+    displayName: "Kiro CLI",
+    brandColor: "#808080",
+    logoFile: null,
+    packageHints: ["kiro-cli"],
+    docsUrl: "https://kiro.dev/docs/cli/reference/cli-commands/",
+  },
+  {
+    id: "qwen",
+    commandPrefixes: ["qwen"],
+    displayName: "Qwen Code",
+    brandColor: "#808080",
+    logoFile: null,
+    packageHints: ["qwen", "@qwen-code/qwen-code"],
+    docsUrl: "https://qwenlm.github.io/qwen-code-docs/en/users/quickstart/",
+  },
+  {
+    id: "continue",
+    commandPrefixes: ["cn"],
+    displayName: "Continue",
+    brandColor: "#808080",
+    logoFile: null,
+    packageHints: ["cn", "@continuedev/cli"],
+    docsUrl: "https://github.com/continuedev/continue/tree/main/extensions/cli",
+  },
+  {
+    id: "codebuff",
+    commandPrefixes: ["codebuff"],
+    displayName: "Codebuff",
+    brandColor: "#808080",
+    logoFile: null,
+    packageHints: ["codebuff"],
+    docsUrl: "https://www.codebuff.com/docs/help/quick-start",
+  },
+  {
+    id: "crush",
+    commandPrefixes: ["crush"],
+    displayName: "Crush",
+    brandColor: "#808080",
+    logoFile: null,
+    packageHints: ["crush", "@charmland/crush"],
+    docsUrl: "https://github.com/charmbracelet/crush",
+  },
+  {
+    id: "rovodev",
+    commandPrefixes: ["acli rovodev run"],
+    displayName: "Rovo Dev",
+    brandColor: "#808080",
+    logoFile: null,
+    packageHints: [],
+    docsUrl: "https://developer.atlassian.com/cloud/acli/guides/how-to-get-started/",
+    launchCommand: "acli rovodev run",
+  },
+  {
+    id: "omp",
+    commandPrefixes: ["omp"],
+    displayName: "oh-my-pi",
+    brandColor: "#808080",
+    logoFile: null,
+    packageHints: ["omp", "@oh-my-pi/pi-coding-agent"],
+    docsUrl: "https://github.com/can1357/oh-my-pi/blob/main/docs/cli-reference.md",
+  },
 ] as const;
 
 const AGENT_BY_PREFIX = new Map<string, CliAgentId>(
@@ -162,60 +275,84 @@ const AGENT_BY_ID = new Map<CliAgentId, CliAgentDefinition>(
   CLI_AGENTS.map((agent) => [agent.id, agent]),
 );
 
-const PACKAGE_RUNNER = /^(?:npx|pnpm(?:\s+dlx)?|bunx|bun)\s+/i;
+export type AgentLaunchRequest = { agentId: CliAgentId; runtime?: "native" | "unsloth" };
 
-function firstToken(command: string): string {
-  return command.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+const UNSLOTH_TARGETS = new Set<CliAgentId>(["claude", "codex", "opencode", "hermes", "pi"]);
+const UNSLOTH_PERSIST = new Set<CliAgentId>(["codex", "hermes", "pi"]);
+
+export function supportsUnslothRuntime(agentId: CliAgentId): boolean {
+  return UNSLOTH_TARGETS.has(agentId);
 }
 
-function isHintBoundaryChar(char: string | undefined): boolean {
-  return char === undefined || !/[a-z0-9]/i.test(char);
-}
-
-/** Earliest token-boundary match so `pi` does not match inside `anthropic`. */
-function hintIndexInCommand(command: string, hint: string): number {
-  const lower = command.toLowerCase();
-  let start = 0;
-
-  while (start <= lower.length - hint.length) {
-    const index = lower.indexOf(hint, start);
-    if (index === -1) return -1;
-
-    const before = index > 0 ? lower[index - 1] : undefined;
-    const after =
-      index + hint.length < lower.length ? lower[index + hint.length] : undefined;
-
-    if (isHintBoundaryChar(before) && isHintBoundaryChar(after)) {
-      return index;
-    }
-
-    start = index + 1;
+export function buildAgentLaunchCommand(request: AgentLaunchRequest): string {
+  const agent = AGENT_BY_ID.get(request.agentId);
+  if (!agent) throw new Error("Unknown CLI agent");
+  if (request.runtime === "unsloth") {
+    if (!supportsUnslothRuntime(agent.id)) throw new Error("Unsupported Unsloth agent");
+    return `unsloth start ${agent.id}${UNSLOTH_PERSIST.has(agent.id) ? " --persist" : ""}`;
   }
-
-  return -1;
+  if (request.runtime && request.runtime !== "native") throw new Error("Unknown agent runtime");
+  return agent.launchCommand ?? agent.commandPrefixes[0]!;
 }
 
-/** Prefer the agent whose package hint appears earliest (e.g. `bun agy --model gemini` → agy). */
-function detectAgentFromPackageRunner(command: string): CliAgentId | null {
-  const lower = command.toLowerCase();
-  let best: { index: number; hintLength: number; id: CliAgentId } | null = null;
+function executableStem(token: string): string {
+  return (token.split(/[\\/]/).pop() ?? token).toLowerCase().replace(/\.(?:exe|cmd|bat|com)$/i, "");
+}
 
-  for (const agent of CLI_AGENTS) {
-    for (const hint of agent.packageHints) {
-      const index = hintIndexInCommand(lower, hint);
-      if (index === -1) continue;
-      const hintLength = hint.length;
-      const isBetter =
-        !best ||
-        index < best.index ||
-        (index === best.index && hintLength > best.hintLength);
-      if (isBetter) {
-        best = { index, hintLength, id: agent.id };
-      }
-    }
+function packageAgent(token: string): CliAgentId | null {
+  const packageName = token.toLowerCase().replace(/^(?:(@[^/]+\/[^@/]+)|([^@/]+))@.+$/, "$1$2");
+  return CLI_AGENTS.find((agent) => agent.packageHints.includes(packageName))?.id ?? null;
+}
+
+function scriptAgent(token: string): CliAgentId | null {
+  const path = token.toLowerCase().replace(/\\/g, "/");
+  const parts = path.split("/");
+  const base = parts[parts.length - 1] ?? "";
+  const direct = AGENT_BY_PREFIX.get(executableStem(base).replace(/\.(?:[cm]?js|py)$/, ""));
+  if (direct) return direct;
+  const moduleIndex = parts.lastIndexOf("node_modules");
+  if (moduleIndex >= 0) {
+    const root = parts[moduleIndex + 1] ?? "";
+    const name = root.startsWith("@") ? `${root}/${parts[moduleIndex + 2] ?? ""}` : root;
+    return packageAgent(name);
   }
+  const scopeIndex = parts.findIndex((part) => part.startsWith("@"));
+  if (scopeIndex >= 0) return packageAgent(`${parts[scopeIndex]}/${parts[scopeIndex + 1] ?? ""}`);
+  const directory = parts[parts.length - 2] ?? "";
+  if (directory === "agy" && base === "cli.js") return "agy";
+  return directory === "aider" && base === "__main__.py" ? "aider" : null;
+}
 
-  return best?.id ?? null;
+function detectAgentTokens(tokens: string[]): CliAgentId | null {
+  const first = executableStem(tokens[0] ?? "");
+  if (first === "unsloth") {
+    const id = tokens[2] as CliAgentId;
+    return tokens[1] === "start" && supportsUnslothRuntime(id) ? id : null;
+  }
+  if (first === "acli") return tokens[1] === "rovodev" && tokens[2] === "run" ? "rovodev" : null;
+  const direct = AGENT_BY_PREFIX.get(first);
+  if (direct) return direct;
+  if (["npx", "bunx"].includes(first)) {
+    let index = 1;
+    while (["-y", "--yes", "--no-install", "--"].includes(tokens[index] ?? "")) index++;
+    return packageAgent(tokens[index] ?? "");
+  }
+  if (first === "pnpm" || first === "npm") {
+    const action = tokens[1];
+    if (first === "pnpm" && action === "dlx") return packageAgent(tokens[2] ?? "");
+    if (action === "exec") return packageAgent(tokens[tokens[2] === "--" ? 3 : 2] ?? "");
+    return null;
+  }
+  if (["node", "nodejs", "bun", "deno"].includes(first)) {
+    let index = 1;
+    if (["run", "--"].includes(tokens[index] ?? "")) index++;
+    while (["--require", "-r", "--import", "--loader"].includes(tokens[index] ?? "")) index += 2;
+    return scriptAgent(tokens[index] ?? "") ?? (first === "bun" ? packageAgent(tokens[index] ?? "") : null);
+  }
+  if (/^python(?:3(?:\.\d+)?)?$/.test(first)) {
+    return tokens[1] === "-m" ? packageAgent(tokens[2] ?? "") : scriptAgent(tokens[1] ?? "");
+  }
+  return null;
 }
 
 export function getCliAgentDefinition(id: CliAgentId): CliAgentDefinition {
@@ -223,18 +360,11 @@ export function getCliAgentDefinition(id: CliAgentId): CliAgentDefinition {
 }
 
 export function detectCliAgent(command: string): CliAgentId | null {
-  const trimmed = command.trim();
-  if (!trimmed) return null;
-
-  const first = firstToken(trimmed);
-  const direct = AGENT_BY_PREFIX.get(first);
-  if (direct) return direct;
-
-  if (PACKAGE_RUNNER.test(trimmed)) {
-    return detectAgentFromPackageRunner(trimmed);
-  }
-
-  return null;
+  // Only executable/package positions matter; prompt arguments never identify an agent.
+  const tokens = Array.from(command.matchAll(/"([^"\r\n]*)"|'([^'\r\n]*)'|([^\s]+)/g),
+    (match) => match[1] ?? match[2] ?? match[3]!);
+  if (tokens[0] === "&") tokens.shift();
+  return detectAgentTokens(tokens);
 }
 
 export function isAgentLaunchCommand(command: string): boolean {

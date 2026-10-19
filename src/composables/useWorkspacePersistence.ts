@@ -1,10 +1,10 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { onMounted, onUnmounted, watch, type Ref } from "vue";
+import { onMounted, onUnmounted, watch, type WatchStopHandle } from "vue";
 import {
   EMPTY_TERMINAL_WORKSPACE,
   savePersistedTerminalWorkspace,
 } from "../lib/workspaceStore";
-import type { PersistedTerminalWorkspaceV2, WorkspaceTab } from "../types/terminal";
+import type { PersistedTerminalWorkspaceV2 } from "../types/terminal";
 
 const DEBOUNCE_MS = 250;
 const FLUSH_TIMEOUT_MS = 2000;
@@ -15,11 +15,6 @@ type WorkspacePersistenceOptions = {
 };
 
 export function useWorkspacePersistence(
-  tabs: Ref<WorkspaceTab[]>,
-  activeTabId: Ref<string | null>,
-  activePaneId: Ref<string | null>,
-  terminalGroups: Ref<{ id: string; name: string; order: number }[]>,
-  collapsedGroupIds: Ref<string[]>,
   getSnapshot: () => PersistedTerminalWorkspaceV2 | null,
   options: WorkspacePersistenceOptions = {},
 ) {
@@ -27,6 +22,8 @@ export function useWorkspacePersistence(
   let unlistenClose: (() => void) | undefined;
   let flushPromise: Promise<void> | undefined;
   let isClosing = false;
+  let unmounted = false;
+  let stopWatching: WatchStopHandle | undefined;
 
   async function flush() {
     if (flushPromise) return flushPromise;
@@ -77,9 +74,7 @@ export function useWorkspacePersistence(
   }
 
   onMounted(() => {
-    watch([tabs, activeTabId, activePaneId, terminalGroups, collapsedGroupIds], scheduleSave, {
-      deep: true,
-    });
+    stopWatching = watch(getSnapshot, scheduleSave);
 
     void getCurrentWindow()
       .onCloseRequested(async (event) => {
@@ -112,7 +107,8 @@ export function useWorkspacePersistence(
         await destroyWindow();
       })
       .then((unlisten) => {
-        unlistenClose = unlisten;
+        if (unmounted) unlisten();
+        else unlistenClose = unlisten;
       })
       .catch((error) => {
         console.error("oterm: failed to register close handler", error);
@@ -123,6 +119,8 @@ export function useWorkspacePersistence(
   });
 
   onUnmounted(() => {
+    unmounted = true;
+    stopWatching?.();
     if (debounceTimer) clearTimeout(debounceTimer);
     unlistenClose?.();
     window.removeEventListener("pagehide", onPageHide);

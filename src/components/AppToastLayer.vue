@@ -51,7 +51,7 @@ function onDismiss(id: number) {
           v-if="appToastActivity"
           role="status"
           aria-live="polite"
-          class="app-toast-item pointer-events-none flex items-center gap-2 overflow-hidden rounded-lg border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-2 pl-3 pr-3 text-xs text-[var(--oterm-text)] shadow-lg backdrop-blur-sm"
+          class="app-toast-item pointer-events-none flex items-center gap-2 overflow-hidden rounded-lg border border-[var(--oterm-border-strong)] bg-[var(--oterm-elevated)] py-2 pl-3 pr-3 text-xs text-[var(--oterm-text)] shadow-lg"
           style="font-family: var(--oterm-font-ui)"
         >
           <span
@@ -67,7 +67,7 @@ function onDismiss(id: number) {
           v-for="toast in appToasts"
           :key="toast.id"
           role="status"
-          class="app-toast-item pointer-events-auto flex flex-col overflow-hidden rounded-lg border shadow-lg backdrop-blur-sm"
+          class="app-toast-item pointer-events-auto flex flex-col overflow-hidden rounded-lg border shadow-lg"
           :class="variantClass[toast.variant]"
         >
           <div class="flex min-w-0">

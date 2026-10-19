@@ -116,7 +116,7 @@ onUnmounted(() => {
 <template>
   <div
     v-if="open"
-    class="absolute inset-0 z-50 flex min-w-0 items-center justify-center bg-black/55 p-4 backdrop-blur-[2px]"
+    class="absolute inset-0 z-50 flex min-w-0 items-center justify-center bg-black/60 p-4"
     @click.self="emit('cancel')"
   >
     <form

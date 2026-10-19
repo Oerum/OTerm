@@ -74,11 +74,13 @@ import {
   peekPendingSshTerminalLaunch,
 } from "../lib/sshTerminalLaunch";
 import {
+  attachSshTerminalOutput,
   sshTerminalKill,
   sshTerminalResize,
   sshTerminalSpawn,
   sshTerminalWrite,
 } from "../lib/sshTerminalApi";
+import { acceptTerminalSpawn, createTerminalSessionLifecycle } from "../lib/terminalSessionLifecycle";
 import { pushAppToast } from "../lib/appToast";
 import {
   clipboardHasPasteableImage,
@@ -95,7 +97,7 @@ import {
   insertAgentPromptText,
 } from "../lib/agentComposerSubmit";
 import {
-  drainTerminalOutput,
+  attachTerminalOutput,
   killTerminal,
   queryTerminalActiveAgent,
   resizeTerminal,
@@ -167,6 +169,7 @@ const props = defineProps<{
 const isSshSession = computed(() => Boolean(props.sshEndpointId));
 
 async function writeSession(sessionId: string, data: string) {
+  if (!sessionLifecycle.canSend(sessionId, bootstrapGeneration)) return;
   if (isSshSession.value) return sshTerminalWrite(sessionId, data);
   return writeTerminal(sessionId, data);
 }
@@ -227,6 +230,8 @@ function bindSessionId(sessionId: string) {
   bootstrapAwaitingLayout = false;
   launchError.value = null;
   sessionEndedLocally.value = false;
+  hasReceivedTerminalOutput = false;
+  sessionLifecycle.begin(sessionId, bootstrapGeneration);
 }
 
 function activeOutputSessionId(): string | null {
@@ -268,17 +273,23 @@ function writeTerminalOutput(output: string) {
   });
 }
 
-async function replayPendingOutput(sessionId: string) {
-  if (isSshSession.value || !terminal) return;
-  try {
-    const drained = await drainTerminalOutput(sessionId);
-    if (!drained || disposed || localSessionId.value !== sessionId) return;
-    hasReceivedTerminalOutput = true;
-    cancelPromptKick();
-    writeTerminalOutput(prepareTerminalOutput(drained));
-  } catch {
-    // Best-effort replay for output emitted before the listener attached.
+async function attachSessionOutput(sessionId: string, generation: number): Promise<boolean> {
+  const ready = await sessionLifecycle.attach(sessionId, generation,
+    isSshSession.value ? attachSshTerminalOutput : attachTerminalOutput);
+  if (disposed || generation !== bootstrapGeneration || localSessionId.value !== sessionId) {
+    await killBootstrapSession(sessionId);
+    return false;
   }
+  if (ready) maybeSendSshStartupSnippet();
+  return ready;
+}
+
+function maybeSendSshStartupSnippet() {
+  const id = localSessionId.value;
+  if (!id || !sshStartupSnippetPending || !sessionLifecycle.canSendStartup(id, bootstrapGeneration)) return;
+  const snippet = sshStartupSnippetPending;
+  sshStartupSnippetPending = null;
+  void writeSession(id, `${snippet}\r`).catch((error) => pushAppToast(String(error), "error"));
 }
 
 async function spawnTerminalWithTimeout(
@@ -288,11 +299,18 @@ async function spawnTerminalWithTimeout(
   cwd?: string,
 ): Promise<string> {
   let timeoutId: number | undefined;
+  let timedOut = false;
+  const generation = bootstrapGeneration;
   try {
     return await Promise.race([
-      spawnTerminal(shellId, cols, rows, cwd),
+      acceptTerminalSpawn(
+        spawnTerminal(shellId, cols, rows, cwd),
+        () => !timedOut && !disposed && generation === bootstrapGeneration,
+        killBootstrapSession,
+      ),
       new Promise<string>((_, reject) => {
         timeoutId = window.setTimeout(() => {
+          timedOut = true;
           reject(new Error("Shell spawn timed out"));
         }, SPAWN_TIMEOUT_MS);
       }),
@@ -311,6 +329,7 @@ function notifySessionBootstrapping(sessionId: string) {
 
 const emit = defineEmits<{
   sessionCreated: [paneId: string, sessionId: string];
+  sessionLaunchFailed: [paneId: string, message: string];
   sessionBootstrapping: [paneId: string, sessionId: string];
   sessionEnded: [paneId: string];
   sessionReleased: [paneId: string];
@@ -648,6 +667,12 @@ let pathCopiedTimer: number | undefined;
 let terminalContextMenuHandler: ((event: MouseEvent) => void) | null = null;
 let sessionBootstrap: Promise<void> | null = null;
 let disposed = false;
+const sessionLifecycle = createTerminalSessionLifecycle(
+  (id, generation) => !disposed && generation === bootstrapGeneration && localSessionId.value === id,
+  (done) => terminal?.write("", done),
+);
+let restoredSessionId: string | null = null;
+let pendingInputFlush: Promise<void> | null = null;
 let bootstrapGeneration = 0;
 let bootstrappingSessionId: string | null = null;
 let sshExitFallbackTimer: number | undefined;
@@ -1045,10 +1070,9 @@ function cancelPromptKick() {
 
 function schedulePromptKick(sessionId: string) {
   cancelPromptKick();
-  hasReceivedTerminalOutput = false;
   promptKickTimer = window.setTimeout(() => {
     promptKickTimer = undefined;
-    if (disposed || localSessionId.value !== sessionId || !terminal) return;
+    if (!sessionLifecycle.canSend(sessionId, bootstrapGeneration) || !terminal) return;
     if (hasReceivedTerminalOutput || !isTerminalBufferEmpty()) return;
     void writeSession(sessionId, "\r");
   }, PROMPT_KICK_DELAY_MS);
@@ -1140,17 +1164,17 @@ async function ensureSshSession() {
   while (true) {
     if (disposed || generation !== bootstrapGeneration) return;
     try {
-      const sessionId = await sshTerminalSpawn(
-        request,
-        terminal.cols,
-        terminal.rows,
-        null,
+      const sessionId = await acceptTerminalSpawn(
+        sshTerminalSpawn(request, terminal.cols, terminal.rows, null),
+        () => !disposed && generation === bootstrapGeneration,
+        killBootstrapSession,
       );
       if (disposed || generation !== bootstrapGeneration) {
         await killBackendSession(sessionId);
         return;
       }
       bindSessionId(sessionId);
+      if (!await attachSessionOutput(sessionId, generation)) return;
       bootstrapComplete.value = true;
       launchError.value = null;
       emit("sessionCreated", props.paneId, sessionId);
@@ -1170,11 +1194,16 @@ async function ensureSshSession() {
 }
 
 async function flushPendingBootstrapInput() {
-  if (!localSessionId.value || pendingBootstrapInput.length === 0) return;
-  const queued = pendingBootstrapInput.splice(0);
-  for (const chunk of queued) {
-    await writeSession(localSessionId.value, chunk);
-  }
+  if (pendingInputFlush) return pendingInputFlush;
+  const id = localSessionId.value;
+  const generation = bootstrapGeneration;
+  if (!id || !sessionLifecycle.canSend(id, generation)) return;
+  pendingInputFlush = (async () => {
+    while (pendingBootstrapInput.length && sessionLifecycle.canSend(id, generation)) {
+      await writeSession(id, pendingBootstrapInput.shift()!);
+    }
+  })().finally(() => { pendingInputFlush = null; });
+  return pendingInputFlush;
 }
 
 async function bootstrapSession() {
@@ -1203,9 +1232,16 @@ async function bootstrapSession() {
       launchError.value = null;
       await nextTick();
       fitAddon!.fit();
-      if (isSshSession.value) {
+      if (restoredSessionId) {
+        const sessionId = restoredSessionId;
+        restoredSessionId = null;
+        bindSessionId(sessionId);
+        if (!await attachSessionOutput(sessionId, generation)) return;
+        bootstrapComplete.value = true;
+        emit("sessionCreated", props.paneId, sessionId);
+      } else if (isSshSession.value) {
         await ensureSshSession();
-        if (localSessionId.value) {
+        if (localSessionId.value && sessionLifecycle.canSend(localSessionId.value, generation)) {
           bootstrapComplete.value = true;
         }
       } else {
@@ -1224,6 +1260,7 @@ async function bootstrapSession() {
             if (layoutWaitFrames >= PTY_LAYOUT_WAIT_MAX_FRAMES) {
               bootstrapAwaitingLayout = true;
               launchError.value = "Terminal layout not ready";
+              emit("sessionLaunchFailed", props.paneId, launchError.value);
               break;
             }
             await new Promise<void>((resolve) => {
@@ -1242,8 +1279,10 @@ async function bootstrapSession() {
               cwd,
             );
           } catch (err) {
+            if (disposed || generation !== bootstrapGeneration) break;
             const message = err instanceof Error ? err.message : String(err);
             launchError.value = message;
+            emit("sessionLaunchFailed", props.paneId, message);
             if (message.includes("timed out")) {
               bootstrapAwaitingLayout = true;
             }
@@ -1262,7 +1301,7 @@ async function bootstrapSession() {
             break;
           }
           bindSessionId(sessionId);
-          await replayPendingOutput(sessionId);
+          if (!await attachSessionOutput(sessionId, generation)) break;
           bootstrapComplete.value = true;
           emit("sessionCreated", props.paneId, sessionId);
           schedulePromptKick(sessionId);
@@ -1271,21 +1310,29 @@ async function bootstrapSession() {
       }
       await flushPendingBootstrapInput();
     } catch (err) {
+      if (disposed || generation !== bootstrapGeneration) return;
       pendingBootstrapInput.length = 0;
+      const failedSessionId = resolveSessionIdToKill();
+      localSessionId.value = null;
+      backendSessionId.value = null;
       bootstrappingSessionId = null;
+      await killBackendSessionIfPresent(failedSessionId);
       bootstrapComplete.value = false;
       bootstrapAwaitingLayout = false;
       const message = err instanceof Error ? err.message : String(err);
       launchError.value = message;
+      emit("sessionLaunchFailed", props.paneId, message);
       terminal?.writeln(`\r\n[launch failed] ${message}`);
+      pushAppToast(`Terminal launch failed: ${message}`, "error");
     } finally {
-      sessionBootstrap = null;
+      if (generation === bootstrapGeneration) sessionBootstrap = null;
       const shouldRetry =
         !disposed &&
         props.tabActive &&
         generation === bootstrapGeneration &&
         !localSessionId.value &&
         !sessionEndedLocally.value &&
+        !launchError.value &&
         !isBootstrapBlocked();
       if (shouldRetry) {
         void bootstrapSession();
@@ -1421,7 +1468,7 @@ function maybeRecordCommand(data: string, preferredLine = "") {
 }
 
 async function forwardTerminalInput(data: string) {
-  if (disposed) return;
+  if (disposed || sessionLifecycle.isEnding()) return;
 
   const isEnter = /[\r\n]/.test(data);
   const commandLine = resolveEnterCommandLine(isEnter);
@@ -1436,7 +1483,7 @@ async function forwardTerminalInput(data: string) {
 
   const payload = maybeAugmentEnterPayload(data, commandLine);
 
-  if (localSessionId.value) {
+  if (localSessionId.value && sessionLifecycle.canSend(localSessionId.value, bootstrapGeneration)) {
     await writeSession(localSessionId.value, payload);
     if (isEnter && !isSshSession.value) {
       void syncActiveAgentFromProcess();
@@ -1877,14 +1924,11 @@ function handleCustomTerminalKeyEvent(event: KeyboardEvent): boolean {
 }
 
 function onTerminalOutputEvent(event: { payload: TerminalOutputEvent }) {
-  if (event.payload.sessionId !== activeOutputSessionId() || !terminal) return;
+  if (disposed || event.payload.sessionId !== activeOutputSessionId() || !terminal) return;
   hasReceivedTerminalOutput = true;
   cancelPromptKick();
-  if (sshStartupSnippetPending) {
-    const snippet = sshStartupSnippetPending;
-    sshStartupSnippetPending = null;
-    void writeSession(event.payload.sessionId, `${snippet}\r`);
-  }
+  sessionLifecycle.noteOutput(event.payload.sessionId, bootstrapGeneration);
+  maybeSendSshStartupSnippet();
   if (capturingResponse) responseBuffer += event.payload.data;
   writeTerminalOutput(prepareTerminalOutput(event.payload.data));
 }
@@ -1899,31 +1943,37 @@ function onTerminalExitEvent(event: { payload: TerminalExitEvent }) {
     backendSessionId.value ?? localSessionId.value ?? bootstrappingSessionId;
   if (event.payload.sessionId !== activeSessionId || !terminal) return;
 
-  disposed = true;
-  sessionEndedLocally.value = true;
-  bootstrapGeneration += 1;
+  const generation = bootstrapGeneration;
   pendingBootstrapInput.length = 0;
-  window.clearTimeout(sshExitFallbackTimer);
-  clearPendingAgentExitMarker();
-  const endedAgentId = activeAgentId.value;
-  if (endedAgentId) {
-    notifyAgentEnded(props.paneId, endedAgentId, "session_ended", {
-      exitCode: event.payload.exitCode,
-    });
-  }
-  resetAgentStatusTracking();
-  setActiveAgent(null);
-  agentExitConfirmPending.value = false;
-  promptClearSuppressUntil.value = 0;
-  tuiModeActive.value = false;
-  clearPathDecorations();
-  localSessionId.value = null;
-  backendSessionId.value = null;
-  bootstrappingSessionId = null;
-  bootstrapComplete.value = false;
-  void killBackendSessionIfPresent(event.payload.sessionId);
-  emit("oscTitleChanged", props.paneId, null);
-  emit("sessionEnded", props.paneId);
+  sshStartupSnippetPending = null;
+  cancelPromptKick();
+  sessionLifecycle.end(event.payload.sessionId, generation, () => {
+    disposed = true;
+    sessionEndedLocally.value = true;
+    bootstrapGeneration += 1;
+    pendingBootstrapInput.length = 0;
+    window.clearTimeout(sshExitFallbackTimer);
+    clearPendingAgentExitMarker();
+    const endedAgentId = activeAgentId.value;
+    if (endedAgentId) {
+      notifyAgentEnded(props.paneId, endedAgentId, "session_ended", {
+        exitCode: event.payload.exitCode,
+      });
+    }
+    resetAgentStatusTracking();
+    setActiveAgent(null);
+    agentExitConfirmPending.value = false;
+    promptClearSuppressUntil.value = 0;
+    tuiModeActive.value = false;
+    clearPathDecorations();
+    localSessionId.value = null;
+    backendSessionId.value = null;
+    bootstrappingSessionId = null;
+    bootstrapComplete.value = false;
+    void killBackendSessionIfPresent(event.payload.sessionId);
+    emit("oscTitleChanged", props.paneId, null);
+    emit("sessionEnded", props.paneId);
+  });
 }
 
 async function bindTerminalEventListeners() {
@@ -2075,10 +2125,7 @@ onMounted(async () => {
   bootstrapAwaitingLayout = false;
   launchError.value = null;
   bootstrappingSessionId = null;
-  if (props.sessionId) {
-    await killBackendSessionIfPresent(props.sessionId);
-    emit("sessionReleased", props.paneId);
-  }
+  restoredSessionId = props.sessionId;
   await nextTick();
   window.addEventListener("keydown", onWindowKeyCapture, true);
   window.addEventListener("paste", onWindowPasteCapture, true);

@@ -19,7 +19,7 @@ export function useDialogEscapeFocus(
       window.setTimeout(() => {
         document.getElementById(focusId)?.focus();
       }, 0);
-    });
+    }, { immediate: true });
   }
 
   onMounted(() => window.addEventListener("keydown", onKeyDown));

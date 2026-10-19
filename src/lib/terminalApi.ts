@@ -43,8 +43,8 @@ export function killAllTerminals(): Promise<void> {
   return invoke("terminal_kill_all");
 }
 
-export function drainTerminalOutput(sessionId: string): Promise<string> {
-  return invoke<string>("terminal_drain_output", { sessionId });
+export function attachTerminalOutput(sessionId: string): Promise<{ ended: boolean }> {
+  return invoke("terminal_attach_output", { sessionId });
 }
 
 export function queryTerminalActiveAgent(

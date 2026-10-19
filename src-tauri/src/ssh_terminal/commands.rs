@@ -48,3 +48,11 @@ pub async fn ssh_terminal_kill_all(manager: State<'_, SshTerminalManager>) -> Re
     manager.kill_all().await;
     Ok(())
 }
+
+#[tauri::command]
+pub async fn ssh_terminal_attach_output(
+    manager: State<'_, SshTerminalManager>,
+    session_id: String,
+) -> Result<crate::terminal::output::Attachment, String> {
+    manager.attach_output(&session_id).await
+}

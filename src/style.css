@@ -9,14 +9,15 @@
   --oterm-bg: #090a0f;
   --oterm-panel: #0e1017;
   --oterm-elevated: #161822;
-  --oterm-line: rgba(255, 255, 255, 0.05);
-  --oterm-border: rgba(255, 255, 255, 0.045);
-  --oterm-border-strong: rgba(255, 255, 255, 0.095);
+  --oterm-surface: var(--oterm-elevated);
+  --oterm-line: rgba(255, 255, 255, 0.08);
+  --oterm-border: rgba(255, 255, 255, 0.085);
+  --oterm-border-strong: rgba(255, 255, 255, 0.16);
   --oterm-text: #f1f5f9;
   --oterm-muted: #94a3b8;
-  --oterm-faint: #475569;
+  --oterm-faint: #818fa3;
   --oterm-accent: #00e5ba;
-  --oterm-accent-dim: rgba(0, 229, 186, 0.08);
+  --oterm-accent-dim: color-mix(in srgb, var(--oterm-accent) 12%, transparent);
   --oterm-danger: #ef4444;
   --oterm-titlebar: #07080c;
   --oterm-sidebar: #07080c;
@@ -64,20 +65,19 @@ body,
 }
 
 body {
-  background: radial-gradient(circle at 10% 20%, #0e101a 0%, #06070a 90%);
+  background: var(--oterm-bg);
   color: var(--oterm-text);
   font-family: var(--oterm-font-ui);
   -webkit-font-smoothing: antialiased;
 }
 
 .oterm-app {
-  background: radial-gradient(circle at top right, #0f111a, #07080c);
+  background: var(--oterm-bg);
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 
-    0 30px 70px rgba(0, 0, 0, 0.75), 
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 1px 1px 0 rgba(255, 255, 255, 0.1) inset;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.65),
+    0 0 0 1px var(--oterm-border);
 }
 
 .xterm,
@@ -267,7 +267,7 @@ body {
 .terminal-window-container {
   position: relative;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 
+  box-shadow:
     0 10px 30px -10px rgba(0, 0, 0, 0.5),
     0 1px 1px 0 rgba(255, 255, 255, 0.05) inset;
   transition: border-color var(--term-transition), box-shadow var(--term-transition);
@@ -279,7 +279,7 @@ body {
 
 .terminal-window-container--active {
   border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 
+  box-shadow:
     0 12px 35px -10px rgba(0, 0, 0, 0.6),
     0 1px 1px 0 rgba(255, 255, 255, 0.08) inset;
 }
@@ -338,51 +338,47 @@ body {
    OTerm Premium UI Additions
    ========================================================================== */
 
-/* Glassmorphism utility for floating UI, modals, popovers */
+/* Clean matte panel utility for floating UI, modals, popovers */
 .glass-panel {
-  background: rgba(15, 17, 26, 0.75) !important;
-  backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.065) !important;
-  box-shadow: 
-    0 10px 35px -8px rgba(0, 0, 0, 0.65), 
-    0 1px 1px 0 rgba(255, 255, 255, 0.05) inset !important;
+  background: var(--oterm-elevated);
+  border: 1px solid var(--oterm-border-strong);
+  box-shadow:
+    0 12px 28px -6px rgba(0, 0, 0, 0.65),
+    0 1px 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 
-/* Smooth, tactile transitions for interactive elements */
+/* Snappy, restrained transitions for interactive buttons */
 .btn-premium {
-  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 
 .btn-premium:hover {
-  transform: translateY(-0.5px);
-  background-color: rgba(255, 255, 255, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.06);
 }
 
 .btn-premium:active {
-  transform: translateY(0) scale(0.96);
-  transition-duration: 60ms !important;
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .btn-premium:focus-visible {
-  outline: none !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--oterm-accent) 50%, transparent) !important;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--oterm-accent);
 }
 
 /* Sidebar lists custom headers */
 .sidebar-header-tracking {
   letter-spacing: 0.12em;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 /* Pulse glow animation for active agent task state */
 @keyframes accent-pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 10px rgba(0, 229, 186, 0.15);
-    border-color: rgba(0, 229, 186, 0.25);
+    box-shadow: 0 0 6px var(--oterm-accent-dim);
+    border-color: var(--oterm-accent);
   }
   50% {
-    box-shadow: 0 0 20px rgba(0, 229, 186, 0.4);
-    border-color: rgba(0, 229, 186, 0.6);
+    box-shadow: 0 0 12px var(--oterm-accent-dim);
+    border-color: var(--oterm-accent);
   }
 }
 
@@ -399,8 +395,9 @@ textarea {
 
 input[type="text"]:focus,
 input[type="password"]:focus {
-  border-color: rgba(0, 229, 186, 0.45) !important;
-  box-shadow: 0 0 8px rgba(0, 229, 186, 0.15) !important;
+  border-color: var(--oterm-accent) !important;
+  box-shadow: 0 0 0 1px var(--oterm-accent) !important;
+  outline: none;
 }
 
 .agent-composer textarea,
@@ -409,94 +406,82 @@ input[type="password"]:focus {
   box-shadow: none !important;
 }
 
-/* Glassmorphism sidebar & titlebar overrides */
+/* Matte theme-aware sidebar & titlebar */
 .oterm-app aside {
   position: relative;
-  z-index: 30 !important;
-  background: rgba(8, 9, 13, 0.72) !important;
-  backdrop-filter: blur(24px) !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+  z-index: 30;
+  background: var(--oterm-sidebar);
+  border-right: 1px solid var(--oterm-border);
 }
 
 .oterm-app aside.terminal-sidebar {
-  z-index: 35 !important;
+  z-index: 35;
 }
 
 .oterm-app header {
   position: relative;
-  z-index: 40 !important;
-  background: rgba(8, 9, 13, 0.65) !important;
-  backdrop-filter: blur(24px) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  z-index: 40;
+  background: var(--oterm-titlebar);
+  border-bottom: 1px solid var(--oterm-border);
 }
 
 /* Session header below titlebar */
 .oterm-app .drag-region.bg-\[var\(--oterm-panel\)\] {
-  background: rgba(14, 16, 23, 0.5) !important;
-  backdrop-filter: blur(24px) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  background: var(--oterm-panel);
+  border-bottom: 1px solid var(--oterm-border);
 }
 
-/* Auto-elevate all menus, dialogs, tooltips and toast layers to premium glass panels */
+/* Menus, dialogs, tooltips and toast layers */
 .app-toast-item,
 .term-entry-menu,
 .term-group-menu,
 [role="menu"],
 .absolute.border-\[var\(--oterm-border-strong\)\].bg-\[var\(--oterm-elevated\)\],
 .oterm-tooltip {
-  border-color: rgba(255, 255, 255, 0.075) !important;
-  box-shadow: 
-    0 15px 35px -8px rgba(0, 0, 0, 0.7), 
-    0 1px 1px 0 rgba(255, 255, 255, 0.05) inset !important;
-}
-
-.app-toast-item,
-.term-entry-menu,
-.term-group-menu,
-[role="menu"],
-.absolute.border-\[var\(--oterm-border-strong\)\].bg-\[var\(--oterm-elevated\)\] {
-  background: rgba(15, 17, 26, 0.8) !important;
-  backdrop-filter: blur(20px) !important;
+  background: var(--oterm-elevated);
+  border: 1px solid var(--oterm-border-strong);
+  box-shadow:
+    0 12px 28px -6px rgba(0, 0, 0, 0.7),
+    0 1px 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 
 .oterm-app [role="menu"].branch-switcher-menu {
-  background: var(--oterm-elevated) !important;
-  backdrop-filter: none !important;
+  background: var(--oterm-elevated);
 }
 
 .oterm-tooltip {
-  background: rgb(15, 17, 26) !important;
+  background: var(--oterm-elevated);
 }
 
-/* Apply premium treatment to Dialogs / Modals */
+/* Matte neutral Dialogs / Modals */
 .fixed.inset-0.z-50 .bg-\[var\(--oterm-elevated\)\] {
-  background: rgba(15, 17, 26, 0.85) !important;
-  backdrop-filter: blur(24px) !important;
-  border-color: rgba(255, 255, 255, 0.09) !important;
-  box-shadow: 
-    0 30px 60px -15px rgba(0, 0, 0, 0.85), 
-    0 0 0 1px rgba(255, 255, 255, 0.07),
-    0 1px 1px 0 rgba(255, 255, 255, 0.08) inset !important;
+  background: var(--oterm-elevated);
+  border: 1px solid var(--oterm-border-strong);
+  box-shadow:
+    0 24px 50px -12px rgba(0, 0, 0, 0.85),
+    0 0 0 1px var(--oterm-border);
 }
 
-/* Styling dropdown items for a high-end feel */
+/* Styling dropdown items */
 [role="menuitem"],
 .term-entry-menu button:not(.term-color-swatch),
 .term-group-menu button:not(.term-color-swatch) {
-  transition: background-color 150ms cubic-bezier(0.16, 1, 0.3, 1), color 150ms ease !important;
-  border-radius: 6px !important;
-  margin: 2px 4px !important;
-  width: calc(100% - 8px) !important;
+  transition: background-color 100ms ease, color 100ms ease;
+  border-radius: 6px;
+  margin: 2px 4px;
+  width: calc(100% - 8px);
 }
 
 [role="menuitem"]:hover,
+[role="menuitem"]:focus-visible,
 .term-entry-menu button:not(.term-color-swatch):hover,
 .term-group-menu button:not(.term-color-swatch):hover {
-  background-color: rgba(255, 255, 255, 0.07) !important;
-  color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.07);
+  color: var(--oterm-text);
+  outline: none;
 }
 
-/* Premium Tooltip pointer arrow */
+/* Tooltip pointer arrow */
 .oterm-tooltip::before {
   content: "";
   position: absolute;
@@ -505,10 +490,22 @@ input[type="password"]:focus {
   transform: translateX(-50%) rotate(45deg);
   width: 8px;
   height: 8px;
-  background: rgb(15, 17, 26) !important;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--oterm-elevated);
+  border-left: 1px solid var(--oterm-border-strong);
+  border-top: 1px solid var(--oterm-border-strong);
   pointer-events: none;
+}
+
+/* Honor user reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .pr-header-btn {
@@ -587,4 +584,3 @@ input[type="password"]:focus {
   background: rgba(0, 229, 186, 0.08);
   border-color: rgba(0, 229, 186, 0.4);
 }
-

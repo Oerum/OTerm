@@ -18,7 +18,7 @@ const emit = defineEmits<{
 
 <template>
   <div
-    class="absolute inset-0 z-40 flex items-center justify-center bg-black/55 p-4 backdrop-blur-[2px]"
+    class="absolute inset-0 z-40 flex items-center justify-center bg-black/60 p-4"
     @click.self="emit('cancel')"
   >
     <form
