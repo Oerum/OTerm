@@ -54,6 +54,14 @@ export OTERM_WHISPER_BACKEND=cuda
    ```
    *Note: The initial build compiles the native `whisper.cpp` bindings, which can take several minutes. Subsequent compilations are cached and near-instant.*
 
+The checked-in VS Code settings run rust-analyzer's build scripts and checks through
+`scripts/cargo.mjs`. On Windows this shares the Tauri launcher's LLVM and Visual Studio
+header discovery, preventing Whisper from falling back to incompatible bundled bindings.
+After changing these settings, run **rust-analyzer: Restart server** in the command palette.
+For manual native checks, use `node ../scripts/cargo.mjs check --all-targets` from
+`src-tauri/`; other Cargo arguments, including explicit backend features, pass through unchanged.
+The wrapper leaves the native toolchain environment unchanged on macOS and Linux.
+
 ---
 
 ## 🧪 Quality Gates & Testing

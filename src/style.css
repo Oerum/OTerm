@@ -365,27 +365,6 @@ body {
   box-shadow: 0 0 0 2px var(--oterm-accent);
 }
 
-/* Sidebar lists custom headers */
-.sidebar-header-tracking {
-  letter-spacing: 0.12em;
-}
-
-/* Pulse glow animation for active agent task state */
-@keyframes accent-pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 6px var(--oterm-accent-dim);
-    border-color: var(--oterm-accent);
-  }
-  50% {
-    box-shadow: 0 0 12px var(--oterm-accent-dim);
-    border-color: var(--oterm-accent);
-  }
-}
-
-.agent-active-glow {
-  animation: accent-pulse-glow 2s infinite ease-in-out;
-}
-
 /* Refinement to default form inputs */
 input[type="text"],
 input[type="password"],
