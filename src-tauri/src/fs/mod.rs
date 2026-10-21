@@ -3,7 +3,7 @@ pub mod context_menu;
 pub mod gemini_clipboard;
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
+
 use std::time::{Duration, SystemTime};
 
 pub const COMPOSER_ATTACHMENTS_MAX_AGE_DAYS: u64 = 7;
@@ -534,7 +534,7 @@ fn open_solution_with_launcher(
         ));
     }
 
-    Command::new(launcher)
+    crate::process::hidden_command(launcher)
         .arg(solution_path)
         .spawn()
         .map(|_| ())
@@ -738,25 +738,11 @@ pub fn open_in_vscode(path: &Path) -> Result<(), String> {
 
     let launcher = find_vscode_launcher().ok_or_else(|| "VS Code was not found".to_string())?;
 
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let mut cmd = Command::new(&launcher);
-        cmd.arg(path);
-        cmd.creation_flags(0x0800_0000);
-        cmd.spawn()
-            .map(|_| ())
-            .map_err(|err| format!("Could not launch VS Code ({launcher:?}): {err}"))
-    }
-
-    #[cfg(not(windows))]
-    {
-        Command::new(&launcher)
-            .arg(path)
-            .spawn()
-            .map(|_| ())
-            .map_err(|err| format!("Could not launch VS Code ({launcher:?}): {err}"))
-    }
+    crate::process::hidden_command(&launcher)
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|err| format!("Could not launch VS Code ({launcher:?}): {err}"))
 }
 
 pub fn find_cursor_launcher() -> Option<PathBuf> {
@@ -802,25 +788,11 @@ pub fn open_in_cursor(path: &Path) -> Result<(), String> {
 
     let launcher = find_cursor_launcher().ok_or_else(|| "Cursor was not found".to_string())?;
 
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let mut cmd = Command::new(&launcher);
-        cmd.arg(path);
-        cmd.creation_flags(0x0800_0000);
-        cmd.spawn()
-            .map(|_| ())
-            .map_err(|err| format!("Could not launch Cursor ({launcher:?}): {err}"))
-    }
-
-    #[cfg(not(windows))]
-    {
-        Command::new(&launcher)
-            .arg(path)
-            .spawn()
-            .map(|_| ())
-            .map_err(|err| format!("Could not launch Cursor ({launcher:?}): {err}"))
-    }
+    crate::process::hidden_command(&launcher)
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|err| format!("Could not launch Cursor ({launcher:?}): {err}"))
 }
 
 fn intellij_bin_names() -> &'static [&'static str] {
@@ -985,25 +957,11 @@ pub fn open_in_intellij(path: &Path) -> Result<(), String> {
     let launcher =
         find_intellij_launcher().ok_or_else(|| "IntelliJ IDEA was not found".to_string())?;
 
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let mut cmd = Command::new(&launcher);
-        cmd.arg(path);
-        cmd.creation_flags(0x0800_0000);
-        cmd.spawn()
-            .map(|_| ())
-            .map_err(|err| format!("Could not launch IntelliJ IDEA ({launcher:?}): {err}"))
-    }
-
-    #[cfg(not(windows))]
-    {
-        Command::new(&launcher)
-            .arg(path)
-            .spawn()
-            .map(|_| ())
-            .map_err(|err| format!("Could not launch IntelliJ IDEA ({launcher:?}): {err}"))
-    }
+    crate::process::hidden_command(&launcher)
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|err| format!("Could not launch IntelliJ IDEA ({launcher:?}): {err}"))
 }
 
 const JAVA_PROJECT_MARKERS: &[&str] = &[
@@ -1057,7 +1015,7 @@ pub fn open_in_zed(path: &Path) -> Result<(), String> {
 
     let launcher = find_zed_launcher().ok_or_else(|| "Zed was not found".to_string())?;
 
-    Command::new(&launcher)
+    crate::process::hidden_command(&launcher)
         .arg(path)
         .spawn()
         .map(|_| ())
@@ -1099,25 +1057,11 @@ pub fn open_in_antigravity(path: &Path) -> Result<(), String> {
     let launcher =
         find_antigravity_launcher().ok_or_else(|| "Antigravity IDE was not found".to_string())?;
 
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let mut cmd = Command::new(&launcher);
-        cmd.arg(path);
-        cmd.creation_flags(0x0800_0000);
-        cmd.spawn()
-            .map(|_| ())
-            .map_err(|err| format!("Could not launch Antigravity IDE ({launcher:?}): {err}"))
-    }
-
-    #[cfg(not(windows))]
-    {
-        Command::new(&launcher)
-            .arg(path)
-            .spawn()
-            .map(|_| ())
-            .map_err(|err| format!("Could not launch Antigravity IDE ({launcher:?}): {err}"))
-    }
+    crate::process::hidden_command(&launcher)
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|err| format!("Could not launch Antigravity IDE ({launcher:?}): {err}"))
 }
 
 pub fn system_file_explorer_label() -> &'static str {
@@ -1137,7 +1081,7 @@ pub fn open_in_system_file_explorer(path: &Path) -> Result<(), String> {
 
     #[cfg(windows)]
     {
-        Command::new("explorer")
+        crate::process::hidden_command(std::path::Path::new("explorer"))
             .arg(path)
             .spawn()
             .map(|_| ())
@@ -1146,7 +1090,7 @@ pub fn open_in_system_file_explorer(path: &Path) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        Command::new("open")
+        crate::process::hidden_command(std::path::Path::new("open"))
             .arg(path)
             .spawn()
             .map(|_| ())
@@ -1155,7 +1099,7 @@ pub fn open_in_system_file_explorer(path: &Path) -> Result<(), String> {
 
     #[cfg(not(any(windows, target_os = "macos")))]
     {
-        Command::new("xdg-open")
+        crate::process::hidden_command(std::path::Path::new("xdg-open"))
             .arg(path)
             .spawn()
             .map(|_| ())
