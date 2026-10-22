@@ -21,6 +21,12 @@ import TooltipLayer from "./components/TooltipLayer.vue";
 import AppToastLayer from "./components/AppToastLayer.vue";
 import ToolsPanel from "./components/ToolsPanel.vue";
 import { pushAppToast } from "./lib/appToast";
+import { clearAgentComposerDraft } from "./lib/agentComposerDrafts";
+import {
+  resolveSourceControlAgentTarget,
+  sameSourceControlAgentTarget,
+  type SourceControlAgentRequest,
+} from "./lib/sourceControlAgent";
 
 import { defineLazyView } from "./lib/lazyView";
 
@@ -112,6 +118,7 @@ const AgentWorktreeLaunchDialog = defineLazyView(
 
 import {
   buildAgentLaunchCommand,
+  getCliAgentDefinition,
   type AgentLaunchRequest,
 } from "./lib/terminalAgentMode";
 import { useActiveBranchPr } from "./composables/useActiveBranchPr";
@@ -479,6 +486,14 @@ const {
   hydrateTerminalWorkspace,
 } = useWorkspace(() => defaultShellId.value);
 
+watch(
+  () => tabs.value.flatMap((tab) => isTerminalTab(tab) ? tab.panes.map((pane) => pane.id) : []),
+  (paneIds, previous) => {
+    const current = new Set(paneIds);
+    for (const paneId of previous) if (!current.has(paneId)) clearAgentComposerDraft(paneId);
+  },
+);
+
 const mountedTerminalTabIds = ref(new Set<string>());
 
 function ensureTerminalMounted(tabId: string) {
@@ -562,6 +577,46 @@ const {
   push: pushGitRepo,
   sync: syncGitRepo,
 } = useSourceControl(activeCwd);
+
+const agentHandoffBusy = ref(false);
+const sourceControlAgentTarget = computed(() => resolveSourceControlAgentTarget({
+  tab: activeWorkspaceTab.value,
+  pane: activePane.value,
+  visible: !agentsViewOpen.value && !toolWindowOpen.value,
+  activeCwd: activeCwd.value,
+  loadedCwd: sourceControlLoadedCwd.value,
+  scopeKey: sourceControlScopeKey.value,
+  isRepo: sourceControlStatus.value.isRepo,
+  repoRoot: sourceControlStatus.value.repoRoot,
+}));
+const sourceControlAgentName = computed(() => sourceControlAgentTarget.value
+  ? getCliAgentDefinition(sourceControlAgentTarget.value.agentId).displayName : null);
+
+async function onSourceControlAgentRequest(request: SourceControlAgentRequest) {
+  if (agentHandoffBusy.value) return;
+  const current = sourceControlAgentTarget.value;
+  if (!current || sourceControlLoading.value || sourceControlBusy.value ||
+    request.scopeKey !== current.scopeKey || request.repoRoot !== current.repoRoot || !request.prompt.trim()) {
+    pushAppToast("Could not send. Source Control or the active agent changed.", "error");
+    return;
+  }
+  const expected = { ...current };
+  agentHandoffBusy.value = true;
+  try {
+    const pane = terminalPaneRefs.get(expected.paneId);
+    if (!pane) throw new Error("Could not send. The active agent terminal is unavailable.");
+    await pane.sendAgentPrompt(request.prompt, expected);
+    if (sameSourceControlAgentTarget(expected, sourceControlAgentTarget.value)) {
+      sourceControlPanelRef.value?.closeDiffPane();
+      pane.focusTerminal();
+    }
+    pushAppToast(`Sent to ${getCliAgentDefinition(expected.agentId).displayName} in terminal.`, "success");
+  } catch (error) {
+    pushAppToast(error instanceof Error ? error.message : "Could not send to the agent.", "error");
+  } finally {
+    agentHandoffBusy.value = false;
+  }
+}
 
 const gitBadgeStatus = computed(() => ({
   isRepo: sourceControlStatus.value.isRepo,
@@ -1768,6 +1823,8 @@ function onSessionEnded(paneId: string) {
 }
 
 function onKeyDown(event: KeyboardEvent) {
+  if (event.key === "Escape" && event.target instanceof Element &&
+    event.target.closest("[data-review-comment-editor]")) return;
   if (isCommandPaletteShortcut(event)) {
     consumeAppShortcut(event);
     if (paletteOpen.value) closePalette();
@@ -2317,6 +2374,7 @@ onUnmounted(() => {
                   :active="pane.id === activePaneId && !agentsViewOpen && !toolWindowOpen"
                   :tab-active="tab.id === activeTabId && !agentsViewOpen && !toolWindowOpen"
                   :active-agent-id="pane.activeAgentId"
+                  :source-control-agent-target="sourceControlAgentTarget?.paneId === pane.id ? sourceControlAgentTarget : null"
                   :theme-id="terminalPaneThemes[pane.id] ?? null"
                   :ssh-endpoint-id="pane.sshEndpointId"
                   @session-created="onSessionCreated"
@@ -2509,6 +2567,8 @@ onUnmounted(() => {
           ref="sourceControlPanelRef"
           :sidebar-offset="sidebarOffset"
           :scope-key="sourceControlScopeKey"
+          :agent-name="sourceControlAgentName"
+          :agent-handoff-busy="agentHandoffBusy"
           :status="sourceControlStatus"
           :history="gitHistory"
           :loading="sourceControlLoading"
@@ -2520,6 +2580,7 @@ onUnmounted(() => {
           :on-file-list-resize-pointer-down="onFileListResizePointerDown"
           :graph-refresh-token="gitGraphRefreshToken"
           @refresh="() => runGitAction(refreshSourceControl)"
+          @agent-request="onSourceControlAgentRequest"
           @stage="(paths) => runGitAction(() => stageGitPaths(paths))"
           @unstage="(paths) => runGitAction(() => unstageGitPaths(paths))"
           @revert="(paths, untracked) => runGitAction(() => revertGitPaths(paths, untracked))"

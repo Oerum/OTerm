@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isValidPtySize,
+  isWindowsConPtySession,
   PTY_LAYOUT_WAIT_MAX_FRAMES,
   shouldBlockBootstrap,
   shouldForwardPtyResize,
@@ -74,5 +75,23 @@ describe("shouldForwardPtyResize", () => {
 
   it("does not block resize for active visible tabs with valid dimensions", () => {
     expect(shouldForwardPtyResize({ ...base, cols: 120, rows: 40 })).toBe(true);
+  });
+
+  it("skips redundant resize when dimensions match last synced PTY size", () => {
+    expect(shouldForwardPtyResize({ ...base, lastCols: 80, lastRows: 24 })).toBe(false);
+    expect(shouldForwardPtyResize({ ...base, lastCols: 80, lastRows: 25 })).toBe(true);
+  });
+});
+
+describe("isWindowsConPtySession", () => {
+  it("returns true for non-SSH sessions on Windows", () => {
+    expect(isWindowsConPtySession({ isSshSession: false, platform: "Win32", userAgent: "" })).toBe(true);
+    expect(isWindowsConPtySession({ isSshSession: false, platform: "", userAgent: "Mozilla/5.0 (Windows NT 10.0)" })).toBe(true);
+  });
+
+  it("returns false for SSH sessions or non-Windows platforms", () => {
+    expect(isWindowsConPtySession({ isSshSession: true, platform: "Win32", userAgent: "Windows" })).toBe(false);
+    expect(isWindowsConPtySession({ isSshSession: false, platform: "MacIntel", userAgent: "Macintosh" })).toBe(false);
+    expect(isWindowsConPtySession({ isSshSession: false, platform: "Linux x86_64", userAgent: "X11; Linux" })).toBe(false);
   });
 });

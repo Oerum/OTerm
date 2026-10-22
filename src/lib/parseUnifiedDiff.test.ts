@@ -78,6 +78,24 @@ describe("parseUnifiedDiff", () => {
     expect(parsed.hunks[0].lines.every((line) => line.kind === "remove")).toBe(true);
   });
 
+  it("treats ++ and -- source as changed lines and preserves following coordinates", () => {
+    const parsed = parseUnifiedDiff("--- a/x\n+++ b/x\n@@ -1,2 +1,2 @@\n---i;\n+++i;\n tail\n");
+    expect(parsed.hunks[0].lines).toEqual([
+      { kind: "remove", text: "--i;", oldLine: 1, newLine: null },
+      { kind: "add", text: "++i;", oldLine: null, newLine: 1 },
+      { kind: "context", text: "tail", oldLine: 2, newLine: 2 },
+    ]);
+    expect(buildLinePatch(parsed.hunks[0], 0)).toContain("---i;\n+++i;");
+  });
+
+  it("ends hunk code at the next file boundary and preserves raw CRs in patches", () => {
+    const parsed = parseUnifiedDiff(MULTI_FILE.replace("-old\n+new", "-old\r\n+new\r"));
+    expect(parsed.hunks[0].lines.map((line) => line.text)).toEqual(["old\r", "new\r"]);
+    expect(parsed.hunks[0].patch).not.toContain("diff --git a/src/b.ts");
+    expect(buildLinePatch(parsed.hunks[0], 0)).toContain("-old\r\n+new\r\n");
+    expect(parsed.hunks[1].lines.map((line) => line.text)).toEqual(["foo", "bar"]);
+  });
+
   it("builds a minimal patch for a single added line", () => {
     const parsed = parseUnifiedDiff(SAMPLE);
     const patch = buildLinePatch(parsed.hunks[0], 4);
@@ -101,6 +119,15 @@ describe("buildSideBySideRows", () => {
     expect(rows[0].left.kind).toBe("context");
     expect(rows[0].right.kind).toBe("context");
     expect(rows[0].left.text).toBe("line one");
+  });
+
+  it("keeps old and new context coordinates distinct after an insertion", () => {
+    const hunk = parseUnifiedDiff("@@ -1 +1,2 @@\n+inserted\n context\n").hunks[0];
+    const context = buildSideBySideRows(hunk)[1];
+    expect(context.left.lineNumber).toBe(1);
+    expect(context.right.lineNumber).toBe(2);
+    expect(context.left.sourceLineIndex).toBe(1);
+    expect(context.right.sourceLineIndex).toBe(1);
   });
 
   it("pairs consecutive remove/add on one row", () => {

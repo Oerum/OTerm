@@ -88,7 +88,12 @@ export async function submitAgentComposerText(
   const trimmed = text.trim();
   if (!trimmed) return;
 
-  await submitWithStrategy(sessionId, trimmed, submitStrategyForAgent(agentId), write);
+  let strategy = submitStrategyForAgent(agentId);
+  if (trimmed.includes("\n")) {
+    if (strategy === "inline") strategy = "bracketedPaste";
+    else if (strategy === "delayedEnter") strategy = "bracketedPasteDelayedEnter";
+  }
+  await submitWithStrategy(sessionId, trimmed, strategy, write);
 }
 
 export async function insertAgentPromptText(

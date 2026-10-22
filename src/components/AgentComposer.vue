@@ -29,6 +29,8 @@ import {
 } from "../lib/agentComposerSubmit";
 import { getCliAgentDefinition, type CliAgentId } from "../lib/terminalAgentMode";
 import { writeTerminal } from "../lib/terminalApi";
+import { pushAppToast } from "../lib/appToast";
+import { getAgentComposerDraft } from "../lib/agentComposerDrafts";
 import { listDirectory, searchFiles } from "../lib/fsApi";
 import {
   detectMentionQuery,
@@ -54,14 +56,25 @@ const emit = defineEmits<{
 }>();
 
 const TEXTAREA_MAX_HEIGHT_PX = 160;
+let disposed = false;
 
-const draftByPane = new Map<string, string>();
-
-const draft = ref(draftByPane.get(props.paneId) ?? "");
-const attachments = ref<string[]>([]);
+const storedDraft = computed(() => getAgentComposerDraft(props.paneId));
+const draft = computed({
+  get: () => storedDraft.value.text,
+  set: (text: string) => {
+    if (disposed || storedDraft.value.sending) return;
+    storedDraft.value.text = text;
+  },
+});
+const attachments = computed({
+  get: () => storedDraft.value.attachments,
+  set: (paths: string[]) => {
+    if (!disposed && !storedDraft.value.sending) storedDraft.value.attachments = paths;
+  },
+});
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const composerRef = ref<HTMLElement | null>(null);
-const submitting = ref(false);
+const submitting = computed(() => storedDraft.value.sending);
 const dragActive = ref(false);
 const isFocused = ref(false);
 
@@ -119,16 +132,7 @@ const canSubmit = computed(
 
 let unlistenDragDrop: (() => void) | undefined;
 
-watch(
-  () => props.paneId,
-  (paneId) => {
-    draft.value = draftByPane.get(paneId) ?? "";
-    attachments.value = [];
-  },
-);
-
-watch(draft, (value) => {
-  draftByPane.set(props.paneId, value);
+watch(draft, () => {
   void nextTick(resizeTextarea);
 });
 
@@ -143,6 +147,7 @@ function resizeTextarea() {
 }
 
 function addAttachmentPaths(paths: string[]) {
+  if (disposed || submitting.value) return;
   const incoming = paths.filter(isMediaAttachmentPath);
   if (incoming.length === 0) return;
   const merged = new Set(attachments.value);
@@ -171,20 +176,26 @@ function startRecordingTimer() {
   }, 250);
 }
 
-async function ensureDictationModel(): Promise<boolean> {
+async function ensureDictationModel(isCurrent: () => boolean): Promise<boolean> {
   const status = await getDictationStatus();
+  if (!isCurrent()) return false;
   if (status.modelInstalled) return true;
 
   dictationState.value = "downloading";
   downloadProgress.value = null;
   unlistenDownloadProgress?.();
   unlistenDownloadProgress = await listenDictationModelDownloadProgress((event) => {
-    downloadProgress.value = event;
+    if (isCurrent()) downloadProgress.value = event;
   });
+  if (!isCurrent()) {
+    unlistenDownloadProgress();
+    unlistenDownloadProgress = undefined;
+    return false;
+  }
 
   try {
     await downloadDictationModel();
-    return true;
+    return isCurrent();
   } finally {
     unlistenDownloadProgress?.();
     unlistenDownloadProgress = undefined;
@@ -200,16 +211,22 @@ function clearLiveDictation(revertDraft = false) {
   dictationBaseDraft = null;
 }
 
-async function startLiveDictationListener() {
+async function startLiveDictationListener(isCurrent: () => boolean) {
   unlistenLivePartial?.();
   unlistenLivePartial = await listenDictationLivePartial((event) => {
-    if (dictationState.value !== "recording" || dictationBaseDraft === null) return;
+    if (!isCurrent() || dictationState.value !== "recording" || dictationBaseDraft === null) return;
     draft.value = applyLiveDictationToDraft(dictationBaseDraft, event.text);
   });
+  if (!isCurrent()) {
+    unlistenLivePartial();
+    unlistenLivePartial = undefined;
+  }
 }
 
 async function toggleDictation() {
-  if (submitting.value || dictationBusy.value) return;
+  if (disposed || submitting.value || dictationBusy.value) return;
+  const saved = storedDraft.value;
+  const isCurrent = () => !disposed && storedDraft.value === saved;
 
   dictationError.value = null;
 
@@ -219,6 +236,7 @@ async function toggleDictation() {
     const base = dictationBaseDraft ?? draft.value;
     try {
       const result = await stopDictationAndTranscribe();
+      if (!isCurrent()) return;
       clearLiveDictation(false);
       if (result.text.trim()) {
         draft.value = applyLiveDictationToDraft(base, result.text);
@@ -226,6 +244,7 @@ async function toggleDictation() {
         draft.value = base;
       }
     } catch (error) {
+      if (!isCurrent()) return;
       clearLiveDictation(false);
       draft.value = base;
       dictationError.value =
@@ -239,8 +258,11 @@ async function toggleDictation() {
 
   if (dictationState.value !== "idle") return;
 
+  dictationState.value = "downloading";
+  let recordingStarted = false;
   try {
-    const ready = await ensureDictationModel();
+    const ready = await ensureDictationModel(isCurrent);
+    if (!isCurrent()) return;
     if (!ready) {
       dictationError.value = "Whisper model download failed";
       dictationState.value = "idle";
@@ -248,20 +270,29 @@ async function toggleDictation() {
     }
 
     await startDictationRecording();
+    recordingStarted = true;
+    if (!isCurrent()) return;
     dictationBaseDraft = draft.value;
-    await startLiveDictationListener();
+    await startLiveDictationListener(isCurrent);
+    if (!isCurrent()) return;
     dictationState.value = "recording";
     startRecordingTimer();
   } catch (error) {
+    if (!isCurrent()) return;
     clearLiveDictation(true);
     dictationError.value =
       error instanceof Error ? error.message : "Could not start recording";
     dictationState.value = "idle";
     clearRecordingTimer();
+  } finally {
+    if (recordingStarted && (!isCurrent() || dictationState.value !== "recording")) {
+      void cancelDictationRecording().catch(() => undefined);
+    }
   }
 }
 
 async function cancelDictation() {
+  const saved = storedDraft.value;
   dictationError.value = null;
   if (dictationState.value === "recording") {
     try {
@@ -271,6 +302,7 @@ async function cancelDictation() {
         error instanceof Error ? error.message : "Could not cancel recording";
     }
   }
+  if (disposed || storedDraft.value !== saved) return;
   clearLiveDictation(true);
   clearRecordingTimer();
   dictationState.value = "idle";
@@ -288,21 +320,23 @@ async function pickAttachments() {
 
 async function submitDraft() {
   const text = formatAgentComposerMessage(draft.value, attachments.value);
-  if (!text || submitting.value) return;
+  if (disposed || !text || submitting.value || dictationState.value !== "idle") return;
+  const saved = storedDraft.value;
 
-  submitting.value = true;
+  saved.sending = true;
   try {
     if (props.agentId) {
       await submitAgentComposerText(props.sessionId, props.agentId, text, writeTerminal);
     } else {
       await submitTerminalComposerText(props.sessionId, text, writeTerminal);
     }
-    draft.value = "";
-    draftByPane.set(props.paneId, "");
-    attachments.value = [];
-    emit("submitted", text);
+    saved.text = "";
+    saved.attachments = [];
+    if (!disposed) emit("submitted", text);
+  } catch (error) {
+    pushAppToast(error instanceof Error ? error.message : "Could not send the draft.", "error");
   } finally {
-    submitting.value = false;
+    saved.sending = false;
   }
 }
 
@@ -518,9 +552,10 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  clearLiveDictation(true);
+  disposed = true;
   unlistenDragDrop?.();
   unlistenDownloadProgress?.();
-  clearLiveDictation(true);
   clearRecordingTimer();
   if (dictationState.value === "recording") {
     void cancelDictationRecording().catch(() => undefined);
@@ -537,6 +572,7 @@ defineExpose({
   toggleDictation,
   addAttachmentPaths,
   insertText,
+  isBusy: () => submitting.value || dictationState.value !== "idle",
 });
 </script>
 
