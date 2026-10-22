@@ -339,12 +339,19 @@ async function refreshGitForAllPanes() {
   gitByPane.value = next;
 }
 
-const paneCwdSignature = computed(() =>
-  props.tabs
-    .filter(isTerminalTab)
-    .flatMap((tab) => tab.panes.map((pane) => `${pane.id}:${pane.cwd}`))
-    .join("|"),
-);
+// ⚡ Bolt Optimization: Use single-pass string building for pane signature
+// Prevents array allocation for intermediate arrays on every computed re-evaluation.
+const paneCwdSignature = computed(() => {
+  let sig = "";
+  for (const tab of props.tabs) {
+    if (!isTerminalTab(tab)) continue;
+    for (const pane of tab.panes) {
+      if (sig) sig += "|";
+      sig += `${pane.id}:${pane.cwd}`;
+    }
+  }
+  return sig;
+});
 
 let gitRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let pollingInterval: number | undefined;
