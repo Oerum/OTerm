@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import type { SourceControlReviewRange } from "../lib/sourceControlAgent";
+import { buildSourceControlReviewRange } from "../lib/sourceControlAgent";
 import {
   buildLinePatch,
   buildSideBySideRows,
   parseUnifiedDiff,
+  type DiffDisplayLine,
   type DiffDisplayLineKind,
   type DiffHunk,
   type SideBySideCell,
@@ -12,17 +15,25 @@ import { diffWords, type WordDiffChunk } from "../lib/wordDiff";
 import type { SelectedGitFile } from "../types/git";
 import DiffGutterActions from "./DiffGutterActions.vue";
 
-const props = defineProps<{
-  content: string;
-  loading?: boolean;
-  error?: string | null;
-  selectedFile?: SelectedGitFile | null;
-  busy?: boolean;
-  hunkOperationKey?: string | null;
-  activeHunkIndex?: number;
-  feedback?: string | null;
-  feedbackError?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    content: string;
+    loading?: boolean;
+    error?: string | null;
+    selectedFile?: SelectedGitFile | null;
+    busy?: boolean;
+    hunkOperationKey?: string | null;
+    activeHunkIndex?: number;
+    feedback?: string | null;
+    feedbackError?: boolean;
+    selectable?: boolean;
+    selectedRange?: SourceControlReviewRange | null;
+  }>(),
+  {
+    selectable: false,
+    selectedRange: null,
+  },
+);
 
 const emit = defineEmits<{
   "revert-hunk": [patch: string, opKey: string];
@@ -30,6 +41,7 @@ const emit = defineEmits<{
   "unstage-hunk": [patch: string, opKey: string];
   "update:activeHunkIndex": [index: number];
   "hunk-count": [count: number];
+  "select-range": [range: SourceControlReviewRange | null];
 }>();
 
 const hunkRefs = ref<Record<number, HTMLElement | null>>({});
@@ -42,6 +54,85 @@ const sideBySideRows = computed(() =>
 );
 
 const sideBySide = ref(false);
+
+const anchorState = ref<{
+  hunkIndex: number;
+  side: "old" | "new";
+  lineIndex: number;
+} | null>(null);
+
+function handleLineSelect(
+  hunk: DiffHunk,
+  side: "old" | "new",
+  lineIndex: number,
+  isExtend: boolean,
+) {
+  if (!props.selectable) return;
+
+  const currentAnchor = anchorState.value;
+  if (
+    isExtend &&
+    currentAnchor &&
+    currentAnchor.hunkIndex === hunk.index &&
+    currentAnchor.side === side
+  ) {
+    const range = buildSourceControlReviewRange(
+      hunk,
+      side,
+      currentAnchor.lineIndex,
+      lineIndex,
+    );
+    emit("select-range", range);
+  } else {
+    anchorState.value = {
+      hunkIndex: hunk.index,
+      side,
+      lineIndex,
+    };
+    const range = buildSourceControlReviewRange(
+      hunk,
+      side,
+      lineIndex,
+      lineIndex,
+    );
+    emit("select-range", range);
+  }
+}
+
+function onLineKeydown(
+  event: KeyboardEvent,
+  hunk: DiffHunk,
+  side: "old" | "new",
+  lineIndex: number,
+) {
+  if (!props.selectable) return;
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    handleLineSelect(hunk, side, lineIndex, event.shiftKey);
+  }
+}
+
+function isLineSelected(hunk: DiffHunk, side: "old" | "new", lineNum: number | null): boolean {
+  if (!props.selectedRange || lineNum == null) return false;
+  const range = props.selectedRange;
+  if (range.side !== side || range.hunkHeader !== hunk.header) return false;
+  const min = Math.min(range.start, range.end);
+  const max = Math.max(range.start, range.end);
+  return lineNum >= min && lineNum <= max;
+}
+
+function isUnifiedRowSelected(hunk: DiffHunk, line: DiffDisplayLine): boolean {
+  if (!props.selectedRange) return false;
+  if (props.selectedRange.side === "old") {
+    return isLineSelected(hunk, "old", line.oldLine);
+  }
+  return isLineSelected(hunk, "new", line.newLine);
+}
+
+function isSplitCellSelected(hunk: DiffHunk, side: "old" | "new", cell: SideBySideCell): boolean {
+  if (!props.selectedRange || cell.lineNumber == null) return false;
+  return isLineSelected(hunk, side, cell.lineNumber);
+}
 
 // ⚡ Bolt Optimization: Replace `.filter().length` with `for` loops
 // Prevents array allocation for each hunk on every computed re-evaluation.
@@ -192,6 +283,32 @@ watch(
   },
 );
 
+// Clear transient selection on content/file/layout changes
+watch(
+  () => [
+    props.selectedFile?.path,
+    props.selectedFile?.staged,
+    props.selectedFile?.untracked,
+    props.content,
+    sideBySide.value,
+  ],
+  () => {
+    anchorState.value = null;
+    if (props.selectable) {
+      emit("select-range", null);
+    }
+  },
+);
+
+watch(
+  () => props.selectedRange,
+  (newRange) => {
+    if (!newRange) {
+      anchorState.value = null;
+    }
+  },
+);
+
 const diffChunksMap = computed(() => {
   const map = new Map<string, WordDiffChunk[]>();
   
@@ -323,7 +440,10 @@ function chunkClass(chunk: WordDiffChunk) {
             :key="`${hunk.index}-${rowIndex}`"
             class="diff-split-row group/line"
           >
-            <div class="diff-split-pane" :class="sideCellClass(row.left)">
+            <div
+              class="diff-split-pane"
+              :class="[sideCellClass(row.left), isSplitCellSelected(hunk, 'old', row.left) ? 'diff-split-pane--selected' : '']"
+            >
               <div class="diff-gutter">
                 <DiffGutterActions
                   v-if="sideCellCanAct(row.left)"
@@ -336,7 +456,18 @@ function chunkClass(chunk: WordDiffChunk) {
                   @unstage="onUnstageLine(hunk, row.left.sourceLineIndex!)"
                 />
               </div>
-              <div class="diff-lnum">{{ row.left.lineNumber ?? "" }}</div>
+              <button
+                v-if="selectable && row.left.lineNumber != null && row.left.sourceLineIndex != null"
+                type="button"
+                class="diff-lnum diff-lnum-btn"
+                :aria-label="`Line ${row.left.lineNumber} (old)`"
+                :aria-pressed="isLineSelected(hunk, 'old', row.left.lineNumber)"
+                @click="handleLineSelect(hunk, 'old', row.left.sourceLineIndex, $event.shiftKey)"
+                @keydown="onLineKeydown($event, hunk, 'old', row.left.sourceLineIndex)"
+              >
+                {{ row.left.lineNumber }}
+              </button>
+              <div v-else class="diff-lnum">{{ row.left.lineNumber ?? "" }}</div>
               <div class="diff-code">
                 <span v-if="row.left.kind === 'remove'" class="diff-prefix">−</span>
                 <span v-else-if="row.left.kind === 'context'" class="diff-prefix">&nbsp;</span>
@@ -356,7 +487,10 @@ function chunkClass(chunk: WordDiffChunk) {
               </div>
             </div>
             <div class="diff-split-divider" aria-hidden="true" />
-            <div class="diff-split-pane" :class="sideCellClass(row.right)">
+            <div
+              class="diff-split-pane"
+              :class="[sideCellClass(row.right), isSplitCellSelected(hunk, 'new', row.right) ? 'diff-split-pane--selected' : '']"
+            >
               <div class="diff-gutter">
                 <DiffGutterActions
                   v-if="sideCellCanAct(row.right)"
@@ -369,7 +503,18 @@ function chunkClass(chunk: WordDiffChunk) {
                   @unstage="onUnstageLine(hunk, row.right.sourceLineIndex!)"
                 />
               </div>
-              <div class="diff-lnum">{{ row.right.lineNumber ?? "" }}</div>
+              <button
+                v-if="selectable && row.right.lineNumber != null && row.right.sourceLineIndex != null"
+                type="button"
+                class="diff-lnum diff-lnum-btn"
+                :aria-label="`Line ${row.right.lineNumber} (new)`"
+                :aria-pressed="isLineSelected(hunk, 'new', row.right.lineNumber)"
+                @click="handleLineSelect(hunk, 'new', row.right.sourceLineIndex, $event.shiftKey)"
+                @keydown="onLineKeydown($event, hunk, 'new', row.right.sourceLineIndex)"
+              >
+                {{ row.right.lineNumber }}
+              </button>
+              <div v-else class="diff-lnum">{{ row.right.lineNumber ?? "" }}</div>
               <div class="diff-code">
                 <span v-if="row.right.kind === 'add'" class="diff-prefix">+</span>
                 <span v-else-if="row.right.kind === 'context'" class="diff-prefix">&nbsp;</span>
@@ -404,7 +549,7 @@ function chunkClass(chunk: WordDiffChunk) {
             v-for="(line, lineIndex) in hunk.lines"
             :key="`${hunk.index}-${lineIndex}`"
             class="diff-row group/line"
-            :class="lineRowClass(line.kind)"
+            :class="[lineRowClass(line.kind), isUnifiedRowSelected(hunk, line) ? 'diff-row--selected' : '']"
           >
             <div class="diff-gutter">
               <DiffGutterActions
@@ -418,8 +563,32 @@ function chunkClass(chunk: WordDiffChunk) {
                 @unstage="onUnstageLine(hunk, lineIndex)"
               />
             </div>
-            <div class="diff-lnum diff-lnum--old">{{ line.oldLine ?? "" }}</div>
-            <div class="diff-lnum diff-lnum--new">{{ line.newLine ?? "" }}</div>
+            <button
+              v-if="selectable && line.oldLine != null"
+              type="button"
+              class="diff-lnum diff-lnum--old diff-lnum-btn"
+              :aria-label="`Line ${line.oldLine} (old)`"
+              :aria-pressed="isLineSelected(hunk, 'old', line.oldLine)"
+              @click="handleLineSelect(hunk, 'old', lineIndex, $event.shiftKey)"
+              @keydown="onLineKeydown($event, hunk, 'old', lineIndex)"
+            >
+              {{ line.oldLine }}
+            </button>
+            <div v-else class="diff-lnum diff-lnum--old">{{ line.oldLine ?? "" }}</div>
+
+            <button
+              v-if="selectable && line.newLine != null"
+              type="button"
+              class="diff-lnum diff-lnum--new diff-lnum-btn"
+              :aria-label="`Line ${line.newLine} (new)`"
+              :aria-pressed="isLineSelected(hunk, 'new', line.newLine)"
+              @click="handleLineSelect(hunk, 'new', lineIndex, $event.shiftKey)"
+              @keydown="onLineKeydown($event, hunk, 'new', lineIndex)"
+            >
+              {{ line.newLine }}
+            </button>
+            <div v-else class="diff-lnum diff-lnum--new">{{ line.newLine ?? "" }}</div>
+
             <div class="diff-code">
               <span v-if="line.kind === 'add'" class="diff-prefix">+</span>
               <span v-else-if="line.kind === 'remove'" class="diff-prefix">−</span>
@@ -719,6 +888,42 @@ function chunkClass(chunk: WordDiffChunk) {
   color: var(--diff-lnum);
   user-select: none;
   border-right: 1px solid var(--oterm-border);
+}
+
+.diff-lnum-btn {
+  background: transparent;
+  border-top: none;
+  border-bottom: none;
+  border-left: none;
+  cursor: pointer;
+  font: inherit;
+  margin: 0;
+  line-height: inherit;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.diff-lnum-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--oterm-text);
+}
+
+.diff-lnum-btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--oterm-accent);
+}
+
+.diff-lnum-btn[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--oterm-accent) 25%, transparent) !important;
+  color: var(--oterm-text) !important;
+  font-weight: 600;
+}
+
+.diff-row--selected {
+  background: color-mix(in srgb, var(--oterm-accent) 12%, transparent) !important;
+}
+
+.diff-split-pane--selected {
+  background: color-mix(in srgb, var(--oterm-accent) 12%, transparent) !important;
 }
 
 .diff-row .diff-lnum--old {

@@ -52,7 +52,14 @@ describe("scanLineForPaths()", () => {
 
   it("does not match shell prompt lines", () => {
     expect(scanLineForPaths("PS C:\\Users\\Filip\\Desktop\\oterm> ")).toEqual([]);
+    expect(scanLineForPaths("PS C:\\Users\\Filip\\Desktop\\Cleanquote\\CleanQuoteCore\\.worktree\\ch")).toEqual([]);
     expect(scanLineForPaths("user@host:/home/user/projects$ ")).toEqual([]);
+  });
+
+  it("skips prompt cwd prefix when a command is typed after the prompt", () => {
+    const paths = scanLineForPaths("PS C:\\Users\\Filip\\Desktop\\oterm> type C:\\tmp\\notes.txt");
+    expect(paths).toHaveLength(1);
+    expect(paths[0]?.text).toBe("C:\\tmp\\notes.txt");
   });
 
   it("does not treat prompt-like fragments as paths", () => {

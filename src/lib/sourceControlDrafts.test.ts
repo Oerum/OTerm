@@ -4,7 +4,10 @@ import {
   clearCommitDraft,
   getCommitDraft,
   setCommitDraft,
+  getSourceControlReviewDraft,
+  setSourceControlReviewDraft,
 } from "./sourceControlDrafts";
+import type { SourceControlReviewDraft } from "./sourceControlAgent";
 
 describe("sourceControlDrafts", () => {
   beforeEach(() => {
@@ -36,5 +39,35 @@ describe("sourceControlDrafts", () => {
     setCommitDraft(null, "ignored");
     expect(getCommitDraft(null)).toBe("");
     clearCommitDraft(null);
+  });
+});
+
+describe("source control review draft storage", () => {
+  const draft: SourceControlReviewDraft = {
+    comments: [{ id: "one", file: { path: "a.ts", staged: true, untracked: false }, range: {
+      side: "old", start: 1, end: 2, hunkHeader: "@@ -1,2 +1,2 @@", excerpt: "old\ntext",
+    }, body: "saved" }],
+    editor: { id: null, file: { path: "b.ts", staged: false, untracked: false }, range: null, body: "unfinished" },
+  };
+
+  it("restores saved snapshots and unfinished editor across scope/root switches", () => {
+    setSourceControlReviewDraft("pane:a", "/repo", draft);
+    setSourceControlReviewDraft("pane:b", "/repo", { ...draft, comments: [] });
+    expect(getSourceControlReviewDraft("pane:a", "/repo")).toEqual(draft);
+    expect(getSourceControlReviewDraft("pane:b", "/repo").comments).toEqual([]);
+    expect(getSourceControlReviewDraft("pane:a", "/other").editor.body).toBe("");
+  });
+
+  it("uses a collision-free composite key and snapshots both writes and reads", () => {
+    const original = structuredClone(draft);
+    setSourceControlReviewDraft("pane:a|b", "c", original);
+    setSourceControlReviewDraft("pane:a", "b|c", { ...draft, comments: [] });
+    original.comments[0].file.path = "changed";
+    original.comments[0].range!.excerpt = "changed";
+    original.editor.body = "changed";
+    const restored = getSourceControlReviewDraft("pane:a|b", "c");
+    expect(restored).toEqual(draft);
+    restored.comments[0].body = "mutated read";
+    expect(getSourceControlReviewDraft("pane:a|b", "c")).toEqual(draft);
   });
 });

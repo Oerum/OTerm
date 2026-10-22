@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, type ShallowRef } from "vue";
 import { getCommitDetails } from "../lib/branchManagerApi";
 import { getGitFileDiff, getGitStagedDiff, readGitWorkingFile, writeGitWorkingFile } from "../lib/gitApi";
+import {
+  buildSourceControlTreeRows,
+  collectSourceControlFolderPaths,
+  filterGitFileEntries,
+  sortGitFileEntriesByPath,
+} from "../lib/gitFilePaths";
 import type { CommitDetails } from "../types/branchManager";
 import { generateCommitAiCompletion } from "../lib/commitAiApi";
 import { useCommitAiSettings } from "../lib/commitAiSettings";
@@ -14,6 +20,7 @@ import {
   getCommitDraft,
   setCommitDraft,
 } from "../lib/sourceControlDrafts";
+import { pushAppToast } from "../lib/appToast";
 import CommitAiSettingsDialog from "./CommitAiSettingsDialog.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import { useConfirmDialog } from "../composables/useConfirmDialog";
@@ -24,11 +31,18 @@ import type {
   GitSourceControlStatus,
   SelectedGitFile,
 } from "../types/git";
+import type {
+  SourceControlAgentRequest,
+  SourceControlReviewRange,
+} from "../lib/sourceControlAgent";
+import { buildSourceControlCommitPrompt } from "../lib/sourceControlAgent";
 import GitCommitGraph from "./GitCommitGraph.vue";
 import GitDiffViewer from "./GitDiffViewer.vue";
 import GitFileEditor from "./GitFileEditor.vue";
 import SourceControlFileLabel from "./SourceControlFileLabel.vue";
 import SourceControlFileActions from "./SourceControlFileActions.vue";
+import SourceControlReview from "./SourceControlReview.vue";
+import UiGlyph from "./UiGlyph.vue";
 
 type PaneView = "diff" | "edit";
 type DiffPanelMode = "list" | "all" | "single";
@@ -47,6 +61,8 @@ const props = defineProps<{
   sidebarOffset?: number;
   /** Stable pane/tab key for per-entry commit drafts. */
   scopeKey?: string | null;
+  agentName?: string | null;
+  agentHandoffBusy?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -68,6 +84,7 @@ const emit = defineEmits<{
   "open-merge": [];
   "open-stash": [];
   "open-ai-preflight": [];
+  "agent-request": [request: SourceControlAgentRequest];
 }>();
 
 const { settings: commitAiSettings } = useCommitAiSettings();
@@ -77,6 +94,7 @@ const commitAiSettingsOpen = ref(false);
 const generatingCommit = ref(false);
 const generateError = ref<string | null>(null);
 const selectedFile = ref<SelectedGitFile | null>(null);
+const selectedReviewRange = ref<SourceControlReviewRange | null>(null);
 const selectedCommitHash = ref<string | null>(null);
 const commitDetails = ref<CommitDetails | null>(null);
 const paneView = ref<PaneView>("diff");
@@ -100,17 +118,47 @@ const panelFeedbackError = ref(false);
 const diffExpanded = ref(false);
 const diffPaneRef = ref<HTMLElement | null>(null);
 const { confirmOpen, pendingConfirm, askConfirm, resolveConfirm } = useConfirmDialog();
+type SectionId = "staged" | "changes" | "untracked";
+
 const stagedCollapsed = ref(localStorage.getItem("oterm:sc-staged-collapsed") === "1");
 const changesCollapsed = ref(localStorage.getItem("oterm:sc-changes-collapsed") === "1");
 const untrackedCollapsed = ref(localStorage.getItem("oterm:sc-untracked-collapsed") === "1");
 const historyCollapsed = ref(localStorage.getItem("oterm:sc-history-collapsed") === "1");
 const stashCollapsed = ref(localStorage.getItem("oterm:sc-stash-collapsed") !== "0");
+const viewMode = ref<"tree" | "list">(
+  localStorage.getItem("oterm:sc-view-mode") === "list" ? "list" : "tree",
+);
+const searchOpen = ref(false);
+const searchInputRef = ref<HTMLInputElement | null>(null);
+const fileFilter = ref("");
+
+function toggleSearch() {
+  if (searchOpen.value) {
+    closeSearch();
+    return;
+  }
+  searchOpen.value = true;
+  void nextTick(() => {
+    searchInputRef.value?.focus();
+  });
+}
+
+function closeSearch() {
+  searchOpen.value = false;
+  fileFilter.value = "";
+}
+const collapsedFoldersBySection: Record<SectionId, ShallowRef<Set<string>>> = {
+  staged: shallowRef(new Set()),
+  changes: shallowRef(new Set()),
+  untracked: shallowRef(new Set()),
+};
 
 watch(stagedCollapsed, (val) => localStorage.setItem("oterm:sc-staged-collapsed", val ? "1" : "0"));
 watch(changesCollapsed, (val) => localStorage.setItem("oterm:sc-changes-collapsed", val ? "1" : "0"));
 watch(untrackedCollapsed, (val) => localStorage.setItem("oterm:sc-untracked-collapsed", val ? "1" : "0"));
 watch(historyCollapsed, (val) => localStorage.setItem("oterm:sc-history-collapsed", val ? "1" : "0"));
 watch(stashCollapsed, (val) => localStorage.setItem("oterm:sc-stash-collapsed", val ? "1" : "0"));
+watch(viewMode, (val) => localStorage.setItem("oterm:sc-view-mode", val));
 
 watch(commitMessage, (msg) => {
   setCommitDraft(props.scopeKey, msg);
@@ -178,6 +226,10 @@ function closeDiffPane() {
 
 function onWindowKeydown(event: KeyboardEvent) {
   if (!diffExpanded.value || event.key !== "Escape") return;
+  const target = event.target as HTMLElement | null;
+  if (target?.closest?.("[data-review-comment-editor]")) {
+    return;
+  }
   event.preventDefault();
   event.stopPropagation();
   closeDiffPane();
@@ -308,6 +360,37 @@ async function onGenerateCommitMessage() {
   }
 }
 
+const canRequestAgentCommit = computed(
+  () =>
+    Boolean(props.agentName) &&
+    props.status.isRepo &&
+    Boolean(props.status.repoRoot) &&
+    props.status.staged.length > 0 &&
+    !props.loading &&
+    !props.busy &&
+    !props.agentHandoffBusy,
+);
+
+function onRequestAgentCommitMessage() {
+  const repoRoot = props.status.repoRoot;
+  if (!repoRoot || !canRequestAgentCommit.value) return;
+
+  try {
+    const prompt = buildSourceControlCommitPrompt(
+      repoRoot,
+      props.status.branch ?? null,
+      props.status.staged,
+    );
+    emit("agent-request", {
+      scopeKey: props.scopeKey ?? "",
+      repoRoot,
+      prompt,
+    });
+  } catch (err) {
+    pushAppToast(err instanceof Error ? err.message : "Failed to send commit request", "error");
+  }
+}
+
 const stageAllPaths = computed(() => [
   ...props.status.changes.map((e) => e.path),
   ...props.status.untracked.map((e) => e.path),
@@ -389,10 +472,135 @@ function onPrimarySyncClick() {
 
 const refreshSpinning = computed(() => props.operation === "refresh");
 
+const sortedStaged = computed(() => sortGitFileEntriesByPath(props.status.staged));
+const sortedChanges = computed(() => sortGitFileEntriesByPath(props.status.changes));
+const sortedUntracked = computed(() => sortGitFileEntriesByPath(props.status.untracked));
+
+const hasActiveFileFilter = computed(() => fileFilter.value.trim().length > 0);
+const filteredStaged = computed(() => filterGitFileEntries(sortedStaged.value, fileFilter.value));
+const filteredChanges = computed(() => filterGitFileEntries(sortedChanges.value, fileFilter.value));
+const filteredUntracked = computed(() => filterGitFileEntries(sortedUntracked.value, fileFilter.value));
+const hasMatchingFiles = computed(
+  () =>
+    filteredStaged.value.length > 0 ||
+    filteredChanges.value.length > 0 ||
+    filteredUntracked.value.length > 0,
+);
+
+const stagedTreeRows = computed(() =>
+  buildSourceControlTreeRows(filteredStaged.value, collapsedFoldersBySection.staged.value, true),
+);
+const changesTreeRows = computed(() =>
+  buildSourceControlTreeRows(filteredChanges.value, collapsedFoldersBySection.changes.value, true),
+);
+const untrackedTreeRows = computed(() =>
+  buildSourceControlTreeRows(filteredUntracked.value, collapsedFoldersBySection.untracked.value, true),
+);
+
+function resetCollapsedFolders() {
+  if (collapsedFoldersBySection.staged.value.size) collapsedFoldersBySection.staged.value = new Set();
+  if (collapsedFoldersBySection.changes.value.size) collapsedFoldersBySection.changes.value = new Set();
+  if (collapsedFoldersBySection.untracked.value.size) collapsedFoldersBySection.untracked.value = new Set();
+}
+
+watch(hasActiveFileFilter, (active, wasActive) => {
+  if (active && !wasActive) {
+    resetCollapsedFolders();
+  }
+});
+
+function toggleSectionFolder(sectionId: SectionId, folderPath: string) {
+  const targetRef = collapsedFoldersBySection[sectionId];
+  const next = new Set(targetRef.value);
+  if (next.has(folderPath)) next.delete(folderPath);
+  else next.add(folderPath);
+  targetRef.value = next;
+}
+
+function expandAll() {
+  stagedCollapsed.value = false;
+  changesCollapsed.value = false;
+  untrackedCollapsed.value = false;
+  resetCollapsedFolders();
+}
+
+function collapseAll() {
+  if (viewMode.value === "tree") {
+    const stagedFolders = collectSourceControlFolderPaths(filteredStaged.value, true);
+    const changesFolders = collectSourceControlFolderPaths(filteredChanges.value, true);
+    const untrackedFolders = collectSourceControlFolderPaths(filteredUntracked.value, true);
+    const hasExpandedFolders =
+      (!stagedCollapsed.value &&
+        Array.from(stagedFolders).some((p) => !collapsedFoldersBySection.staged.value.has(p))) ||
+      (!changesCollapsed.value &&
+        Array.from(changesFolders).some((p) => !collapsedFoldersBySection.changes.value.has(p))) ||
+      (!untrackedCollapsed.value &&
+        Array.from(untrackedFolders).some((p) => !collapsedFoldersBySection.untracked.value.has(p)));
+
+    if (hasExpandedFolders) {
+      collapsedFoldersBySection.staged.value = stagedFolders;
+      collapsedFoldersBySection.changes.value = changesFolders;
+      collapsedFoldersBySection.untracked.value = untrackedFolders;
+      return;
+    }
+  }
+  stagedCollapsed.value = true;
+  changesCollapsed.value = true;
+  untrackedCollapsed.value = true;
+}
+
+const fileSections = computed(() => {
+  const isTree = viewMode.value === "tree";
+  return [
+    {
+      id: "staged" as const,
+      label: "Staged",
+      entries: filteredStaged.value,
+      totalCount: sortedStaged.value.length,
+      treeRows: isTree && !stagedCollapsed.value ? stagedTreeRows.value : [],
+      collapsed: stagedCollapsed.value,
+      toggle: () => {
+        stagedCollapsed.value = !stagedCollapsed.value;
+      },
+      staged: true,
+      untracked: false,
+      secondary: undefined,
+    },
+    {
+      id: "changes" as const,
+      label: "Changes",
+      entries: filteredChanges.value,
+      totalCount: sortedChanges.value.length,
+      treeRows: isTree && !changesCollapsed.value ? changesTreeRows.value : [],
+      collapsed: changesCollapsed.value,
+      toggle: () => {
+        changesCollapsed.value = !changesCollapsed.value;
+      },
+      staged: false,
+      untracked: false,
+      secondary: "revert" as const,
+    },
+    {
+      id: "untracked" as const,
+      label: "Untracked",
+      entries: filteredUntracked.value,
+      totalCount: sortedUntracked.value.length,
+      treeRows: isTree && !untrackedCollapsed.value ? untrackedTreeRows.value : [],
+      collapsed: untrackedCollapsed.value,
+      toggle: () => {
+        untrackedCollapsed.value = !untrackedCollapsed.value;
+      },
+      staged: false,
+      untracked: true,
+      secondary: "delete" as const,
+    },
+  ];
+});
+
 const allChangedFiles = computed(() => [
-  ...props.status.staged.map((e) => ({ ...e, staged: true, untracked: false })),
-  ...props.status.changes.map((e) => ({ ...e, staged: false, untracked: false })),
-  ...props.status.untracked.map((e) => ({ ...e, staged: false, untracked: true })),
+  ...sortedStaged.value.map((e) => ({ ...e, staged: true, untracked: false })),
+  ...sortedChanges.value.map((e) => ({ ...e, staged: false, untracked: false })),
+  ...sortedUntracked.value.map((e) => ({ ...e, staged: false, untracked: true })),
 ]);
 
 function statusLabel(entry: GitFileEntry) {
@@ -422,6 +630,7 @@ function selectCommit(hash: string, expand = false) {
   if (!confirmDiscardEdits()) return;
   selectedCommitHash.value = hash;
   selectedFile.value = null;
+  selectedReviewRange.value = null;
   paneView.value = "diff";
   activeHunkIndex.value = 0;
   if (expand) {
@@ -437,6 +646,7 @@ function openAllDiffs() {
   if (!confirmDiscardEdits()) return;
   diffPanelMode.value = "all";
   setDiffExpanded(true);
+  selectedReviewRange.value = null;
   if (!selectedFile.value && allChangedFiles.value.length > 0) {
     const first = allChangedFiles.value[0];
     selectedFile.value = {
@@ -452,6 +662,7 @@ function openSingleFileDiff(entry: GitFileEntry, staged: boolean, untracked: boo
   selectedCommitHash.value = null;
   commitDetails.value = null;
   selectedFile.value = { path: entry.path, staged, untracked };
+  selectedReviewRange.value = null;
   activeHunkIndex.value = 0;
   paneView.value = "diff";
   diffPanelMode.value = "single";
@@ -471,6 +682,7 @@ function selectFile(entry: GitFileEntry, staged: boolean, untracked: boolean) {
   selectedCommitHash.value = null;
   commitDetails.value = null;
   selectedFile.value = { path: entry.path, staged, untracked };
+  selectedReviewRange.value = null;
   activeHunkIndex.value = 0;
 }
 
@@ -777,6 +989,7 @@ watch(
   () => {
     if (props.status.changedFiles === 0) {
       selectedFile.value = null;
+      closeSearch();
       return;
     }
     syncSelectedFileWithStatus();
@@ -790,6 +1003,8 @@ watch(
     if (newRoot !== oldRoot) {
       selectedFile.value = null;
       selectedCommitHash.value = null;
+      closeSearch();
+      resetCollapsedFolders();
       closeDiffPane();
     }
   }
@@ -836,13 +1051,14 @@ function authorInitials(author: string): string {
       :style="{ width: showDiffPane ? `${fileListWidth}px` : undefined }"
       :class="showDiffPane ? 'border-r border-[var(--oterm-border)]' : 'min-w-0 flex-1'"
     >
-      <div class="flex items-center justify-between border-b border-[var(--oterm-border)] px-3 py-2.5">
-        <div class="min-w-0">
+      <div class="flex items-center justify-between gap-2 border-b border-[var(--oterm-border)] px-3 py-2.5">
+        <div class="min-w-0 flex-1">
           <p
-            class="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--oterm-faint)]"
+            class="truncate text-xs font-semibold uppercase tracking-[0.08em]"
+            :class="busy && operationLabel ? 'text-[var(--oterm-muted)]' : 'text-[var(--oterm-faint)]'"
             style="font-family: var(--oterm-font-ui)"
           >
-            Source Control
+            {{ busy && operationLabel ? operationLabel : "Source Control" }}
           </p>
           <p
             v-if="status.upstream || status.ahead || status.behind"
@@ -856,36 +1072,39 @@ function authorInitials(author: string): string {
             <span v-if="status.behind" class="text-[#e3b341]">↓{{ status.behind }}</span>
           </p>
         </div>
-        <button
-          type="button"
-          class="no-drag flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
-          title="Refresh"
-          aria-label="Refresh source control"
-          :disabled="busy"
-          @click="emit('refresh')"
-        >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            :class="refreshSpinning ? 'animate-spin' : ''"
+        <div class="flex shrink-0 items-center gap-0.5">
+          <button
+            type="button"
+            class="no-drag flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+            title="Refresh"
+            aria-label="Refresh source control"
+            :disabled="busy"
+            @click="emit('refresh')"
           >
-            <path
-              d="M13 3v4H9M3 13V9h4"
-              stroke-width="1.3"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path
-              d="M12.5 6.5A5 5 0 0 0 4 4.5L3 6.5M3.5 9.5A5 5 0 0 0 12 11.5l1-2"
-              stroke-width="1.3"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </button>
+            <svg
+              aria-hidden="true"
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              :class="refreshSpinning ? 'animate-spin' : ''"
+            >
+              <path
+                d="M13 3v4H9M3 13V9h4"
+                stroke-width="1.3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M12.5 6.5A5 5 0 0 0 4 4.5L3 6.5M3.5 9.5A5 5 0 0 0 12 11.5l1-2"
+                stroke-width="1.3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div v-if="!status.isRepo" class="px-3 py-4 text-sm text-[var(--oterm-faint)]">
@@ -893,35 +1112,6 @@ function authorInitials(author: string): string {
       </div>
 
       <template v-else>
-        <div
-          v-if="busy && operationLabel"
-          class="flex items-center gap-2 border-b border-[var(--oterm-border)] bg-white/[0.02] px-3 py-2"
-        >
-          <svg
-            class="h-3.5 w-3.5 shrink-0 animate-spin text-[var(--oterm-accent)]"
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden="true"
-          >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              stroke-width="3"
-            />
-            <path
-              class="opacity-90"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-            />
-          </svg>
-          <p class="text-xs text-[var(--oterm-muted)]" style="font-family: var(--oterm-font-ui)">
-            {{ operationLabel }}
-          </p>
-        </div>
-
         <div class="border-b border-[var(--oterm-border)] p-3">
           <!-- Primary context-aware action button -->
           <div class="mb-2">
@@ -1082,6 +1272,21 @@ function authorInitials(author: string): string {
                 />
                 Generate
               </button>
+              <button
+                v-if="agentName"
+                type="button"
+                class="rounded-md border border-[var(--oterm-border)] px-2 py-1 text-[10px] text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:cursor-not-allowed disabled:opacity-40"
+                style="font-family: var(--oterm-font-ui)"
+                :title="`Immediately submit commit-message request to running ${agentName} in terminal. Finish any existing terminal prompt first.`"
+                :disabled="!canRequestAgentCommit"
+                @click="onRequestAgentCommitMessage"
+              >
+                <span
+                  v-if="agentHandoffBusy"
+                  class="mr-1 inline-block h-2.5 w-2.5 animate-spin rounded-full border border-current border-r-transparent"
+                />
+                Ask {{ agentName }}
+              </button>
             </div>
           </div>
           <textarea
@@ -1176,152 +1381,302 @@ function authorInitials(author: string): string {
         </div>
 
         <div class="oterm-scroll min-h-0 flex-1 overflow-y-auto">
-          <div class="flex items-center gap-2 px-3 py-2 border-b border-[var(--oterm-border)]">
-            <button type="button" class="text-xs text-[var(--oterm-muted)] hover:text-white" @click="emit('open-merge')">Test Merge</button>
-            <button type="button" class="text-xs text-[var(--oterm-muted)] hover:text-white" @click="emit('open-rebase')">Test Rebase</button>
+          <div class="flex items-center justify-between gap-2 border-b border-[var(--oterm-border)] px-3 py-2">
+            <div class="flex items-center gap-2">
+              <button type="button" class="text-xs text-[var(--oterm-muted)] hover:text-white" @click="emit('open-merge')">Test Merge</button>
+              <button type="button" class="text-xs text-[var(--oterm-muted)] hover:text-white" @click="emit('open-rebase')">Test Rebase</button>
+            </div>
+            <div v-if="allChangedFiles.length" class="-my-1 flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                class="flex h-6 w-6 shrink-0 items-center justify-center rounded transition"
+                :class="
+                  searchOpen
+                    ? 'bg-white/10 text-[var(--oterm-text)]'
+                    : 'text-[var(--oterm-muted)] hover:bg-white/5 hover:text-[var(--oterm-text)]'
+                "
+                :title="searchOpen ? 'Hide search' : 'Search changed files'"
+                :aria-label="searchOpen ? 'Hide search' : 'Search changed files'"
+                :aria-pressed="searchOpen"
+                @click="toggleSearch"
+              >
+                <UiGlyph name="list-search" :size="12" />
+              </button>
+              <button
+                type="button"
+                class="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+                title="Expand all"
+                aria-label="Expand all"
+                @click="expandAll"
+              >
+                <svg
+                  aria-hidden="true"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                >
+                  <path
+                    d="M4.5 6 8 2.5 11.5 6M4.5 10 8 13.5 11.5 10"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+                title="Collapse all"
+                aria-label="Collapse all"
+                @click="collapseAll"
+              >
+                <svg
+                  aria-hidden="true"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                >
+                  <path
+                    d="M4.5 2.5 8 6l3.5-3.5M4.5 13.5 8 10l3.5 3.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+                :title="viewMode === 'tree' ? 'View as list' : 'View as tree'"
+                :aria-label="viewMode === 'tree' ? 'View as list' : 'View as tree'"
+                @click="viewMode = viewMode === 'tree' ? 'list' : 'tree'"
+              >
+                <svg
+                  v-if="viewMode === 'tree'"
+                  aria-hidden="true"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.3"
+                >
+                  <path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke-linecap="round" />
+                </svg>
+                <svg
+                  v-else
+                  aria-hidden="true"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.3"
+                >
+                  <path
+                    d="M2.5 3.5h4l1 1.5h6v8h-11v-9.5z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <section v-if="status.staged.length" class="border-b border-[var(--oterm-border)] py-2">
-            <button
-              type="button"
-              class="flex w-full items-center gap-1.5 px-3 pb-1.5 text-left select-none group/title"
-              :aria-expanded="!stagedCollapsed"
-              @click="stagedCollapsed = !stagedCollapsed"
-            >
-              <svg
-                width="8"
-                height="8"
-                viewBox="0 0 10 10"
-                fill="currentColor"
-                class="shrink-0 text-[var(--oterm-faint)] transition group-hover/title:text-[var(--oterm-text)]"
-                :class="stagedCollapsed ? '-rotate-90' : ''"
-              >
-                <path d="M3 1.5 7.5 5 3 8.5z" />
-              </svg>
-              <span
-                class="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)] group-hover/title:text-[var(--oterm-text)] transition"
-                style="font-family: var(--oterm-font-ui)"
-              >
-                Staged ({{ status.staged.length }})
+          <div v-if="searchOpen && allChangedFiles.length" class="border-b border-[var(--oterm-border)] px-3 py-2">
+            <div class="relative flex items-center">
+              <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-[var(--oterm-faint)]">
+                <UiGlyph name="list-search" :size="11" />
               </span>
-            </button>
-            <div v-if="!stagedCollapsed">
-              <div
-                v-for="entry in status.staged"
-                :key="`staged:${entry.path}`"
-                :class="rowClass(entry, true, false)"
-                title="Double-click to view diff"
-                @click="selectFile(entry, true, false)"
-                @dblclick="openSingleFileDiff(entry, true, false)"
+              <input
+                ref="searchInputRef"
+                v-model="fileFilter"
+                type="text"
+                placeholder="Filter changed files…"
+                aria-label="Filter changed files"
+                class="w-full rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-bg)] py-1.5 pl-7 pr-7 text-xs text-[var(--oterm-text)] placeholder:text-[var(--oterm-faint)] outline-none ring-[var(--oterm-accent)] focus:ring-1"
+                style="font-family: var(--oterm-font-ui)"
+                @keydown.escape.stop="closeSearch"
+              />
+              <button
+                type="button"
+                class="absolute inset-y-0 right-1 my-auto flex h-5 w-5 items-center justify-center rounded text-[var(--oterm-faint)] transition hover:bg-white/5 hover:text-[var(--oterm-text)]"
+                title="Hide search"
+                aria-label="Hide search"
+                @click="closeSearch"
               >
-                <span :class="statusBadgeClass(entry, true)">{{ statusLabel(entry) }}</span>
-                <SourceControlFileLabel :entry="entry" />
-                <div class="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
-                  <button
-                    type="button"
-                    class="flex h-6 min-w-6 items-center justify-center rounded px-1.5 text-xs text-[var(--oterm-faint)] hover:bg-white/5 hover:text-[var(--oterm-text)]"
-                    title="Unstage"
-                    aria-label="Unstage"
-                    @click.stop="emit('unstage', [entry.path])"
+                <svg
+                  aria-hidden="true"
+                  width="10"
+                  height="10"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path d="M3 3l6 6M9 3l-6 6" stroke-linecap="round" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <p
+            v-if="hasActiveFileFilter && !hasMatchingFiles"
+            class="border-b border-[var(--oterm-border)] px-3 py-3 text-xs text-[var(--oterm-faint)]"
+            style="font-family: var(--oterm-font-ui)"
+          >
+            No matching changed files
+          </p>
+
+          <template v-for="section in fileSections" :key="section.id">
+            <section v-if="section.entries.length" class="border-b border-[var(--oterm-border)] py-2">
+              <button
+                type="button"
+                class="flex w-full items-center gap-1.5 px-3 pb-1.5 text-left select-none group/title"
+                :aria-expanded="!section.collapsed"
+                @click="section.toggle()"
+              >
+                <svg
+                  aria-hidden="true"
+                  width="8"
+                  height="8"
+                  viewBox="0 0 10 10"
+                  fill="currentColor"
+                  class="shrink-0 text-[var(--oterm-faint)] transition group-hover/title:text-[var(--oterm-text)]"
+                  :class="section.collapsed ? '' : 'rotate-90'"
+                >
+                  <path d="M3 1.5 7.5 5 3 8.5z" />
+                </svg>
+                <span
+                  class="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)] group-hover/title:text-[var(--oterm-text)] transition"
+                  style="font-family: var(--oterm-font-ui)"
+                >
+                  {{ section.label }} ({{ hasActiveFileFilter ? `${section.entries.length}/${section.totalCount}` : section.entries.length }})
+                </span>
+              </button>
+              <div v-if="!section.collapsed">
+                <template v-if="viewMode === 'tree'">
+                  <template v-for="row in section.treeRows" :key="`${section.id}:${row.key}`">
+                    <div
+                      v-if="row.kind === 'folder'"
+                      class="group flex items-center pr-3 py-1 select-none hover:bg-white/[0.03]"
+                      :style="{ paddingLeft: `${12 + row.depth * 14}px` }"
+                      :title="row.path"
+                    >
+                      <button
+                        type="button"
+                        class="flex min-w-0 flex-1 items-center gap-1.5 rounded text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]"
+                        :aria-expanded="!row.collapsed"
+                        @click="toggleSectionFolder(section.id, row.path)"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          width="8"
+                          height="8"
+                          viewBox="0 0 10 10"
+                          fill="currentColor"
+                          class="shrink-0 text-[var(--oterm-faint)] transition group-hover:text-[var(--oterm-text)]"
+                          :class="row.collapsed ? '' : 'rotate-90'"
+                        >
+                          <path d="M3 1.5 7.5 5 3 8.5z" />
+                        </svg>
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.3"
+                          class="shrink-0 text-[#dcb67a]"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M1.75 3.5h4.1l1.3 1.5h7.1c.4 0 .75.35.75.75v6.75c0 .4-.35.75-.75.75H1.75c-.4 0-.75-.35-.75-.75V4.25c0-.4.35-.75.75-.75z"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                        <span
+                          class="min-w-0 flex-1 truncate text-sm text-[var(--oterm-text)]"
+                          style="font-family: var(--oterm-font-ui)"
+                        >
+                          {{ row.name }}
+                        </span>
+                      </button>
+                      <SourceControlFileActions
+                        :paths="row.filePaths"
+                        :target-label="row.path"
+                        :staged="section.staged"
+                        :secondary="section.secondary"
+                        :disabled="busy"
+                        @stage="emit('stage', $event)"
+                        @unstage="emit('unstage', $event)"
+                        @secondary="confirmRevert($event, section.untracked)"
+                      />
+                    </div>
+                    <div
+                      v-else
+                      :class="rowClass(row.entry, section.staged, section.untracked)"
+                      :style="{ paddingLeft: `${12 + row.depth * 14 + (row.depth > 0 ? 10 : 0)}px` }"
+                      :title="`${row.entry.path} (Double-click to view diff)`"
+                    >
+                      <button
+                        type="button"
+                        class="flex min-w-0 flex-1 items-center gap-2 rounded text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]"
+                        @click="selectFile(row.entry, section.staged, section.untracked)"
+                        @dblclick="openSingleFileDiff(row.entry, section.staged, section.untracked)"
+                      >
+                        <span :class="statusBadgeClass(row.entry, section.staged)">{{ statusLabel(row.entry) }}</span>
+                        <SourceControlFileLabel :entry="row.entry" hide-dir-path />
+                      </button>
+                      <SourceControlFileActions
+                        :paths="[row.entry.path]"
+                        :target-label="row.entry.path"
+                        :staged="section.staged"
+                        :secondary="section.secondary"
+                        :disabled="busy"
+                        @stage="emit('stage', $event)"
+                        @unstage="emit('unstage', $event)"
+                        @secondary="confirmRevert($event, section.untracked)"
+                      />
+                    </div>
+                  </template>
+                </template>
+                <template v-else>
+                  <div
+                    v-for="entry in section.entries"
+                    :key="`${section.id}:${entry.path}`"
+                    :class="rowClass(entry, section.staged, section.untracked)"
+                    :title="`${entry.path} (Double-click to view diff)`"
                   >
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M3 8h10" stroke-linecap="round" />
-                    </svg>
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      class="flex min-w-0 flex-1 items-center gap-2 rounded text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oterm-accent)]"
+                      @click="selectFile(entry, section.staged, section.untracked)"
+                      @dblclick="openSingleFileDiff(entry, section.staged, section.untracked)"
+                    >
+                      <span :class="statusBadgeClass(entry, section.staged)">{{ statusLabel(entry) }}</span>
+                      <SourceControlFileLabel :entry="entry" />
+                    </button>
+                    <SourceControlFileActions
+                      :paths="[entry.path]"
+                      :target-label="entry.path"
+                      :staged="section.staged"
+                      :secondary="section.secondary"
+                      :disabled="busy"
+                      @stage="emit('stage', $event)"
+                      @unstage="emit('unstage', $event)"
+                      @secondary="confirmRevert($event, section.untracked)"
+                    />
+                  </div>
+                </template>
               </div>
-            </div>
-          </section>
-
-          <section v-if="status.changes.length" class="border-b border-[var(--oterm-border)] py-2">
-            <button
-              type="button"
-              class="flex w-full items-center gap-1.5 px-3 pb-1.5 text-left select-none group/title"
-              :aria-expanded="!changesCollapsed"
-              @click="changesCollapsed = !changesCollapsed"
-            >
-              <svg
-                width="8"
-                height="8"
-                viewBox="0 0 10 10"
-                fill="currentColor"
-                class="shrink-0 text-[var(--oterm-faint)] transition group-hover/title:text-[var(--oterm-text)]"
-                :class="changesCollapsed ? '-rotate-90' : ''"
-              >
-                <path d="M3 1.5 7.5 5 3 8.5z" />
-              </svg>
-              <span
-                class="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)] group-hover/title:text-[var(--oterm-text)] transition"
-                style="font-family: var(--oterm-font-ui)"
-              >
-                Changes ({{ status.changes.length }})
-              </span>
-            </button>
-            <div v-if="!changesCollapsed">
-              <div
-                v-for="entry in status.changes"
-                :key="`changes:${entry.path}`"
-                :class="rowClass(entry, false, false)"
-                title="Double-click to view diff"
-                @click="selectFile(entry, false, false)"
-                @dblclick="openSingleFileDiff(entry, false, false)"
-              >
-                <span :class="statusBadgeClass(entry, false)">{{ statusLabel(entry) }}</span>
-                <SourceControlFileLabel :entry="entry" />
-                <SourceControlFileActions
-                  :path="entry.path"
-                  secondary="revert"
-                  @stage="emit('stage', $event)"
-                  @secondary="confirmRevert([$event], false)"
-                />
-              </div>
-            </div>
-          </section>
-
-          <section v-if="status.untracked.length" class="border-b border-[var(--oterm-border)] py-2">
-            <button
-              type="button"
-              class="flex w-full items-center gap-1.5 px-3 pb-1.5 text-left select-none group/title"
-              :aria-expanded="!untrackedCollapsed"
-              @click="untrackedCollapsed = !untrackedCollapsed"
-            >
-              <svg
-                width="8"
-                height="8"
-                viewBox="0 0 10 10"
-                fill="currentColor"
-                class="shrink-0 text-[var(--oterm-faint)] transition group-hover/title:text-[var(--oterm-text)]"
-                :class="untrackedCollapsed ? '-rotate-90' : ''"
-              >
-                <path d="M3 1.5 7.5 5 3 8.5z" />
-              </svg>
-              <span
-                class="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--oterm-faint)] group-hover/title:text-[var(--oterm-text)] transition"
-                style="font-family: var(--oterm-font-ui)"
-              >
-                Untracked ({{ status.untracked.length }})
-              </span>
-            </button>
-            <div v-if="!untrackedCollapsed">
-              <div
-                v-for="entry in status.untracked"
-                :key="`untracked:${entry.path}`"
-                :class="rowClass(entry, false, true)"
-                title="Double-click to view diff"
-                @click="selectFile(entry, false, true)"
-                @dblclick="openSingleFileDiff(entry, false, true)"
-              >
-                <span :class="statusBadgeClass(entry, false)">U</span>
-                <SourceControlFileLabel :entry="entry" />
-                <SourceControlFileActions
-                  :path="entry.path"
-                  secondary="delete"
-                  @stage="emit('stage', $event)"
-                  @secondary="confirmRevert([$event], true)"
-                />
-              </div>
-            </div>
-          </section>
+            </section>
+          </template>
 
           <GitCommitGraph
             v-if="status.isRepo && status.repoRoot"
@@ -1406,6 +1761,20 @@ function authorInitials(author: string): string {
           >
             Working tree clean
           </p>
+
+          <SourceControlReview
+            v-if="!showDiffPane && status.isRepo && !selectedCommitHash"
+            :repo-root="status.repoRoot"
+            :scope-key="scopeKey"
+            :selected-file="selectedFile"
+            :selected-range="selectedReviewRange"
+            :agent-name="agentName"
+            :agent-handoff-busy="agentHandoffBusy"
+            :disabled="busy || loading"
+            class="border-t border-[var(--oterm-border)] mt-auto"
+            @clear-range="selectedReviewRange = null"
+            @agent-request="emit('agent-request', $event)"
+          />
 
           <section class="border-t border-[var(--oterm-border)] mt-auto py-2">
             <button
@@ -1583,11 +1952,14 @@ function authorInitials(author: string): string {
         :active-hunk-index="activeHunkIndex"
         :feedback="hunkFeedback"
         :feedback-error="hunkFeedbackError"
+        :selectable="Boolean(selectedFile && !selectedCommitHash)"
+        :selected-range="selectedReviewRange"
         @update:active-hunk-index="activeHunkIndex = $event"
         @hunk-count="hunkCount = $event"
         @revert-hunk="onRevertHunk"
         @stage-hunk="onStageHunk"
         @unstage-hunk="onUnstageHunk"
+        @select-range="selectedReviewRange = $event"
       />
       <GitFileEditor
         v-else
@@ -1596,6 +1968,19 @@ function authorInitials(author: string): string {
         :error="editError"
         :missing="editMissing"
         @save="saveEdit"
+      />
+      <SourceControlReview
+        v-if="showDiffPane && status.isRepo && !selectedCommitHash"
+        :repo-root="status.repoRoot"
+        :scope-key="scopeKey"
+        :selected-file="selectedFile"
+        :selected-range="selectedReviewRange"
+        :agent-name="agentName"
+        :agent-handoff-busy="agentHandoffBusy"
+        :disabled="busy || loading"
+        class="border-t border-[var(--oterm-border)] shrink-0 max-h-72 overflow-y-auto"
+        @clear-range="selectedReviewRange = null"
+        @agent-request="emit('agent-request', $event)"
       />
     </div>
   </div>

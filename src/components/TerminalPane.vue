@@ -14,6 +14,9 @@ import {
   watch,
 } from "vue";
 import { captureTerminalOutput } from "../lib/terminalSyncApi";
+import { sendTerminalAgentPrompt } from "../lib/terminalAgentSend";
+import { getAgentComposerDraft } from "../lib/agentComposerDrafts";
+import { sameSourceControlAgentTarget, type SourceControlAgentTarget } from "../lib/sourceControlAgent";
 import { TERMINAL_FONT_FAMILY, TERMINAL_FONT_SIZE } from "../lib/terminalFont";
 import { resolveTerminalTheme } from "../lib/terminalThemes";
 import { TerminalBlockRenderer } from "../lib/terminalBlockRenderer";
@@ -132,6 +135,7 @@ import {
 import type { AgentSemanticStatus } from "../types/terminal";
 import {
   isValidPtySize,
+  isWindowsConPtySession,
   MOUNT_CONTAINER_WAIT_MAX_FRAMES,
   PTY_LAYOUT_WAIT_MAX_FRAMES,
   shouldBlockBootstrap,
@@ -164,6 +168,7 @@ const props = defineProps<{
   activeAgentId?: CliAgentId | null;
   themeId?: string | null;
   sshEndpointId?: string | null;
+  sourceControlAgentTarget?: SourceControlAgentTarget | null;
 }>();
 
 const isSshSession = computed(() => Boolean(props.sshEndpointId));
@@ -223,7 +228,9 @@ async function killBackendSessionIfPresent(sessionId: string | null) {
   ]);
 }
 
-function bindSessionId(sessionId: string) {
+let lastSyncedPtySize: { sessionId: string; cols: number; rows: number } | null = null;
+
+function bindSessionId(sessionId: string, syncedSize?: { cols: number; rows: number }) {
   localSessionId.value = sessionId;
   backendSessionId.value = sessionId;
   bootstrappingSessionId = null;
@@ -231,6 +238,7 @@ function bindSessionId(sessionId: string) {
   launchError.value = null;
   sessionEndedLocally.value = false;
   hasReceivedTerminalOutput = false;
+  lastSyncedPtySize = syncedSize ? { sessionId, ...syncedSize } : null;
   sessionLifecycle.begin(sessionId, bootstrapGeneration);
 }
 
@@ -1164,8 +1172,10 @@ async function ensureSshSession() {
   while (true) {
     if (disposed || generation !== bootstrapGeneration) return;
     try {
+      const spawnCols = terminal.cols;
+      const spawnRows = terminal.rows;
       const sessionId = await acceptTerminalSpawn(
-        sshTerminalSpawn(request, terminal.cols, terminal.rows, null),
+        sshTerminalSpawn(request, spawnCols, spawnRows, null),
         () => !disposed && generation === bootstrapGeneration,
         killBootstrapSession,
       );
@@ -1173,7 +1183,7 @@ async function ensureSshSession() {
         await killBackendSession(sessionId);
         return;
       }
-      bindSessionId(sessionId);
+      bindSessionId(sessionId, { cols: spawnCols, rows: spawnRows });
       if (!await attachSessionOutput(sessionId, generation)) return;
       bootstrapComplete.value = true;
       launchError.value = null;
@@ -1270,12 +1280,14 @@ async function bootstrapSession() {
           }
           layoutWaitFrames = 0;
           bootstrapAwaitingLayout = false;
+          const spawnCols = terminal!.cols;
+          const spawnRows = terminal!.rows;
           let sessionId: string;
           try {
             sessionId = await spawnTerminalWithTimeout(
               props.shellId,
-              terminal!.cols,
-              terminal!.rows,
+              spawnCols,
+              spawnRows,
               cwd,
             );
           } catch (err) {
@@ -1300,13 +1312,17 @@ async function bootstrapSession() {
             await killBootstrapSession(sessionId);
             break;
           }
-          bindSessionId(sessionId);
+          bindSessionId(sessionId, { cols: spawnCols, rows: spawnRows });
           if (!await attachSessionOutput(sessionId, generation)) break;
           bootstrapComplete.value = true;
           emit("sessionCreated", props.paneId, sessionId);
           schedulePromptKick(sessionId);
           break;
         }
+      }
+      if (bootstrapComplete.value && terminal && fitAddon) {
+        fitAddon.fit();
+        void syncPtyResize();
       }
       await flushPendingBootstrapInput();
     } catch (err) {
@@ -1752,17 +1768,30 @@ async function onWindowPasteCapture(event: ClipboardEvent) {
 }
 
 async function syncPtyResize() {
-  if (!terminal || !localSessionId.value) return;
+  const sessionId = localSessionId.value;
+  if (!terminal || !sessionId) return;
+  const cols = terminal.cols;
+  const rows = terminal.rows;
+  const lastForSession = lastSyncedPtySize?.sessionId === sessionId ? lastSyncedPtySize : null;
   if (
     !shouldForwardPtyResize({
       tabActive: props.tabActive,
-      cols: terminal.cols,
-      rows: terminal.rows,
+      cols,
+      rows,
+      lastCols: lastForSession?.cols,
+      lastRows: lastForSession?.rows,
     })
   ) {
     return;
   }
-  await resizeSession(localSessionId.value, terminal.cols, terminal.rows);
+  lastSyncedPtySize = { sessionId, cols, rows };
+  try {
+    await resizeSession(sessionId, cols, rows);
+  } catch {
+    if (lastSyncedPtySize?.sessionId === sessionId) {
+      lastSyncedPtySize = null;
+    }
+  }
 }
 
 async function handleResize() {
@@ -1780,9 +1809,14 @@ async function handleResize() {
   }, 100);
 }
 
+function onWindowResize() {
+  void handleResize();
+}
+
 async function mountTerminal() {
   if (!containerRef.value) return;
 
+  const useWindowsConPty = isWindowsConPtySession({ isSshSession: isSshSession.value });
   terminal = new Terminal({
     cursorBlink: true,
     fontFamily: TERMINAL_FONT_FAMILY,
@@ -1792,6 +1826,8 @@ async function mountTerminal() {
     lineHeight: 1.45,
     letterSpacing: 0,
     scrollback: 5000,
+    reflowCursorLine: true,
+    windowsPty: useWindowsConPty ? { backend: "conpty", buildNumber: 22621 } : undefined,
     rescaleOverlappingGlyphs: true,
     allowTransparency: true,
     allowProposedApi: true,
@@ -1810,6 +1846,11 @@ async function mountTerminal() {
   fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);
   terminal.open(containerRef.value);
+  if (useWindowsConPty) {
+    (
+      terminal as unknown as { _core?: { _enableWindowsWrappingHeuristics?: () => void } }
+    )._core?._enableWindowsWrappingHeuristics?.();
+  }
   blockRenderer?.installOverlay(containerRef.value);
   fitAddon.fit();
   terminal.focus();
@@ -2083,6 +2124,30 @@ async function insertText(text: string) {
   }
 }
 
+function currentSourceControlAgentTarget(): SourceControlAgentTarget | null {
+  const current = props.sourceControlAgentTarget;
+  if (disposed || !props.active || !props.tabActive || isSshSession.value ||
+    !bootstrapComplete.value || !localSessionId.value || !activeAgentId.value ||
+    !sessionLifecycle.canSend(localSessionId.value, bootstrapGeneration) || !current ||
+    current.paneId !== props.paneId || current.sessionId !== localSessionId.value ||
+    current.agentId !== activeAgentId.value || current.cwd !== (paneCwd.value || props.initialCwd) ||
+    current.scopeKey !== `pane:${props.paneId}`) return null;
+  return current;
+}
+
+async function sendAgentPrompt(text: string, expected: SourceControlAgentTarget): Promise<void> {
+  const lock = getAgentComposerDraft(props.paneId);
+  await sendTerminalAgentPrompt(text, expected, {
+    lock,
+    current: currentSourceControlAgentTarget,
+    pendingInput: () => draftInput.value,
+    composerBusy: () => agentComposerRef.value?.isBusy() ?? false,
+    detect: queryTerminalActiveAgent,
+    write: writeSession,
+  });
+  if (sameSourceControlAgentTarget(expected, currentSourceControlAgentTarget())) closeAgentComposer();
+}
+
 function copySelectedBlock(): { command: string; output: string } | null {
   return blockRenderer?.copySelectedBlock() ?? null;
 }
@@ -2112,6 +2177,7 @@ defineExpose({
   killSession,
   getBackendSessionId,
   insertText,
+  sendAgentPrompt,
   copySelectedBlock,
   jumpToLastFailedBlock,
   getSelectedOrLastFailedCommand,
@@ -2129,6 +2195,7 @@ onMounted(async () => {
   await nextTick();
   window.addEventListener("keydown", onWindowKeyCapture, true);
   window.addEventListener("paste", onWindowPasteCapture, true);
+  window.addEventListener("resize", onWindowResize);
 
   void (async () => {
     try {
@@ -2219,15 +2286,21 @@ watch(
 watch(
   () => props.tabActive,
   (tabActive) => {
+    if (!tabActive || disposed) return;
     if (
-      tabActive &&
-      !disposed &&
       !sessionEndedLocally.value &&
       !localSessionId.value &&
       !isBootstrapBlocked()
     ) {
       maybeRetryBootstrapWhenReady();
     }
+    void nextTick(() => {
+      requestAnimationFrame(() => {
+        if (!disposed && props.tabActive) {
+          void handleResize();
+        }
+      });
+    });
   },
 );
 
@@ -2265,6 +2338,7 @@ onBeforeUnmount(async () => {
   unlistenDragDrop?.();
   window.removeEventListener("keydown", onWindowKeyCapture, true);
   window.removeEventListener("paste", onWindowPasteCapture, true);
+  window.removeEventListener("resize", onWindowResize);
   window.clearTimeout(resizeTimer);
   window.clearTimeout(suggestionTimer);
   window.clearTimeout(outputNotifyTimer);
@@ -2360,7 +2434,7 @@ watch(suggestionStripVisible, () => {
   >
     <div class="flex-1 min-h-0 w-full px-2 py-1">
       <div
-        class="terminal-window-container flex flex-col h-full w-full rounded-lg overflow-hidden p-3 transition-all"
+        class="terminal-window-container flex flex-col h-full w-full rounded-lg overflow-hidden p-3"
         :class="[
           active ? 'terminal-window-container--active' : '',
           isDraggingOverThisPane ? '!border-[var(--oterm-accent)]/55 ring-1 ring-[var(--oterm-accent)]/20 bg-white/[0.01]' : ''
