@@ -117,7 +117,8 @@ export function parseUnifiedDiff(content: string): ParsedUnifiedDiff {
     let oldLine = headerInfo.oldStart;
     let newLine = headerInfo.newStart;
 
-    while (lineIndex < rawLines.length && !rawLines[lineIndex].startsWith("@@")) {
+    while (lineIndex < rawLines.length && !rawLines[lineIndex].startsWith("@@") &&
+      !rawLines[lineIndex].startsWith("diff --git ")) {
       const text = rawLines[lineIndex];
       if (text.length === 0) {
         lineIndex += 1;
@@ -125,7 +126,7 @@ export function parseUnifiedDiff(content: string): ParsedUnifiedDiff {
       }
       bodyLines.push(text);
 
-      if (text.startsWith("+") && !text.startsWith("+++")) {
+      if (text.startsWith("+")) {
         displayLines.push({
           kind: "add",
           text: text.slice(1),
@@ -133,7 +134,7 @@ export function parseUnifiedDiff(content: string): ParsedUnifiedDiff {
           newLine: newLine,
         });
         newLine += 1;
-      } else if (text.startsWith("-") && !text.startsWith("---")) {
+      } else if (text.startsWith("-")) {
         displayLines.push({
           kind: "remove",
           text: text.slice(1),
@@ -272,7 +273,7 @@ export function buildSideBySideRows(hunk: DiffHunk): SideBySideRow[] {
 
     if (line.kind === "context") {
       const cell = sideBySideCell(hunk.index, line, index);
-      rows.push({ hunkIndex: hunk.index, left: cell, right: cell });
+      rows.push({ hunkIndex: hunk.index, left: { ...cell, lineNumber: line.oldLine }, right: cell });
       index += 1;
       continue;
     }

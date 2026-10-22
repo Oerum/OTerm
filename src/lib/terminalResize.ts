@@ -19,8 +19,24 @@ export function shouldForwardPtyResize(input: {
   tabActive: boolean;
   cols: number;
   rows: number;
+  lastCols?: number | null;
+  lastRows?: number | null;
 }): boolean {
   if (!input.tabActive) return false;
   if (!isValidPtySize(input.cols, input.rows)) return false;
+  if (input.lastCols === input.cols && input.lastRows === input.rows) return false;
   return true;
+}
+
+export function isWindowsConPtySession(input: {
+  isSshSession: boolean;
+  platform?: string;
+  userAgent?: string;
+}): boolean {
+  if (input.isSshSession) return false;
+  const platform =
+    input.platform ?? (typeof navigator !== "undefined" ? navigator.platform : "");
+  const userAgent =
+    input.userAgent ?? (typeof navigator !== "undefined" ? navigator.userAgent : "");
+  return /Win/i.test(platform) || /Windows/i.test(userAgent);
 }

@@ -1,5 +1,5 @@
 import type { Terminal } from "@xterm/xterm";
-import { detectShellPrompt, stripAnsiForPrompt } from "./terminalPrompt";
+import { getShellPromptPrefixLength, stripAnsiForPrompt } from "./terminalPrompt";
 
 export interface PathMatch {
   start: number;
@@ -83,14 +83,15 @@ function mergeOverlapping(matches: PathMatch[]): PathMatch[] {
 /** Scan a single terminal line for file-system paths. Paths split across wrapped lines are not linked (v1). */
 export function scanLineForPaths(line: string): PathMatch[] {
   const text = stripAnsiForPrompt(line);
-  const trimmed = text.trim();
-  if (!trimmed || detectShellPrompt(trimmed)) return [];
+  const promptPrefixLen = getShellPromptPrefixLength(text);
+  if (!text.trim() || promptPrefixLen >= text.length) return [];
 
   const matches: PathMatch[] = [];
   for (const pattern of PATTERNS) {
     pattern.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(text)) !== null) {
+      if (match.index < promptPrefixLen) continue;
       const raw = match[0];
       if (raw.startsWith("/") && text.slice(Math.max(0, match.index - 6), match.index + raw.length).includes("://")) {
         continue;
@@ -112,13 +113,14 @@ export function scanLineForPaths(line: string): PathMatch[] {
 /** Scan a single terminal line for http(s) URLs. */
 export function scanLineForUrls(line: string): PathMatch[] {
   const text = stripAnsiForPrompt(line);
-  const trimmed = text.trim();
-  if (!trimmed || detectShellPrompt(trimmed)) return [];
+  const promptPrefixLen = getShellPromptPrefixLength(text);
+  if (!text.trim() || promptPrefixLen >= text.length) return [];
 
   const matches: PathMatch[] = [];
   HTTP_URL_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = HTTP_URL_PATTERN.exec(text)) !== null) {
+    if (match.index < promptPrefixLen) continue;
     const raw = match[0];
     const urlText = trimPathEdges(raw);
     if (!isHttpUrl(urlText)) continue;

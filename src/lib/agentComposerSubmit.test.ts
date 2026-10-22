@@ -66,6 +66,15 @@ describe("submitAgentComposerText", () => {
     expect(write.mock.calls[0][1]).toBe("status\r");
   });
 
+  it("pastes multiline text as one message for an inline agent", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    await submitAgentComposerText("sess", "amp", "first\nsecond", write);
+    expect(write.mock.calls).toEqual([
+      ["sess", `${BRACKETED_PASTE_START}first\nsecond${BRACKETED_PASTE_END}`],
+      ["sess", "\r"],
+    ]);
+  });
+
   it("submits single-line text inline to terminal", async () => {
     const write = vi.fn().mockResolvedValue(undefined);
     await submitTerminalComposerText("sess", "npm test", write);

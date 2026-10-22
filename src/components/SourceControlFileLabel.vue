@@ -1,11 +1,15 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { GitFileEntry } from "../types/git";
 import { parseFilePath } from "../lib/gitFilePaths";
 import GitFileLineStats from "./GitFileLineStats.vue";
 
-defineProps<{
+const props = defineProps<{
   entry: GitFileEntry;
+  hideDirPath?: boolean;
 }>();
+
+const parsed = computed(() => parseFilePath(props.entry.path));
 </script>
 
 <template>
@@ -14,10 +18,10 @@ defineProps<{
     style="font-family: var(--oterm-font-ui)"
   >
     <span class="truncate text-sm text-[var(--oterm-text)] font-medium">
-      {{ parseFilePath(entry.path).fileName }}
+      {{ parsed.fileName }}
     </span>
-    <span class="truncate text-[10px] text-[var(--oterm-faint)]">
-      {{ parseFilePath(entry.path).dirPath }}
+    <span v-if="!hideDirPath && parsed.dirPath" class="truncate text-[10px] text-[var(--oterm-faint)]">
+      {{ parsed.dirPath }}
     </span>
   </div>
   <GitFileLineStats :additions="entry.additions" :deletions="entry.deletions" />

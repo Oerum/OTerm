@@ -85,22 +85,50 @@ function promptCwd(raw: string): { cwd: string } | null {
   return isPlausiblePromptCwd(cwd) ? { cwd } : null;
 }
 
-/** Extract cwd from a command row that still contains the typed command after the prompt. */
-export function extractCwdFromPromptLine(text: string): string | null {
-  const line = stripAnsiForPrompt(text);
+const WRAPPED_PS_PROMPT = /^PS\s+[A-Za-z]:\\[^\r\n>]*$/;
+
+function matchPromptPrefix(line: string): { prefixLength: number; cwd: string } | null {
   const psMatch = line.match(PS_PROMPT_PREFIX);
-  if (psMatch?.[1]) return promptCwd(psMatch[1])?.cwd ?? null;
+  if (psMatch?.[1]) {
+    const parsed = promptCwd(psMatch[1]);
+    if (parsed) return { prefixLength: psMatch[0].length, cwd: parsed.cwd };
+  }
 
   const cmdMatch = line.match(CMD_PROMPT_PREFIX);
-  if (cmdMatch?.[1]) return promptCwd(cmdMatch[1])?.cwd ?? null;
+  if (cmdMatch?.[1]) {
+    const parsed = promptCwd(cmdMatch[1]);
+    if (parsed) return { prefixLength: cmdMatch[0].length, cwd: parsed.cwd };
+  }
 
   const unixGtMatch = line.match(/^((?:\/[\w.-]+)+)>\s*/);
-  if (unixGtMatch?.[1]) return promptCwd(unixGtMatch[1])?.cwd ?? null;
+  if (unixGtMatch?.[1]) {
+    const parsed = promptCwd(unixGtMatch[1]);
+    if (parsed) return { prefixLength: unixGtMatch[0].length, cwd: parsed.cwd };
+  }
 
   const bashMatch = line.match(/^[\w.-]+@[\w.-]+:((?:\/[\w.-]+)+)[$#]\s*/);
-  if (bashMatch?.[1]) return promptCwd(bashMatch[1])?.cwd ?? null;
+  if (bashMatch?.[1]) {
+    const parsed = promptCwd(bashMatch[1]);
+    if (parsed) return { prefixLength: bashMatch[0].length, cwd: parsed.cwd };
+  }
 
   return null;
+}
+
+/** Extract cwd from a command row that still contains the typed command after the prompt. */
+export function extractCwdFromPromptLine(text: string): string | null {
+  return matchPromptPrefix(stripAnsiForPrompt(text))?.cwd ?? null;
+}
+
+/** Length of leading shell prompt prefix (or full line if the line is only a prompt / wrapped PS prompt). */
+export function getShellPromptPrefixLength(text: string): number {
+  const line = stripAnsiForPrompt(text);
+  const trimmed = line.trim();
+  if (!trimmed) return 0;
+  if (detectShellPrompt(trimmed) || WRAPPED_PS_PROMPT.test(trimmed)) {
+    return line.length;
+  }
+  return matchPromptPrefix(line)?.prefixLength ?? 0;
 }
 
 export function detectShellPrompt(text: string): { cwd: string } | null {
