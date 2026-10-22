@@ -376,7 +376,7 @@ jobs:
           generateReleaseNotes: true
           releaseDraft: true
           prerelease: false
-          includeUpdaterJson: ${{ matrix.include_updater && matrix.updater_manifest == 'latest.json' }}
+          uploadUpdaterJson: ${{ matrix.include_updater && matrix.updater_manifest == 'latest.json' }}
           retryAttempts: 10
           args: --features ${{ matrix.whisper_features }} -c '${{ env.TAURI_CONFIG_JSON }}'
 
@@ -388,7 +388,7 @@ jobs:
           RELEASE_ID: ${{ steps.tauri.outputs.releaseId }}
           APP_VERSION: ${{ steps.tauri.outputs.appVersion }}
           ARTIFACT_PATHS: ${{ steps.tauri.outputs.artifactPaths }}
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: v${{ steps.tauri.outputs.appVersion }}
         run: node scripts/upload-updater-manifest.mjs
 
       - name: Verify Windows CUDA runtime bundle
