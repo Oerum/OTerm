@@ -28,3 +28,7 @@
 ## 2026-10-06 - [Add keyboard focus states to custom UI buttons]
 **Learning:** Found that custom-styled button classes (like `.nav-btn`, `.pane-action-btn`, `.entry-action-btn` in Vue components) often lack standard keyboard focus styling. This creates inconsistent accessibility for keyboard users.
 **Action:** Always verify that every custom button class has an explicit `:focus-visible` state with an outline/box-shadow that utilizes the application's accent color (e.g., `var(--oterm-accent)`), matching the app's overall focus ring style.
+
+## 2025-01-28 - Focus States Missing on NumberStepper
+**Learning:** The NumberStepper component lacked clear focus states for keyboard navigation, making it hard to tell when the component or its buttons were active.
+**Action:** Always add keyboard focus states (`focus-within` on wrappers and `focus-visible` on internal buttons) to custom input components.
