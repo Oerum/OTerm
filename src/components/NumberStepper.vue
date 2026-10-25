@@ -44,12 +44,12 @@ function onInput(event: Event) {
 
 <template>
   <div
-    class="inline-flex h-10 overflow-hidden rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+    class="inline-flex h-10 overflow-hidden rounded-md border border-[var(--oterm-border)] bg-[var(--oterm-panel)] px-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-colors focus-within:border-[var(--oterm-accent)]/50 focus-within:ring-1 focus-within:ring-[var(--oterm-accent)]/50"
     :class="disabled ? 'opacity-50' : ''"
   >
     <button
       type="button"
-      class="flex w-9 shrink-0 items-center justify-center border-r border-[var(--oterm-border)] text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:cursor-not-allowed disabled:opacity-40"
+      class="flex w-9 shrink-0 items-center justify-center border-r border-[var(--oterm-border)] text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] focus:outline-none focus-visible:bg-white/5 focus-visible:text-[var(--oterm-text)] disabled:cursor-not-allowed disabled:opacity-40"
       :disabled="disabled || atMin"
       aria-label="Decrease"
       @click="decrement"
@@ -69,7 +69,7 @@ function onInput(event: Event) {
     />
     <button
       type="button"
-      class="flex w-9 shrink-0 items-center justify-center border-l border-[var(--oterm-border)] text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] disabled:cursor-not-allowed disabled:opacity-40"
+      class="flex w-9 shrink-0 items-center justify-center border-l border-[var(--oterm-border)] text-[var(--oterm-muted)] transition hover:bg-white/5 hover:text-[var(--oterm-text)] focus:outline-none focus-visible:bg-white/5 focus-visible:text-[var(--oterm-text)] disabled:cursor-not-allowed disabled:opacity-40"
       :disabled="disabled || atMax"
       aria-label="Increase"
       @click="increment"
