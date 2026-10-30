@@ -42,8 +42,9 @@ const emptyBranches = (): GitBranchList => ({
 });
 
 export function useSourceControl(cwd: Ref<string | undefined>) {
-  const status = ref<GitSourceControlStatus>(emptyStatus());
-  const branches = ref<GitBranchList>(emptyBranches());
+  // ⚡ Bolt Optimization: Use shallowRef for Git status and branches as they are completely reassigned, preventing deep reactivity overhead on large git diffs or branch lists
+  const status = shallowRef<GitSourceControlStatus>(emptyStatus());
+  const branches = shallowRef<GitBranchList>(emptyBranches());
   // ⚡ Bolt Optimization: Use shallowRef for large arrays of commits to prevent deep reactivity overhead
   const history = shallowRef<GitCommitEntry[]>([]);
   const loadedCwd = ref<string | undefined>(undefined);
