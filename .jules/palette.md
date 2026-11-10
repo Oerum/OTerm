@@ -32,3 +32,6 @@
 ## 2025-01-28 - Focus States Missing on NumberStepper
 **Learning:** The NumberStepper component lacked clear focus states for keyboard navigation, making it hard to tell when the component or its buttons were active.
 **Action:** Always add keyboard focus states (`focus-within` on wrappers and `focus-visible` on internal buttons) to custom input components.
+## 2026-11-10 - [Add keyboard focus states to StashManager buttons]
+**Learning:** Found that custom-styled buttons in the `StashManager` lacked both standard keyboard focus styling and the `type="button"` attribute. The absence of focus styles makes keyboard navigation difficult, and missing `type="button"` can lead to accidental form submissions. It is important to ensure fallback colors for css variables (e.g. `var(--oterm-focus, #007acc)`) when adding custom styles.
+**Action:** Always verify that every custom button class has an explicit `:focus-visible` state with an outline/box-shadow that utilizes the application's focus color with fallback (e.g., `var(--oterm-focus, #007acc)`), matching the app's overall focus ring style. Also ensure that all buttons have explicit `type="button"` unless they are explicitly meant to submit forms.
