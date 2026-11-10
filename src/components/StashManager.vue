@@ -89,7 +89,7 @@ onMounted(() => {
       <div class="flex items-center gap-3">
         <button 
           type="button"
-          class="rounded-sm border border-[var(--oterm-border)] bg-transparent px-2.5 py-1 text-xs font-medium text-[var(--oterm-text)] hover:border-[var(--oterm-border-strong)] hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-focus, #007acc)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-bg)]"
+          class="rounded-sm border border-[var(--oterm-border)] bg-transparent px-2.5 py-1 text-xs font-medium text-[var(--oterm-text)] hover:border-[var(--oterm-border-strong)] hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-bg)]"
           @click="$emit('close')"
         >
           Close
@@ -103,7 +103,7 @@ onMounted(() => {
           @keyup.enter="createStash" 
           class="bg-[var(--oterm-input-bg, #3c3c3c)] border border-transparent focus:border-[var(--oterm-focus, #007acc)] text-[var(--oterm-text)] px-2 py-1 rounded-sm text-xs outline-none transition-colors"
         />
-        <button type="button" class="bg-[var(--oterm-brand, #007acc)] text-white hover:bg-[var(--oterm-brand-hover, #005f9e)] px-2 py-1 rounded-sm text-xs font-medium border border-transparent disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-focus, #007acc)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-bg)]" @click="createStash" :disabled="loading">Stash</button>
+        <button type="button" class="bg-[var(--oterm-brand, #007acc)] text-white hover:bg-[var(--oterm-brand-hover, #005f9e)] px-2 py-1 rounded-sm text-xs font-medium border border-transparent disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-bg)]" @click="createStash" :disabled="loading">Stash</button>
       </div>
     </div>
     
@@ -288,7 +288,8 @@ onMounted(() => {
   transition: opacity 0.15s ease;
 }
 
-.stash-item:hover .stash-actions {
+.stash-item:hover .stash-actions,
+.stash-item:focus-within .stash-actions {
   opacity: 1;
 }
 
@@ -306,8 +307,8 @@ onMounted(() => {
 
 .btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--oterm-focus, #007acc) 50%, transparent);
-  border-color: var(--oterm-focus, #007acc);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--oterm-accent) 50%, transparent);
+  border-color: var(--oterm-accent);
 }
 
 .btn:disabled {
