@@ -645,7 +645,7 @@ onBeforeUnmount(() => {
         <button 
           v-if="searchQuery" 
           type="button" 
-          class="absolute inset-y-0 right-0 flex items-center pr-2 text-[var(--oterm-faint)] hover:text-white"
+          class="absolute inset-y-0 right-0 flex items-center pr-2 text-[var(--oterm-faint)] hover:text-white rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--oterm-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--oterm-panel)]"
           aria-label="Clear search"
           @click="searchQuery = ''"
         >
