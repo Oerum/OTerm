@@ -32,3 +32,6 @@
 ## 2025-01-28 - Focus States Missing on NumberStepper
 **Learning:** The NumberStepper component lacked clear focus states for keyboard navigation, making it hard to tell when the component or its buttons were active.
 **Action:** Always add keyboard focus states (`focus-within` on wrappers and `focus-visible` on internal buttons) to custom input components.
+## 2026-11-10 - [Add keyboard focus states to StashManager buttons]
+**Learning:** Custom-styled buttons in `StashManager` lacked keyboard focus styling and `type="button"`, and row action buttons inside `.stash-actions` remained hidden (`opacity: 0`) on keyboard focus because visibility only triggered on `:hover`. In Tailwind arbitrary values (`[...]`), unescaped spaces split class tokens and silently drop utilities.
+**Action:** Use `var(--oterm-accent)` for `:focus-visible` outlines/rings without spaces inside Tailwind `[...]` classes (`focus-visible:ring-[var(--oterm-accent)]/50`), pair hover-revealed action containers with `:focus-within`, and set explicit `type="button"` on non-submit buttons.
